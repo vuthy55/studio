@@ -51,7 +51,6 @@ const pronunciationAssessmentFlow = ai.defineFlow(
     const base64Data = audioDataUri.substring(audioDataUri.indexOf(',') + 1);
     const audioBuffer = Buffer.from(base64Data, 'base64');
     
-    // Create a push stream from the audio buffer.
     const pushStream = sdk.AudioInputStream.createPushStream();
     pushStream.write(audioBuffer);
     pushStream.close();
@@ -72,14 +71,13 @@ const pronunciationAssessmentFlow = ai.defineFlow(
     return new Promise((resolve, reject) => {
       recognizer.recognizeOnceAsync(result => {
         recognizer.close();
-        if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+        if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
           const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
           const accuracyScore = assessment.accuracyScore;
           const fluencyScore = assessment.fluencyScore;
           const completenessScore = assessment.completenessScore;
           const pronScore = assessment.pronScore;
           
-          // Define "passing" as having an accuracy score of 80 or higher.
           const passed = accuracyScore >= 80;
 
           resolve({
@@ -91,12 +89,26 @@ const pronunciationAssessmentFlow = ai.defineFlow(
           });
         } else {
           console.error(`Recognition failed. Reason: ${result.reason}, Details: ${result.errorDetails}`);
-          reject(new Error(`Speech recognition failed: ${result.errorDetails}`));
+          // Resolve with a default failure object to satisfy the schema
+          resolve({
+            accuracyScore: 0,
+            fluencyScore: 0,
+            completenessScore: 0,
+            pronScore: 0,
+            passed: false,
+          });
         }
       }, err => {
         recognizer.close();
         console.error(`Recognition error: ${err}`);
-        reject(new Error(`Speech recognition error: ${err}`));
+        // Rejecting will cause a Genkit error. Instead, resolve with a failure state.
+        resolve({
+            accuracyScore: 0,
+            fluencyScore: 0,
+            completenessScore: 0,
+            pronScore: 0,
+            passed: false,
+        });
       });
     });
   }
