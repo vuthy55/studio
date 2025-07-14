@@ -243,7 +243,7 @@ export default function LearnPage() {
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div className="flex justify-between items-center w-full">
                                                     <div>
-                                                        <p className="font-semibold text-md">{fromText}</p>
+                                                        <p className="font-semibold text-lg">{fromText}</p>
                                                         {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
