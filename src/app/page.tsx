@@ -69,16 +69,6 @@ export default function LearnPage() {
             }
         }
         
-        if (!process.env.NEXT_PUBLIC_AZURE_TTS_KEY || !process.env.NEXT_PUBLIC_AZURE_TTS_REGION) {
-            console.error("Azure TTS credentials not configured.");
-            toast({
-                variant: 'destructive',
-                title: 'Audio Unavailable',
-                description: 'Audio playback for this language requires Azure credentials which are not configured.',
-            });
-            return;
-        }
-
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US' });
             const audio = new Audio(response.audioDataUri);
@@ -88,7 +78,7 @@ export default function LearnPage() {
             toast({
                 variant: 'destructive',
                 title: 'Error generating audio',
-                description: 'Could not generate audio for the selected language.',
+                description: 'Could not generate audio for the selected language. Credentials might be missing.',
             });
         }
     };
