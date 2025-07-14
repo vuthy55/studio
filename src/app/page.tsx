@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, ArrowRightLeft } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
@@ -21,27 +21,63 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Phrase } from '@/lib/data';
+import { generateSpeech } from '@/ai/flows/tts-flow';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LearnPage() {
     const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
     const [toLanguage, setToLanguage] = useState<LanguageCode>('thai');
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const { isMobile } = useSidebar();
+    const { toast } = useToast();
+    const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+
+    useEffect(() => {
+        setSpeechSynthesis(window.speechSynthesis);
+    }, []);
+
+    const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
+        english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
+        malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
+        chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
+    };
 
     const handleSwitchLanguages = () => {
         setFromLanguage(toLanguage);
         setToLanguage(fromLanguage);
     };
 
-    const handlePlayAudio = (text: string, lang: LanguageCode) => {
-        const langMap: Partial<Record<LanguageCode, string>> = {
-            english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
-            malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
-            chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
-        };
-        const voiceLang = langMap[lang] || 'en-US';
-        const audio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${voiceLang}&client=tw-ob`);
-        audio.play().catch(e => console.error("Audio playback failed.", e));
+    const handlePlayAudio = async (text: string, lang: LanguageCode) => {
+        const locale = languageToLocaleMap[lang];
+        if (!locale) {
+            console.error("Locale not found for language:", lang);
+            return;
+        }
+
+        if (speechSynthesis) {
+            const voices = speechSynthesis.getVoices();
+            const voice = voices.find(v => v.lang === locale);
+            if (voice) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = voice;
+                utterance.lang = locale;
+                speechSynthesis.speak(utterance);
+                return;
+            }
+        }
+
+        try {
+            const response = await generateSpeech({ text, lang: locale });
+            const audio = new Audio(response.audioDataUri);
+            audio.play().catch(e => console.error("Audio playback failed.", e));
+        } catch (error) {
+            console.error("TTS generation failed.", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error generating audio',
+                description: 'Could not generate audio for the selected language.',
+            });
+        }
     };
 
     const getTranslation = (phrase: Phrase, lang: LanguageCode) => {
@@ -115,7 +151,7 @@ export default function LearnPage() {
                                         <Tooltip key={topic.id}>
                                             <TooltipTrigger asChild>
                                                 <Button
-                                                    variant={selectedTopic.id === topic.id ? "default" : "ghost"}
+                                                    variant={selectedTopic.id === topic.id ? "default" : "secondary"}
                                                     className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-shadow data-[variant=default]:bg-primary"
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
