@@ -115,11 +115,11 @@ export default function LearnPage() {
                                         <Tooltip key={topic.id}>
                                             <TooltipTrigger asChild>
                                                 <Button
-                                                    variant={selectedTopic.id === topic.id ? "default" : "secondary"}
-                                                    className="h-24 w-full flex flex-col gap-2 justify-center items-center text-center p-4 shadow-sm hover:shadow-md transition-shadow"
+                                                    variant={selectedTopic.id === topic.id ? "secondary" : "ghost"}
+                                                    className="h-24 w-full flex flex-col gap-2 justify-center items-center text-center p-2 shadow-sm hover:shadow-md transition-shadow"
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
-                                                    <topic.icon className="h-14 w-14" />
+                                                    <topic.icon className="h-16 w-16" />
                                                     <span className="sr-only">{topic.title}</span>
                                                 </Button>
                                             </TooltipTrigger>
@@ -132,7 +132,7 @@ export default function LearnPage() {
                                 </TooltipProvider>
 
                                 <div>
-                                    <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4">
+                                    <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4 mt-6">
                                         <selectedTopic.icon className="h-6 w-6 text-accent" /> 
                                         {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
                                     </h3>
