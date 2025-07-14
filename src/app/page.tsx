@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from '@/components/ui/textarea';
 import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
@@ -31,7 +32,6 @@ export default function LearnPage() {
     const [translatedText, setTranslatedText] = useState('');
     const [translatedPronunciation, setTranslatedPronunciation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
-    const [currentView, setCurrentView] = useState('phrasebook');
 
 
     useEffect(() => {
@@ -184,160 +184,162 @@ export default function LearnPage() {
             
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-muted-foreground">Select a Topic or Feature</label>
-                        <Select 
-                            value={currentView === 'phrasebook' ? selectedTopic.id : 'live-translation'} 
-                            onValueChange={(value) => {
-                                if (value === 'live-translation') {
-                                    setCurrentView('live-translation');
-                                } else {
-                                    const topic = phrasebook.find(t => t.id === value);
-                                    if (topic) {
-                                        setSelectedTopic(topic);
-                                    }
-                                    setCurrentView('phrasebook');
-                                }
-                            }}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a topic" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {phrasebook.map(topic => (
-                                    <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
-                                ))}
-                                <SelectItem value="live-translation">Live Translation</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <Tabs defaultValue="phrasebook" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="phrasebook">Phrasebook</TabsTrigger>
+                            <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="phrasebook">
+                            <div className="space-y-4 pt-6">
+                                <div className="space-y-2">
+                                     <label className="text-sm font-medium text-muted-foreground">Select a Topic</label>
+                                    <Select 
+                                        value={selectedTopic.id} 
+                                        onValueChange={(value) => {
+                                            const topic = phrasebook.find(t => t.id === value);
+                                            if (topic) {
+                                                setSelectedTopic(topic);
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a topic" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {phrasebook.map(topic => (
+                                                <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4 mt-6">
+                                        <selectedTopic.icon className="h-6 w-6 text-accent" /> 
+                                        {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {selectedTopic.phrases.map((phrase) => {
+                                            const fromText = getTranslation(phrase, fromLanguage);
+                                            const fromPronunciation = getPronunciation(phrase, fromLanguage);
+                                            const toText = getTranslation(phrase, toLanguage);
+                                            const toPronunciation = getPronunciation(phrase, toLanguage);
+                                            
+                                            const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
+                                            const fromAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, fromLanguage) : '';
+                                            const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
+                                            const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
 
-                    {currentView === 'phrasebook' ? (
-                        <div>
-                            <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4 mt-6">
-                                <selectedTopic.icon className="h-6 w-6 text-accent" /> 
-                                {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
-                            </h3>
-                            <div className="space-y-4">
-                                {selectedTopic.phrases.map((phrase) => {
-                                    const fromText = getTranslation(phrase, fromLanguage);
-                                    const fromPronunciation = getPronunciation(phrase, fromLanguage);
-                                    const toText = getTranslation(phrase, toLanguage);
-                                    const toPronunciation = getPronunciation(phrase, toLanguage);
-                                    
-                                    const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
-                                    const fromAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, fromLanguage) : '';
-                                    const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
-                                    const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
-
-                                    return (
-                                    <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
-                                        <div className="flex justify-between items-center w-full">
-                                            <div>
-                                                <p className="font-semibold text-lg">{fromText}</p>
-                                                {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
-                                            </div>
-                                            <div className="flex items-center shrink-0">
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)}>
-                                                    <Volume2 className="h-5 w-5" />
-                                                    <span className="sr-only">Play audio</span>
-                                                </Button>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center w-full">
-                                             <div>
-                                                <p className="font-bold text-lg text-primary">{toText}</p>
-                                                {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
-                                            </div>
-                                            <div className="flex items-center shrink-0">
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
-                                                    <Volume2 className="h-5 w-5" />
-                                                    <span className="sr-only">Play audio</span>
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {phrase.answer && (
-                                            <>
-                                                <div className="border-t border-dashed border-border my-2"></div>
+                                            return (
+                                            <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div className="flex justify-between items-center w-full">
                                                     <div>
-                                                        <p className="font-semibold text-lg">{fromAnswerText}</p>
-                                                        {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
+                                                        <p className="font-semibold text-lg">{fromText}</p>
+                                                        {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)}>
+                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)}>
                                                             <Volume2 className="h-5 w-5" />
                                                             <span className="sr-only">Play audio</span>
                                                         </Button>
                                                     </div>
                                                 </div>
                                                 <div className="flex justify-between items-center w-full">
-                                                    <div>
-                                                        <p className="font-bold text-lg text-primary">{toAnswerText}</p>
-                                                        {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
+                                                     <div>
+                                                        <p className="font-bold text-lg text-primary">{toText}</p>
+                                                        {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
+                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
                                                             <Volume2 className="h-5 w-5" />
                                                             <span className="sr-only">Play audio</span>
                                                         </Button>
                                                     </div>
                                                 </div>
-                                            </>
-                                        )}
-                                    </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="space-y-4 pt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-muted-foreground">{fromLanguageDetails?.label}</label>
-                                    <Textarea 
-                                        placeholder={`Enter text in ${fromLanguageDetails?.label}...`}
-                                        className="min-h-[150px] resize-none"
-                                        value={inputText}
-                                        onChange={(e) => setInputText(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-muted-foreground">{toLanguageDetails?.label}</label>
-                                    <div className="relative border rounded-md min-h-[150px] w-full bg-background px-3 py-2">
-                                        <div className="flex flex-col h-full">
-                                            <p className="flex-grow text-base md:text-sm text-foreground">
-                                              {isTranslating ? 'Translating...' : translatedText || <span className="text-muted-foreground">Translation</span>}
-                                            </p>
-                                            {translatedPronunciation && !isTranslating && (
-                                                <p className="text-sm text-muted-foreground italic mt-2">{translatedPronunciation}</p>
-                                            )}
-                                        </div>
-                                        <div className="absolute top-2 right-2 flex flex-col space-y-2">
-                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)}>
-                                                <Volume2 className="h-5 w-5" />
-                                                <span className="sr-only">Play audio</span>
-                                            </Button>
-                                             <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button size="icon" variant="ghost" disabled>
-                                                            <Mic className="h-5 w-5" />
-                                                            <span className="sr-only">Use microphone</span>
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>Speech input coming soon!</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-                                        </div>
+
+                                                {phrase.answer && (
+                                                    <>
+                                                        <div className="border-t border-dashed border-border my-2"></div>
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <div>
+                                                                <p className="font-semibold text-lg">{fromAnswerText}</p>
+                                                                {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
+                                                            </div>
+                                                            <div className="flex items-center shrink-0">
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)}>
+                                                                    <Volume2 className="h-5 w-5" />
+                                                                    <span className="sr-only">Play audio</span>
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <div>
+                                                                <p className="font-bold text-lg text-primary">{toAnswerText}</p>
+                                                                {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
+                                                            </div>
+                                                            <div className="flex items-center shrink-0">
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
+                                                                    <Volume2 className="h-5 w-5" />
+                                                                    <span className="sr-only">Play audio</span>
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        </TabsContent>
+                        <TabsContent value="live-translation">
+                            <div className="space-y-4 pt-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-muted-foreground">{fromLanguageDetails?.label}</label>
+                                        <Textarea 
+                                            placeholder={`Enter text in ${fromLanguageDetails?.label}...`}
+                                            className="min-h-[150px] resize-none"
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-muted-foreground">{toLanguageDetails?.label}</label>
+                                        <div className="relative border rounded-md min-h-[150px] w-full bg-background px-3 py-2">
+                                            <div className="flex flex-col h-full">
+                                                <p className="flex-grow text-base md:text-sm text-foreground">
+                                                  {isTranslating ? 'Translating...' : translatedText || <span className="text-muted-foreground">Translation</span>}
+                                                </p>
+                                                {translatedPronunciation && !isTranslating && (
+                                                    <p className="text-sm text-muted-foreground italic mt-2">{translatedPronunciation}</p>
+                                                )}
+                                            </div>
+                                            <div className="absolute top-2 right-2 flex flex-col space-y-2">
+                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)}>
+                                                    <Volume2 className="h-5 w-5" />
+                                                    <span className="sr-only">Play audio</span>
+                                                </Button>
+                                                 <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" disabled>
+                                                                <Mic className="h-5 w-5" />
+                                                                <span className="sr-only">Use microphone</span>
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Speech input coming soon!</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
         </div>
