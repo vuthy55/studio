@@ -7,7 +7,7 @@
  * - GenerateSpeechOutput - The return type for the generateSpeech function.
  */
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit/zod';
+import {z} from 'zod';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 const GenerateSpeechInputSchema = z.object({
