@@ -136,20 +136,20 @@ export default function LearnPage() {
         }
     };
 
-    const getTranslation = (phrase: Phrase, lang: LanguageCode) => {
+    const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
-            return phrase.english;
+            return textObj.english;
         }
-        return phrase.translations[lang] || phrase.english;
+        return textObj.translations[lang] || textObj.english;
     }
 
-    const getPronunciation = (phrase: Phrase, lang: LanguageCode) => {
+    const getPronunciation = (textObj: { pronunciations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
             return null;
         }
-        return phrase.pronunciations[lang];
+        return textObj.pronunciations[lang];
     }
-
+    
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
@@ -241,6 +241,12 @@ export default function LearnPage() {
                                         const fromPronunciation = getPronunciation(phrase, fromLanguage);
                                         const toText = getTranslation(phrase, toLanguage);
                                         const toPronunciation = getPronunciation(phrase, toLanguage);
+                                        
+                                        const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
+                                        const fromAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, fromLanguage) : '';
+                                        const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
+                                        const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
+
                                         return (
                                         <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                             <div className="flex justify-between items-center w-full">
@@ -249,19 +255,6 @@ export default function LearnPage() {
                                                     {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                 </div>
                                                 <div className="flex items-center shrink-0">
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" disabled>
-                                                                    <Mic className="h-5 w-5" />
-                                                                    <span className="sr-only">Use microphone</span>
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Speech input coming soon!</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
                                                     <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)}>
                                                         <Volume2 className="h-5 w-5" />
                                                         <span className="sr-only">Play audio</span>
@@ -274,25 +267,42 @@ export default function LearnPage() {
                                                     {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                 </div>
                                                 <div className="flex items-center shrink-0">
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" disabled>
-                                                                    <Mic className="h-5 w-5" />
-                                                                    <span className="sr-only">Use microphone</span>
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Speech input coming soon!</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
                                                     <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
                                                         <Volume2 className="h-5 w-5" />
                                                         <span className="sr-only">Play audio</span>
                                                     </Button>
                                                 </div>
                                             </div>
+
+                                            {phrase.answer && (
+                                                <>
+                                                    <div className="border-t border-dashed border-border my-2"></div>
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <div>
+                                                            <p className="font-semibold text-lg">{fromAnswerText}</p>
+                                                            {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
+                                                        </div>
+                                                        <div className="flex items-center shrink-0">
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)}>
+                                                                <Volume2 className="h-5 w-5" />
+                                                                <span className="sr-only">Play audio</span>
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <div>
+                                                            <p className="font-bold text-lg text-primary">{toAnswerText}</p>
+                                                            {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
+                                                        </div>
+                                                        <div className="flex items-center shrink-0">
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
+                                                                <Volume2 className="h-5 w-5" />
+                                                                <span className="sr-only">Play audio</span>
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                         )
                                     })}
@@ -354,5 +364,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
-    

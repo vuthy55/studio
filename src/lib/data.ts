@@ -20,11 +20,15 @@ export const languages = [
 
 export type LanguageCode = typeof languages[number]['value'];
 
-export type Phrase = {
-    id: string;
+type TranslatableText = {
     english: string;
     translations: Partial<Record<LanguageCode, string>>;
     pronunciations: Partial<Record<LanguageCode, string>>;
+}
+
+export type Phrase = TranslatableText & {
+    id: string;
+    answer?: TranslatableText;
 }
 
 export type Topic = {
@@ -117,19 +121,119 @@ export const phrasebook: Topic[] = [
     },
     {
         id: 'questions',
-        title: 'Basic Questions',
+        title: 'Basic Questions/Answers',
         icon: MessageCircleQuestion,
         phrases: [
-            { id: 'q-1', english: 'What is your name?', translations: { thai: 'คุณชื่ออะไร', vietnamese: 'Tên bạn là gì?', khmer: 'តើ​អ្នក​មាន​ឈ្មោះ​អ្វី?', spanish: '¿Cómo te llamas?', french: 'Comment tu t’appelles?' }, pronunciations: { thai: 'khun-chue-a-rai', vietnamese: 'ten ban la zee?', khmer: 'tae neak mean chmuah ey?', spanish: 'ko-mo te ya-mas?', french: 'ko-mon tu ta-pel?' } },
-            { id: 'q-2', english: 'How much is this?', translations: { thai: 'ราคาเท่าไหร่', vietnamese: 'Cái này giá bao nhiêu?', khmer: 'តើ​នេះ​តម្លៃ​ប៉ុន្មាន?', spanish: '¿Cuánto cuesta esto?', french: 'Combien ça coûte?' }, pronunciations: { thai: 'raa-khaa-thao-rai', vietnamese: 'kai nai ya bao nyu?', khmer: 'tae nih tamlay ponman?', spanish: 'kwan-to kwes-ta es-to?', french: 'kom-byan sa koot?' } },
-            { id: 'q-3', english: 'Do you speak English?', translations: { thai: 'คุณพูดภาษาอังกฤษได้ไหม', vietnamese: 'Bạn có nói được tiếng Anh không?', khmer: 'តើ​អ្នក​និយាយ​ភាសា​អង់គ្លេស​ទេ?', spanish: '¿Hablas inglés?', french: 'Parlez-vous anglais?' }, pronunciations: { thai: 'khun-phuut-phaa-saa-ang-grit-dai-mai', vietnamese: 'ban ko noi du-uhk tyeng an khong?', khmer: 'tae neak ni-yeay phea-sa ang-kles te?', spanish: 'ab-las een-gles?', french: 'par-lay voo ong-gleh?' } },
-            { id: 'q-4', english: 'Can you help me?', translations: { thai: 'คุณช่วยฉันได้ไหม', vietnamese: 'Bạn có thể giúp tôi không?', khmer: 'តើអ្នកអាចជួយខ្ញុំបានទេ?', spanish: '¿Puedes ayudarme?', french: 'Pouvez-vous m’aider?' }, pronunciations: { thai: 'khun-chuay-chan-dai-mai', vietnamese: 'ban ko tey yup toy khong?', khmer: 'tae neak ach chuoy khnom ban te?', spanish: 'pwe-des a-yoo-dar-me?', french: 'poo-vay voo may-day?' } },
-            { id: 'q-5', english: 'Where are you from?', translations: { thai: 'คุณมาจากไหน', vietnamese: 'Bạn từ đâu đến?', khmer: 'តើ​អ្នក​មកពីណា?', spanish: '¿De dónde eres?', french: 'D’où venez-vous?' }, pronunciations: { thai: 'khun-maa-jaak-nai', vietnamese: 'ban tu dau den?', khmer: 'tae neak mok pi na?', spanish: 'de don-de e-res?', french: 'doo ve-nay voo?' } },
-            { id: 'q-6', english: 'What time is it?', translations: { thai: 'กี่โมงแล้ว', vietnamese: 'Mấy giờ rồi?', khmer: 'ម៉ោង​ប៉ុន្មាន​ហើយ?', spanish: '¿Qué hora es?', french: 'Quelle heure est-il?' }, pronunciations: { thai: 'gèe mohng láew', vietnamese: 'may yuh roy?', khmer: 'maong ponman haey?', spanish: 'ke o-ra es?', french: 'kel uhr e-til?' } },
-            { id: 'q-7', english: 'Can you repeat that?', translations: { thai: 'พูดอีกทีได้ไหม', vietnamese: 'Bạn có thể nhắc lại được không?', khmer: 'និយាយម្តងទៀតបានទេ?', spanish: '¿Puede repetir, por favor?', french: 'Pouvez-vous répéter, s\'il vous plaît?' }, pronunciations: { thai: 'pôot èek tee dâi măi', vietnamese: 'ban co the nhac lai duoc khong?', khmer: 'niyeay mdong tiet ban te?', spanish: 'pwe-de re-pe-teer, por fa-vor?', french: 'poo-vay voo ray-pay-tay, seel voo pleh?' } },
-            { id: 'q-8', english: 'I don\'t understand', translations: { thai: 'ฉันไม่เข้าใจ', vietnamese: 'Tôi không hiểu', khmer: 'ខ្ញុំ​មិន​យល់​ទេ', spanish: 'No entiendo', french: 'Je ne comprends pas' }, pronunciations: { thai: 'chăn mâi kâo jai', vietnamese: 'toy khong hie-u', khmer: 'khnom min yol te', spanish: 'no en-tyen-do', french: 'zhuh nuh kom-pron pa' } },
-            { id: 'q-9', english: 'Where can I find...?', translations: { thai: 'ฉันจะหา...ได้ที่ไหน', vietnamese: 'Tôi có thể tìm... ở đâu?', khmer: 'តើខ្ញុំអាចរក...នៅឯណា?', spanish: '¿Dónde puedo encontrar...?', french: 'Où puis-je trouver...?' }, pronunciations: { thai: 'chăn jà hăa...dâi têe năi', vietnamese: 'toy co the tim... o dau?', khmer: 'tae khnom ach rok... nov-ena?', spanish: 'don-de pwe-do en-kon-trar...?', french: 'oo pweezh troo-vay...?' } },
-            { id: 'q-10', english: 'What is this?', translations: { thai: 'นี่คืออะไร', vietnamese: 'Cái này là gì?', khmer: 'តើនេះជាអ្វី?', spanish: '¿Qué es esto?', french: 'Qu\'est-ce que c\'est?' }, pronunciations: { thai: 'nêe keu à-rai', vietnamese: 'kai nai la yi?', khmer: 'tae nih chea avei?', spanish: 'ke es es-to?', french: 'kes-kuh-say?' } },
+            { 
+                id: 'q-1', 
+                english: 'What is your name?', 
+                translations: { thai: 'คุณชื่ออะไร', vietnamese: 'Tên bạn là gì?', khmer: 'តើ​អ្នក​មាន​ឈ្មោះ​អ្វី?', spanish: '¿Cómo te llamas?', french: 'Comment tu t’appelles?' }, 
+                pronunciations: { thai: 'khun-chue-a-rai', vietnamese: 'ten ban la zee?', khmer: 'tae neak mean chmuah ey?', spanish: 'ko-mo te ya-mas?', french: 'ko-mon tu ta-pel?' },
+                answer: {
+                    english: 'My name is...',
+                    translations: { thai: 'ฉันชื่อ...', vietnamese: 'Tên tôi là...', khmer: 'ខ្ញុំ​ឈ្មោះ...', spanish: 'Me llamo...', french: 'Je m’appelle...' },
+                    pronunciations: { thai: 'chan chue...', vietnamese: 'ten toy la...', khmer: 'khnom chmuah...', spanish: 'me ya-mo...', french: 'zhuh ma-pel...' }
+                }
+            },
+            { 
+                id: 'q-2', 
+                english: 'How much is this?', 
+                translations: { thai: 'ราคาเท่าไหร่', vietnamese: 'Cái này giá bao nhiêu?', khmer: 'តើ​នេះ​តម្លៃ​ប៉ុន្មាន?', spanish: '¿Cuánto cuesta esto?', french: 'Combien ça coûte?' }, 
+                pronunciations: { thai: 'raa-khaa-thao-rai', vietnamese: 'kai nai ya bao nyu?', khmer: 'tae nih tamlay ponman?', spanish: 'kwan-to kwes-ta es-to?', french: 'kom-byan sa koot?' },
+                answer: {
+                    english: 'It costs...',
+                    translations: { thai: 'ราคา...', vietnamese: 'Nó giá...', khmer: 'វា​មាន​តម្លៃ...', spanish: 'Cuesta...', french: 'Ça coûte...' },
+                    pronunciations: { thai: 'raa-khaa...', vietnamese: 'no ya...', khmer: 'vea mean tamlay...', spanish: 'kwes-ta...', french: 'sa koot...' }
+                }
+            },
+            { 
+                id: 'q-3', 
+                english: 'Do you speak English?', 
+                translations: { thai: 'คุณพูดภาษาอังกฤษได้ไหม', vietnamese: 'Bạn có nói được tiếng Anh không?', khmer: 'តើ​អ្នក​និយាយ​ភាសា​អង់គ្លេស​ទេ?', spanish: '¿Hablas inglés?', french: 'Parlez-vous anglais?' }, 
+                pronunciations: { thai: 'khun-phuut-phaa-saa-ang-grit-dai-mai', vietnamese: 'ban ko noi du-uhk tyeng an khong?', khmer: 'tae neak ni-yeay phea-sa ang-kles te?', spanish: 'ab-las een-gles?', french: 'par-lay voo ong-gleh?' },
+                answer: {
+                    english: 'Yes, a little.',
+                    translations: { thai: 'ใช่ นิดหน่อย', vietnamese: 'Vâng, một chút', khmer: 'បាទ បន្តិចបន្តួច', spanish: 'Sí, un poco.', french: 'Oui, un peu.' },
+                    pronunciations: { thai: 'chai, nit-noi', vietnamese: 'vung, moht choot', khmer: 'baat, bon-tich-bon-tuoch', spanish: 'see, oon po-ko', french: 'wee, an puh' }
+                }
+            },
+            { 
+                id: 'q-4', 
+                english: 'Can you help me?', 
+                translations: { thai: 'คุณช่วยฉันได้ไหม', vietnamese: 'Bạn có thể giúp tôi không?', khmer: 'តើអ្នកអាចជួយខ្ញុំបានទេ?', spanish: '¿Puedes ayudarme?', french: 'Pouvez-vous m’aider?' }, 
+                pronunciations: { thai: 'khun-chuay-chan-dai-mai', vietnamese: 'ban ko tey yup toy khong?', khmer: 'tae neak ach chuoy khnom ban te?', spanish: 'pwe-des a-yoo-dar-me?', french: 'poo-vay voo may-day?' },
+                answer: {
+                    english: 'Of course.',
+                    translations: { thai: 'แน่นอน', vietnamese: 'Dĩ nhiên', khmer: 'ពិតប្រាកដ​ណាស់', spanish: 'Por supuesto.', french: 'Bien sûr.' },
+                    pronunciations: { thai: 'nâe-non', vietnamese: 'yee nyen', khmer: 'pit-bra-ko-nas', spanish: 'por soo-pwes-to', french: 'byan soor' }
+                }
+            },
+            { 
+                id: 'q-5', 
+                english: 'Where are you from?', 
+                translations: { thai: 'คุณมาจากไหน', vietnamese: 'Bạn từ đâu đến?', khmer: 'តើ​អ្នក​មកពីណា?', spanish: '¿De dónde eres?', french: 'D’où venez-vous?' }, 
+                pronunciations: { thai: 'khun-maa-jaak-nai', vietnamese: 'ban tu dau den?', khmer: 'tae neak mok pi na?', spanish: 'de don-de e-res?', french: 'doo ve-nay voo?' },
+                answer: {
+                    english: 'I am from...',
+                    translations: { thai: 'ฉันมาจาก...', vietnamese: 'Tôi đến từ...', khmer: 'ខ្ញុំ​មកពី...', spanish: 'Soy de...', french: 'Je viens de...' },
+                    pronunciations: { thai: 'chan maa jàak...', vietnamese: 'toy den tu...', khmer: 'khnom mok pi...', spanish: 'soy de...', french: 'zhuh vyan duh...' }
+                }
+            },
+            { 
+                id: 'q-6', 
+                english: 'What time is it?', 
+                translations: { thai: 'กี่โมงแล้ว', vietnamese: 'Mấy giờ rồi?', khmer: 'ម៉ោង​ប៉ុន្មាន​ហើយ?', spanish: '¿Qué hora es?', french: 'Quelle heure est-il?' }, 
+                pronunciations: { thai: 'gèe mohng láew', vietnamese: 'may yuh roy?', khmer: 'maong ponman haey?', spanish: 'ke o-ra es?', french: 'kel uhr e-til?' },
+                answer: {
+                    english: 'It is...',
+                    translations: { thai: '...', vietnamese: 'Bây giờ là...', khmer: 'គឺ​ម៉ោង...', spanish: 'Son las...', french: 'Il est...' },
+                    pronunciations: { thai: '...', vietnamese: 'bay gio la...', khmer: 'keu maong...', spanish: 'son las...', french: 'il ay...' }
+                }
+            },
+            { 
+                id: 'q-7', 
+                english: 'Can you repeat that?', 
+                translations: { thai: 'พูดอีกทีได้ไหม', vietnamese: 'Bạn có thể nhắc lại được không?', khmer: 'និយាយម្តងទៀតបានទេ?', spanish: '¿Puede repetir, por favor?', french: 'Pouvez-vous répéter, s\'il vous plaît?' }, 
+                pronunciations: { thai: 'pôot èek tee dâi măi', vietnamese: 'ban co the nhac lai duoc khong?', khmer: 'niyeay mdong tiet ban te?', spanish: 'pwe-de re-pe-teer, por fa-vor?', french: 'poo-vay voo ray-pay-tay, seel voo pleh?' },
+                 answer: {
+                    english: 'Yes, of course.',
+                    translations: { thai: 'ได้ครับ/ค่ะ', vietnamese: 'Vâng, dĩ nhiên.', khmer: 'បាទ ពិតប្រាកដ​ណាស់', spanish: 'Sí, por supuesto.', french: 'Oui, bien sûr.' },
+                    pronunciations: { thai: 'dâi kráp/kâ', vietnamese: 'vung, yee nyen', khmer: 'baat, pit-bra-ko-nas', spanish: 'see, por soo-pwes-to', french: 'wee, byan soor' }
+                }
+            },
+            { 
+                id: 'q-8', 
+                english: 'I don\'t understand', 
+                translations: { thai: 'ฉันไม่เข้าใจ', vietnamese: 'Tôi không hiểu', khmer: 'ខ្ញុំ​មិន​យល់​ទេ', spanish: 'No entiendo', french: 'Je ne comprends pas' }, 
+                pronunciations: { thai: 'chăn mâi kâo jai', vietnamese: 'toy khong hie-u', khmer: 'khnom min yol te', spanish: 'no en-tyen-do', french: 'zhuh nuh kom-pron pa' },
+                answer: {
+                    english: 'Let me explain again.',
+                    translations: { thai: 'ให้ฉันอธิบายอีกครั้ง', vietnamese: 'Để tôi giải thích lại.', khmer: 'ឱ្យ​ខ្ញុំ​ពន្យល់​ម្តង​ទៀត', spanish: 'Déjame explicarte de nuevo.', french: 'Laissez-moi vous expliquer à nouveau.' },
+                    pronunciations: { thai: 'hâi chăn à-tí-baai èek kráng', vietnamese: 'de toy yai thich lai', khmer: 'aoy khnom ponyol mdong tiet', spanish: 'de-ha-me eks-pli-kar-te de nwe-vo', french: 'lay-say mwa vooz eks-plee-kay a noo-vo' }
+                }
+            },
+            { 
+                id: 'q-9', 
+                english: 'Where can I find...?', 
+                translations: { thai: 'ฉันจะหา...ได้ที่ไหน', vietnamese: 'Tôi có thể tìm... ở đâu?', khmer: 'តើខ្ញុំអាចរក...នៅឯណា?', spanish: '¿Dónde puedo encontrar...?', french: 'Où puis-je trouver...?' }, 
+                pronunciations: { thai: 'chăn jà hăa...dâi têe năi', vietnamese: 'toy co the tim... o dau?', khmer: 'tae khnom ach rok... nov-ena?', spanish: 'don-de pwe-do en-kon-trar...?', french: 'oo pweezh troo-vay...?' },
+                answer: {
+                    english: 'It is over there.',
+                    translations: { thai: 'มันอยู่ทางนั้น', vietnamese: 'Nó ở đằng kia.', khmer: 'វា​នៅ​ទីនោះ', spanish: 'Está por allá.', french: 'C\'est par là.' },
+                    pronunciations: { thai: 'man yòo taang nán', vietnamese: 'no uh dang kia', khmer: 'vea nov ti-nuh', spanish: 'es-ta por a-ya', french: 'say par la' }
+                }
+            },
+            { 
+                id: 'q-10', 
+                english: 'What is this?', 
+                translations: { thai: 'นี่คืออะไร', vietnamese: 'Cái này là gì?', khmer: 'តើនេះជាអ្វី?', spanish: '¿Qué es esto?', french: 'Qu\'est-ce que c\'est?' }, 
+                pronunciations: { thai: 'nêe keu à-rai', vietnamese: 'kai nai la yi?', khmer: 'tae nih chea avei?', spanish: 'ke es es-to?', french: 'kes-kuh-say?' },
+                 answer: {
+                    english: 'This is a...',
+                    translations: { thai: 'นี่คือ...', vietnamese: 'Đây là...', khmer: 'នេះ​គឺជា...', spanish: 'Esto es un/una...', french: 'C\'est un/une...' },
+                    pronunciations: { thai: 'nêe keu...', vietnamese: 'day la...', khmer: 'nih keu-chea...', spanish: 'es-to es oon/oo-na...', french: 'sayt an/ewn...' }
+                }
+            },
         ]
     }
 ];
