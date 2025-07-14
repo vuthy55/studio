@@ -88,7 +88,7 @@ export default function LearnPage() {
                 
                 <div className="flex-1 w-full">
                     <label className="text-sm font-medium text-muted-foreground">To</label>
-                    <Select value={toLanguage} onValuechange={(value) => setToLanguage(value as LanguageCode)}>
+                    <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
                         <SelectTrigger>
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -109,6 +109,7 @@ export default function LearnPage() {
                     <AccordionContent>
                         <Card className="shadow-lg">
                             <CardContent className="space-y-6 pt-6">
+                                <TooltipProvider>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                                     {phrasebook.map((topic) => (
                                         <Tooltip key={topic.id}>
@@ -118,7 +119,7 @@ export default function LearnPage() {
                                                     className="h-24 w-full flex flex-col gap-2 justify-center items-center text-center p-4 shadow-sm hover:shadow-md transition-shadow"
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
-                                                    <topic.icon className="h-10 w-10 text-primary" />
+                                                    <topic.icon className="h-14 w-14" />
                                                     <span className="sr-only">{topic.title}</span>
                                                 </Button>
                                             </TooltipTrigger>
@@ -128,6 +129,7 @@ export default function LearnPage() {
                                         </Tooltip>
                                     ))}
                                 </div>
+                                </TooltipProvider>
 
                                 <div>
                                     <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4">
