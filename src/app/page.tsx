@@ -101,13 +101,7 @@ export default function LearnPage() {
                     </AccordionTrigger>
                     <AccordionContent>
                         <Card className="shadow-lg">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-3 font-headline">
-                                    <selectedTopic.icon className="h-6 w-6 text-accent" /> 
-                                    {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
+                            <CardContent className="space-y-6 pt-6">
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                                     {phrasebook.map((topic) => (
                                         <Button
@@ -121,23 +115,30 @@ export default function LearnPage() {
                                         </Button>
                                     ))}
                                 </div>
-                                <div className="space-y-3">
-                                    {selectedTopic.phrases.map((phrase) => {
-                                        const fromText = getTranslation(phrase, fromLanguage);
-                                        const toText = getTranslation(phrase, toLanguage);
-                                        return (
-                                        <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex justify-between items-center transition-all duration-300 hover:bg-secondary/70 border">
-                                            <div>
-                                                <p className="font-semibold text-lg text-primary-foreground">{toText}</p>
-                                                <p className="text-sm text-muted-foreground">{fromText}</p>
+
+                                <div>
+                                    <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4">
+                                        <selectedTopic.icon className="h-6 w-6 text-accent" /> 
+                                        {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {selectedTopic.phrases.map((phrase) => {
+                                            const fromText = getTranslation(phrase, fromLanguage);
+                                            const toText = getTranslation(phrase, toLanguage);
+                                            return (
+                                            <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex justify-between items-center transition-all duration-300 hover:bg-secondary/70 border">
+                                                <div>
+                                                    <p className="font-semibold text-lg text-primary-foreground">{toText}</p>
+                                                    <p className="text-sm text-muted-foreground">{fromText}</p>
+                                                </div>
+                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
+                                                    <Volume2 className="h-5 w-5 text-accent" />
+                                                    <span className="sr-only">Play audio</span>
+                                                </Button>
                                             </div>
-                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
-                                                <Volume2 className="h-5 w-5 text-accent" />
-                                                <span className="sr-only">Play audio</span>
-                                            </Button>
-                                        </div>
-                                        )
-                                    })}
+                                            )
+                                        })}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
