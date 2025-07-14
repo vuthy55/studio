@@ -5,7 +5,7 @@ import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, Languages } from 'lucide-react';
+import { Volume2, ArrowRightLeft } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import {
   Accordion,
@@ -13,15 +13,20 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import type { Phrase } from '@/lib/data';
 
 export default function LearnPage() {
-    const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('thai');
+    const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
+    const [toLanguage, setToLanguage] = useState<LanguageCode>('thai');
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const { isMobile } = useSidebar();
 
+    const handleSwitchLanguages = () => {
+        setFromLanguage(toLanguage);
+        setToLanguage(fromLanguage);
+    };
+
     const handlePlayAudio = (text: string, lang: LanguageCode) => {
-        // This uses a non-production Google TTS endpoint for demonstration.
-        // A production app should use a dedicated TTS service like Azure or Browser's SpeechSynthesis API.
         const langMap: Partial<Record<LanguageCode, string>> = {
             english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
             malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
@@ -32,7 +37,15 @@ export default function LearnPage() {
         audio.play().catch(e => console.error("Audio playback failed.", e));
     };
 
-    const targetLanguageDetails = languages.find(l => l.value === selectedLanguage);
+    const getTranslation = (phrase: Phrase, lang: LanguageCode) => {
+        if (lang === 'english') {
+            return phrase.english;
+        }
+        return phrase.translations[lang] || phrase.english;
+    }
+
+    const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
+    const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
     return (
         <div className="space-y-8">
@@ -44,10 +57,13 @@ export default function LearnPage() {
                         <p className="text-muted-foreground">Essential phrases for your travels.</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 self-start">
-                    <Languages className="h-5 w-5 text-muted-foreground" />
-                    <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as LanguageCode)}>
-                        <SelectTrigger className="w-[180px]">
+            </header>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
+                <div className="flex-1 w-full">
+                    <label className="text-sm font-medium text-muted-foreground">From</label>
+                    <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
+                        <SelectTrigger>
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
                         <SelectContent>
@@ -57,7 +73,26 @@ export default function LearnPage() {
                         </SelectContent>
                     </Select>
                 </div>
-            </header>
+
+                <Button variant="ghost" size="icon" className="mt-4 sm:mt-5 self-center" onClick={handleSwitchLanguages}>
+                    <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+                    <span className="sr-only">Switch languages</span>
+                </Button>
+                
+                <div className="flex-1 w-full">
+                    <label className="text-sm font-medium text-muted-foreground">To</label>
+                    <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {languages.map(lang => (
+                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
 
             <section>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
@@ -85,20 +120,21 @@ export default function LearnPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-3 font-headline">
                                     <selectedTopic.icon className="h-6 w-6 text-accent" /> 
-                                    {selectedTopic.title} in {targetLanguageDetails?.label || '...'}
+                                    {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
                                     {selectedTopic.phrases.map((phrase) => {
-                                        const translation = phrase.translations[selectedLanguage] || phrase.english;
+                                        const fromText = getTranslation(phrase, fromLanguage);
+                                        const toText = getTranslation(phrase, toLanguage);
                                         return (
                                         <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex justify-between items-center transition-all duration-300 hover:bg-secondary/70 border">
                                             <div>
-                                                <p className="font-semibold text-lg text-primary-foreground">{translation}</p>
-                                                <p className="text-sm text-muted-foreground">{phrase.english}</p>
+                                                <p className="font-semibold text-lg text-primary-foreground">{toText}</p>
+                                                <p className="text-sm text-muted-foreground">{fromText}</p>
                                             </div>
-                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translation, selectedLanguage)}>
+                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
                                                 <Volume2 className="h-5 w-5 text-accent" />
                                                 <span className="sr-only">Play audio</span>
                                             </Button>
