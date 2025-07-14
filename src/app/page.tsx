@@ -233,10 +233,25 @@ export default function LearnPage() {
                                                     {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                     <p className="text-sm text-muted-foreground">{fromText}</p>
                                                 </div>
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
-                                                    <Volume2 className="h-5 w-5" />
-                                                    <span className="sr-only">Play audio</span>
-                                                </Button>
+                                                <div className="flex items-center">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" disabled>
+                                                                    <Mic className="h-5 w-5" />
+                                                                    <span className="sr-only">Use microphone</span>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Speech input coming soon!</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
+                                                        <Volume2 className="h-5 w-5" />
+                                                        <span className="sr-only">Play audio</span>
+                                                    </Button>
+                                                </div>
                                             </div>
                                             )
                                         })}
