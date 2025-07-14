@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import {
   Tooltip,
@@ -19,11 +19,19 @@ import { Textarea } from '@/components/ui/textarea';
 import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
 import { translateText } from '@/ai/flows/translate-flow';
+import { assessPronunciation } from '@/ai/flows/pronunciation-assessment-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-
+import { cn } from '@/lib/utils';
 
 type VoiceSelection = 'default' | 'male' | 'female';
+
+type AssessmentStatus = 'unattempted' | 'pass' | 'fail' | 'in-progress';
+type AssessmentResult = {
+  status: AssessmentStatus;
+  accuracy?: number;
+  fluency?: number;
+};
 
 export default function LearnPage() {
     const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
@@ -39,6 +47,13 @@ export default function LearnPage() {
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
+    // Pronunciation Assessment State
+    const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingPhraseId, setRecordingPhraseId] = useState<string | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         setSpeechSynthesis(window.speechSynthesis);
@@ -60,7 +75,7 @@ export default function LearnPage() {
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text) return;
+        if (!text || isRecording) return;
         const locale = languageToLocaleMap[lang];
         
         if (speechSynthesis && selectedVoice === 'default') {
@@ -75,7 +90,6 @@ export default function LearnPage() {
             }
         }
         
-        // Fallback to Azure TTS
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
@@ -125,6 +139,83 @@ export default function LearnPage() {
         }
     };
 
+    const handleStartRecording = async (phraseId: string, referenceText: string, lang: LanguageCode) => {
+        if (isRecording) {
+            handleStopRecording();
+            return;
+        }
+
+        setRecordingPhraseId(phraseId);
+        setIsRecording(true);
+        audioChunksRef.current = [];
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                audioChunksRef.current.push(event.data);
+                // Reset silence timer on new data
+                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = setTimeout(handleStopRecording, 1500); // 1.5s silence timeout
+            };
+            mediaRecorderRef.current.onstop = async () => {
+                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result as string;
+                    const locale = languageToLocaleMap[lang];
+                    if (!locale) {
+                        toast({ variant: "destructive", title: "Unsupported language for assessment." });
+                        return;
+                    }
+
+                    try {
+                         setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
+                        const result = await assessPronunciation({
+                            audioDataUri: base64Audio,
+                            referenceText,
+                            lang: locale,
+                        });
+                        setAssessmentResults(prev => ({
+                            ...prev,
+                            [phraseId]: {
+                                status: result.passed ? 'pass' : 'fail',
+                                accuracy: result.accuracyScore,
+                                fluency: result.fluencyScore,
+                            }
+                        }));
+                    } catch (err: any) {
+                        console.error('Assessment failed', err);
+                        toast({ variant: 'destructive', title: 'Assessment Error', description: err.message || 'Could not assess pronunciation.' });
+                        setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail' } }));
+                    } finally {
+                        setIsRecording(false);
+                        setRecordingPhraseId(null);
+                    }
+                };
+                stream.getTracks().forEach(track => track.stop());
+            };
+            mediaRecorderRef.current.start();
+            // Initial timeout
+            silenceTimerRef.current = setTimeout(handleStopRecording, 1500);
+
+        } catch (err) {
+            console.error('Could not start recording', err);
+            toast({ variant: 'destructive', title: 'Microphone Error', description: 'Could not access microphone. Please check permissions.' });
+            setIsRecording(false);
+            setRecordingPhraseId(null);
+        }
+    };
+
+    const handleStopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+    };
+
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
             return textObj.english;
@@ -139,6 +230,24 @@ export default function LearnPage() {
         return textObj.pronunciations[lang];
     }
     
+    const sortedPhrases = useMemo(() => {
+        const getScore = (status: AssessmentStatus) => {
+          switch (status) {
+            case 'fail': return 0; // Fails first
+            case 'in-progress': return 1;
+            case 'unattempted': return 2; // Unattempted next
+            case 'pass': return 3; // Passes last
+            default: return 2;
+          }
+        };
+    
+        return [...selectedTopic.phrases].sort((a, b) => {
+            const statusA = assessmentResults[a.id]?.status || 'unattempted';
+            const statusB = assessmentResults[b.id]?.status || 'unattempted';
+            return getScore(statusA) - getScore(statusB);
+        });
+      }, [selectedTopic.phrases, assessmentResults]);
+
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
@@ -217,10 +326,6 @@ export default function LearnPage() {
                                     <Select 
                                         value={selectedTopic.id} 
                                         onValueChange={(value) => {
-                                            if (value === 'live-translation') {
-                                                setActiveTab('live-translation');
-                                                return;
-                                            }
                                             const topic = phrasebook.find(t => t.id === value);
                                             if (topic) {
                                                 setSelectedTopic(topic);
@@ -234,7 +339,6 @@ export default function LearnPage() {
                                             {phrasebook.map(topic => (
                                                 <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
                                             ))}
-                                            <SelectItem value="live-translation">Live Translation</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -244,7 +348,7 @@ export default function LearnPage() {
                                         {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
                                     </h3>
                                     <div className="space-y-4">
-                                        {selectedTopic.phrases.map((phrase) => {
+                                        {sortedPhrases.map((phrase) => {
                                             const fromText = getTranslation(phrase, fromLanguage);
                                             const fromPronunciation = getPronunciation(phrase, fromLanguage);
                                             const toText = getTranslation(phrase, toLanguage);
@@ -255,6 +359,10 @@ export default function LearnPage() {
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
                                             const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
 
+                                            const result = assessmentResults[phrase.id];
+                                            const isCurrentRecording = isRecording && recordingPhraseId === phrase.id;
+                                            const isInProgress = result?.status === 'in-progress';
+
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div className="flex justify-between items-center w-full">
@@ -263,9 +371,13 @@ export default function LearnPage() {
                                                         {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)}>
+                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)} disabled={isRecording}>
                                                             <Volume2 className="h-5 w-5" />
                                                             <span className="sr-only">Play audio</span>
+                                                        </Button>
+                                                        <Button size="icon" variant={isCurrentRecording ? "destructive" : "ghost"} onClick={() => handleStartRecording(phrase.id, fromText, fromLanguage)} disabled={isRecording && !isCurrentRecording}>
+                                                            <Mic className={cn("h-5 w-5", isCurrentRecording && "animate-pulse")} />
+                                                            <span className="sr-only">Record pronunciation</span>
                                                         </Button>
                                                     </div>
                                                 </div>
@@ -275,12 +387,25 @@ export default function LearnPage() {
                                                         {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
+                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isRecording}>
                                                             <Volume2 className="h-5 w-5" />
                                                             <span className="sr-only">Play audio</span>
                                                         </Button>
+                                                         <Button size="icon" variant={isCurrentRecording ? "destructive" : "ghost"} onClick={() => handleStartRecording(phrase.id, toText, toLanguage)} disabled={isRecording && !isCurrentRecording}>
+                                                            <Mic className={cn("h-5 w-5", isCurrentRecording && "animate-pulse")} />
+                                                            <span className="sr-only">Record pronunciation</span>
+                                                        </Button>
+                                                        {isInProgress && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
+                                                        {result?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                                                        {result?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                                     </div>
                                                 </div>
+
+                                                {(result?.status === 'pass' || result?.status === 'fail') && (
+                                                    <div className="text-xs text-muted-foreground border-t border-dashed pt-2">
+                                                        <p>Accuracy: <span className="font-bold">{result.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{result.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                    </div>
+                                                )}
 
                                                 {phrase.answer && (
                                                     <>
@@ -291,7 +416,7 @@ export default function LearnPage() {
                                                                 {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)} disabled={isRecording}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
@@ -303,7 +428,7 @@ export default function LearnPage() {
                                                                 {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isRecording}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
