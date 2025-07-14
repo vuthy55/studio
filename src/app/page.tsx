@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import {
   Accordion,
@@ -20,8 +20,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Textarea } from '@/components/ui/textarea';
 import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
+import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LearnPage() {
@@ -31,6 +33,9 @@ export default function LearnPage() {
     const { isMobile } = useSidebar();
     const { toast } = useToast();
     const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+    const [inputText, setInputText] = useState('');
+    const [translatedText, setTranslatedText] = useState('');
+    const [isTranslating, setIsTranslating] = useState(false);
 
     useEffect(() => {
         setSpeechSynthesis(window.speechSynthesis);
@@ -43,11 +48,15 @@ export default function LearnPage() {
     };
 
     const handleSwitchLanguages = () => {
+        const currentInput = inputText;
         setFromLanguage(toLanguage);
         setToLanguage(fromLanguage);
+        setInputText(translatedText);
+        setTranslatedText(currentInput);
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
+        if (!text) return;
         const locale = languageToLocaleMap[lang];
         if (!locale) {
             console.error("Locale not found for language:", lang);
@@ -77,6 +86,39 @@ export default function LearnPage() {
                 title: 'Error generating audio',
                 description: 'Could not generate audio for the selected language.',
             });
+        }
+    };
+    
+    useEffect(() => {
+        const debounceTimer = setTimeout(() => {
+            if (inputText) {
+                handleTranslation();
+            } else {
+                setTranslatedText('');
+            }
+        }, 500);
+
+        return () => clearTimeout(debounceTimer);
+    }, [inputText, fromLanguage, toLanguage]);
+
+
+    const handleTranslation = async () => {
+        if (!inputText) return;
+        setIsTranslating(true);
+        try {
+            const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
+            const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
+            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+            setTranslatedText(result.translatedText);
+        } catch (error) {
+            console.error('Translation failed', error);
+            toast({
+                variant: 'destructive',
+                title: 'Translation Error',
+                description: 'Could not translate the text.',
+            });
+        } finally {
+            setIsTranslating(false);
         }
     };
 
@@ -189,6 +231,60 @@ export default function LearnPage() {
                                             </div>
                                             )
                                         })}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
+             <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="live-translation">
+                    <AccordionTrigger>
+                        <h2 className="text-2xl font-bold font-headline">Live Translation</h2>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <Card className="shadow-lg">
+                            <CardContent className="space-y-4 pt-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-muted-foreground">{fromLanguageDetails?.label}</label>
+                                        <Textarea 
+                                            placeholder={`Enter text in ${fromLanguageDetails?.label}...`}
+                                            className="min-h-[150px] resize-none"
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-muted-foreground">{toLanguageDetails?.label}</label>
+                                        <div className="relative">
+                                            <Textarea 
+                                                placeholder={isTranslating ? 'Translating...' : 'Translation'}
+                                                className="min-h-[150px] resize-none pr-20"
+                                                value={translatedText}
+                                                readOnly
+                                            />
+                                            <div className="absolute top-2 right-2 flex flex-col space-y-2">
+                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)}>
+                                                    <Volume2 className="h-5 w-5" />
+                                                    <span className="sr-only">Play audio</span>
+                                                </Button>
+                                                 <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" disabled>
+                                                                <Mic className="h-5 w-5" />
+                                                                <span className="sr-only">Use microphone</span>
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Speech input coming soon!</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </CardContent>
