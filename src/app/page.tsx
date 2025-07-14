@@ -69,19 +69,26 @@ export default function LearnPage() {
             }
         }
 
-        if (!locale) {
-             console.error("Locale not found for language:", lang, "Cannot fallback to Azure.");
-             toast({
-                variant: 'destructive',
-                title: 'Unsupported Language',
-                description: 'Audio playback is not available for this language.',
-            });
+        toast({ title: 'Azure TTS', description: `Falling back to Azure for ${lang}.` });
+        
+        if (!process.env.NEXT_PUBLIC_AZURE_TTS_KEY || !process.env.NEXT_PUBLIC_AZURE_TTS_REGION) {
+            console.error("Azure TTS credentials not configured.");
+            try {
+                const response = await generateSpeech({ text, lang: "en-US" });
+                const audio = new Audio(response.audioDataUri);
+                audio.play().catch(e => console.error("Audio playback failed.", e));
+            } catch (error) {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Unsupported Language',
+                    description: 'Audio playback is not available for this language.',
+                });
+            }
             return;
         }
 
         try {
-            toast({ title: 'Azure TTS', description: `Falling back to Azure for ${locale}.` });
-            const response = await generateSpeech({ text, lang: locale });
+            const response = await generateSpeech({ text, lang: locale || 'en-US' });
             const audio = new Audio(response.audioDataUri);
             audio.play().catch(e => console.error("Audio playback failed.", e));
         } catch (error) {
@@ -201,28 +208,27 @@ export default function LearnPage() {
                 <TabsContent value="phrasebook">
                     <Card className="shadow-lg">
                         <CardContent className="space-y-6 pt-6">
-                            <TooltipProvider>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                                {phrasebook.map((topic) => (
-                                    <Tooltip key={topic.id}>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant={selectedTopic.id === topic.id ? "default" : "secondary"}
-                                                className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-all hover:bg-accent/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                                                data-state={selectedTopic.id === topic.id ? 'active' : 'inactive'}
-                                                onClick={() => setSelectedTopic(topic)}
-                                            >
-                                                <topic.icon className="h-12 w-12" />
-                                                <span className="sr-only">{topic.title}</span>
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{topic.title}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                ))}
+                             <div className="space-y-2">
+                                <label className="text-sm font-medium text-muted-foreground">Select a Topic</label>
+                                <Select 
+                                    value={selectedTopic.id} 
+                                    onValueChange={(value) => {
+                                        const topic = phrasebook.find(t => t.id === value);
+                                        if (topic) {
+                                            setSelectedTopic(topic);
+                                        }
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a topic" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {phrasebook.map(topic => (
+                                            <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            </TooltipProvider>
 
                             <div>
                                 <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4 mt-6">
@@ -348,3 +354,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
