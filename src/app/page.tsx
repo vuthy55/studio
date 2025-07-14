@@ -119,7 +119,7 @@ export default function LearnPage() {
                                                     className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-shadow"
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
-                                                    <topic.icon className="h-22 w-22" />
+                                                    <topic.icon className="h-16 w-16" />
                                                     <span className="sr-only">{topic.title}</span>
                                                 </Button>
                                             </TooltipTrigger>
