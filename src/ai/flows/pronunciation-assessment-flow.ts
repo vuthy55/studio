@@ -47,6 +47,7 @@ const pronunciationAssessmentFlow = ai.defineFlow(
       process.env.AZURE_TTS_KEY,
       process.env.AZURE_TTS_REGION
     );
+    speechConfig.speechRecognitionLanguage = lang;
 
     const base64Data = audioDataUri.substring(audioDataUri.indexOf(',') + 1);
     const audioBuffer = Buffer.from(base64Data, 'base64');
