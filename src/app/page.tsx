@@ -7,6 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, Languages } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 export default function LearnPage() {
     const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('thai');
@@ -34,7 +40,7 @@ export default function LearnPage() {
                 <div className="flex items-center gap-4">
                     {isMobile && <SidebarTrigger />}
                     <div>
-                        <h1 className="text-3xl font-bold font-headline">Phrasebook</h1>
+                        <h1 className="text-3xl font-bold font-headline">Learn</h1>
                         <p className="text-muted-foreground">Essential phrases for your travels.</p>
                     </div>
                 </div>
@@ -68,36 +74,43 @@ export default function LearnPage() {
                     ))}
                 </div>
             </section>
-
-            <section>
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-3 font-headline">
-                            <selectedTopic.icon className="h-6 w-6 text-accent" /> 
-                            {selectedTopic.title} in {targetLanguageDetails?.label || '...'}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {selectedTopic.phrases.map((phrase) => {
-                                const translation = phrase.translations[selectedLanguage] || phrase.english;
-                                return (
-                                <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex justify-between items-center transition-all duration-300 hover:bg-secondary/70 border">
-                                    <div>
-                                        <p className="font-semibold text-lg text-primary-foreground">{translation}</p>
-                                        <p className="text-sm text-muted-foreground">{phrase.english}</p>
-                                    </div>
-                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translation, selectedLanguage)}>
-                                        <Volume2 className="h-5 w-5 text-accent" />
-                                        <span className="sr-only">Play audio</span>
-                                    </Button>
+            
+            <Accordion type="single" collapsible className="w-full" defaultValue="phrasebook">
+                <AccordionItem value="phrasebook">
+                    <AccordionTrigger>
+                        <h2 className="text-2xl font-bold font-headline">Phrasebook</h2>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <Card className="shadow-lg">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-3 font-headline">
+                                    <selectedTopic.icon className="h-6 w-6 text-accent" /> 
+                                    {selectedTopic.title} in {targetLanguageDetails?.label || '...'}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-3">
+                                    {selectedTopic.phrases.map((phrase) => {
+                                        const translation = phrase.translations[selectedLanguage] || phrase.english;
+                                        return (
+                                        <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex justify-between items-center transition-all duration-300 hover:bg-secondary/70 border">
+                                            <div>
+                                                <p className="font-semibold text-lg text-primary-foreground">{translation}</p>
+                                                <p className="text-sm text-muted-foreground">{phrase.english}</p>
+                                            </div>
+                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translation, selectedLanguage)}>
+                                                <Volume2 className="h-5 w-5 text-accent" />
+                                                <span className="sr-only">Play audio</span>
+                                            </Button>
+                                        </div>
+                                        )
+                                    })}
                                 </div>
-                                )
-                            })}
-                        </div>
-                    </CardContent>
-                </Card>
-            </section>
+                            </CardContent>
+                        </Card>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </div>
     );
 }
