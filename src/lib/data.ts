@@ -2,20 +2,20 @@ import type { LucideIcon } from "lucide-react";
 import { Hand, Compass, Utensils, Hash, MessageCircleQuestion } from "lucide-react";
 
 export const languages = [
+    { value: 'burmese', label: 'Burmese' },
+    { value: 'chinese', label: 'Chinese' },
+    { value: 'english', label: 'English' },
+    { value: 'filipino', label: 'Filipino' },
+    { value: 'french', label: 'French' },
+    { value: 'indonesian', label: 'Indonesian' },
+    { value: 'italian', label: 'Italian' },
     { value: 'khmer', label: 'Khmer' },
+    { value: 'laos', label: 'Laos' },
+    { value: 'malay', label: 'Malay' },
+    { value: 'spanish', label: 'Spanish' },
+    { value: 'tamil', label: 'Tamil' },
     { value: 'thai', label: 'Thai' },
     { value: 'vietnamese', label: 'Vietnamese' },
-    { value: 'filipino', label: 'Filipino' },
-    { value: 'malay', label: 'Malay' },
-    { value: 'indonesian', label: 'Indonesian' },
-    { value: 'burmese', label: 'Burmese' },
-    { value: 'laos', label: 'Laos' },
-    { value: 'tamil', label: 'Tamil' },
-    { value: 'english', label: 'English' },
-    { value: 'chinese', label: 'Chinese' },
-    { value: 'french', label: 'French' },
-    { value: 'spanish', label: 'Spanish' },
-    { value: 'italian', label: 'Italian' },
 ] as const;
 
 export type LanguageCode = typeof languages[number]['value'];
