@@ -1,5 +1,6 @@
 "use client"
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { BookOpen, MessagesSquare, User, Heart } from 'lucide-react';
 import { 
   Sidebar, 
@@ -13,6 +14,8 @@ import {
 import { Button } from '@/components/ui/button';
 
 export function AppSidebar() {
+  const pathname = usePathname();
+  
   return (
     <Sidebar>
       <SidebarHeader>
@@ -21,7 +24,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive>
+            <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
               <Link href="/">
                 <BookOpen />
                 Learn
@@ -29,16 +32,16 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="#">
+            <SidebarMenuButton asChild isActive={pathname === '/converse'} prefetch={true}>
+              <Link href="/converse">
                 <MessagesSquare />
                 Converse
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="#">
+            <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
+              <Link href="/profile">
                 <User />
                 Profile
               </Link>
