@@ -215,7 +215,8 @@ export default function LearnPage() {
                                             <TooltipTrigger asChild>
                                                 <Button
                                                     variant={selectedTopic.id === topic.id ? "default" : "secondary"}
-                                                    className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-shadow data-[state=closed]:bg-secondary data-[state=open]:bg-primary"
+                                                    className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-all hover:bg-accent/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                                                    data-state={selectedTopic.id === topic.id ? 'active' : 'inactive'}
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
                                                     <topic.icon className="h-12 w-12" />
