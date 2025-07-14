@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -13,6 +14,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Phrase } from '@/lib/data';
 
 export default function LearnPage() {
@@ -81,7 +88,7 @@ export default function LearnPage() {
                 
                 <div className="flex-1 w-full">
                     <label className="text-sm font-medium text-muted-foreground">To</label>
-                    <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
+                    <Select value={toLanguage} onValuechange={(value) => setToLanguage(value as LanguageCode)}>
                         <SelectTrigger>
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -104,15 +111,21 @@ export default function LearnPage() {
                             <CardContent className="space-y-6 pt-6">
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                                     {phrasebook.map((topic) => (
-                                        <Button
-                                            key={topic.id}
-                                            variant={selectedTopic.id === topic.id ? "default" : "secondary"}
-                                            className="h-28 flex flex-col gap-2 justify-center items-center text-center p-4 shadow-sm hover:shadow-md transition-shadow"
-                                            onClick={() => setSelectedTopic(topic)}
-                                        >
-                                            <topic.icon className="h-8 w-8 text-primary" />
-                                            <span className="font-semibold">{topic.title}</span>
-                                        </Button>
+                                        <Tooltip key={topic.id}>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant={selectedTopic.id === topic.id ? "default" : "secondary"}
+                                                    className="h-24 w-full flex flex-col gap-2 justify-center items-center text-center p-4 shadow-sm hover:shadow-md transition-shadow"
+                                                    onClick={() => setSelectedTopic(topic)}
+                                                >
+                                                    <topic.icon className="h-10 w-10 text-primary" />
+                                                    <span className="sr-only">{topic.title}</span>
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{topic.title}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
                                     ))}
                                 </div>
 
