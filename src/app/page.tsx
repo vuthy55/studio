@@ -268,7 +268,7 @@ export default function LearnPage() {
                                                 </div>
                                                 <div className="flex justify-between items-center w-full">
                                                      <div>
-                                                        <p className="font-semibold text-lg text-primary">{toText}</p>
+                                                        <p className="font-bold text-lg text-primary">{toText}</p>
                                                         {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
@@ -360,5 +360,7 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
 
     
