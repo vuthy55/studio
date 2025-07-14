@@ -51,10 +51,13 @@ const pronunciationAssessmentFlow = ai.defineFlow(
     const base64Data = audioDataUri.substring(audioDataUri.indexOf(',') + 1);
     const audioBuffer = Buffer.from(base64Data, 'base64');
     
-    // The Azure SDK can handle various container formats, including WebM from the browser.
-    // We pass the raw buffer directly.
-    const audioConfig = sdk.AudioConfig.fromWavFileInput(audioBuffer);
-    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig, lang);
+    // Create a push stream from the audio buffer.
+    const pushStream = sdk.AudioInputStream.createPushStream();
+    pushStream.write(audioBuffer);
+    pushStream.close();
+
+    const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
+    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
     const pronunciationAssessmentConfig = new sdk.PronunciationAssessmentConfig(
       referenceText,
