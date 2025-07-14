@@ -93,22 +93,6 @@ export default function LearnPage() {
                     </Select>
                 </div>
             </div>
-
-            <section>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                    {phrasebook.map((topic) => (
-                        <Button
-                            key={topic.id}
-                            variant={selectedTopic.id === topic.id ? "default" : "secondary"}
-                            className="h-28 flex flex-col gap-2 justify-center items-center text-center p-4 shadow-sm hover:shadow-md transition-shadow"
-                            onClick={() => setSelectedTopic(topic)}
-                        >
-                            <topic.icon className="h-8 w-8 text-primary" />
-                            <span className="font-semibold">{topic.title}</span>
-                        </Button>
-                    ))}
-                </div>
-            </section>
             
             <Accordion type="single" collapsible className="w-full" defaultValue="phrasebook">
                 <AccordionItem value="phrasebook">
@@ -123,7 +107,20 @@ export default function LearnPage() {
                                     {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="space-y-6">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                                    {phrasebook.map((topic) => (
+                                        <Button
+                                            key={topic.id}
+                                            variant={selectedTopic.id === topic.id ? "default" : "secondary"}
+                                            className="h-28 flex flex-col gap-2 justify-center items-center text-center p-4 shadow-sm hover:shadow-md transition-shadow"
+                                            onClick={() => setSelectedTopic(topic)}
+                                        >
+                                            <topic.icon className="h-8 w-8 text-primary" />
+                                            <span className="font-semibold">{topic.title}</span>
+                                        </Button>
+                                    ))}
+                                </div>
                                 <div className="space-y-3">
                                     {selectedTopic.phrases.map((phrase) => {
                                         const fromText = getTranslation(phrase, fromLanguage);
