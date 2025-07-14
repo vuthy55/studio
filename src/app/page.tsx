@@ -20,6 +20,10 @@ import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
 import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
+
+
+type VoiceSelection = 'default' | 'male' | 'female';
 
 export default function LearnPage() {
     const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
@@ -33,6 +37,7 @@ export default function LearnPage() {
     const [translatedPronunciation, setTranslatedPronunciation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
     const [activeTab, setActiveTab] = useState('phrasebook');
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
 
     useEffect(() => {
@@ -58,7 +63,7 @@ export default function LearnPage() {
         if (!text) return;
         const locale = languageToLocaleMap[lang];
         
-        if (speechSynthesis) {
+        if (speechSynthesis && selectedVoice === 'default') {
             const voices = speechSynthesis.getVoices();
             const voice = voices.find(v => v.lang === locale);
             if (voice) {
@@ -72,7 +77,7 @@ export default function LearnPage() {
         
         // Fallback to Azure TTS
         try {
-            const response = await generateSpeech({ text, lang: locale || 'en-US' });
+            const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
             audio.play().catch(e => console.error("Audio playback failed.", e));
         } catch (error) {
@@ -151,9 +156,9 @@ export default function LearnPage() {
 
             <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
                 <div className="flex-1 w-full">
-                    <label className="text-sm font-medium text-muted-foreground">From</label>
+                    <Label htmlFor="from-language">From</Label>
                     <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
-                        <SelectTrigger>
+                        <SelectTrigger id="from-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
                         <SelectContent>
@@ -170,9 +175,9 @@ export default function LearnPage() {
                 </Button>
                 
                 <div className="flex-1 w-full">
-                    <label className="text-sm font-medium text-muted-foreground">To</label>
+                    <Label htmlFor="to-language">To</Label>
                     <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
-                        <SelectTrigger>
+                        <SelectTrigger id="to-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
                         <SelectContent>
@@ -181,6 +186,20 @@ export default function LearnPage() {
                             ))}
                         </SelectContent>
                     </Select>
+                </div>
+
+                <div className="w-full sm:w-auto sm:flex-1">
+                  <Label htmlFor="tts-voice">Voice</Label>
+                  <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
+                      <SelectTrigger id="tts-voice">
+                          <SelectValue placeholder="Select a voice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                      </SelectContent>
+                  </Select>
                 </div>
             </div>
             
@@ -194,7 +213,7 @@ export default function LearnPage() {
                         <TabsContent value="phrasebook">
                             <div className="space-y-4 pt-6">
                                 <div className="space-y-2">
-                                     <label className="text-sm font-medium text-muted-foreground">Select a Topic</label>
+                                     <Label htmlFor="topic-select">Select a Topic</Label>
                                     <Select 
                                         value={selectedTopic.id} 
                                         onValueChange={(value) => {
@@ -208,7 +227,7 @@ export default function LearnPage() {
                                             }
                                         }}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger id="topic-select">
                                             <SelectValue placeholder="Select a topic" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -303,8 +322,9 @@ export default function LearnPage() {
                             <div className="space-y-4 pt-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium text-muted-foreground">{fromLanguageDetails?.label}</label>
+                                        <Label htmlFor="input-text">{fromLanguageDetails?.label}</Label>
                                         <Textarea 
+                                            id="input-text"
                                             placeholder={`Enter text in ${fromLanguageDetails?.label}...`}
                                             className="min-h-[150px] resize-none"
                                             value={inputText}
@@ -312,8 +332,8 @@ export default function LearnPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium text-muted-foreground">{toLanguageDetails?.label}</label>
-                                        <div className="relative border rounded-md min-h-[150px] w-full bg-background px-3 py-2">
+                                        <Label htmlFor="translated-output">{toLanguageDetails?.label}</Label>
+                                        <div id="translated-output" className="relative border rounded-md min-h-[150px] w-full bg-background px-3 py-2">
                                             <div className="flex flex-col h-full">
                                                 <p className="flex-grow text-base md:text-sm text-foreground">
                                                   {isTranslating ? 'Translating...' : translatedText || <span className="text-muted-foreground">Translation</span>}
