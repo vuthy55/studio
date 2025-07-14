@@ -32,6 +32,7 @@ export default function LearnPage() {
     const [translatedText, setTranslatedText] = useState('');
     const [translatedPronunciation, setTranslatedPronunciation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
+    const [activeTab, setActiveTab] = useState('phrasebook');
 
 
     useEffect(() => {
@@ -69,6 +70,7 @@ export default function LearnPage() {
             }
         }
         
+        // Fallback to Azure TTS
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US' });
             const audio = new Audio(response.audioDataUri);
@@ -85,7 +87,7 @@ export default function LearnPage() {
     
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
-            if (inputText) {
+            if (inputText && activeTab === 'live-translation') {
                 handleTranslation();
             } else {
                 setTranslatedText('');
@@ -94,7 +96,7 @@ export default function LearnPage() {
         }, 500);
 
         return () => clearTimeout(debounceTimer);
-    }, [inputText, fromLanguage, toLanguage]);
+    }, [inputText, fromLanguage, toLanguage, activeTab]);
 
 
     const handleTranslation = async () => {
@@ -184,7 +186,7 @@ export default function LearnPage() {
             
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
-                    <Tabs defaultValue="phrasebook" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="phrasebook">Phrasebook</TabsTrigger>
                             <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
@@ -196,6 +198,10 @@ export default function LearnPage() {
                                     <Select 
                                         value={selectedTopic.id} 
                                         onValueChange={(value) => {
+                                            if (value === 'live-translation') {
+                                                setActiveTab('live-translation');
+                                                return;
+                                            }
                                             const topic = phrasebook.find(t => t.id === value);
                                             if (topic) {
                                                 setSelectedTopic(topic);
@@ -209,6 +215,7 @@ export default function LearnPage() {
                                             {phrasebook.map(topic => (
                                                 <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
                                             ))}
+                                            <SelectItem value="live-translation">Live Translation</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -344,5 +351,4 @@ export default function LearnPage() {
             </Card>
         </div>
     );
-
-    
+}
