@@ -19,10 +19,10 @@ import { Textarea } from '@/components/ui/textarea';
 import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
 import { translateText } from '@/ai/flows/translate-flow';
-import { assessPronunciation } from '@/ai/flows/pronunciation-assessment-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -49,11 +49,9 @@ export default function LearnPage() {
 
     // Pronunciation Assessment State
     const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
-    const [isRecording, setIsRecording] = useState(false);
-    const [recordingPhraseId, setRecordingPhraseId] = useState<string | null>(null);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
-    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [isAssessing, setIsAssessing] = useState(false);
+    const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
+    
 
     useEffect(() => {
         setSpeechSynthesis(window.speechSynthesis);
@@ -75,7 +73,7 @@ export default function LearnPage() {
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text || isRecording) return;
+        if (!text || isAssessing) return;
         const locale = languageToLocaleMap[lang];
         
         if (speechSynthesis && selectedVoice === 'default') {
@@ -139,81 +137,65 @@ export default function LearnPage() {
         }
     };
 
-    const handleStartRecording = async (phraseId: string, referenceText: string, lang: LanguageCode) => {
-        if (isRecording) {
-            handleStopRecording();
+    const assessFromMicrophone = async (phraseId: string, referenceText: string, lang: LanguageCode) => {
+        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
+        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
+
+        if (!azureKey || !azureRegion) {
+            toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured for assessment.' });
             return;
         }
 
-        setRecordingPhraseId(phraseId);
-        setIsRecording(true);
-        audioChunksRef.current = [];
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorderRef.current = new MediaRecorder(stream);
-            mediaRecorderRef.current.ondataavailable = (event) => {
-                audioChunksRef.current.push(event.data);
-                // Reset silence timer on new data
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = setTimeout(handleStopRecording, 1500); // 1.5s silence timeout
-            };
-            mediaRecorderRef.current.onstop = async () => {
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
-                reader.onloadend = async () => {
-                    const base64Audio = reader.result as string;
-                    const locale = languageToLocaleMap[lang];
-                    if (!locale) {
-                        toast({ variant: "destructive", title: "Unsupported language for assessment." });
-                        return;
-                    }
-
-                    try {
-                         setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
-                        const result = await assessPronunciation({
-                            audioDataUri: base64Audio,
-                            referenceText,
-                            lang: locale,
-                        });
-                        setAssessmentResults(prev => ({
-                            ...prev,
-                            [phraseId]: {
-                                status: result.passed ? 'pass' : 'fail',
-                                accuracy: result.accuracyScore,
-                                fluency: result.fluencyScore,
-                            }
-                        }));
-                    } catch (err: any) {
-                        console.error('Assessment failed', err);
-                        toast({ variant: 'destructive', title: 'Assessment Error', description: err.message || 'Could not assess pronunciation.' });
-                        setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail' } }));
-                    } finally {
-                        setIsRecording(false);
-                        setRecordingPhraseId(null);
-                    }
-                };
-                stream.getTracks().forEach(track => track.stop());
-            };
-            mediaRecorderRef.current.start();
-            // Initial timeout
-            silenceTimerRef.current = setTimeout(handleStopRecording, 1500);
-
-        } catch (err) {
-            console.error('Could not start recording', err);
-            toast({ variant: 'destructive', title: 'Microphone Error', description: 'Could not access microphone. Please check permissions.' });
-            setIsRecording(false);
-            setRecordingPhraseId(null);
+        const locale = languageToLocaleMap[lang];
+        if (!locale) {
+            toast({ variant: 'destructive', title: 'Unsupported Language' });
+            return;
         }
-    };
 
-    const handleStopRecording = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.stop();
-        }
+        setIsAssessing(true);
+        setAssessingPhraseId(phraseId);
+        setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
+
+        const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+        const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+        speechConfig.speechRecognitionLanguage = locale;
+
+        const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+
+        const pronunciationAssessmentConfig = new sdk.PronunciationAssessmentConfig(
+            referenceText,
+            sdk.PronunciationAssessmentGradingSystem.HundredMark,
+            sdk.PronunciationAssessmentGranularity.Phoneme,
+            true
+        );
+        pronunciationAssessmentConfig.applyTo(recognizer);
+
+        recognizer.recognizeOnceAsync(result => {
+            let assessment;
+            if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
+                assessment = sdk.PronunciationAssessmentResult.fromResult(result);
+                 setAssessmentResults(prev => ({
+                    ...prev,
+                    [phraseId]: {
+                        status: assessment.accuracyScore > 70 ? 'pass' : 'fail',
+                        accuracy: assessment.accuracyScore,
+                        fluency: assessment.fluencyScore,
+                    }
+                }));
+            } else {
+                 toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${result.reason}` });
+                 setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail' } }));
+            }
+            recognizer.close();
+            setIsAssessing(false);
+            setAssessingPhraseId(null);
+        }, err => {
+            toast({ variant: 'destructive', title: 'Assessment Error', description: `An error occurred during assessment: ${err}` });
+            setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail' } }));
+            recognizer.close();
+            setIsAssessing(false);
+            setAssessingPhraseId(null);
+        });
     };
 
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
@@ -365,9 +347,8 @@ export default function LearnPage() {
                                             const fromResult = assessmentResults[fromPhraseId];
                                             const toResult = assessmentResults[toPhraseId];
 
-                                            const isCurrentRecording = isRecording && (recordingPhraseId === fromPhraseId || recordingPhraseId === toPhraseId);
-                                            const isRecordingFrom = isRecording && recordingPhraseId === fromPhraseId;
-                                            const isRecordingTo = isRecording && recordingPhraseId === toPhraseId;
+                                            const isAssessingFrom = isAssessing && assessingPhraseId === fromPhraseId;
+                                            const isAssessingTo = isAssessing && assessingPhraseId === toPhraseId;
 
                                             const isInProgressFrom = fromResult?.status === 'in-progress';
                                             const isInProgressTo = toResult?.status === 'in-progress';
@@ -381,12 +362,12 @@ export default function LearnPage() {
                                                             {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)} disabled={isRecording}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)} disabled={isAssessing}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
-                                                            <Button size="icon" variant={isRecordingFrom ? "destructive" : "ghost"} onClick={() => handleStartRecording(fromPhraseId, fromText, fromLanguage)} disabled={isRecording && !isRecordingFrom}>
-                                                                <Mic className={cn("h-5 w-5", isRecordingFrom && "animate-pulse")} />
+                                                            <Button size="icon" variant={isAssessingFrom ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(fromPhraseId, fromText, fromLanguage)} disabled={isAssessing}>
+                                                                <Mic className={cn("h-5 w-5", isAssessingFrom && "animate-pulse")} />
                                                                 <span className="sr-only">Record pronunciation</span>
                                                             </Button>
                                                             {isInProgressFrom && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
@@ -407,12 +388,12 @@ export default function LearnPage() {
                                                             {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isRecording}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessing}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
-                                                             <Button size="icon" variant={isRecordingTo ? "destructive" : "ghost"} onClick={() => handleStartRecording(toPhraseId, toText, toLanguage)} disabled={isRecording && !isRecordingTo}>
-                                                                <Mic className={cn("h-5 w-5", isRecordingTo && "animate-pulse")} />
+                                                             <Button size="icon" variant={isAssessingTo ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing}>
+                                                                <Mic className={cn("h-5 w-5", isAssessingTo && "animate-pulse")} />
                                                                 <span className="sr-only">Record pronunciation</span>
                                                             </Button>
                                                             {isInProgressTo && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
@@ -436,7 +417,7 @@ export default function LearnPage() {
                                                                 {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)} disabled={isRecording}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)} disabled={isAssessing}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
@@ -448,7 +429,7 @@ export default function LearnPage() {
                                                                 {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isRecording}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isAssessing}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
