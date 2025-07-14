@@ -5,7 +5,7 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'Learn',
+  title: 'LinguaGo',
   description: 'A modern minimal web app for backpackers in South East Asia.',
 };
 
