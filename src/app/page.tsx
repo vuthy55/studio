@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/accordion"
 import {
   Tooltip,
-  TooltipContent,
   TooltipProvider,
+  TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Textarea } from '@/components/ui/textarea';
@@ -66,6 +66,7 @@ export default function LearnPage() {
             const voices = speechSynthesis.getVoices();
             const voice = voices.find(v => v.lang === locale);
             if (voice) {
+                toast({ title: 'Browser TTS', description: `Using browser's built-in voice for ${locale}.` });
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.voice = voice;
                 utterance.lang = locale;
@@ -86,6 +87,7 @@ export default function LearnPage() {
         }
 
         try {
+            toast({ title: 'Azure TTS', description: `Falling back to Azure for ${locale}.` });
             const response = await generateSpeech({ text, lang: locale });
             const audio = new Audio(response.audioDataUri);
             audio.play().catch(e => console.error("Audio playback failed.", e));
@@ -360,7 +362,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
-    
-
-    
