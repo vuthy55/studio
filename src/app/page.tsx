@@ -61,7 +61,6 @@ export default function LearnPage() {
             const voices = speechSynthesis.getVoices();
             const voice = voices.find(v => v.lang === locale);
             if (voice) {
-                toast({ title: 'Browser TTS', description: `Using browser's built-in voice for ${locale}.` });
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.voice = voice;
                 utterance.lang = locale;
@@ -69,22 +68,14 @@ export default function LearnPage() {
                 return;
             }
         }
-
-        toast({ title: 'Azure TTS', description: `Falling back to Azure for ${lang}.` });
         
         if (!process.env.NEXT_PUBLIC_AZURE_TTS_KEY || !process.env.NEXT_PUBLIC_AZURE_TTS_REGION) {
             console.error("Azure TTS credentials not configured.");
-            try {
-                const response = await generateSpeech({ text, lang: "en-US" });
-                const audio = new Audio(response.audioDataUri);
-                audio.play().catch(e => console.error("Audio playback failed.", e));
-            } catch (error) {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Unsupported Language',
-                    description: 'Audio playback is not available for this language.',
-                });
-            }
+            toast({
+                variant: 'destructive',
+                title: 'Audio Unavailable',
+                description: 'Audio playback for this language requires Azure credentials which are not configured.',
+            });
             return;
         }
 
