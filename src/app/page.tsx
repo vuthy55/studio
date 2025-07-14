@@ -208,7 +208,7 @@ export default function LearnPage() {
                                                     className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-shadow data-[variant=default]:bg-primary"
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
-                                                    <topic.icon className="h-16 w-16" />
+                                                    <topic.icon className="h-24 w-24" />
                                                     <span className="sr-only">{topic.title}</span>
                                                 </Button>
                                             </TooltipTrigger>
@@ -313,13 +313,18 @@ export default function LearnPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-muted-foreground">{toLanguageDetails?.label}</label>
-                                        <div className="relative">
+                                        <div className="relative border rounded-md">
                                             <Textarea 
                                                 placeholder={isTranslating ? 'Translating...' : 'Translation'}
-                                                className="min-h-[150px] resize-none pr-20"
+                                                className="min-h-[150px] resize-none pr-20 border-0 focus-visible:ring-0"
                                                 value={translatedText}
                                                 readOnly
                                             />
+                                             {translatedPronunciation && (
+                                                <div className="absolute bottom-0 left-0 w-full px-3 py-2">
+                                                    <p className="text-sm text-muted-foreground italic">{translatedPronunciation}</p>
+                                                </div>
+                                             )}
                                             <div className="absolute top-2 right-2 flex flex-col space-y-2">
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)}>
                                                     <Volume2 className="h-5 w-5" />
@@ -340,7 +345,6 @@ export default function LearnPage() {
                                                 </TooltipProvider>
                                             </div>
                                         </div>
-                                         {translatedPronunciation && <p className="text-sm text-muted-foreground italic mt-2">{translatedPronunciation}</p>}
                                     </div>
                                 </div>
                             </CardContent>
