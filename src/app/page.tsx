@@ -60,11 +60,8 @@ export default function LearnPage() {
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
         if (!text) return;
         const locale = languageToLocaleMap[lang];
-        if (!locale) {
-            console.error("Locale not found for language:", lang);
-            return;
-        }
-
+        
+        // Prioritize browser TTS
         if (speechSynthesis) {
             const voices = speechSynthesis.getVoices();
             const voice = voices.find(v => v.lang === locale);
@@ -75,6 +72,17 @@ export default function LearnPage() {
                 speechSynthesis.speak(utterance);
                 return;
             }
+        }
+
+        // Fallback to Azure TTS
+        if (!locale) {
+             console.error("Locale not found for language:", lang, "Cannot fallback to Azure.");
+             toast({
+                variant: 'destructive',
+                title: 'Unsupported Language',
+                description: 'Audio playback is not available for this language.',
+            });
+            return;
         }
 
         try {
@@ -205,10 +213,10 @@ export default function LearnPage() {
                                             <TooltipTrigger asChild>
                                                 <Button
                                                     variant={selectedTopic.id === topic.id ? "default" : "secondary"}
-                                                    className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-shadow data-[variant=default]:bg-primary"
+                                                    className="h-24 w-full flex flex-col justify-center items-center text-center p-0.5 shadow-sm hover:shadow-md transition-shadow data-[state=closed]:bg-secondary data-[state=open]:bg-primary"
                                                     onClick={() => setSelectedTopic(topic)}
                                                 >
-                                                    <topic.icon className="h-24 w-24" />
+                                                    <topic.icon className="h-12 w-12" />
                                                     <span className="sr-only">{topic.title}</span>
                                                 </Button>
                                             </TooltipTrigger>
@@ -258,9 +266,9 @@ export default function LearnPage() {
                                                         </Button>
                                                     </div>
                                                 </div>
-                                                <div className="flex justify-between items-center w-full text-primary-foreground">
+                                                <div className="flex justify-between items-center w-full">
                                                      <div>
-                                                        <p className="font-semibold text-lg">{toText}</p>
+                                                        <p className="font-semibold text-lg text-primary">{toText}</p>
                                                         {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                     </div>
                                                     <div className="flex items-center shrink-0">
@@ -313,18 +321,15 @@ export default function LearnPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-muted-foreground">{toLanguageDetails?.label}</label>
-                                        <div className="relative border rounded-md">
-                                            <Textarea 
-                                                placeholder={isTranslating ? 'Translating...' : 'Translation'}
-                                                className="min-h-[150px] resize-none pr-20 border-0 focus-visible:ring-0"
-                                                value={translatedText}
-                                                readOnly
-                                            />
-                                             {translatedPronunciation && (
-                                                <div className="absolute bottom-0 left-0 w-full px-3 py-2">
-                                                    <p className="text-sm text-muted-foreground italic">{translatedPronunciation}</p>
-                                                </div>
-                                             )}
+                                        <div className="relative border rounded-md min-h-[150px] w-full bg-background px-3 py-2">
+                                            <div className="flex flex-col h-full">
+                                                <p className="flex-grow text-base md:text-sm text-foreground">
+                                                  {isTranslating ? 'Translating...' : translatedText || <span className="text-muted-foreground">Translation</span>}
+                                                </p>
+                                                {translatedPronunciation && !isTranslating && (
+                                                    <p className="text-sm text-muted-foreground italic mt-2">{translatedPronunciation}</p>
+                                                )}
+                                            </div>
                                             <div className="absolute top-2 right-2 flex flex-col space-y-2">
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)}>
                                                     <Volume2 className="h-5 w-5" />
@@ -355,3 +360,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
