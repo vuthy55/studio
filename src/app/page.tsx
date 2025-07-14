@@ -35,6 +35,7 @@ export default function LearnPage() {
     const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
+    const [translatedPronunciation, setTranslatedPronunciation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
 
     useEffect(() => {
@@ -53,6 +54,7 @@ export default function LearnPage() {
         setToLanguage(fromLanguage);
         setInputText(translatedText);
         setTranslatedText(currentInput);
+        setTranslatedPronunciation('');
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
@@ -95,6 +97,7 @@ export default function LearnPage() {
                 handleTranslation();
             } else {
                 setTranslatedText('');
+                setTranslatedPronunciation('');
             }
         }, 500);
 
@@ -110,6 +113,7 @@ export default function LearnPage() {
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
             const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
             setTranslatedText(result.translatedText);
+            setTranslatedPronunciation(result.pronunciation);
         } catch (error) {
             console.error('Translation failed', error);
             toast({
@@ -336,6 +340,7 @@ export default function LearnPage() {
                                                 </TooltipProvider>
                                             </div>
                                         </div>
+                                         {translatedPronunciation && <p className="text-sm text-muted-foreground italic mt-2">{translatedPronunciation}</p>}
                                     </div>
                                 </div>
                             </CardContent>
