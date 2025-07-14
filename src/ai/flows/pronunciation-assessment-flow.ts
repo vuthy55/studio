@@ -10,7 +10,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
-import wav from 'wav';
 
 const AssessPronunciationInputSchema = z.object({
   audioDataUri: z.string().describe("A recording of the user's speech, as a data URI that must include a MIME type and use Base64 encoding."),
@@ -33,33 +32,6 @@ export async function assessPronunciation(input: AssessPronunciationInput): Prom
   return pronunciationAssessmentFlow(input);
 }
 
-// Helper to convert audio buffer to WAV format as required by Azure SDK
-async function toWav(audioBuffer: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new wav.Reader();
-    const writer = new wav.Writer({
-      channels: 1,
-      sampleRate: 48000, // Common browser recording sample rate
-      bitDepth: 16,
-    });
-
-    const buffers: Buffer[] = [];
-    writer.on('data', chunk => buffers.push(chunk));
-    writer.on('end', () => resolve(Buffer.concat(buffers)));
-    writer.on('error', reject);
-    
-    reader.on('format', format => {
-        // Pipe the raw audio data to the WAV writer
-        reader.pipe(writer);
-    });
-    reader.on('error', reject);
-
-    // Write the raw audio buffer to the reader
-    reader.end(audioBuffer);
-  });
-}
-
-
 const pronunciationAssessmentFlow = ai.defineFlow(
   {
     name: 'pronunciationAssessmentFlow',
@@ -79,15 +51,9 @@ const pronunciationAssessmentFlow = ai.defineFlow(
     const base64Data = audioDataUri.substring(audioDataUri.indexOf(',') + 1);
     const audioBuffer = Buffer.from(base64Data, 'base64');
     
-    // The Azure SDK's PushAudioInputStream expects a WAV header.
-    // We'll convert the raw audio data from the browser into WAV format.
-    const wavBuffer = await toWav(audioBuffer);
-
-    const pushStream = sdk.AudioInputStream.createPushStream();
-    pushStream.write(wavBuffer);
-    pushStream.close();
-
-    const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
+    // The Azure SDK can handle various container formats, including WebM from the browser.
+    // We pass the raw buffer directly.
+    const audioConfig = sdk.AudioConfig.fromWavFileInput(audioBuffer);
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig, lang);
 
     const pronunciationAssessmentConfig = new sdk.PronunciationAssessmentConfig(
@@ -121,10 +87,12 @@ const pronunciationAssessmentFlow = ai.defineFlow(
             passed,
           });
         } else {
+          console.error(`Recognition failed. Reason: ${result.reason}, Details: ${result.errorDetails}`);
           reject(new Error(`Speech recognition failed: ${result.errorDetails}`));
         }
       }, err => {
         recognizer.close();
+        console.error(`Recognition error: ${err}`);
         reject(new Error(`Speech recognition error: ${err}`));
       });
     });
