@@ -183,7 +183,7 @@ export default function LearnPage() {
                                                     <p className="text-sm text-muted-foreground">{fromText}</p>
                                                 </div>
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
-                                                    <Volume2 className="h-5 w-5 text-accent" />
+                                                    <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
                                             </div>
