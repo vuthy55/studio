@@ -242,11 +242,11 @@ export default function LearnPage() {
         };
     
         return [...selectedTopic.phrases].sort((a, b) => {
-            const statusA = assessmentResults[a.id]?.status || 'unattempted';
-            const statusB = assessmentResults[b.id]?.status || 'unattempted';
+            const statusA = assessmentResults[`${a.id}-${toLanguage}`]?.status || assessmentResults[`${a.id}-${fromLanguage}`]?.status || 'unattempted';
+            const statusB = assessmentResults[`${b.id}-${toLanguage}`]?.status || assessmentResults[`${b.id}-${fromLanguage}`]?.status || 'unattempted';
             return getScore(statusA) - getScore(statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults]);
+      }, [selectedTopic.phrases, assessmentResults, fromLanguage, toLanguage]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -359,53 +359,73 @@ export default function LearnPage() {
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
                                             const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
 
-                                            const result = assessmentResults[phrase.id];
-                                            const isCurrentRecording = isRecording && recordingPhraseId === phrase.id;
-                                            const isInProgress = result?.status === 'in-progress';
+                                            const fromPhraseId = `${phrase.id}-${fromLanguage}`;
+                                            const toPhraseId = `${phrase.id}-${toLanguage}`;
+                                            
+                                            const fromResult = assessmentResults[fromPhraseId];
+                                            const toResult = assessmentResults[toPhraseId];
+
+                                            const isCurrentRecording = isRecording && (recordingPhraseId === fromPhraseId || recordingPhraseId === toPhraseId);
+                                            const isRecordingFrom = isRecording && recordingPhraseId === fromPhraseId;
+                                            const isRecordingTo = isRecording && recordingPhraseId === toPhraseId;
+
+                                            const isInProgressFrom = fromResult?.status === 'in-progress';
+                                            const isInProgressTo = toResult?.status === 'in-progress';
 
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
-                                                <div className="flex justify-between items-center w-full">
-                                                    <div>
-                                                        <p className="font-semibold text-lg">{fromText}</p>
-                                                        {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <div>
+                                                            <p className="font-semibold text-lg">{fromText}</p>
+                                                            {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
+                                                        </div>
+                                                        <div className="flex items-center shrink-0">
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)} disabled={isRecording}>
+                                                                <Volume2 className="h-5 w-5" />
+                                                                <span className="sr-only">Play audio</span>
+                                                            </Button>
+                                                            <Button size="icon" variant={isRecordingFrom ? "destructive" : "ghost"} onClick={() => handleStartRecording(fromPhraseId, fromText, fromLanguage)} disabled={isRecording && !isRecordingFrom}>
+                                                                <Mic className={cn("h-5 w-5", isRecordingFrom && "animate-pulse")} />
+                                                                <span className="sr-only">Record pronunciation</span>
+                                                            </Button>
+                                                            {isInProgressFrom && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
+                                                            {fromResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                                                            {fromResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)} disabled={isRecording}>
-                                                            <Volume2 className="h-5 w-5" />
-                                                            <span className="sr-only">Play audio</span>
-                                                        </Button>
-                                                        <Button size="icon" variant={isCurrentRecording ? "destructive" : "ghost"} onClick={() => handleStartRecording(phrase.id, fromText, fromLanguage)} disabled={isRecording && !isCurrentRecording}>
-                                                            <Mic className={cn("h-5 w-5", isCurrentRecording && "animate-pulse")} />
-                                                            <span className="sr-only">Record pronunciation</span>
-                                                        </Button>
-                                                    </div>
+                                                    {(fromResult?.status === 'pass' || fromResult?.status === 'fail') && (
+                                                        <div className="text-xs text-muted-foreground pl-1">
+                                                            <p>Accuracy: <span className="font-bold">{fromResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{fromResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="flex justify-between items-center w-full">
-                                                     <div>
-                                                        <p className="font-bold text-lg text-primary">{toText}</p>
-                                                        {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex justify-between items-center w-full">
+                                                         <div>
+                                                            <p className="font-bold text-lg text-primary">{toText}</p>
+                                                            {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
+                                                        </div>
+                                                        <div className="flex items-center shrink-0">
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isRecording}>
+                                                                <Volume2 className="h-5 w-5" />
+                                                                <span className="sr-only">Play audio</span>
+                                                            </Button>
+                                                             <Button size="icon" variant={isRecordingTo ? "destructive" : "ghost"} onClick={() => handleStartRecording(toPhraseId, toText, toLanguage)} disabled={isRecording && !isRecordingTo}>
+                                                                <Mic className={cn("h-5 w-5", isRecordingTo && "animate-pulse")} />
+                                                                <span className="sr-only">Record pronunciation</span>
+                                                            </Button>
+                                                            {isInProgressTo && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
+                                                            {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                                                            {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isRecording}>
-                                                            <Volume2 className="h-5 w-5" />
-                                                            <span className="sr-only">Play audio</span>
-                                                        </Button>
-                                                         <Button size="icon" variant={isCurrentRecording ? "destructive" : "ghost"} onClick={() => handleStartRecording(phrase.id, toText, toLanguage)} disabled={isRecording && !isCurrentRecording}>
-                                                            <Mic className={cn("h-5 w-5", isCurrentRecording && "animate-pulse")} />
-                                                            <span className="sr-only">Record pronunciation</span>
-                                                        </Button>
-                                                        {isInProgress && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
-                                                        {result?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                                                        {result?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
-                                                    </div>
+                                                    {(toResult?.status === 'pass' || toResult?.status === 'fail') && (
+                                                        <div className="text-xs text-muted-foreground pl-1">
+                                                            <p>Accuracy: <span className="font-bold">{toResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{toResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                        </div>
+                                                    )}
                                                 </div>
-
-                                                {(result?.status === 'pass' || result?.status === 'fail') && (
-                                                    <div className="text-xs text-muted-foreground border-t border-dashed pt-2">
-                                                        <p>Accuracy: <span className="font-bold">{result.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{result.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                    </div>
-                                                )}
 
                                                 {phrase.answer && (
                                                     <>
