@@ -129,6 +129,13 @@ export default function LearnPage() {
         return phrase.translations[lang] || phrase.english;
     }
 
+    const getPronunciation = (phrase: Phrase, lang: LanguageCode) => {
+        if (lang === 'english') {
+            return null; // No pronunciation guide for english
+        }
+        return phrase.pronunciations[lang];
+    }
+
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
@@ -218,10 +225,12 @@ export default function LearnPage() {
                                         {selectedTopic.phrases.map((phrase) => {
                                             const fromText = getTranslation(phrase, fromLanguage);
                                             const toText = getTranslation(phrase, toLanguage);
+                                            const toPronunciation = getPronunciation(phrase, toLanguage);
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex justify-between items-center transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div>
                                                     <p className="font-semibold text-lg text-primary-foreground">{toText}</p>
+                                                    {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                     <p className="text-sm text-muted-foreground">{fromText}</p>
                                                 </div>
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
