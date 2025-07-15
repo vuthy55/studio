@@ -301,9 +301,9 @@ export default function LearnPage() {
     const sortedPhrases = useMemo(() => {
         const getScore = (status: AssessmentStatus) => {
           switch (status) {
-            case 'in-progress': return -1;
             case 'fail': return 0;
             case 'unattempted': return 1;
+            case 'in-progress': return 1; // Treat 'in-progress' like 'unattempted' to prevent moving
             case 'pass': return 2;
             default: return 1;
           }
