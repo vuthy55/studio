@@ -79,7 +79,6 @@ export default function LearnPage() {
         if (!text || assessingPhraseId || isRecognizing || isAssessingLive) return;
         const locale = languageToLocaleMap[lang];
         
-        // Use browser's native TTS if available and voice is 'default'
         if (speechSynthesis && selectedVoice === 'default') {
             const voices = speechSynthesis.getVoices();
             const voice = voices.find(v => v.lang === locale);
@@ -92,7 +91,6 @@ export default function LearnPage() {
             }
         }
         
-        // Fallback to Azure TTS
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
@@ -253,6 +251,8 @@ export default function LearnPage() {
                         };
                     }
                  }
+            } else {
+                toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
             }
         } catch (error) {
             console.error("Error during assessment:", error);
@@ -304,10 +304,9 @@ export default function LearnPage() {
           const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
           const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
 
-          if (assessingPhraseId === phraseIdA || assessingPhraseId === phraseIdB) {
-              return 0;
-          }
-    
+          if (assessingPhraseId === phraseIdA) return -1;
+          if (assessingPhraseId === phraseIdB) return 1;
+
           return getScore(statusA) - getScore(statusB);
         });
       }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
@@ -433,14 +432,10 @@ export default function LearnPage() {
                                     <div className="space-y-4">
                                         {sortedPhrases.map((phrase) => {
                                             const fromText = getTranslation(phrase, fromLanguage);
-                                            const fromPronunciation = getPronunciation(phrase, fromLanguage);
                                             const toText = getTranslation(phrase, toLanguage);
-                                            const toPronunciation = getPronunciation(phrase, toLanguage);
                                             
                                             const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
-                                            const fromAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, fromLanguage) : '';
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
-                                            const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
 
                                             const toPhraseId = `${phrase.id}-${toLanguage}`;
                                             const toResult = assessmentResults[toPhraseId];
@@ -452,7 +447,6 @@ export default function LearnPage() {
                                                     <div className="flex justify-between items-center w-full">
                                                         <div>
                                                             <p className="font-semibold text-lg">{fromText}</p>
-                                                            {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
                                                         </div>
@@ -462,7 +456,6 @@ export default function LearnPage() {
                                                     <div className="flex justify-between items-center w-full">
                                                          <div>
                                                             <p className="font-bold text-lg text-primary">{toText}</p>
-                                                            {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
                                                             <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!!assessingPhraseId}>
@@ -499,7 +492,6 @@ export default function LearnPage() {
                                                         <div className="flex justify-between items-center w-full">
                                                             <div>
                                                                 <p className="font-semibold text-lg">{fromAnswerText}</p>
-                                                                {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
                                                             </div>
@@ -507,7 +499,6 @@ export default function LearnPage() {
                                                         <div className="flex justify-between items-center w-full">
                                                             <div>
                                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
-                                                                {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
                                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!!assessingPhraseId}>

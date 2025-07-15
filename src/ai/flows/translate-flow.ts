@@ -31,7 +31,7 @@ const prompt = ai.definePrompt({
   name: 'translateTextPrompt',
   input: { schema: TranslateTextInputSchema },
   output: { schema: TranslateTextOutputSchema },
-  prompt: `You are a translation assistant. Your task is to translate the user's text from {{fromLanguage}} to {{toLanguage}}.
+  prompt: `You are a direct translation assistant. Your only task is to translate the user's text from {{fromLanguage}} to {{toLanguage}}. Do not add any extra information, context, or phonetic guides. Only provide the direct translation.
 
 Text to translate:
 "{{text}}"
