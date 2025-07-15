@@ -242,11 +242,8 @@ export default function RoomPage() {
 
   const stopSpeaking = async () => {
     if (recognizerRef.current) {
-      recognizerRef.current.stopContinuousRecognitionAsync(() => {});
-      recognizerRef.current.close();
-      recognizerRef.current = null;
+      recognizerRef.current.stopContinuousRecognitionAsync();
     }
-    // We don't set isSpeaking to false here, because the `recognizing` and `recognized` events will handle that
   };
 
   const handleMicClick = async () => {
@@ -296,20 +293,22 @@ export default function RoomPage() {
 
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-        recognizerRef.current = recognizer; // Store the recognizer instance
+        recognizerRef.current = recognizer;
 
         let recognizedText = '';
         
         recognizer.recognized = async (s, e) => {
           if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
               recognizedText = e.result.text;
-              await stopSpeaking(); // Stop recognition once we have a result
+              // Don't stop here, let sessionStopped handle it.
           }
         };
         
         recognizer.sessionStopped = async (s, e) => {
-            recognizer.close();
-            recognizerRef.current = null;
+            if (recognizerRef.current) {
+                recognizerRef.current.close();
+                recognizerRef.current = null;
+            }
             setIsSpeaking(false);
             
             if (recognizedText) {
@@ -333,6 +332,10 @@ export default function RoomPage() {
         };
         
         recognizer.canceled = async (s, e) => {
+            if (recognizerRef.current) {
+              recognizerRef.current.close();
+              recognizerRef.current = null;
+            }
             console.log(`CANCELED: Reason=${e.reason}`);
             await updateDoc(roomDocRef, { currentSpeaker: null });
             setIsSpeaking(false);
@@ -343,6 +346,10 @@ export default function RoomPage() {
     } catch (error: any) {
         console.error("Error during speech recognition or transaction:", error);
         toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not process speech.' });
+        if (recognizerRef.current) {
+            recognizerRef.current.close();
+            recognizerRef.current = null;
+        }
         await updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
         setIsSpeaking(false);
     }
@@ -450,3 +457,5 @@ export default function RoomPage() {
     </div>
   );
 }
+
+    
