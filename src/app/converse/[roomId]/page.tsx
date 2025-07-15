@@ -95,6 +95,10 @@ export default function RoomPage() {
   const lastPlayedTimestamp = useRef(0);
   const audioEndTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Use a ref to store the recognizer instance
+  const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
+
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -136,8 +140,6 @@ export default function RoomPage() {
 
   const endSession = async () => {
     if (!isCreator || !roomId) return;
-    // Instead of just deactivating, we will delete the room.
-    // The participants subcollection will be deleted via a Firebase Function extension (not implemented here).
     try {
       await deleteDoc(doc(db, 'rooms', roomId));
       toast({ title: 'Session Ended', description: 'The room has been deleted.' });
@@ -154,15 +156,15 @@ export default function RoomPage() {
     enterRoom();
   
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // This is a failsafe, but explicit leave is better.
-      deleteDoc(doc(db, 'rooms', roomId, 'participants', user.uid));
+      if (user && roomId) {
+        deleteDoc(doc(db, 'rooms', roomId, 'participants', user.uid));
+      }
     };
   
     window.addEventListener('beforeunload', handleBeforeUnload);
   
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Ensure user is removed on component unmount (e.g., navigating away)
       if (user && roomId) {
         deleteDoc(doc(db, 'rooms', roomId, 'participants', user.uid));
       }
@@ -238,25 +240,36 @@ export default function RoomPage() {
   }, [currentSpeaker, user, isCreator, roomId]);
 
 
+  const stopSpeaking = async () => {
+    if (recognizerRef.current) {
+      recognizerRef.current.stopContinuousRecognitionAsync(() => {});
+      recognizerRef.current.close();
+      recognizerRef.current = null;
+    }
+    // We don't set isSpeaking to false here, because the `recognizing` and `recognized` events will handle that
+  };
+
   const handleMicClick = async () => {
-    if (isSpeaking || currentSpeaker) return;
-    setIsSpeaking(true);
+    // If already speaking, stop the recognition.
+    if (isSpeaking) {
+      await stopSpeaking();
+      return;
+    }
+
+    if (currentSpeaker) return;
 
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
     if (!azureKey || !azureRegion) {
         toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
-        setIsSpeaking(false);
         return;
     }
     const locale = languageToLocaleMap[myLanguage];
     if (!locale) {
         toast({ variant: 'destructive', title: 'Unsupported Language' });
-        setIsSpeaking(false);
         return;
     }
 
-    let recognizer: sdk.SpeechRecognizer | undefined;
     try {
         const roomDocRef = doc(db, 'rooms', roomId);
 
@@ -275,55 +288,66 @@ export default function RoomPage() {
             transaction.update(roomDocRef, { currentSpeaker: speakerPayload });
         });
         
+        setIsSpeaking(true);
         const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
         speechConfig.speechRecognitionLanguage = locale;
-        // Adjust silence timeout to better detect end of speech
-        speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "3000");
-        speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "3000");
+        speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2000");
+        speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "2000");
 
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-        recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+        const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+        recognizerRef.current = recognizer; // Store the recognizer instance
 
-        const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-            recognizer!.recognizeOnceAsync(resolve, reject);
-        });
-
-        if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-            const newSpeakerPayload = {
-                userId: user!.uid,
-                userName: participants.find(p => p.id === user!.uid)?.name || 'Anonymous',
-                text: result.text,
-                language: myLanguage,
-                timestamp: Date.now(),
-            };
-            await updateDoc(roomDocRef, { currentSpeaker: newSpeakerPayload });
+        let recognizedText = '';
+        
+        recognizer.recognized = async (s, e) => {
+          if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
+              recognizedText = e.result.text;
+              await stopSpeaking(); // Stop recognition once we have a result
+          }
+        };
+        
+        recognizer.sessionStopped = async (s, e) => {
+            recognizer.close();
+            recognizerRef.current = null;
+            setIsSpeaking(false);
             
-            // The creator is responsible for clearing the speaker after a delay
-            // This is handled by the audio 'ended' event listener now for more accuracy
-            if (isCreator && !audioEndTimerRef.current) {
-                audioEndTimerRef.current = setTimeout(() => {
-                    updateDoc(roomDocRef, { currentSpeaker: null });
-                }, 5000); // Failsafe timeout
-            }
+            if (recognizedText) {
+                const newSpeakerPayload = {
+                    userId: user!.uid,
+                    userName: participants.find(p => p.id === user!.uid)?.name || 'Anonymous',
+                    text: recognizedText,
+                    language: myLanguage,
+                    timestamp: Date.now(),
+                };
+                await updateDoc(roomDocRef, { currentSpeaker: newSpeakerPayload });
 
-        } else {
-             await updateDoc(roomDocRef, { currentSpeaker: null });
-        }
+                if (isCreator && !audioEndTimerRef.current) {
+                    audioEndTimerRef.current = setTimeout(() => {
+                        updateDoc(roomDocRef, { currentSpeaker: null });
+                    }, 5000); // Failsafe timeout
+                }
+            } else {
+                await updateDoc(roomDocRef, { currentSpeaker: null });
+            }
+        };
+        
+        recognizer.canceled = async (s, e) => {
+            console.log(`CANCELED: Reason=${e.reason}`);
+            await updateDoc(roomDocRef, { currentSpeaker: null });
+            setIsSpeaking(false);
+        };
+        
+        recognizer.startContinuousRecognitionAsync();
 
     } catch (error: any) {
         console.error("Error during speech recognition or transaction:", error);
-        if (error.message.includes("Another user is already speaking")) {
-            // No toast needed for this expected scenario
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not process speech.' });
-        }
-        // Always ensure the speaker is cleared on error
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not process speech.' });
         await updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
-    } finally {
-        if (recognizer) recognizer.close();
         setIsSpeaking(false);
     }
   };
+
 
   if (loading || authLoading) {
     return (
@@ -337,6 +361,7 @@ export default function RoomPage() {
     return <div className="text-center p-8">Room not found or session has ended.</div>;
   }
   
+  const amISpeaking = currentSpeaker?.userId === user?.uid;
   const canSpeak = !currentSpeaker && !isSpeaking;
 
   return (
@@ -404,19 +429,17 @@ export default function RoomPage() {
 
                  <Button 
                     onClick={handleMicClick} 
-                    disabled={!canSpeak} 
+                    disabled={!canSpeak && !isSpeaking} 
                     className={cn(
                         "rounded-full h-24 w-24 transition-all duration-300 transform hover:scale-105 shadow-lg",
-                        isSpeaking && "bg-yellow-500",
-                        !canSpeak && "bg-muted-foreground cursor-not-allowed",
-                        canSpeak && "bg-green-500 hover:bg-green-600"
+                         isSpeaking ? "bg-red-500 hover:bg-red-600" : (canSpeak ? "bg-green-500 hover:bg-green-600" : "bg-muted-foreground cursor-not-allowed")
                     )}
                 >
-                    {isSpeaking || (currentSpeaker && currentSpeaker?.text === '...') ? <Mic className="h-10 w-10 text-white animate-pulse" /> : <MicOff className="h-10 w-10 text-white" />}
+                    {isSpeaking ? <Mic className="h-10 w-10 text-white animate-pulse" /> : <MicOff className="h-10 w-10 text-white" />}
                 </Button>
                  <div className="h-8">
                     {currentSpeaker ? (
-                        <p className='text-lg animate-pulse font-semibold'>{currentSpeaker.userName} is speaking...</p>
+                        <p className='text-lg animate-pulse font-semibold'>{amISpeaking ? 'Listening...' : `${currentSpeaker.userName} is speaking...`}</p>
                     ) : (
                        <p className="text-muted-foreground">{ canSpeak ? 'Press the mic to talk' : 'Another user is speaking...'}</p>
                     )}
