@@ -1,11 +1,12 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, updateDoc } from "firebase/firestore";
-import { auth, db } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
 import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { CountrySelect } from '@/components/ui/country-select';
+import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 
 
 export default function ProfilePage() {
@@ -26,8 +28,11 @@ export default function ProfilePage() {
 
     const [name, setName] = useState('');
     const [country, setCountry] = useState('');
-    const [mobile, setMobile] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -39,7 +44,6 @@ export default function ProfilePage() {
         if (profile) {
             setName(profile.name || '');
             setCountry(profile.country || '');
-            setMobile(profile.mobile || '');
         }
     }, [profile]);
     
@@ -52,7 +56,6 @@ export default function ProfilePage() {
             await updateDoc(userRef, {
                 name,
                 country,
-                mobile,
             });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
@@ -60,6 +63,59 @@ export default function ProfilePage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to update profile.' });
         } finally {
             setIsSaving(false);
+        }
+    };
+    
+    const handleAvatarUpdate = async (newAvatarUrl: string) => {
+        if (!user) return;
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { avatarUrl: newAvatarUrl });
+            toast({ title: 'Success', description: 'Avatar updated successfully.' });
+        } catch (error) {
+            console.error("Error updating avatar:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update avatar.' });
+        }
+    };
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user) return;
+
+        setIsUploading(true);
+        try {
+            const storageRef = ref(storage, `avatars/${user.uid}/${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            await handleAvatarUpdate(downloadURL);
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to upload new photo.' });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+    
+    const handleGenerateAvatar = async () => {
+        if (!user) return;
+        setIsGenerating(true);
+        try {
+            const result = await generateAvatar({
+                userId: user.uid,
+                userName: name,
+                baseImageUrl: profile?.avatarUrl // Pass current avatar URL if it exists
+            });
+
+            if (result.avatarUrl) {
+                await handleAvatarUpdate(result.avatarUrl);
+            } else {
+                 throw new Error("AI did not return a valid image URL.");
+            }
+        } catch (error) {
+            console.error("Error generating AI avatar:", error);
+            toast({ variant: 'destructive', title: 'AI Avatar Error', description: 'Could not generate AI avatar.' });
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -102,11 +158,20 @@ export default function ProfilePage() {
                     <h1 className="text-3xl font-bold font-headline">{name}</h1>
                     <p className="text-muted-foreground">{user.email}</p>
                     <div className="flex gap-2 mt-4">
-                        <Button size="sm" variant="outline" disabled>
-                            <Upload className="mr-2 h-4 w-4" /> Upload Photo
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            accept="image/*"
+                            className="hidden"
+                        />
+                        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isGenerating}>
+                            {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                             {isUploading ? 'Uploading...' : 'Upload Photo'}
                         </Button>
-                        <Button size="sm" variant="outline" disabled>
-                             <Sparkles className="mr-2 h-4 w-4" /> Generate AI Avatar
+                        <Button size="sm" variant="outline" onClick={handleGenerateAvatar} disabled={isUploading || isGenerating}>
+                             {isGenerating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                             {isGenerating ? 'Generating...' : 'Generate AI Avatar'}
                         </Button>
                     </div>
                 </div>
@@ -135,10 +200,6 @@ export default function ProfilePage() {
                                         <Label htmlFor="email">Email</Label>
                                         <Input id="email" value={user.email || ''} disabled />
                                     </div>
-                                     <div className="space-y-2">
-                                        <Label htmlFor="mobile">Mobile Number</Label>
-                                        <Input id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Your mobile number" />
-                                    </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="country">Country</Label>
                                         <CountrySelect value={country} onChange={(e) => setCountry(e.target.value)} />
@@ -155,3 +216,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
