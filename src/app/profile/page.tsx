@@ -8,7 +8,6 @@ import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -157,7 +156,6 @@ export default function ProfilePage() {
             toast({ title: 'Success', description: 'New photo uploaded.' });
 
         } catch (error) {
-            console.error("Upload error in handleFileChange:", error);
             toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to upload new photo.' });
         } finally {
             setIsUploading(false);
@@ -189,7 +187,6 @@ export default function ProfilePage() {
                  throw new Error("AI did not return a valid image URI.");
             }
         } catch (error) {
-            console.error("AI Avatar Generation or Upload Error:", error);
             toast({ variant: 'destructive', title: 'AI Avatar Error', description: 'Could not generate or save AI avatar.' });
         } finally {
             setIsGenerating(false);
@@ -219,15 +216,17 @@ export default function ProfilePage() {
             return (
                 <Dialog>
                     <DialogTrigger asChild>
-                        <Info className="h-5 w-5 text-accent cursor-help" />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-accent cursor-help">
+                            <Info className="h-5 w-5" />
+                        </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>How Avatars Work</DialogTitle>
+                            <DialogDescription asChild>
+                               <div><AvatarInfoContent /></div>
+                            </DialogDescription>
                         </DialogHeader>
-                        <DialogDescription asChild>
-                           <AvatarInfoContent />
-                        </DialogDescription>
                     </DialogContent>
                 </Dialog>
             );
@@ -237,7 +236,9 @@ export default function ProfilePage() {
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Info className="h-5 w-5 text-accent cursor-help" />
+                         <Button variant="ghost" size="icon" className="h-7 w-7 text-accent cursor-help">
+                            <Info className="h-5 w-5" />
+                        </Button>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs" side="right">
                         <p className="font-bold text-base mb-2">How Avatars Work</p>
@@ -267,36 +268,48 @@ export default function ProfilePage() {
     
     return (
         <div className="space-y-8">
-            <header className="flex items-start gap-4">
-                {isMobile && <SidebarTrigger />}
-                <Avatar className="w-24 h-24 border-4 border-primary/50 text-4xl">
-                    <AvatarImage src={profile.avatarUrl} alt={name} />
-                    <AvatarFallback className="bg-muted">{avatarFallback}</AvatarFallback>
-                </Avatar>
-                 <div>
-                    <h1 className="text-3xl font-bold font-headline">{name}</h1>
-                    <p className="text-muted-foreground">{user.email}</p>
-                    <div className="flex items-center gap-2 mt-4">
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept="image/*"
-                            className="hidden"
-                        />
-                        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isGenerating}>
-                            {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                             {isUploading ? 'Uploading...' : 'Upload Photo'}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={handleGenerateAvatar} disabled={isUploading || isGenerating}>
-                             {isGenerating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                             {isGenerating ? 'Generating...' : 'Generate AI Avatar'}
-                        </Button>
-                        <AvatarInfo />
+             <header className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                     {isMobile && <SidebarTrigger />}
+                    <Avatar className="w-24 h-24 border-4 border-primary/50 text-4xl">
+                        <AvatarImage src={profile.avatarUrl} alt={name} />
+                        <AvatarFallback className="bg-muted">{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                     <div>
+                        <h1 className="text-3xl font-bold font-headline">{name}</h1>
+                        <p className="text-muted-foreground">{user.email}</p>
                     </div>
                 </div>
+                 <Button onClick={handleLogout} variant="outline" size="sm" className="hidden sm:flex"><LogOut className="mr-2" /> Logout</Button>
             </header>
             
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Avatar Settings</CardTitle>
+                     <CardDescription>Upload a photo or generate a unique AI avatar.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-2">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                accept="image/*"
+                                className="hidden"
+                            />
+                            <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isGenerating}>
+                                {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                 {isUploading ? 'Uploading...' : 'Upload Photo'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleGenerateAvatar} disabled={isUploading || isGenerating}>
+                                 {isGenerating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                 {isGenerating ? 'Generating...' : 'Generate AI Avatar'}
+                            </Button>
+                            <AvatarInfo />
+                        </div>
+                </CardContent>
+            </Card>
+
             <Tabs defaultValue="profile" className="w-full">
                 <TabsList>
                     <TabsTrigger value="profile">My Profile</TabsTrigger>
