@@ -49,7 +49,6 @@ export default function LearnPage() {
 
     // Phrasebook Pronunciation Assessment State
     const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
-    const [isAssessing, setIsAssessing] = useState(false);
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
 
     // Live Translation State
@@ -79,7 +78,7 @@ export default function LearnPage() {
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text || isAssessing || isRecognizing || isAssessingLive) return;
+        if (!text || assessingPhraseId || isRecognizing || isAssessingLive) return;
         const locale = languageToLocaleMap[lang];
         
         // Use browser's native TTS if available and voice is 'default'
@@ -264,8 +263,8 @@ export default function LearnPage() {
                 recognizer.close();
             }
             if (isLive) {
-                setIsAssessingLive(false);
                 setLiveAssessmentResult(finalResult);
+                setIsAssessingLive(false);
             } else {
                 setAssessmentResults(prev => ({ ...prev, [phraseId]: finalResult }));
                 setAssessingPhraseId(null);
@@ -467,7 +466,7 @@ export default function LearnPage() {
                                                             {toPronunciation && <p className="text-sm text-muted-foreground italic">{toPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessing}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
@@ -512,7 +511,7 @@ export default function LearnPage() {
                                                                 {toAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{toAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isAssessing}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!!assessingPhraseId}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>

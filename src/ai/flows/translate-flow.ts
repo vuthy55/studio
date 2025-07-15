@@ -34,7 +34,7 @@ const prompt = ai.definePrompt({
   output: { schema: TranslateTextOutputSchema },
   prompt: `You are a translation assistant. Your task is to perform two steps:
 1. Translate the user's text from {{fromLanguage}} to {{toLanguage}}.
-2. Provide a simple, easy-to-read phonetic pronunciation guide for the *entire* translated text. The pronunciation guide must be a direct transliteration of the translated text, not a shortened or alternative phrasing.
+2. Provide a simple, easy-to-read phonetic pronunciation guide for the *entire* translated text. The pronunciation guide MUST be a direct, literal transliteration of the translated text, not a shortened or alternative phrasing. It should help a user pronounce the translated text.
 
 Text to translate:
 "{{text}}"
