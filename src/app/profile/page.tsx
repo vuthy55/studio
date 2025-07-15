@@ -139,8 +139,12 @@ export default function ProfilePage() {
             const snapshot = await uploadBytes(storageRef, resizedBlob);
             const downloadURL = await getDownloadURL(snapshot.ref);
 
-            await handleAvatarUpdate(downloadURL);
-            await updateDoc(doc(db, 'users', user.uid), { realPhotoUrl: downloadURL });
+            await updateDoc(doc(db, 'users', user.uid), { 
+                realPhotoUrl: downloadURL,
+                avatarUrl: downloadURL,
+            });
+
+            toast({ title: 'Success', description: 'New photo uploaded.' });
 
         } catch (error) {
             console.error("Error uploading file:", error);
@@ -154,7 +158,7 @@ export default function ProfilePage() {
     };
     
     const handleGenerateAvatar = async () => {
-        if (!user) return;
+        if (!user || !profile) return;
         setIsGenerating(true);
         try {
             const result = await generateAvatar({
@@ -167,11 +171,12 @@ export default function ProfilePage() {
                 const response = await fetch(result.imageDataUri);
                 const blob = await response.blob();
                 
-                // Upload the Blob to Firebase Storage
+                // Upload the Blob to Firebase Storage, overwriting the previous AI avatar
                 const storageRef = ref(storage, `avatars/${user.uid}/ai-generated-avatar.png`);
                 const snapshot = await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(snapshot.ref);
 
+                // Update only the active avatarUrl
                 await handleAvatarUpdate(downloadURL);
             } else {
                  throw new Error("AI did not return a valid image URI.");
