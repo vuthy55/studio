@@ -1,10 +1,58 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { User, BarChart, Settings, Shield } from "lucide-react"
+
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from '@/lib/firebase';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { User, BarChart, Settings, Shield, LoaderCircle } from "lucide-react";
+import { Skeleton } from '@/components/ui/skeleton';
+
+type UserProfile = {
+    isAdmin?: boolean;
+    // other fields will be added here
+};
 
 export default function ProfilePage() {
-    // In a real app, you would get this from your authentication state
-    const isAdmin = true; 
+    const [user, loading, error] = useAuthState(auth);
+    const router = useRouter();
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/login');
+        }
+    }, [user, loading, router]);
+
+    useEffect(() => {
+        if (user) {
+            const unsub = onSnapshot(doc(db, "users", user.uid), (doc) => {
+                if (doc.exists()) {
+                    setProfile(doc.data() as UserProfile);
+                } else {
+                    // This can happen if the doc creation is slow, handle gracefully
+                    console.log("User profile not found, might be creating...");
+                }
+            });
+            return () => unsub();
+        }
+    }, [user]);
+
+    if (loading || !user || !profile) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    if (error) {
+        return <p>Error: {error.message}</p>;
+    }
 
     return (
         <div className="space-y-8">
@@ -22,7 +70,7 @@ export default function ProfilePage() {
                     <TabsTrigger value="profile"><User className="mr-2" />My Profile</TabsTrigger>
                     <TabsTrigger value="stats"><BarChart className="mr-2" />My Stats</TabsTrigger>
                     <TabsTrigger value="settings"><Settings className="mr-2" />Settings</TabsTrigger>
-                    {isAdmin && <TabsTrigger value="admin"><Shield className="mr-2" />Admin</TabsTrigger>}
+                    {profile.isAdmin && <TabsTrigger value="admin"><Shield className="mr-2" />Admin</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="profile">
                     <Card>
@@ -69,7 +117,7 @@ export default function ProfilePage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                {isAdmin && (
+                {profile.isAdmin && (
                     <TabsContent value="admin">
                         <Card>
                             <CardHeader>
