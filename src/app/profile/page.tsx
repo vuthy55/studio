@@ -171,7 +171,7 @@ export default function ProfilePage() {
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="email">Email</Label>
-                                            <Input id="email" type="email" value={user.email || ''} disabled />
+                                            <Input id="email" type="email" value={profile.email || ''} disabled />
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="mobile">Mobile</Label>
@@ -231,7 +231,7 @@ export default function ProfilePage() {
                                 <CardTitle>Admin Panel</CardTitle>
                                 <CardDescription>
                                     Manage application-wide settings.
-                                </CardDescription>
+                                </Description>
                             </Header>
                             <CardContent className="space-y-4">
                                 <div className="flex items-center justify-center h-48">
