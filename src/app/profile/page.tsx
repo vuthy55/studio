@@ -4,23 +4,44 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from '@/lib/firebase';
+import { updateProfile } from "firebase/auth";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { User, BarChart, Settings, Shield, LoaderCircle } from "lucide-react";
+import { User, BarChart, Settings, Shield, LoaderCircle, Camera, Sparkles } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/hooks/use-toast";
 
 type UserProfile = {
+    uid: string;
+    email: string;
+    name?: string;
+    avatarUrl?: string;
+    realPhotoUrl?: string;
     isAdmin?: boolean;
-    // other fields will be added here
+    isBlocked?: boolean;
+    tokens?: number;
+    createdAt?: Date;
+    mobile?: string;
+    country?: string;
 };
 
 export default function ProfilePage() {
     const [user, loading, error] = useAuthState(auth);
     const router = useRouter();
+    const { toast } = useToast();
+    
     const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    
+    // Editable fields
+    const [name, setName] = useState('');
 
     useEffect(() => {
         if (!loading && !user) {
@@ -32,9 +53,10 @@ export default function ProfilePage() {
         if (user) {
             const unsub = onSnapshot(doc(db, "users", user.uid), (doc) => {
                 if (doc.exists()) {
-                    setProfile(doc.data() as UserProfile);
+                    const data = doc.data() as UserProfile;
+                    setProfile(data);
+                    setName(data.name || '');
                 } else {
-                    // This can happen if the doc creation is slow, handle gracefully
                     console.log("User profile not found, might be creating...");
                 }
             });
@@ -42,7 +64,45 @@ export default function ProfilePage() {
         }
     }, [user]);
 
-    if (loading || !user || !profile) {
+    const handleProfileUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !profile) return;
+
+        setIsSaving(true);
+        try {
+            const userRef = doc(db, "users", user.uid);
+            
+            // Prepare the data to be updated
+            const updatedData: Partial<UserProfile> = {
+                name: name,
+            };
+
+            await setDoc(userRef, updatedData, { merge: true });
+
+            // Also update the auth profile if the name has changed
+            if (user.displayName !== name) {
+                 await updateProfile(user, { displayName: name });
+            }
+
+            toast({
+                title: "Success",
+                description: "Your profile has been updated.",
+            });
+
+        } catch (error: any) {
+            console.error("Profile update error", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not update your profile. " + error.message,
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+
+    if (loading || !profile) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -52,6 +112,10 @@ export default function ProfilePage() {
     
     if (error) {
         return <p>Error: {error.message}</p>;
+    }
+
+    const getInitials = (name?: string) => {
+        return name ? name.charAt(0).toUpperCase() : <User />;
     }
 
     return (
@@ -77,13 +141,50 @@ export default function ProfilePage() {
                         <CardHeader>
                             <CardTitle>My Profile</CardTitle>
                             <CardDescription>
-                                This is your personal information.
+                               This is your personal information. Click save when you're done.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                             <div className="flex items-center justify-center h-48">
-                                <p className="text-muted-foreground">Profile details coming soon!</p>
-                            </div>
+                        <CardContent>
+                            <form onSubmit={handleProfileUpdate} className="space-y-8">
+                                <div className="flex flex-col md:flex-row items-start gap-8">
+                                    <div className="flex flex-col items-center gap-4">
+                                        <Avatar className="w-32 h-32 text-4xl">
+                                            <AvatarImage src={profile.avatarUrl} alt={profile.name} />
+                                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="grid grid-cols-2 gap-2 w-full">
+                                            <Button type="button" variant="outline"><Camera />Upload</Button>
+                                            <Button type="button" variant="outline"><Sparkles />AI Avatar</Button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4 flex-1 w-full">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Name</Label>
+                                            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Name" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email">Email</Label>
+                                            <Input id="email" type="email" value={profile.email} disabled />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="mobile">Mobile</Label>
+                                            <Input id="mobile" placeholder="Your mobile number (optional)" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="country">Country</Label>
+                                            <Input id="country" placeholder="Your country (optional)" />
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex justify-end">
+                                    <Button type="submit" disabled={isSaving}>
+                                        {isSaving && <LoaderCircle className="animate-spin" />}
+                                        {isSaving ? 'Saving...' : 'Save Changes'}
+                                    </Button>
+                                </div>
+                            </form>
                         </CardContent>
                     </Card>
                 </TabsContent>
