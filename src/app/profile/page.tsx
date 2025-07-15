@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { CountrySelect } from '@/components/ui/country-select';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import {
   Tooltip,
   TooltipProvider,
@@ -40,7 +41,7 @@ export default function ProfilePage() {
     const { profile, loading: profileLoading } = useUser(user?.uid);
     const router = useRouter();
     const { toast } = useToast();
-    const isMobile = useIsMobile();
+    const { isMobile } = useSidebar();
 
     const [name, setName] = useState('');
     const [country, setCountry] = useState('');
@@ -156,6 +157,7 @@ export default function ProfilePage() {
             toast({ title: 'Success', description: 'New photo uploaded.' });
 
         } catch (error) {
+            console.error("Upload error in handleFileChange:", error);
             toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to upload new photo.' });
         } finally {
             setIsUploading(false);
@@ -187,7 +189,8 @@ export default function ProfilePage() {
                  throw new Error("AI did not return a valid image URI.");
             }
         } catch (error) {
-            toast({ variant: 'destructive', title: 'AI Avatar Error', description: 'Could not generate AI avatar.' });
+            console.error("AI Avatar Generation or Upload Error:", error);
+            toast({ variant: 'destructive', title: 'AI Avatar Error', description: 'Could not generate or save AI avatar.' });
         } finally {
             setIsGenerating(false);
         }
@@ -264,7 +267,8 @@ export default function ProfilePage() {
     
     return (
         <div className="space-y-8">
-            <header className="flex items-start gap-6">
+            <header className="flex items-start gap-4">
+                {isMobile && <SidebarTrigger />}
                 <Avatar className="w-24 h-24 border-4 border-primary/50 text-4xl">
                     <AvatarImage src={profile.avatarUrl} alt={name} />
                     <AvatarFallback className="bg-muted">{avatarFallback}</AvatarFallback>
