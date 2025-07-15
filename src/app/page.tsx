@@ -359,7 +359,7 @@ export default function LearnPage() {
 
                                             const toPhraseId = `${phrase.id}-${toLanguage}`;
                                             const toResult = assessmentResults[toPhraseId];
-                                            const isAssessingTo = isAssessing && assessingPhraseId === toPhraseId;
+                                            const isCurrentlyAssessingThis = isAssessing && assessingPhraseId === toPhraseId;
                                             const isInProgressTo = toResult?.status === 'in-progress';
 
                                             return (
@@ -371,7 +371,6 @@ export default function LearnPage() {
                                                             {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            {/* Speaker for From language removed */}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -389,8 +388,8 @@ export default function LearnPage() {
                                                             <TooltipProvider>
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
-                                                                        <Button size="icon" variant={isAssessingTo ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing}>
-                                                                            <Mic className={cn("h-5 w-5", isAssessingTo && "animate-pulse")} />
+                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing}>
+                                                                            <Mic className={cn("h-5 w-5", isCurrentlyAssessingThis && "animate-pulse")} />
                                                                             <span className="sr-only">Record pronunciation</span>
                                                                         </Button>
                                                                     </TooltipTrigger>
@@ -399,7 +398,7 @@ export default function LearnPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </TooltipProvider>
-                                                            {isInProgressTo && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
+                                                            {isInProgressTo && !isCurrentlyAssessingThis && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
                                                             {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
                                                             {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                                         </div>
@@ -420,7 +419,6 @@ export default function LearnPage() {
                                                                 {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                {/* Speaker for From language answer removed */}
                                                             </div>
                                                         </div>
                                                         <div className="flex justify-between items-center w-full">
