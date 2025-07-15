@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Info } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import {
   Tooltip,
@@ -156,8 +156,7 @@ export default function LearnPage() {
         
         setIsAssessing(true);
         setAssessingPhraseId(phraseId);
-        setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
-
+        
         let recognizer: sdk.SpeechRecognizer | undefined;
         let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
 
@@ -172,32 +171,36 @@ export default function LearnPage() {
                 true
             );
         
+            pronunciationConfig.applyTo(speechConfig);
+
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
             recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-            pronunciationConfig.applyTo(recognizer);
             
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
             
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
-                if (assessment) {
-                    const accuracyScore = assessment.accuracyScore;
-                    const fluencyScore = assessment.fluencyScore;
+                const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
+                if (assessmentResult) {
+                    const accuracyScore = assessmentResult.accuracyScore;
+                    const fluencyScore = assessmentResult.fluencyScore;
                     finalResult = {
                         status: accuracyScore > 70 ? 'pass' : 'fail',
                         accuracy: accuracyScore,
                         fluency: fluencyScore,
                     };
                 } else {
+                     finalResult.status = 'fail';
                      toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not get assessment details from the service.' });
                 }
             } else {
+                 finalResult.status = 'fail';
                  toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
             }
         } catch (error) {
             console.error("Error during assessment:", error);
+            finalResult.status = 'fail';
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
         } finally {
             if (recognizer) {
@@ -226,26 +229,29 @@ export default function LearnPage() {
     const sortedPhrases = useMemo(() => {
         const getScore = (status: AssessmentStatus) => {
           switch (status) {
-            case 'fail': return 0; // Fails first
-            case 'in-progress': return 1; // In-progress next
-            case 'unattempted': return 2; // Unattempted after
-            case 'pass': return 3; // Passes last
-            default: return 2;
+            case 'fail': return 0;
+            case 'unattempted': return 1;
+            case 'in-progress': return 1;
+            case 'pass': return 2;
+            default: return 1;
           }
         };
     
         return [...selectedTopic.phrases].sort((a, b) => {
-            const statusA = assessmentResults[`${a.id}-${toLanguage}`]?.status || 'unattempted';
-            const statusB = assessmentResults[`${b.id}-${toLanguage}`]?.status || 'unattempted';
-            
-            // If one of the phrases is being assessed, don't change its position relative to others.
-            if (statusA === 'in-progress' || statusB === 'in-progress') {
-                return 0;
-            }
-
-            return getScore(statusA) - getScore(statusB);
+          const phraseIdA = `${a.id}-${toLanguage}`;
+          const phraseIdB = `${b.id}-${toLanguage}`;
+    
+          // Prevent re-sorting of the phrase currently being assessed
+          if (phraseIdA === assessingPhraseId || phraseIdB === assessingPhraseId) {
+            return 0;
+          }
+    
+          const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
+          const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
+    
+          return getScore(statusA) - getScore(statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults, toLanguage]);
+      }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -321,7 +327,26 @@ export default function LearnPage() {
                         <TabsContent value="phrasebook">
                             <div className="space-y-4 pt-6">
                                 <div className="space-y-2">
-                                     <Label htmlFor="topic-select">Select a Topic</Label>
+                                     <div className="flex items-center gap-2">
+                                        <Label htmlFor="topic-select">Select a Topic</Label>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs" side="right">
+                                                    <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
+                                                    <ul className="list-disc pl-4 space-y-1 text-sm">
+                                                        <li>Select a topic to learn relevant phrases.</li>
+                                                        <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
+                                                        <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your own pronunciation.</li>
+                                                        <li>You need over 70% accuracy to pass.</li>
+                                                        <li>Failed phrases move to the top for more practice. Passed phrases move to the bottom.</li>
+                                                    </ul>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </div>
                                     <Select 
                                         value={selectedTopic.id} 
                                         onValueChange={(value) => {
@@ -361,8 +386,7 @@ export default function LearnPage() {
                                             const toPhraseId = `${phrase.id}-${toLanguage}`;
                                             const toResult = assessmentResults[toPhraseId];
                                             const isCurrentlyAssessingThis = isAssessing && assessingPhraseId === toPhraseId;
-                                            const isInProgressTo = toResult?.status === 'in-progress' || isCurrentlyAssessingThis;
-
+                                            
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div className="flex flex-col gap-2">
@@ -399,7 +423,7 @@ export default function LearnPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </TooltipProvider>
-                                                            {isInProgressTo && !isCurrentlyAssessingThis && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
+                                                            {toResult?.status === 'in-progress' && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
                                                             {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
                                                             {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                                         </div>
