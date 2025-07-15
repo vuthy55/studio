@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import type { AssessmentResults } from '../page';
+import type { AssessmentResult, AssessmentResults } from '../page';
 import { languages, phrasebook } from '@/lib/data';
 import {
   ChartContainer,
@@ -32,7 +32,7 @@ type UserProfile = {
   name: string;
   email: string;
   avatarUrl: string;
-  assessmentResults: AssessmentResults;
+  assessmentResults?: AssessmentResults;
 };
 
 export default function ProfilePage() {
@@ -133,20 +133,31 @@ export default function ProfilePage() {
         dbResults = userDoc.data().assessmentResults;
       }
 
+      // Merge local and DB results, preferring 'pass' status
       const mergedResults: AssessmentResults = { ...localResults, ...dbResults };
-      for (const key in mergedResults) {
-          const local = localResults[key];
-          const remote = dbResults[key];
-          if (local && remote) {
-              if (local.status === 'pass' || remote.status === 'pass') {
-                  mergedResults[key].status = 'pass';
-                  mergedResults[key].accuracy = Math.max(local.accuracy || 0, remote.accuracy || 0);
-              }
-          }
+      Object.keys(mergedResults).forEach(key => {
+        const local = localResults[key] as AssessmentResult | undefined;
+        const db = dbResults[key] as AssessmentResult | undefined;
+
+        if (local && db) {
+            if (local.status === 'pass' || db.status === 'pass') {
+                mergedResults[key] = {
+                    status: 'pass',
+                    accuracy: Math.max(local.accuracy || 0, db.accuracy || 0),
+                    fluency: Math.max(local.fluency || 0, db.fluency || 0),
+                };
+            }
+        }
+      });
+      
+      if (Object.keys(mergedResults).length > 0) {
+        setStats(calculateStats(mergedResults));
+        localStorage.setItem('assessmentResults', JSON.stringify(mergedResults));
+        await updateDoc(userRef, { assessmentResults: mergedResults });
+      } else if(Object.keys(localResults).length > 0) {
+        setStats(calculateStats(localResults));
       }
 
-      setStats(calculateStats(mergedResults));
-      localStorage.setItem('assessmentResults', JSON.stringify(mergedResults));
 
       setStatsMessage("Stats up to date!");
       setStatsLoading(false);
@@ -226,7 +237,7 @@ export default function ProfilePage() {
                                 <div className="relative group">
                                     <Avatar className="h-24 w-24">
                                         <AvatarImage src={profile.avatarUrl} alt={profile.name} />
-                                        <AvatarFallback>{profile.name.charAt(0)}</AvatarFallback>
+                                        <AvatarFallback>{profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
                                     </Avatar>
                                 </div>
                                 <div className="space-y-2 flex-1 w-full">

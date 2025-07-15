@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-        // Resolve 'async_hooks' to a an empty module on the client side
+        // Resolve 'async_hooks' to an empty module on the client side
         config.resolve.alias.async_hooks = false;
     }
     return config
