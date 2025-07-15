@@ -1,0 +1,29 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can read and write their own profile data.
+    match /users/{userId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+    }
+
+    // Publicly readable list of rooms.
+    match /rooms/{roomId} {
+      allow read;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null; // Allows updating currentSpeaker
+      // Only the room creator can delete the room.
+      allow delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+
+      // Rules for participants in a room.
+      match /participants/{userId} {
+        allow read;
+        // A user can only add or delete their own participant document.
+        allow create, delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}
