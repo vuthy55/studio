@@ -215,7 +215,7 @@ export default function LearnPage() {
       setAssessingPhraseId(phraseId);
       setAssessmentResults((prev) => ({
         ...prev,
-        [phraseId]: { status: 'in-progress' },
+        [phraseId]: { ...prev[phraseId], status: 'in-progress' },
       }));
     }
 
@@ -299,11 +299,16 @@ export default function LearnPage() {
     }
     
     const sortedPhrases = useMemo(() => {
-        const getScore = (status: AssessmentStatus) => {
-          switch (status) {
+        const getScore = (phraseId: string, currentStatus: AssessmentStatus) => {
+          if (currentStatus === 'in-progress') {
+            const previousStatus = assessmentResults[phraseId]?.status || 'unattempted';
+            if (previousStatus === 'fail') return 0; // If it was failing before, keep it at the top
+          }
+    
+          switch (currentStatus) {
             case 'fail': return 0;
             case 'unattempted': return 1;
-            case 'in-progress': return 1; // Treat 'in-progress' like 'unattempted' to prevent moving
+            case 'in-progress': return 1;
             case 'pass': return 2;
             default: return 1;
           }
@@ -313,12 +318,12 @@ export default function LearnPage() {
           const phraseIdA = `${a.id}-${toLanguage}`;
           const phraseIdB = `${b.id}-${toLanguage}`;
     
-          const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
-          const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
+          const statusA = assessingPhraseId === phraseIdA ? 'in-progress' : (assessmentResults[phraseIdA]?.status || 'unattempted');
+          const statusB = assessingPhraseId === phraseIdB ? 'in-progress' : (assessmentResults[phraseIdB]?.status || 'unattempted');
 
-          return getScore(statusA) - getScore(statusB);
+          return getScore(phraseIdA, statusA) - getScore(phraseIdB, statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults, toLanguage]);
+    }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -601,3 +606,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
