@@ -37,11 +37,53 @@ export type AssessmentResult = {
 };
 export type AssessmentResults = Record<string, AssessmentResult>;
 
+interface LearnPageState {
+  fromLanguage: LanguageCode;
+  toLanguage: LanguageCode;
+  selectedTopicId: string;
+  selectedVoice: VoiceSelection;
+}
+
+const getInitialState = (): LearnPageState => {
+    if (typeof window === 'undefined') {
+        return {
+            fromLanguage: 'english',
+            toLanguage: 'thai',
+            selectedTopicId: phrasebook[0].id,
+            selectedVoice: 'default',
+        };
+    }
+    const savedState = localStorage.getItem('learnPageState');
+    if (savedState) {
+        try {
+            return JSON.parse(savedState);
+        } catch (e) {
+            // ignore parsing error
+        }
+    }
+    return {
+        fromLanguage: 'english',
+        toLanguage: 'thai',
+        selectedTopicId: phrasebook[0].id,
+        selectedVoice: 'default',
+    };
+};
+
+
 export default function LearnPage() {
     const [user, authLoading] = useAuthState(auth);
-    const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
-    const [toLanguage, setToLanguage] = useState<LanguageCode>('thai');
-    const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
+    const [pageState, setPageState] = useState<LearnPageState>(getInitialState);
+
+    const { fromLanguage, toLanguage, selectedTopicId, selectedVoice } = pageState;
+
+    const setSelectedTopic = (topic: Topic) => {
+        setPageState(prev => ({ ...prev, selectedTopicId: topic.id }));
+    };
+    
+    const selectedTopic = useMemo(() => {
+        return phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0];
+    }, [selectedTopicId]);
+
     const { isMobile } = useSidebar();
     const { toast } = useToast();
     const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
@@ -49,7 +91,6 @@ export default function LearnPage() {
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
     const [activeTab, setActiveTab] = useState('phrasebook');
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [assessmentResults, setAssessmentResults] = useState<AssessmentResults>({});
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
@@ -58,6 +99,12 @@ export default function LearnPage() {
     const [isAssessingLive, setIsAssessingLive] = useState(false);
     const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
     const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+     // Effect for saving UI state to local storage
+    useEffect(() => {
+        localStorage.setItem('learnPageState', JSON.stringify(pageState));
+    }, [pageState]);
+
 
     // Effect for loading data on initial mount and when user logs in/out
     useEffect(() => {
@@ -141,8 +188,7 @@ export default function LearnPage() {
 
     const handleSwitchLanguages = () => {
         const currentInput = inputText;
-        setFromLanguage(toLanguage);
-        setToLanguage(fromLanguage);
+        setPageState(prev => ({ ...prev, fromLanguage: toLanguage, toLanguage: fromLanguage }));
         setInputText(translatedText);
         setTranslatedText(currentInput);
         setLiveAssessmentResult(null);
@@ -401,7 +447,10 @@ export default function LearnPage() {
             <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
                 <div className="flex-1 w-full">
                     <Label htmlFor="from-language">From</Label>
-                    <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
+                    <Select 
+                        value={fromLanguage} 
+                        onValueChange={(value) => setPageState(prev => ({ ...prev, fromLanguage: value as LanguageCode }))}
+                    >
                         <SelectTrigger id="from-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -420,7 +469,10 @@ export default function LearnPage() {
                 
                 <div className="flex-1 w-full">
                     <Label htmlFor="to-language">To</Label>
-                    <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
+                    <Select 
+                        value={toLanguage} 
+                        onValueChange={(value) => setPageState(prev => ({ ...prev, toLanguage: value as LanguageCode }))}
+                    >
                         <SelectTrigger id="to-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -434,7 +486,10 @@ export default function LearnPage() {
 
                 <div className="w-full sm:w-auto sm:flex-1">
                   <Label htmlFor="tts-voice">Voice</Label>
-                  <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
+                  <Select 
+                    value={selectedVoice} 
+                    onValueChange={(value) => setPageState(prev => ({ ...prev, selectedVoice: value as VoiceSelection }))}
+                  >
                       <SelectTrigger id="tts-voice">
                           <SelectValue placeholder="Select a voice" />
                       </SelectTrigger>
@@ -664,3 +719,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    

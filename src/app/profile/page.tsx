@@ -8,7 +8,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
-import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info, Languages } from "lucide-react";
+import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info, Languages, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,10 @@ import { CountrySelect } from '@/components/ui/country-select';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Progress } from '@/components/ui/progress';
-import { phrasebook, languages as allLanguages, type LanguageCode } from '@/lib/data';
-import type { AssessmentResults } from '@/app/page';
+import { phrasebook, languages as allLanguages, type LanguageCode, type Phrase } from '@/lib/data';
+import type { AssessmentResult, AssessmentResults } from '@/app/page';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 import {
   Tooltip,
   TooltipProvider,
@@ -35,12 +37,92 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
+
+type LanguageStats = {
+    language: string;
+    langCode: LanguageCode;
+    passed: number;
+    total: number;
+    percentage: number;
+};
+
+
+const StatsDialog = ({ language, langCode, assessmentResults }: { language: string, langCode: LanguageCode, assessmentResults: AssessmentResults }) => {
+    const sortedPhrases = useMemo(() => {
+        const getScore = (result?: AssessmentResult) => {
+            if (!result) return 1;
+            if (result.status === 'fail') return 0;
+            if (result.status === 'pass') return 2;
+            return 1;
+        };
+
+        const allPhrasesInLang = phrasebook.flatMap(topic => topic.phrases);
+        
+        return allPhrasesInLang.sort((a, b) => {
+            const resultA = assessmentResults[`${a.id}-${langCode}`];
+            const resultB = assessmentResults[`${b.id}-${langCode}`];
+            return getScore(resultA) - getScore(resultB);
+        });
+    }, [langCode, assessmentResults]);
+    
+    const getTranslation = (phrase: Phrase, lang: LanguageCode) => {
+        if (lang === 'english' || !phrase.translations[lang]) {
+            return phrase.english;
+        }
+        return phrase.translations[lang]!;
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <div className="space-y-2 cursor-pointer group">
+                    <div className="flex justify-between items-baseline">
+                        <h4 className="font-semibold group-hover:text-primary transition-colors">{language}</h4>
+                        <p className="text-sm text-muted-foreground">{sortedPhrases.filter(p => assessmentResults[`${p.id}-${langCode}`]?.status === 'pass').length} / {sortedPhrases.length}</p>
+                    </div>
+                    <Progress value={(sortedPhrases.filter(p => assessmentResults[`${p.id}-${langCode}`]?.status === 'pass').length / sortedPhrases.length) * 100} />
+                </div>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{language} Progress</DialogTitle>
+                    <DialogDescription>
+                        Review your learned phrases. Failed items are at the top.
+                    </DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="h-96 pr-4">
+                    <div className="space-y-3">
+                        {sortedPhrases.map(phrase => {
+                            const result = assessmentResults[`${phrase.id}-${langCode}`];
+                            return (
+                                <div key={phrase.id} className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                                    <div>
+                                        <p className="font-medium">{getTranslation(phrase, langCode)}</p>
+                                        <p className="text-sm text-muted-foreground">{phrase.english}</p>
+                                    </div>
+                                    {result?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                                    {result?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </ScrollArea>
+                 <DialogClose asChild>
+                    <Button type="button" variant="secondary">
+                        Close
+                    </Button>
+                </DialogClose>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 
 const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResults }) => {
     const stats = useMemo(() => {
-        const languageStats = allLanguages
+        const languageStats: LanguageStats[] = allLanguages
             .map(lang => {
                 if (lang.value === 'english') return null;
 
@@ -54,14 +136,15 @@ const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResu
 
                 return {
                     language: lang.label,
+                    langCode: lang.value,
                     passed: passedPhrases,
                     total: totalPhrases,
                     percentage: totalPhrases > 0 ? (passedPhrases / totalPhrases) * 100 : 0,
                 };
             })
-            .filter(Boolean);
+            .filter((s): s is LanguageStats => s !== null && s.total > 0);
 
-        const totalPassed = languageStats.reduce((sum, stat) => sum + (stat?.passed || 0), 0);
+        const totalPassed = languageStats.reduce((sum, stat) => sum + stat.passed, 0);
         
         return { languageStats, totalPassed };
     }, [assessmentResults]);
@@ -87,15 +170,12 @@ const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResu
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    {stats.languageStats.map(stat => (
-                       stat && stat.total > 0 && (
-                            <div key={stat.language} className="space-y-2">
-                                <div className="flex justify-between items-baseline">
-                                    <h4 className="font-semibold">{stat.language}</h4>
-                                    <p className="text-sm text-muted-foreground">{stat.passed} / {stat.total}</p>
-                                </div>
-                                <Progress value={stat.percentage} />
-                            </div>
-                       )
+                       <StatsDialog 
+                            key={stat.language} 
+                            language={stat.language}
+                            langCode={stat.langCode}
+                            assessmentResults={assessmentResults} 
+                        />
                    ))}
                 </CardContent>
             </Card>
@@ -432,3 +512,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
