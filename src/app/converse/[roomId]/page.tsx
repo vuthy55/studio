@@ -93,6 +93,7 @@ export default function RoomPage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentSpeaker, setCurrentSpeaker] = useState<Speaker | null>(null);
   const lastPlayedTimestamp = useRef(0);
+  const audioEndTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -103,16 +104,26 @@ export default function RoomPage() {
   const enterRoom = useCallback(async () => {
     if (!user || !roomId) return;
     try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const participantData = {
-        id: user.uid,
-        name: userDoc.exists() ? userDoc.data().name : user.displayName || 'Anonymous',
-        language: myLanguage,
-      };
-      await setDoc(doc(db, 'rooms', roomId, 'participants', user.uid), participantData);
-    } catch (error) {
+      await runTransaction(db, async (transaction) => {
+        const roomDocRef = doc(db, 'rooms', roomId);
+        const roomDoc = await transaction.get(roomDocRef);
+        if (!roomDoc.exists() || !roomDoc.data().isActive) {
+          throw new Error('Room not found or has been ended.');
+        }
+
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await transaction.get(userDocRef);
+        const participantData = {
+          id: user.uid,
+          name: userDoc.exists() ? userDoc.data().name : user.displayName || 'Anonymous',
+          language: myLanguage,
+        };
+        const participantDocRef = doc(db, 'rooms', roomId, 'participants', user.uid);
+        transaction.set(participantDocRef, participantData);
+      });
+    } catch (error: any) {
       console.error('Error entering room:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not enter room.' });
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not enter room.' });
       router.push('/converse');
     }
   }, [user, roomId, myLanguage, toast, router]);
@@ -124,8 +135,17 @@ export default function RoomPage() {
   }, [user, roomId, router]);
 
   const endSession = async () => {
-    if (!isCreator) return;
-    await updateDoc(doc(db, 'rooms', roomId), { isActive: false, currentSpeaker: null });
+    if (!isCreator || !roomId) return;
+    // Instead of just deactivating, we will delete the room.
+    // The participants subcollection will be deleted via a Firebase Function extension (not implemented here).
+    try {
+      await deleteDoc(doc(db, 'rooms', roomId));
+      toast({ title: 'Session Ended', description: 'The room has been deleted.' });
+      router.push('/converse');
+    } catch (error) {
+      console.error('Error deleting room:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not end the session.' });
+    }
   };
   
   useEffect(() => {
@@ -134,6 +154,7 @@ export default function RoomPage() {
     enterRoom();
   
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // This is a failsafe, but explicit leave is better.
       deleteDoc(doc(db, 'rooms', roomId, 'participants', user.uid));
     };
   
@@ -141,10 +162,12 @@ export default function RoomPage() {
   
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      deleteDoc(doc(db, 'rooms', roomId, 'participants', user.uid));
+      // Ensure user is removed on component unmount (e.g., navigating away)
+      if (user && roomId) {
+        deleteDoc(doc(db, 'rooms', roomId, 'participants', user.uid));
+      }
     };
   }, [user, roomId, enterRoom]);
-  
 
   useEffect(() => {
     if (!roomId) return;
@@ -153,17 +176,12 @@ export default function RoomPage() {
     const participantsColRef = collection(db, 'rooms', roomId, 'participants');
 
     const unsubRoom = onSnapshot(roomDocRef, (docSnap) => {
-      if (docSnap.exists()) {
+      if (docSnap.exists() && docSnap.data().isActive) {
         const roomData = docSnap.data() as Room;
         setRoom(roomData);
         setLoading(false);
         if (user) {
           setIsCreator(roomData.createdBy === user.uid);
-        }
-
-        if (!roomData.isActive) {
-          toast({ title: 'Session Ended', description: 'The host has ended the session.' });
-          router.push('/converse');
         }
         
         const speaker = roomData.currentSpeaker;
@@ -173,7 +191,7 @@ export default function RoomPage() {
         }
 
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'Room not found.' });
+        toast({ variant: 'destructive', title: 'Session Ended', description: 'This room is no longer active.' });
         router.push('/converse');
       }
     });
@@ -192,19 +210,32 @@ export default function RoomPage() {
   useEffect(() => {
     if(currentSpeaker && user && currentSpeaker.userId !== user.uid) {
         const playAudio = async () => {
+            if (!currentSpeaker.text) return;
             const locale = languageToLocaleMap[currentSpeaker.language];
             if (!locale) return;
             try {
                 const response = await generateSpeech({ text: currentSpeaker.text, lang: locale });
                 const audio = new Audio(response.audioDataUri);
                 audio.play();
+
+                audio.addEventListener('ended', () => {
+                    if (audioEndTimerRef.current) {
+                        clearTimeout(audioEndTimerRef.current);
+                    }
+                    if (isCreator) {
+                       updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
+                    }
+                });
             } catch (error) {
                 console.error("TTS playback error:", error);
+                 if (isCreator) {
+                    updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
+                 }
             }
         };
         playAudio();
     }
-  }, [currentSpeaker, user]);
+  }, [currentSpeaker, user, isCreator, roomId]);
 
 
   const handleMicClick = async () => {
@@ -243,9 +274,13 @@ export default function RoomPage() {
             };
             transaction.update(roomDocRef, { currentSpeaker: speakerPayload });
         });
-
+        
         const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
         speechConfig.speechRecognitionLanguage = locale;
+        // Adjust silence timeout to better detect end of speech
+        speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "3000");
+        speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "3000");
+
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
@@ -262,19 +297,28 @@ export default function RoomPage() {
                 timestamp: Date.now(),
             };
             await updateDoc(roomDocRef, { currentSpeaker: newSpeakerPayload });
+            
+            // The creator is responsible for clearing the speaker after a delay
+            // This is handled by the audio 'ended' event listener now for more accuracy
+            if (isCreator && !audioEndTimerRef.current) {
+                audioEndTimerRef.current = setTimeout(() => {
+                    updateDoc(roomDocRef, { currentSpeaker: null });
+                }, 5000); // Failsafe timeout
+            }
+
         } else {
              await updateDoc(roomDocRef, { currentSpeaker: null });
         }
 
-        setTimeout(async () => {
-            await updateDoc(roomDocRef, { currentSpeaker: null });
-        }, 2000);
-
     } catch (error: any) {
         console.error("Error during speech recognition or transaction:", error);
-        if (error.message !== "Another user is already speaking.") {
+        if (error.message.includes("Another user is already speaking")) {
+            // No toast needed for this expected scenario
+        } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not process speech.' });
         }
+        // Always ensure the speaker is cleared on error
+        await updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
     } finally {
         if (recognizer) recognizer.close();
         setIsSpeaking(false);
@@ -313,12 +357,12 @@ export default function RoomPage() {
                                 <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will end the session for everyone. This action cannot be undone.
+                                    This will permanently delete the room for everyone. This action cannot be undone.
                                 </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={endSession}>End Session</AlertDialogAction>
+                                <AlertDialogAction onClick={endSession}>End & Delete Session</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -368,7 +412,7 @@ export default function RoomPage() {
                         canSpeak && "bg-green-500 hover:bg-green-600"
                     )}
                 >
-                    {isSpeaking || currentSpeaker ? <Mic className="h-10 w-10 text-white" /> : <MicOff className="h-10 w-10 text-white" />}
+                    {isSpeaking || (currentSpeaker && currentSpeaker?.text === '...') ? <Mic className="h-10 w-10 text-white animate-pulse" /> : <MicOff className="h-10 w-10 text-white" />}
                 </Button>
                  <div className="h-8">
                     {currentSpeaker ? (

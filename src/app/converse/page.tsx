@@ -13,7 +13,8 @@ import {
   serverTimestamp,
   doc,
   getDoc,
-  limit
+  limit,
+  deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -36,10 +37,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { LoaderCircle, MessagesSquare, Plus } from 'lucide-react';
+import { LoaderCircle, MessagesSquare, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { languages, LanguageCode } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 type Room = {
   id: string;
@@ -59,6 +63,7 @@ export default function ConversePage() {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -73,9 +78,11 @@ export default function ConversePage() {
       (querySnapshot) => {
         const roomsData: Room[] = [];
         querySnapshot.forEach((doc) => {
-          roomsData.push({ id: doc.id, ...doc.data() } as Room);
+          if (doc.data().isActive !== false) {
+             roomsData.push({ id: doc.id, ...doc.data() } as Room);
+          }
         });
-        setRooms(roomsData.filter(room => room.isActive !== false));
+        setRooms(roomsData);
         setIsLoadingRooms(false);
       },
       (error) => {
@@ -112,6 +119,16 @@ export default function ConversePage() {
       console.error('Error creating room:', error);
     } finally {
       setIsCreatingRoom(false);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    try {
+      await deleteDoc(doc(db, 'rooms', roomId));
+      toast({ title: 'Room Deleted', description: 'The conversation room has been successfully deleted.' });
+    } catch (error) {
+      console.error('Error deleting room:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete the room.' });
     }
   };
 
@@ -175,24 +192,55 @@ export default function ConversePage() {
       {rooms.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {rooms.map((room) => (
-            <Link key={room.id} href={`/converse/${room.id}`} passHref>
-              <Card className="hover:bg-accent/50 transition-colors h-full flex flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessagesSquare className="text-primary" /> {room.name}
-                  </CardTitle>
-                  <CardDescription>
-                    Created by {room.creatorName || 'a user'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-grow"></CardContent>
-                <CardFooter>
-                  <p className="text-xs text-muted-foreground">
-                    {room.createdAt?.toDate().toLocaleString()}
-                  </p>
-                </CardFooter>
-              </Card>
-            </Link>
+            <Card key={room.id} className="hover:bg-accent/50 transition-colors h-full flex flex-col">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="flex-grow">
+                     <Link href={`/converse/${room.id}`} passHref>
+                        <CardTitle className="flex items-center gap-2 cursor-pointer">
+                          <MessagesSquare className="text-primary" /> {room.name}
+                        </CardTitle>
+                      </Link>
+                      <CardDescription>
+                        Created by {room.creatorName || 'a user'}
+                      </CardDescription>
+                  </div>
+                  {user && user.uid === room.createdBy && (
+                     <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                         <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                           <Trash2 className="h-4 w-4 text-destructive" />
+                         </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the room. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteRoom(room.id)}>Delete Room</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                 <Link href={`/converse/${room.id}`} className="block h-full">
+                    <span className="sr-only">Join room {room.name}</span>
+                 </Link>
+              </CardContent>
+              <CardFooter>
+                 <Link href={`/converse/${room.id}`} className="w-full">
+                    <p className="text-xs text-muted-foreground">
+                      {room.createdAt?.toDate().toLocaleString()}
+                    </p>
+                 </Link>
+              </CardFooter>
+            </Card>
           ))}
         </div>
       ) : (
