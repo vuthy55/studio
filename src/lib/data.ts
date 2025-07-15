@@ -16,14 +16,15 @@ export const languages = [
     { value: 'tamil', label: 'Tamil' },
     { value: 'thai', label: 'Thai' },
     { value: 'vietnamese', label: 'Vietnamese' },
-] as const;
+].sort((a, b) => a.label.localeCompare(b.label)) as { value: LanguageCode; label: string }[];
 
-export type LanguageCode = typeof languages[number]['value'];
+
+export type LanguageCode = 'burmese' | 'chinese' | 'english' | 'filipino' | 'french' | 'indonesian' | 'italian' | 'khmer' | 'laos' | 'malay' | 'spanish' | 'tamil' | 'thai' | 'vietnamese';
 
 type TranslatableText = {
     english: string;
     translations: Partial<Record<LanguageCode, string>>;
-    pronunciations: Partial<Record<LanguageCode, string>>;
+    pronunciations: Partial<Record<Languageode, string>>;
 }
 
 export type Phrase = TranslatableText & {
