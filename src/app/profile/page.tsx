@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
-import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info, Languages, CheckCircle2, XCircle } from "lucide-react";
+import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info, Languages, CheckCircle2, XCircle, Volume2, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ import { phrasebook, languages as allLanguages, type LanguageCode, type Phrase }
 import type { AssessmentResult, AssessmentResults } from '@/app/page';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { generateSpeech } from '@/ai/flows/tts-flow';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import {
   Tooltip,
   TooltipProvider,
@@ -49,7 +51,26 @@ type LanguageStats = {
 };
 
 
-const StatsDialog = ({ language, langCode, assessmentResults }: { language: string, langCode: LanguageCode, assessmentResults: AssessmentResults }) => {
+const StatsDialog = ({ 
+    language, 
+    langCode, 
+    initialAssessmentResults,
+    onResultsChange 
+}: { 
+    language: string, 
+    langCode: LanguageCode, 
+    initialAssessmentResults: AssessmentResults,
+    onResultsChange: (newResults: AssessmentResults) => void;
+}) => {
+    const [localResults, setLocalResults] = useState(initialAssessmentResults);
+    const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    // Ensure local state updates if the prop changes from outside
+    useEffect(() => {
+        setLocalResults(initialAssessmentResults);
+    }, [initialAssessmentResults]);
+
     const sortedPhrases = useMemo(() => {
         const getScore = (result?: AssessmentResult) => {
             if (!result) return 1;
@@ -60,12 +81,12 @@ const StatsDialog = ({ language, langCode, assessmentResults }: { language: stri
 
         const allPhrasesInLang = phrasebook.flatMap(topic => topic.phrases);
         
-        return allPhrasesInLang.sort((a, b) => {
-            const resultA = assessmentResults[`${a.id}-${langCode}`];
-            const resultB = assessmentResults[`${b.id}-${langCode}`];
+        return [...allPhrasesInLang].sort((a, b) => {
+            const resultA = localResults[`${a.id}-${langCode}`];
+            const resultB = localResults[`${b.id}-${langCode}`];
             return getScore(resultA) - getScore(resultB);
         });
-    }, [langCode, assessmentResults]);
+    }, [langCode, localResults]);
     
     const getTranslation = (phrase: Phrase, lang: LanguageCode) => {
         if (lang === 'english' || !phrase.translations[lang]) {
@@ -73,6 +94,97 @@ const StatsDialog = ({ language, langCode, assessmentResults }: { language: stri
         }
         return phrase.translations[lang]!;
     };
+    
+    const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
+        english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
+        malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
+        chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
+    };
+
+    const handlePlayAudio = async (text: string, lang: LanguageCode) => {
+        if (!text || assessingPhraseId) return;
+        const locale = languageToLocaleMap[lang];
+        
+        try {
+            const response = await generateSpeech({ text, lang: locale || 'en-US' });
+            const audio = new Audio(response.audioDataUri);
+            audio.play().catch(e => console.error("Audio playback failed.", e));
+        } catch (error) {
+            console.error("TTS generation failed.", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error generating audio',
+                description: 'Could not generate audio for the selected language.',
+            });
+        }
+    };
+    
+    const assessPronunciation = async (phraseId: string, referenceText: string, lang: LanguageCode) => {
+        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
+        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
+        
+        if (!azureKey || !azureRegion) {
+          toast({ variant: 'destructive', title: 'Config Error', description: 'Azure credentials not configured.' });
+          return;
+        }
+
+        const locale = languageToLocaleMap[lang];
+        if (!locale) {
+          toast({ variant: 'destructive', title: 'Unsupported Language' });
+          return;
+        }
+
+        setAssessingPhraseId(phraseId);
+
+        let recognizer: sdk.SpeechRecognizer | undefined;
+        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+        
+        try {
+            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+            speechConfig.speechRecognitionLanguage = locale;
+            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+            const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(JSON.stringify({
+                referenceText: referenceText,
+                gradingSystem: "HundredMark",
+                granularity: "Phoneme",
+                enableMiscue: true,
+            }));
+            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+            pronunciationConfig.applyTo(recognizer);
+            
+            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
+                recognizer!.recognizeOnceAsync(resolve, reject);
+            });
+            
+            if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult)) {
+                const parsedResult = JSON.parse(result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult)!);
+                const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
+                if (assessment) {
+                    finalResult = {
+                        status: assessment.AccuracyScore > 70 ? 'pass' : 'fail',
+                        accuracy: assessment.AccuracyScore,
+                        fluency: assessment.FluencyScore,
+                    };
+                }
+            } else {
+                 finalResult.status = 'fail';
+            }
+        } catch (error) {
+            console.error("Error during assessment:", error);
+            finalResult.status = 'fail';
+        } finally {
+            if (recognizer) recognizer.close();
+            const newResults = { ...localResults, [phraseId]: finalResult };
+            setLocalResults(newResults);
+            onResultsChange(newResults); // Propagate change up
+            setAssessingPhraseId(null);
+        }
+    };
+
+    const passedCount = useMemo(() => {
+        return Object.values(localResults).filter(r => r.status === 'pass' && sortedPhrases.some(p => `${p.id}-${langCode}` in localResults)).length;
+    }, [localResults, langCode, sortedPhrases]);
+
 
     return (
         <Dialog>
@@ -80,30 +192,53 @@ const StatsDialog = ({ language, langCode, assessmentResults }: { language: stri
                 <div className="space-y-2 cursor-pointer group">
                     <div className="flex justify-between items-baseline">
                         <h4 className="font-semibold group-hover:text-primary transition-colors">{language}</h4>
-                        <p className="text-sm text-muted-foreground">{sortedPhrases.filter(p => assessmentResults[`${p.id}-${langCode}`]?.status === 'pass').length} / {sortedPhrases.length}</p>
+                        <p className="text-sm text-muted-foreground">{passedCount} / {sortedPhrases.length}</p>
                     </div>
-                    <Progress value={(sortedPhrases.filter(p => assessmentResults[`${p.id}-${langCode}`]?.status === 'pass').length / sortedPhrases.length) * 100} />
+                    <Progress value={(passedCount / sortedPhrases.length) * 100} />
                 </div>
             </DialogTrigger>
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{language} Progress</DialogTitle>
                     <DialogDescription>
-                        Review your learned phrases. Failed items are at the top.
+                        Review and practice your phrases. Failed items are at the top.
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="h-96 pr-4">
                     <div className="space-y-3">
                         {sortedPhrases.map(phrase => {
-                            const result = assessmentResults[`${phrase.id}-${langCode}`];
+                            const phraseId = `${phrase.id}-${langCode}`;
+                            const result = localResults[phraseId];
+                            const translatedText = getTranslation(phrase, langCode);
+                            const isCurrentlyAssessingThis = assessingPhraseId === phraseId;
+
                             return (
-                                <div key={phrase.id} className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-                                    <div>
-                                        <p className="font-medium">{getTranslation(phrase, langCode)}</p>
-                                        <p className="text-sm text-muted-foreground">{phrase.english}</p>
+                                <div key={phrase.id} className="flex flex-col p-3 rounded-md bg-muted/50 gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="font-medium">{translatedText}</p>
+                                            <p className="text-sm text-muted-foreground">{phrase.english}</p>
+                                        </div>
+                                        <div className="flex items-center">
+                                            {result?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                                            {result?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
+                                        </div>
                                     </div>
-                                    {result?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                                    {result?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
+                                    <div className="flex items-center justify-between border-t border-muted pt-2">
+                                         {(result?.accuracy) && (
+                                            <div className="text-xs text-muted-foreground">
+                                                <span>Acc: {result.accuracy.toFixed(0)}%</span>
+                                            </div>
+                                         )}
+                                        <div className="flex items-center ml-auto">
+                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handlePlayAudio(translatedText, langCode)} disabled={!!assessingPhraseId}>
+                                                <Volume2 className="h-4 w-4" />
+                                            </Button>
+                                             <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} className="h-7 w-7" onClick={() => assessPronunciation(phraseId, translatedText, langCode)} disabled={assessingPhraseId !== null && !isCurrentlyAssessingThis}>
+                                                {isCurrentlyAssessingThis ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                                            </Button>
+                                        </div>
+                                    </div>
                                 </div>
                             );
                         })}
@@ -120,7 +255,7 @@ const StatsDialog = ({ language, langCode, assessmentResults }: { language: stri
 };
 
 
-const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResults }) => {
+const StatsDisplay = ({ assessmentResults, onResultsChange }: { assessmentResults: AssessmentResults, onResultsChange: (newResults: AssessmentResults) => void }) => {
     const stats = useMemo(() => {
         const languageStats: LanguageStats[] = allLanguages
             .map(lang => {
@@ -142,7 +277,7 @@ const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResu
                     percentage: totalPhrases > 0 ? (passedPhrases / totalPhrases) * 100 : 0,
                 };
             })
-            .filter((s): s is LanguageStats => s !== null && s.total > 0);
+            .filter((s): s is LanguageStats => s !== null && s.total > 0 && s.passed > 0);
 
         const totalPassed = languageStats.reduce((sum, stat) => sum + stat.passed, 0);
         
@@ -174,7 +309,8 @@ const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResu
                             key={stat.language} 
                             language={stat.language}
                             langCode={stat.langCode}
-                            assessmentResults={assessmentResults} 
+                            initialAssessmentResults={assessmentResults} 
+                            onResultsChange={onResultsChange}
                         />
                    ))}
                 </CardContent>
@@ -190,6 +326,7 @@ export default function ProfilePage() {
     const router = useRouter();
     const { toast } = useToast();
     const { isMobile } = useSidebar();
+    const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const [name, setName] = useState('');
     const [country, setCountry] = useState('');
@@ -197,6 +334,7 @@ export default function ProfilePage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [assessmentResults, setAssessmentResults] = useState<AssessmentResults>({});
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -211,6 +349,7 @@ export default function ProfilePage() {
             setName(profile.name || '');
             setCountry(profile.country || '');
             setMobile(profile.mobile || '');
+            setAssessmentResults(profile.assessmentResults || {});
         }
     }, [profile]);
     
@@ -340,6 +479,27 @@ export default function ProfilePage() {
             setIsGenerating(false);
         }
     };
+    
+    // Debounced Firestore update
+    const handleResultsChange = useCallback((newResults: AssessmentResults) => {
+        setAssessmentResults(newResults); // Update UI immediately
+        localStorage.setItem('assessmentResults', JSON.stringify(newResults));
+
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+        }
+
+        if (user) {
+            debounceTimeoutRef.current = setTimeout(async () => {
+                try {
+                    const userRef = doc(db, 'users', user.uid);
+                    await updateDoc(userRef, { assessmentResults: newResults });
+                } catch (error) {
+                    console.error("Failed to save progress to Firestore:", error);
+                }
+            }, 3000); // 3-second debounce
+        }
+    }, [user]);
 
     const handleLogout = () => {
         auth.signOut();
@@ -504,7 +664,7 @@ export default function ProfilePage() {
                             <CardDescription>Track your pronunciation progress across different languages.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <StatsDisplay assessmentResults={profile.assessmentResults || {}} />
+                            <StatsDisplay assessmentResults={assessmentResults} onResultsChange={handleResultsChange} />
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -512,5 +672,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
