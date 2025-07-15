@@ -121,9 +121,9 @@ export default function LoginPage() {
             <X className="h-5 w-5" />
         </Button>
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+          <TabsList className="flex justify-center bg-transparent p-0 mb-4">
+            <TabsTrigger value="login" className="flex-1">Login</TabsTrigger>
+            <TabsTrigger value="signup" className="flex-1">Sign Up</TabsTrigger>
           </TabsList>
           <TabsContent value="login">
             <Card>
