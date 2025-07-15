@@ -20,7 +20,6 @@ export type TranslateTextInput = z.infer<typeof TranslateTextInputSchema>;
 
 const TranslateTextOutputSchema = z.object({
   translatedText: z.string().describe('The translated text.'),
-  pronunciation: z.string().describe('A simple, phonetic pronunciation guide for the full translated text.'),
 });
 export type TranslateTextOutput = z.infer<typeof TranslateTextOutputSchema>;
 
@@ -32,9 +31,7 @@ const prompt = ai.definePrompt({
   name: 'translateTextPrompt',
   input: { schema: TranslateTextInputSchema },
   output: { schema: TranslateTextOutputSchema },
-  prompt: `You are a translation assistant. Your task is to perform two steps:
-1. Translate the user's text from {{fromLanguage}} to {{toLanguage}}.
-2. Provide a simple, easy-to-read phonetic pronunciation guide for the *entire* translated text. The pronunciation guide MUST be a direct, literal transliteration of the translated text, not a shortened or alternative phrasing. It should help a user pronounce the translated text.
+  prompt: `You are a translation assistant. Your task is to translate the user's text from {{fromLanguage}} to {{toLanguage}}.
 
 Text to translate:
 "{{text}}"

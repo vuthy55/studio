@@ -42,7 +42,6 @@ export default function LearnPage() {
     const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
-    const [translatedPronunciation, setTranslatedPronunciation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
@@ -73,7 +72,6 @@ export default function LearnPage() {
         setToLanguage(fromLanguage);
         setInputText(translatedText);
         setTranslatedText(currentInput);
-        setTranslatedPronunciation('');
         setLiveAssessmentResult(null);
     };
 
@@ -115,7 +113,6 @@ export default function LearnPage() {
                 handleTranslation();
             } else if (!inputText) {
                 setTranslatedText('');
-                setTranslatedPronunciation('');
                 setLiveAssessmentResult(null);
             }
         }, 500);
@@ -133,7 +130,6 @@ export default function LearnPage() {
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
             const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
             setTranslatedText(result.translatedText);
-            setTranslatedPronunciation(result.pronunciation);
         } catch (error) {
             console.error('Translation failed', error);
             toast({
@@ -196,7 +192,6 @@ export default function LearnPage() {
         lang: LanguageCode, 
         isLive: boolean = false
     ) => {
-        console.log(`DEBUG: 1. Initializing assessment. isLive: ${isLive}, phraseId: ${phraseId}, referenceText: "${referenceText}", lang: ${lang}`);
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
         const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
     
@@ -206,7 +201,6 @@ export default function LearnPage() {
         }
     
         const locale = languageToLocaleMap[lang];
-        console.log(`DEBUG: 2. Language locale: ${locale}`);
         if (!locale) {
             toast({ variant: 'destructive', title: 'Unsupported Language' });
             return;
@@ -229,7 +223,6 @@ export default function LearnPage() {
         
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
             
-            console.log('DEBUG: 3. Creating PronunciationAssessmentConfig.');
             const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
                 referenceText,
                 sdk.PronunciationAssessmentGradingSystem.HundredMark,
@@ -240,20 +233,16 @@ export default function LearnPage() {
 
             recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
             pronunciationConfig.applyTo(recognizer);
-            console.log('DEBUG: 4. PronunciationAssessmentConfig applied to recognizer.');
 
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
-            console.log('DEBUG: 5. Received result from Azure SDK:', result);
             
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
                  const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-                 console.log('DEBUG: 6. Raw assessment JSON:', jsonString);
                  if (jsonString) {
                     const parsedResult = JSON.parse(jsonString);
                     const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
-                    console.log('DEBUG: 7. Parsed PronunciationAssessment object:', assessment);
                     if(assessment) {
                         const accuracyScore = assessment.AccuracyScore;
                         const fluencyScore = assessment.FluencyScore;
@@ -262,21 +251,14 @@ export default function LearnPage() {
                             accuracy: accuracyScore,
                             fluency: fluencyScore,
                         };
-                    } else {
-                         console.log('DEBUG: 8. PronunciationAssessment object not found in JSON.');
-                         finalResult.status = 'fail';
                     }
                  }
-            } else {
-                console.log(`DEBUG: 8a. Recognition failed. Reason: ${sdk.ResultReason[result.reason]}`);
-                finalResult.status = 'fail';
             }
         } catch (error) {
             console.error("Error during assessment:", error);
             finalResult.status = 'fail';
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
         } finally {
-            console.log('DEBUG: 9. FINALLY block - Cleaning up.');
             if (recognizer) {
                 recognizer.close();
             }
@@ -581,9 +563,6 @@ export default function LearnPage() {
                                                 <p className="flex-grow text-base md:text-sm text-foreground">
                                                   {isTranslating ? 'Translating...' : translatedText || <span className="text-muted-foreground">Translation</span>}
                                                 </p>
-                                                {translatedPronunciation && !isTranslating && (
-                                                    <p className="text-sm text-muted-foreground italic mt-2">{translatedPronunciation}</p>
-                                                )}
                                                 {(liveAssessmentResult?.status === 'pass' || liveAssessmentResult?.status === 'fail') && (
                                                     <div className="text-xs text-muted-foreground mt-2">
                                                         <p>Accuracy: <span className="font-bold">{liveAssessmentResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{liveAssessmentResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
@@ -622,4 +601,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
