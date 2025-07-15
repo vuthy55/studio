@@ -67,7 +67,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       await handleUserSetup(result.user);
       toast({ title: "Success", description: "Logged in successfully." });
-      router.push('/profile');
+      router.push('/');
     } catch (error: any) {
       console.error("Google sign-in error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -88,7 +88,7 @@ export default function LoginPage() {
       await updateProfile(userCredential.user, { displayName: signupName });
       await handleUserSetup(userCredential.user, { country: signupCountry, mobile: signupMobile });
       toast({ title: "Success", description: "Account created successfully." });
-      router.push('/profile');
+      router.push('/');
     } catch (error: any) {
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -103,7 +103,7 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
-      router.push('/profile');
+      router.push('/');
     } catch (error: any) {
       console.error("Email login error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -116,10 +116,10 @@ export default function LoginPage() {
     <div className="flex justify-center items-center min-h-[calc(100vh-8rem)]">
       <div className="w-full max-w-md">
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
+            <TabsList className="h-10 items-center rounded-md p-1 text-muted-foreground flex justify-center bg-muted mb-4">
+              <TabsTrigger value="login" className="w-24">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="w-24">Sign Up</TabsTrigger>
+            </TabsList>
           <TabsContent value="login">
             <Card>
               <CardHeader className="relative">
