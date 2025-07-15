@@ -172,7 +172,7 @@ export default function LearnPage() {
         const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
         recognizer.recognizeOnceAsync(result => {
-            if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
+            if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
                 if (assessmentResult) {
                      setAssessmentResults(prev => ({
@@ -184,7 +184,6 @@ export default function LearnPage() {
                         }
                     }));
                 } else {
-                    // This case handles when speech is recognized, but assessment fails.
                     toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
                     setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
                 }
