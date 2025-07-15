@@ -95,7 +95,6 @@ export default function RoomPage() {
   const lastPlayedTimestamp = useRef(0);
   const audioEndTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Use a ref to store the recognizer instance
   const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
 
 
@@ -240,11 +239,27 @@ export default function RoomPage() {
   }, [currentSpeaker, user, isCreator, roomId]);
 
 
-  const stopSpeaking = async () => {
+  const stopSpeaking = useCallback(async () => {
     if (recognizerRef.current) {
-      recognizerRef.current.stopContinuousRecognitionAsync();
+      recognizerRef.current.stopContinuousRecognitionAsync(
+        () => {
+          // This callback is executed when recognition has stopped.
+          // The sessionStopped event will handle cleanup.
+        },
+        (err) => {
+          console.error('Error stopping recognition:', err);
+          // Force cleanup even on error
+          if (recognizerRef.current) {
+            try { recognizerRef.current.close(); } catch(e) {/* ignore */}
+            recognizerRef.current = null;
+          }
+          setIsSpeaking(false);
+          updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
+        }
+      );
     }
-  };
+  }, [roomId]);
+
 
   const handleMicClick = async () => {
     // If already speaking, stop the recognition.
@@ -300,15 +315,19 @@ export default function RoomPage() {
         recognizer.recognized = async (s, e) => {
           if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
               recognizedText = e.result.text;
-              // Don't stop here, let sessionStopped handle it.
+              // Stop recognition after a successful phrase
+              await stopSpeaking();
           }
         };
         
         recognizer.sessionStopped = async (s, e) => {
+            // Clean up recognizer
             if (recognizerRef.current) {
-                recognizerRef.current.close();
+                try { recognizerRef.current.close(); } catch (err) {/* ignore disposed object error */}
                 recognizerRef.current = null;
             }
+            
+            // Only one state update at the end
             setIsSpeaking(false);
             
             if (recognizedText) {
@@ -332,11 +351,11 @@ export default function RoomPage() {
         };
         
         recognizer.canceled = async (s, e) => {
-            if (recognizerRef.current) {
-              recognizerRef.current.close();
-              recognizerRef.current = null;
-            }
             console.log(`CANCELED: Reason=${e.reason}`);
+             if (recognizerRef.current) {
+                try { recognizerRef.current.close(); } catch(err) {/* ignore */}
+                recognizerRef.current = null;
+            }
             await updateDoc(roomDocRef, { currentSpeaker: null });
             setIsSpeaking(false);
         };
@@ -347,7 +366,7 @@ export default function RoomPage() {
         console.error("Error during speech recognition or transaction:", error);
         toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not process speech.' });
         if (recognizerRef.current) {
-            recognizerRef.current.close();
+             try { recognizerRef.current.close(); } catch(err) {/* ignore */}
             recognizerRef.current = null;
         }
         await updateDoc(doc(db, 'rooms', roomId), { currentSpeaker: null });
@@ -457,5 +476,3 @@ export default function RoomPage() {
     </div>
   );
 }
-
-    
