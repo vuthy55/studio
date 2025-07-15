@@ -33,6 +33,7 @@ export default function LoginPage() {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupCountry, setSignupCountry] = useState('');
+  const [signupMobile, setSignupMobile] = useState('');
 
 
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +48,7 @@ export default function LoginPage() {
         email: user.email,
         name: user.displayName || signupName,
         country: signupCountry,
+        mobile: signupMobile,
         avatarUrl: user.photoURL,
         realPhotoUrl: user.photoURL,
         isAdmin: user.email === 'thegreenhomecommunity@gmail.com',
@@ -80,7 +82,7 @@ export default function LoginPage() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       await updateProfile(userCredential.user, { displayName: signupName });
-      await handleUserSetup(userCredential.user, { country: signupCountry });
+      await handleUserSetup(userCredential.user, { country: signupCountry, mobile: signupMobile });
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -154,6 +156,10 @@ export default function LoginPage() {
                    <div className="space-y-2">
                     <Label htmlFor="signup-country">Country</Label>
                      <CountrySelect value={signupCountry} onChange={(e) => setSignupCountry(e.target.value)} />
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="signup-mobile">Mobile (Optional)</Label>
+                    <Input id="signup-mobile" type="tel" placeholder="Your mobile number" value={signupMobile} onChange={e => setSignupMobile(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>

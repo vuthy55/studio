@@ -44,6 +44,7 @@ export default function ProfilePage() {
 
     const [name, setName] = useState('');
     const [country, setCountry] = useState('');
+    const [mobile, setMobile] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -60,6 +61,7 @@ export default function ProfilePage() {
         if (profile) {
             setName(profile.name || '');
             setCountry(profile.country || '');
+            setMobile(profile.mobile || '');
         }
     }, [profile]);
     
@@ -72,6 +74,7 @@ export default function ProfilePage() {
             await updateDoc(userRef, {
                 name,
                 country,
+                mobile,
             });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
@@ -88,7 +91,6 @@ export default function ProfilePage() {
             
             const dataToUpdate: { avatarUrl: string, realPhotoUrl?: string } = { avatarUrl: newAvatarUrl };
             if (isRealPhoto) {
-                // When uploading a new photo, it becomes the current avatar and the new real photo.
                 dataToUpdate.realPhotoUrl = newAvatarUrl;
             }
             
@@ -174,18 +176,15 @@ export default function ProfilePage() {
                 baseImageUrl: profile?.avatarUrl
             });
 
-            if (result.imageDataUri) {
-                const response = await fetch(result.imageDataUri);
-                const blob = await response.blob();
-                
-                const storageRef = ref(storage, `avatars/${user.uid}/ai-generated-avatar.png`);
-                await uploadBytes(storageRef, blob);
-                const downloadURL = await getDownloadURL(storageRef);
+            const response = await fetch(result.imageDataUri);
+            const blob = await response.blob();
+            
+            const storageRef = ref(storage, `avatars/${user.uid}/ai-generated-avatar.png`);
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
 
-                await handleAvatarUpdate(downloadURL);
-            } else {
-                 throw new Error("AI did not return a valid image URI.");
-            }
+            await handleAvatarUpdate(downloadURL);
+            
         } catch (error) {
             toast({ variant: 'destructive', title: 'AI Avatar Error', description: 'Could not generate or save AI avatar.' });
         } finally {
@@ -336,6 +335,10 @@ export default function ProfilePage() {
                                     <div className="space-y-2">
                                         <Label htmlFor="country">Country</Label>
                                         <CountrySelect value={country} onChange={(e) => setCountry(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="mobile">Mobile (Optional)</Label>
+                                        <Input id="mobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Your mobile number" />
                                     </div>
                                 </div>
                                 <Button type="submit" disabled={isSaving}>
