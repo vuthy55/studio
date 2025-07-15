@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { generateSpeech } from '@/ai/flows/tts-flow';
-import { translateText } from './actions';
+import { translateText } from '@/app/actions';
 import { Badge } from '@/components/ui/badge';
 
 type ConversationEntry = {
