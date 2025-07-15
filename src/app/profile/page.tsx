@@ -102,7 +102,7 @@ export default function ProfilePage() {
     };
 
 
-    if (loading || !profile) {
+    if (loading || !profile || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -115,7 +115,13 @@ export default function ProfilePage() {
     }
 
     const getInitials = (name?: string) => {
-        return name ? name.charAt(0).toUpperCase() : <User />;
+        if (name) {
+            return name.charAt(0).toUpperCase();
+        }
+        if (user?.email) {
+            return user.email.charAt(0).toUpperCase();
+        }
+        return <User />;
     }
 
     return (
@@ -165,7 +171,7 @@ export default function ProfilePage() {
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="email">Email</Label>
-                                            <Input id="email" type="email" value={profile.email} disabled />
+                                            <Input id="email" type="email" value={user.email || ''} disabled />
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="mobile">Mobile</Label>
@@ -226,7 +232,7 @@ export default function ProfilePage() {
                                 <CardDescription>
                                     Manage application-wide settings.
                                 </CardDescription>
-                            </CardHeader>
+                            </Header>
                             <CardContent className="space-y-4">
                                 <div className="flex items-center justify-center h-48">
                                     <p className="text-muted-foreground">Admin panel coming soon!</p>
