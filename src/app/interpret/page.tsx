@@ -43,18 +43,32 @@ export default function InterpretPage() {
     const stopRecognition = () => {
         if (recognizerRef.current) {
             try {
-                recognizerRef.current.stopContinuousRecognitionAsync();
+                recognizerRef.current.stopContinuousRecognitionAsync(
+                    () => {
+                        // This will trigger sessionStopped event which handles cleanup.
+                    },
+                    (err) => {
+                        console.error("Error stopping recognition: ", err);
+                        // Force cleanup if stop fails
+                        setIsListening(false);
+                    }
+                );
             } catch(e) {
                 console.warn("Could not stop recognizer, it might have already stopped.", e);
+                setIsListening(false);
             }
-            setIsListening(false);
+        } else {
+             setIsListening(false);
         }
     };
     
     useEffect(() => {
         // Cleanup on component unmount
         return () => {
-            stopRecognition();
+            if (recognizerRef.current) {
+                recognizerRef.current.close();
+                recognizerRef.current = null;
+            }
         };
     }, []);
 
@@ -79,7 +93,7 @@ export default function InterpretPage() {
         }
 
         setIsListening(true);
-        setLastMessage('Starting session...');
+        setLastMessage('Starting session... Press Start to begin');
         
         const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
         speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "2000");
@@ -90,7 +104,7 @@ export default function InterpretPage() {
         recognizerRef.current = recognizer;
 
         recognizer.recognizing = (s, e) => {
-            setLastMessage(`Listening... (${e.result.text})`);
+            setLastMessage(`Listening... ${e.result.text ? `(${e.result.text})` : ''}`);
         };
 
         recognizer.recognized = async (s, e) => {
@@ -99,7 +113,10 @@ export default function InterpretPage() {
                 const detectedLocale = autoDetectResult.language;
                 const recognizedText = e.result.text;
                 
-                if (!recognizedText) return;
+                if (!recognizedText || !detectedLocale) {
+                    setLastMessage(`Could not recognize speech clearly.`);
+                    return;
+                }
 
                 setLastMessage(`Recognized: ${recognizedText}`);
                 
@@ -148,28 +165,20 @@ export default function InterpretPage() {
                         lang: targetLocale,
                     });
                     
-                    // Stop listening while speaking to avoid feedback loop
-                    recognizer.stopContinuousRecognitionAsync();
-
                     if (audioPlayerRef.current) {
                         audioPlayerRef.current.src = response.audioDataUri;
                         await audioPlayerRef.current.play();
                     }
-
-                    // Resume listening after audio finishes
-                    audioPlayerRef.current?.addEventListener('ended', () => {
-                        if (recognizerRef.current) {
-                           recognizer.startContinuousRecognitionAsync();
-                           setLastMessage('Listening...');
-                        }
-                    }, { once: true });
-
+                    
+                    setLastMessage('Listening...');
 
                 } catch (error) {
                     console.error("Translation/TTS error:", error);
                     toast({ variant: 'destructive', title: 'Error', description: 'Failed to process speech.' });
                     setLastMessage('Error. Ready to listen again.');
                 }
+            } else if (e.result.reason === sdk.ResultReason.NoMatch) {
+                setLastMessage('Could not understand speech.');
             }
         };
 
@@ -177,16 +186,19 @@ export default function InterpretPage() {
             console.log(`CANCELED: Reason=${e.reason}. ErrorDetails=${e.errorDetails}`);
             setLastMessage(`Session canceled. Reason: ${e.reason}`);
             setIsListening(false);
+            if (recognizerRef.current) {
+                recognizerRef.current.close();
+                recognizerRef.current = null;
+            }
         };
         
         recognizer.sessionStopped = (s, e) => {
-            // This event is triggered by stopContinuousRecognitionAsync().
-            // The isListening state will determine if we should restart.
-            if (!isListening) {
-                recognizer.close();
+            setIsListening(false);
+            if (recognizerRef.current) {
+                recognizerRef.current.close();
                 recognizerRef.current = null;
-                setLastMessage('Session ended.');
             }
+            setLastMessage('Session ended.');
         };
 
         recognizer.startContinuousRecognitionAsync();
@@ -238,14 +250,15 @@ export default function InterpretPage() {
                          <div key={entry.id} className="p-4 rounded-lg border bg-secondary/30">
                             <div className="flex justify-between items-center mb-2">
                                 <Badge variant="secondary">{languages.find(l=>l.value === entry.from)?.label}</Badge>
-                                 <Button size="icon" variant="ghost" onClick={() => {
-                                      if(audioPlayerRef.current) {
-                                          audioPlayerRef.current.src = `data:text/plain,${entry.originalText}`; // Just to have a source
-                                          const audio = new Audio();
-                                          generateSpeech({ text: entry.originalText, lang: languageToLocaleMap[entry.from]! }).then(res => {
-                                              audio.src = res.audioDataUri;
-                                              audio.play();
-                                          });
+                                 <Button size="icon" variant="ghost" onClick={async () => {
+                                      const audio = new Audio();
+                                      try {
+                                        const res = await generateSpeech({ text: entry.originalText, lang: languageToLocaleMap[entry.from]! });
+                                        audio.src = res.audioDataUri;
+                                        audio.play();
+                                      } catch(e) {
+                                        console.error(e);
+                                        toast({ variant: 'destructive', title: 'Audio Error', description: 'Could not play audio.' });
                                       }
                                   }}>
                                     <Volume2 className="h-4 w-4" />
@@ -255,15 +268,16 @@ export default function InterpretPage() {
                             <div className="border-t border-dashed border-border my-2"></div>
                             <div className="flex justify-between items-center mb-2">
                                 <Badge variant="default">{languages.find(l=>l.value === entry.to)?.label}</Badge>
-                                 <Button size="icon" variant="ghost" onClick={() => {
-                                      if(audioPlayerRef.current) {
-                                          audioPlayerRef.current.src = `data:text/plain,${entry.translatedText}`;
-                                           const audio = new Audio();
-                                           generateSpeech({ text: entry.translatedText, lang: languageToLocaleMap[entry.to]! }).then(res => {
-                                              audio.src = res.audioDataUri;
-                                              audio.play();
-                                          });
-                                      }
+                                 <Button size="icon" variant="ghost" onClick={async () => {
+                                       const audio = new Audio();
+                                       try {
+                                        const res = await generateSpeech({ text: entry.translatedText, lang: languageToLocaleMap[entry.to]! });
+                                        audio.src = res.audioDataUri;
+                                        audio.play();
+                                       } catch (e) {
+                                        console.error(e);
+                                        toast({ variant: 'destructive', title: 'Audio Error', description: 'Could not play audio.' });
+                                       }
                                   }}>
                                     <Volume2 className="h-4 w-4" />
                                 </Button>
