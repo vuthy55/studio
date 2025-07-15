@@ -12,16 +12,19 @@ import {
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton, 
-  SidebarFooter 
+  SidebarFooter,
+  useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 
 export function AppSidebar() {
   const pathname = usePathname();
   const [user, loading] = useAuthState(auth);
   const { toast } = useToast();
+  const { setOpenMobile } = useSidebar();
 
   const handleLogout = async () => {
     try {
@@ -33,6 +36,8 @@ export function AppSidebar() {
     }
   };
   
+  const closeSidebar = () => setOpenMobile(false);
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -41,7 +46,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
+            <SidebarMenuButton asChild isActive={pathname === '/'} onClick={closeSidebar}>
               <Link href="/">
                 <BookOpen />
                 Learn
@@ -49,7 +54,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname.startsWith('/converse')} prefetch={true}>
+            <SidebarMenuButton asChild isActive={pathname.startsWith('/converse')} onClick={closeSidebar}>
               <Link href="/converse">
                 <MessagesSquare />
                 Converse
@@ -67,7 +72,7 @@ export function AppSidebar() {
            ) : user ? (
             <>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
+                <SidebarMenuButton asChild isActive={pathname === '/profile'} onClick={closeSidebar}>
                   <Link href="/profile">
                     <User />
                     Profile
@@ -75,7 +80,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
                <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout}>
+                <SidebarMenuButton onClick={() => { handleLogout(); closeSidebar(); }}>
                   <LogOut />
                   Logout
                 </SidebarMenuButton>
@@ -83,7 +88,7 @@ export function AppSidebar() {
             </>
           ) : (
             <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/login'}>
+              <SidebarMenuButton asChild isActive={pathname === '/login'} onClick={closeSidebar}>
                 <Link href="/login">
                   <LogIn />
                   Login

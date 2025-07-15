@@ -104,7 +104,6 @@ export default function ConversePage() {
       router.push(`/converse/${docRef.id}`);
     } catch (error) {
       console.error('Error creating room:', error);
-      // Optionally show a toast message
     } finally {
       setIsCreatingRoom(false);
     }
