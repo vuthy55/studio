@@ -8,7 +8,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
-import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut } from "lucide-react";
+import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { CountrySelect } from '@/components/ui/country-select';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
+import {
+  Tooltip,
+  TooltipProvider,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 
 export default function ProfilePage() {
@@ -59,21 +65,23 @@ export default function ProfilePage() {
             });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
-            console.error("Error updating profile:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to update profile.' });
         } finally {
             setIsSaving(false);
         }
     };
     
-    const handleAvatarUpdate = async (newAvatarUrl: string) => {
+    const handleAvatarUpdate = async (newAvatarUrl: string, isRealPhoto: boolean = false) => {
         if (!user) return;
         try {
             const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { avatarUrl: newAvatarUrl });
+            const dataToUpdate: { avatarUrl: string, realPhotoUrl?: string } = { avatarUrl: newAvatarUrl };
+            if (isRealPhoto) {
+                dataToUpdate.realPhotoUrl = newAvatarUrl;
+            }
+            await updateDoc(userRef, dataToUpdate);
             toast({ title: 'Success', description: 'Avatar updated successfully.' });
         } catch (error) {
-            console.error("Error updating avatar:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to update avatar.' });
         }
     };
@@ -87,9 +95,6 @@ export default function ProfilePage() {
             const resizedBlob = await new Promise<Blob>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    if (!e.target?.result) {
-                        return reject(new Error("FileReader did not return a result."));
-                    }
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
@@ -112,26 +117,18 @@ export default function ProfilePage() {
                         canvas.width = width;
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
-                        if (!ctx) {
-                            return reject(new Error('Could not get canvas context'));
-                        }
+                        if (!ctx) return reject(new Error('Could not get canvas context'));
+                        
                         ctx.drawImage(img, 0, 0, width, height);
-                        canvas.toBlob(
-                            (blob) => {
-                                if (blob) {
-                                    resolve(blob);
-                                } else {
-                                    reject(new Error('Canvas to Blob conversion failed'));
-                                }
-                            },
-                            'image/jpeg',
-                            0.9
-                        );
+                        canvas.toBlob((blob) => {
+                            if (blob) resolve(blob);
+                            else reject(new Error('Canvas to Blob conversion failed'));
+                        }, 'image/jpeg', 0.9);
                     };
-                    img.onerror = reject;
-                    img.src = e.target.result as string;
+                    img.onerror = (err) => reject(err);
+                    img.src = e.target?.result as string;
                 };
-                reader.onerror = reject;
+                reader.onerror = (err) => reject(err);
                 reader.readAsDataURL(file);
             });
 
@@ -139,15 +136,10 @@ export default function ProfilePage() {
             const snapshot = await uploadBytes(storageRef, resizedBlob);
             const downloadURL = await getDownloadURL(snapshot.ref);
 
-            await updateDoc(doc(db, 'users', user.uid), { 
-                realPhotoUrl: downloadURL,
-                avatarUrl: downloadURL,
-            });
-
+            await handleAvatarUpdate(downloadURL, true);
             toast({ title: 'Success', description: 'New photo uploaded.' });
 
         } catch (error) {
-            console.error("Error uploading file:", error);
             toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to upload new photo.' });
         } finally {
             setIsUploading(false);
@@ -163,26 +155,22 @@ export default function ProfilePage() {
         try {
             const result = await generateAvatar({
                 userName: name,
-                baseImageUrl: profile?.realPhotoUrl || profile?.avatarUrl 
+                baseImageUrl: profile?.avatarUrl // Use the current avatar as the base
             });
 
             if (result.imageDataUri) {
-                // Convert data URI to Blob
                 const response = await fetch(result.imageDataUri);
                 const blob = await response.blob();
                 
-                // Upload the Blob to Firebase Storage, overwriting the previous AI avatar
                 const storageRef = ref(storage, `avatars/${user.uid}/ai-generated-avatar.png`);
-                const snapshot = await uploadBytes(storageRef, blob);
-                const downloadURL = await getDownloadURL(snapshot.ref);
+                await uploadBytes(storageRef, blob);
+                const downloadURL = await getDownloadURL(storageRef);
 
-                // Update only the active avatarUrl
                 await handleAvatarUpdate(downloadURL);
             } else {
                  throw new Error("AI did not return a valid image URI.");
             }
         } catch (error) {
-            console.error("Error generating AI avatar:", error);
             toast({ variant: 'destructive', title: 'AI Avatar Error', description: 'Could not generate AI avatar.' });
         } finally {
             setIsGenerating(false);
@@ -225,7 +213,23 @@ export default function ProfilePage() {
                     <AvatarFallback className="bg-muted">{avatarFallback}</AvatarFallback>
                 </Avatar>
                  <div>
-                    <h1 className="text-3xl font-bold font-headline">{name}</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-3xl font-bold font-headline">{name}</h1>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="h-5 w-5 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs" side="right">
+                                    <p className="font-bold text-base mb-2">How Avatars Work</p>
+                                    <p className="text-sm">
+                                        You can upload a real photo or generate a unique AI avatar based on your current picture.
+                                        Only the most recent photo and avatar are saved to keep things tidy. Uploading a new one will replace the old one.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                     <p className="text-muted-foreground">{user.email}</p>
                     <div className="flex gap-2 mt-4">
                         <input
