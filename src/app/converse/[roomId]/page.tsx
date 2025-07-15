@@ -102,30 +102,39 @@ export default function RoomPage() {
     }
   }, [user, authLoading, router]);
 
-  const enterRoom = useCallback(async () => {
+  const enterRoom = useCallback(async (retries = 3, delay = 500) => {
     if (!user || !roomId) return;
     try {
-      await runTransaction(db, async (transaction) => {
-        const roomDocRef = doc(db, 'rooms', roomId);
-        const roomDoc = await transaction.get(roomDocRef);
-        if (!roomDoc.exists()) {
-          throw new Error('Room not found or has been ended.');
-        }
+        await runTransaction(db, async (transaction) => {
+            const roomDocRef = doc(db, 'rooms', roomId);
+            const roomDoc = await transaction.get(roomDocRef);
+            if (!roomDoc.exists()) {
+                if (retries > 0) {
+                    throw new Error('RETRY');
+                }
+                throw new Error('Room not found or has been ended.');
+            }
 
-        const participantData = {
-          id: user.uid,
-          name: user.displayName || 'Anonymous',
-          language: myLanguage,
-        };
-        const participantDocRef = doc(db, 'rooms', roomId, 'participants', user.uid);
-        transaction.set(participantDocRef, participantData);
-      });
+            const participantData = {
+                id: user.uid,
+                name: user.displayName || 'Anonymous',
+                language: myLanguage,
+            };
+            const participantDocRef = doc(db, 'rooms', roomId, 'participants', user.uid);
+            transaction.set(participantDocRef, participantData);
+        });
     } catch (error: any) {
-      console.error('Error entering room:', error);
-      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not enter room.' });
-      router.push('/converse');
+        if (error.message === 'RETRY' && retries > 0) {
+            console.log(`Room not found, retrying in ${delay}ms... (${retries} retries left)`);
+            setTimeout(() => enterRoom(retries - 1, delay), delay);
+        } else {
+            console.error('Error entering room:', error);
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not enter room.' });
+            router.push('/converse');
+        }
     }
-  }, [user, roomId, myLanguage, toast, router]);
+}, [user, roomId, myLanguage, toast, router]);
+
 
   const leaveRoom = useCallback(async () => {
     if (!user || !roomId) return;
@@ -195,7 +204,7 @@ export default function RoomPage() {
       }
     });
 
-    const unsubParticipants = onSnapshot(participantsColRef, (snapshot) => {
+    const unsubParticipants = onSnapshot(query(participantsColRef), (snapshot) => {
       const parts = snapshot.docs.map((doc) => doc.data() as Participant);
       setParticipants(parts);
     });
