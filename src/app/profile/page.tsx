@@ -234,12 +234,6 @@ export default function ProfilePage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="flex flex-col sm:flex-row items-center gap-6">
-                                <div className="relative group">
-                                    <Avatar className="h-24 w-24">
-                                        <AvatarImage src={profile.avatarUrl} alt={profile.name} />
-                                        <AvatarFallback>{profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
-                                    </Avatar>
-                                </div>
                                 <div className="space-y-2 flex-1 w-full">
                                     <Label htmlFor="email">Email</Label>
                                     <Input id="email" value={profile.email} disabled />
