@@ -17,24 +17,79 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
-
-export function AppSidebar() {
+function SidebarUserMenu() {
   const pathname = usePathname();
   const [user, loading] = useAuthState(auth);
   const { toast } = useToast();
   const { setOpenMobile } = useSidebar();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleLogout = async () => {
     try {
       await auth.signOut();
       toast({ title: 'Success', description: 'You have been logged out.' });
-      // The auth state change will trigger redirects on protected pages
+      closeSidebar();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
     }
   };
+  
+  const closeSidebar = () => setOpenMobile(false);
+
+  if (!isClient || loading) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton disabled>
+          <LoaderCircle className="animate-spin" />
+          Loading...
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  if (user) {
+    return (
+      <>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild isActive={pathname === '/profile'} onClick={closeSidebar}>
+            <Link href="/profile">
+              <User />
+              Profile
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton onClick={handleLogout}>
+            <LogOut />
+            Logout
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={pathname === '/login'} onClick={closeSidebar}>
+        <Link href="/login">
+          <LogIn />
+          Login
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+
+export function AppSidebar() {
+  const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
   
   const closeSidebar = () => setOpenMobile(false);
 
@@ -62,40 +117,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           
-           {loading ? (
-             <SidebarMenuItem>
-                <SidebarMenuButton disabled>
-                  <LoaderCircle className="animate-spin" />
-                  Loading...
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-           ) : user ? (
-            <>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/profile'} onClick={closeSidebar}>
-                  <Link href="/profile">
-                    <User />
-                    Profile
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => { handleLogout(); closeSidebar(); }}>
-                  <LogOut />
-                  Logout
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </>
-          ) : (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/login'} onClick={closeSidebar}>
-                <Link href="/login">
-                  <LogIn />
-                  Login
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          <SidebarUserMenu />
 
         </SidebarMenu>
       </SidebarContent>
