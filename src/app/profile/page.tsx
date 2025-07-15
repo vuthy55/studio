@@ -8,6 +8,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 
 export default function ProfilePage() {
@@ -31,6 +40,7 @@ export default function ProfilePage() {
     const { profile, loading: profileLoading } = useUser(user?.uid);
     const router = useRouter();
     const { toast } = useToast();
+    const isMobile = useIsMobile();
 
     const [name, setName] = useState('');
     const [country, setCountry] = useState('');
@@ -75,10 +85,13 @@ export default function ProfilePage() {
         if (!user) return;
         try {
             const userRef = doc(db, 'users', user.uid);
+            
             const dataToUpdate: { avatarUrl: string, realPhotoUrl?: string } = { avatarUrl: newAvatarUrl };
             if (isRealPhoto) {
+                // When uploading a new photo, it becomes the current avatar and the new real photo.
                 dataToUpdate.realPhotoUrl = newAvatarUrl;
             }
+            
             await updateDoc(userRef, dataToUpdate);
             toast({ title: 'Success', description: 'Avatar updated successfully.' });
         } catch (error) {
@@ -191,6 +204,47 @@ export default function ProfilePage() {
     
     const loading = authLoading || profileLoading;
 
+    const AvatarInfoContent = () => (
+        <p className="text-sm">
+            You can upload a real photo or generate a unique AI avatar based on your current picture.
+            Only the most recent photo and avatar are saved to keep things tidy. Uploading a new one will replace the old one.
+        </p>
+    );
+
+    const AvatarInfo = () => {
+        if (isMobile) {
+            return (
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Info className="h-5 w-5 text-accent cursor-help" />
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>How Avatars Work</DialogTitle>
+                        </DialogHeader>
+                        <DialogDescription asChild>
+                           <AvatarInfoContent />
+                        </DialogDescription>
+                    </DialogContent>
+                </Dialog>
+            );
+        }
+
+        return (
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Info className="h-5 w-5 text-accent cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs" side="right">
+                        <p className="font-bold text-base mb-2">How Avatars Work</p>
+                        <AvatarInfoContent />
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        );
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -234,20 +288,7 @@ export default function ProfilePage() {
                              {isGenerating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                              {isGenerating ? 'Generating...' : 'Generate AI Avatar'}
                         </Button>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Info className="h-5 w-5 text-accent cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs" side="right">
-                                    <p className="font-bold text-base mb-2">How Avatars Work</p>
-                                    <p className="text-sm">
-                                        You can upload a real photo or generate a unique AI avatar based on your current picture.
-                                        Only the most recent photo and avatar are saved to keep things tidy. Uploading a new one will replace the old one.
-                                    </p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <AvatarInfo />
                     </div>
                 </div>
             </header>
