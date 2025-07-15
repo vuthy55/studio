@@ -196,6 +196,7 @@ export default function LearnPage() {
         lang: LanguageCode, 
         isLive: boolean = false
     ) => {
+        console.log(`DEBUG: 1. Initializing assessment. isLive: ${isLive}, phraseId: ${phraseId}, referenceText: "${referenceText}", lang: ${lang}`);
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
         const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
     
@@ -205,6 +206,7 @@ export default function LearnPage() {
         }
     
         const locale = languageToLocaleMap[lang];
+        console.log(`DEBUG: 2. Language locale: ${locale}`);
         if (!locale) {
             toast({ variant: 'destructive', title: 'Unsupported Language' });
             return;
@@ -212,7 +214,7 @@ export default function LearnPage() {
         
         if (isLive) {
             setIsAssessingLive(true);
-            setLiveAssessmentResult(null);
+            setLiveAssessmentResult({ status: 'in-progress' });
         } else {
             setAssessingPhraseId(phraseId);
             setAssessmentResults(prev => ({...prev, [phraseId]: { status: 'in-progress' }}));
@@ -226,8 +228,8 @@ export default function LearnPage() {
             speechConfig.speechRecognitionLanguage = locale;
         
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-        
+            
+            console.log('DEBUG: 3. Creating PronunciationAssessmentConfig.');
             const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
                 referenceText,
                 sdk.PronunciationAssessmentGradingSystem.HundredMark,
@@ -235,17 +237,23 @@ export default function LearnPage() {
                 true
             );
             pronunciationConfig.enableMiscue = true;
+
+            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
             pronunciationConfig.applyTo(recognizer);
+            console.log('DEBUG: 4. PronunciationAssessmentConfig applied to recognizer.');
 
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
+            console.log('DEBUG: 5. Received result from Azure SDK:', result);
             
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
                  const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+                 console.log('DEBUG: 6. Raw assessment JSON:', jsonString);
                  if (jsonString) {
                     const parsedResult = JSON.parse(jsonString);
                     const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
+                    console.log('DEBUG: 7. Parsed PronunciationAssessment object:', assessment);
                     if(assessment) {
                         const accuracyScore = assessment.AccuracyScore;
                         const fluencyScore = assessment.FluencyScore;
@@ -255,10 +263,12 @@ export default function LearnPage() {
                             fluency: fluencyScore,
                         };
                     } else {
+                         console.log('DEBUG: 8. PronunciationAssessment object not found in JSON.');
                          finalResult.status = 'fail';
                     }
                  }
             } else {
+                console.log(`DEBUG: 8a. Recognition failed. Reason: ${sdk.ResultReason[result.reason]}`);
                 finalResult.status = 'fail';
             }
         } catch (error) {
@@ -266,6 +276,7 @@ export default function LearnPage() {
             finalResult.status = 'fail';
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
         } finally {
+            console.log('DEBUG: 9. FINALLY block - Cleaning up.');
             if (recognizer) {
                 recognizer.close();
             }
@@ -299,7 +310,7 @@ export default function LearnPage() {
             case 'fail': return 0;
             case 'unattempted': return 1;
             case 'pass': return 2;
-            case 'in-progress': return 1; // Treat in-progress as unattempted for sorting purposes
+            case 'in-progress': return 1; 
             default: return 1;
           }
         };
@@ -311,7 +322,6 @@ export default function LearnPage() {
           const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
           const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
 
-          // Prevent re-sorting of the phrase currently being assessed
           if (assessingPhraseId === phraseIdA || assessingPhraseId === phraseIdB) {
               return 0;
           }
@@ -612,3 +622,4 @@ export default function LearnPage() {
         </div>
     );
 }
+
