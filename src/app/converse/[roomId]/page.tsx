@@ -11,6 +11,7 @@ import {
   deleteDoc,
   collection,
   query,
+  updateDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
@@ -197,6 +198,8 @@ export default function RoomPage() {
         if (speaker && speaker.timestamp > lastPlayedTimestamp.current) {
             lastPlayedTimestamp.current = speaker.timestamp;
             setCurrentSpeaker(speaker);
+        } else if (!speaker) {
+            setCurrentSpeaker(null); // Explicitly clear local speaker state
         }
       } else {
         toast({ title: 'Session Ended', description: 'This room is no longer active.' });
@@ -227,7 +230,6 @@ export default function RoomPage() {
         if (!listenerLocale) return;
   
         try {
-          // 1. Translate the speaker's text to the listener's language
           const translationResult = await translateText({
             text: currentSpeaker.text,
             fromLanguage: speakerLangLabel,
@@ -238,7 +240,6 @@ export default function RoomPage() {
             throw new Error(translationResult.error || 'Translation failed');
           }
   
-          // 2. Play the translated text using TTS in the listener's language
           const response = await generateSpeech({
             text: translationResult.translatedText,
             lang: listenerLocale,
@@ -246,7 +247,6 @@ export default function RoomPage() {
           const audio = new Audio(response.audioDataUri);
           await audio.play();
   
-          // 3. After audio finishes, clear the speaker if creator
           audio.addEventListener('ended', async () => {
             if (isCreator) {
               await runTransaction(db, async (transaction) => {
@@ -262,7 +262,6 @@ export default function RoomPage() {
         } catch (error) {
           console.error("Audio playback error:", error);
           toast({ variant: 'destructive', title: 'Audio Error', description: 'Could not play translated audio.' });
-          // Failsafe clear speaker on error if creator
           if (isCreator) {
             await runTransaction(db, async (transaction) => {
               const roomDocRef = doc(db, 'rooms', roomId);
@@ -311,6 +310,7 @@ export default function RoomPage() {
             if (!roomDoc.exists() || roomDoc.data().currentSpeaker) {
                 throw new Error("Another user is already speaking.");
             }
+            // Temporarily set a placeholder speaker to lock the mic
             transaction.update(roomDocRef, { currentSpeaker: { userId: user!.uid, text: '...' } });
         });
     } catch (error: any) {
@@ -321,7 +321,6 @@ export default function RoomPage() {
     setIsSpeaking(true);
     const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
     speechConfig.speechRecognitionLanguage = locale;
-    // Shorter timeouts to detect pauses faster
     speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "3000");
     speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "1500");
 
@@ -337,37 +336,7 @@ export default function RoomPage() {
         }
     };
     
-    recognizer.sessionStopped = async (s, e) => {
-        setIsSpeaking(false);
-        if (recognizerRef.current) {
-             try {
-                recognizerRef.current.close();
-            } catch (e) {
-                // Ignore if it's already disposed.
-            }
-            recognizerRef.current = null;
-        }
-
-        if (finalRecognizedText.trim()) {
-            const speakerPayload = {
-                userId: user!.uid,
-                userName: participants.find(p => p.id === user!.uid)?.name || 'Anonymous',
-                text: finalRecognizedText.trim(),
-                language: myLanguage,
-                timestamp: Date.now(),
-            };
-            await runTransaction(db, async (transaction) => {
-                transaction.update(roomDocRef, { currentSpeaker: speakerPayload });
-            });
-        } else {
-            // No speech detected, release the lock
-            await runTransaction(db, async (transaction) => {
-                 transaction.update(roomDocRef, { currentSpeaker: null });
-            });
-        }
-    };
-    
-    recognizer.canceled = async (s, e) => {
+    const cleanupAndReleaseMic = async (text: string) => {
         setIsSpeaking(false);
         if (recognizerRef.current) {
             try {
@@ -377,9 +346,42 @@ export default function RoomPage() {
             }
             recognizerRef.current = null;
         }
-        await runTransaction(db, async (transaction) => {
-            transaction.update(roomDocRef, { currentSpeaker: null });
-       });
+
+        if (text.trim()) {
+            const speakerPayload: Speaker = {
+                userId: user!.uid,
+                userName: participants.find(p => p.id === user!.uid)?.name || 'Anonymous',
+                text: text.trim(),
+                language: myLanguage,
+                timestamp: Date.now(),
+            };
+            await updateDoc(roomDocRef, { currentSpeaker: speakerPayload });
+
+            // Speaker is responsible for clearing their own status after a delay
+            setTimeout(async () => {
+                const currentRoomState = await runTransaction(db, async (t) => {
+                    const doc = await t.get(roomDocRef);
+                    return doc.data();
+                });
+                // Only clear if I am still the speaker
+                if (currentRoomState?.currentSpeaker?.timestamp === speakerPayload.timestamp) {
+                    await updateDoc(roomDocRef, { currentSpeaker: null });
+                }
+            }, 7000); // 7 second delay to allow for playback
+
+        } else {
+            // No speech detected, release the lock
+            await updateDoc(roomDocRef, { currentSpeaker: null });
+        }
+    };
+
+    recognizer.sessionStopped = async (s, e) => {
+        await cleanupAndReleaseMic(finalRecognizedText);
+    };
+    
+    recognizer.canceled = async (s, e) => {
+        console.log(`CANCELED: Reason=${e.reason}. ErrorDetails=${e.errorDetails}`);
+        await cleanupAndReleaseMic('');
     };
     
     recognizer.startContinuousRecognitionAsync();
@@ -398,6 +400,7 @@ export default function RoomPage() {
   }
   
   const amISpeaking = room.currentSpeaker?.userId === user?.uid;
+  const someoneElseIsSpeaking = room.currentSpeaker && !amISpeaking;
   const canSpeak = !room.currentSpeaker && !isSpeaking;
 
   return (
@@ -465,9 +468,10 @@ export default function RoomPage() {
                 </Button>
                  <div className="h-8 text-center">
                     {isSpeaking && <p className='text-lg animate-pulse font-semibold text-red-500'>Listening... (Click to stop)</p>}
-                    {room.currentSpeaker && <p className='text-lg animate-pulse font-semibold'>{amISpeaking ? 'Processing...' : `${room.currentSpeaker.userName} is speaking...`}</p>}
-                    {!isSpeaking && !room.currentSpeaker && <p className="text-muted-foreground">Press the mic to talk</p>}
-                    {!canSpeak && !isSpeaking && !amISpeaking && <p className="text-muted-foreground">Another user is speaking...</p>}
+                    {amISpeaking && !isSpeaking && <p className='text-lg animate-pulse font-semibold'>Processing...</p>}
+                    {someoneElseIsSpeaking && <p className='text-lg animate-pulse font-semibold'>{room.currentSpeaker?.userName} is speaking...</p>}
+                    {canSpeak && <p className="text-muted-foreground">Press the mic to talk</p>}
+                    {someoneElseIsSpeaking && <p className="text-muted-foreground">Another user is speaking...</p>}
                  </div>
             </div>
         </main>
