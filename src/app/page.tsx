@@ -1,7 +1,10 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,14 +29,16 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail'; // Removed 'in-progress'
-type AssessmentResult = {
+type AssessmentStatus = 'unattempted' | 'pass' | 'fail';
+export type AssessmentResult = {
   status: AssessmentStatus;
   accuracy?: number;
   fluency?: number;
 };
+export type AssessmentResults = Record<string, AssessmentResult>;
 
 export default function LearnPage() {
+    const [user, authLoading] = useAuthState(auth);
     const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
     const [toLanguage, setToLanguage] = useState<LanguageCode>('thai');
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
@@ -46,15 +51,83 @@ export default function LearnPage() {
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
-    // Phrasebook Pronunciation Assessment State
-    const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
+    const [assessmentResults, setAssessmentResults] = useState<AssessmentResults>({});
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
 
-    // Live Translation State
     const [isRecognizing, setIsRecognizing] = useState(false);
     const [isAssessingLive, setIsAssessingLive] = useState(false);
     const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
+    const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Effect for loading data on initial mount and when user logs in/out
+    useEffect(() => {
+        const loadInitialData = async () => {
+            // 1. Always load from local storage first for speed
+            const localDataRaw = localStorage.getItem('assessmentResults');
+            const localData = localDataRaw ? JSON.parse(localDataRaw) : {};
+            setAssessmentResults(localData);
+
+            // 2. If user is logged in, sync with Firestore
+            if (user) {
+                const userRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userRef);
+                const firestoreData = userDoc.exists() ? userDoc.data().assessmentResults || {} : {};
+
+                // 3. Merge local and Firestore data
+                const mergedData = { ...localData };
+                Object.keys(firestoreData).forEach(key => {
+                    const localAccuracy = localData[key]?.accuracy || 0;
+                    const firestoreAccuracy = firestoreData[key]?.accuracy || 0;
+                    if (firestoreAccuracy > localAccuracy) {
+                        mergedData[key] = firestoreData[key];
+                    }
+                });
+                
+                setAssessmentResults(mergedData);
+                
+                // 4. Update both stores with the merged data
+                localStorage.setItem('assessmentResults', JSON.stringify(mergedData));
+                if (Object.keys(mergedData).length > 0) {
+                   await updateDoc(userRef, { assessmentResults: mergedData });
+                }
+            }
+        };
+
+        if (!authLoading) {
+            loadInitialData();
+        }
+    }, [user, authLoading]);
+
+
+    // Effect for debouncing writes to Firestore
+    useEffect(() => {
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+        }
+
+        if (user && Object.keys(assessmentResults).length > 0) {
+            debounceTimeoutRef.current = setTimeout(async () => {
+                try {
+                    const userRef = doc(db, 'users', user.uid);
+                    await updateDoc(userRef, { assessmentResults });
+                } catch (error) {
+                    console.error("Failed to save progress to Firestore:", error);
+                }
+            }, 3000); // 3-second debounce
+        }
+
+        return () => {
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+            }
+        };
+    }, [assessmentResults, user]);
     
+    // Update local storage whenever assessmentResults changes
+    const handleSetAssessmentResults = useCallback((newResults: AssessmentResults) => {
+        setAssessmentResults(newResults);
+        localStorage.setItem('assessmentResults', JSON.stringify(newResults));
+    }, []);
 
     useEffect(() => {
         setSpeechSynthesis(window.speechSynthesis);
@@ -278,7 +351,7 @@ export default function LearnPage() {
         setLiveAssessmentResult(finalResult);
         setIsAssessingLive(false);
       } else {
-        setAssessmentResults((prev) => ({ ...prev, [phraseId]: finalResult }));
+        handleSetAssessmentResults({ ...assessmentResults, [phraseId]: finalResult });
         setAssessingPhraseId(null);
       }
     }
@@ -294,11 +367,11 @@ export default function LearnPage() {
     const sortedPhrases = useMemo(() => {
         const getScore = (phraseId: string) => {
           const result = assessmentResults[phraseId];
-          const status = result?.status;
+          if (!result) return 1; // Unattempted/default
           
-          if (status === 'fail') return 0; // Failed phrases first
-          if (status === 'unattempted' || !status) return 1; // Unattempted/default next
-          if (status === 'pass') return 2; // Passed phrases last
+          if (result.status === 'fail') return 0; // Failed phrases first
+          if (result.status === 'unattempted') return 1;
+          if (result.status === 'pass') return 2; // Passed phrases last
           return 1; // Default
         };
     

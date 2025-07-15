@@ -8,7 +8,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
-import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info } from "lucide-react";
+import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut, Info, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,9 @@ import { useToast } from '@/hooks/use-toast';
 import { CountrySelect } from '@/components/ui/country-select';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { Progress } from '@/components/ui/progress';
+import { phrasebook, languages as allLanguages, type LanguageCode } from '@/lib/data';
+import type { AssessmentResults } from '@/app/page';
 import {
   Tooltip,
   TooltipProvider,
@@ -33,6 +36,72 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
+
+const StatsDisplay = ({ assessmentResults }: { assessmentResults: AssessmentResults }) => {
+    const stats = useMemo(() => {
+        const languageStats = allLanguages
+            .map(lang => {
+                if (lang.value === 'english') return null;
+
+                const allPhrasesInLang = phrasebook.flatMap(topic => topic.phrases);
+                const totalPhrases = allPhrasesInLang.length;
+                
+                const passedPhrases = allPhrasesInLang.filter(phrase => {
+                    const phraseId = `${phrase.id}-${lang.value}`;
+                    return assessmentResults[phraseId]?.status === 'pass';
+                }).length;
+
+                return {
+                    language: lang.label,
+                    passed: passedPhrases,
+                    total: totalPhrases,
+                    percentage: totalPhrases > 0 ? (passedPhrases / totalPhrases) * 100 : 0,
+                };
+            })
+            .filter(Boolean);
+
+        const totalPassed = languageStats.reduce((sum, stat) => sum + (stat?.passed || 0), 0);
+        
+        return { languageStats, totalPassed };
+    }, [assessmentResults]);
+
+    if (!stats.languageStats.length || stats.totalPassed === 0) {
+        return (
+             <div className="flex flex-col items-center justify-center h-48 text-center text-muted-foreground">
+                <Languages className="h-12 w-12 mb-4" />
+                <h3 className="text-xl font-semibold">No stats yet!</h3>
+                <p>Start learning in the "Learn" tab to see your progress here.</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Phrases Mastered</CardTitle>
+                    <CardDescription>
+                        You've mastered a total of <span className="font-bold text-primary">{stats.totalPassed}</span> phrases across all languages.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {stats.languageStats.map(stat => (
+                       stat && stat.total > 0 && (
+                            <div key={stat.language} className="space-y-2">
+                                <div className="flex justify-between items-baseline">
+                                    <h4 className="font-semibold">{stat.language}</h4>
+                                    <p className="text-sm text-muted-foreground">{stat.passed} / {stat.total}</p>
+                                </div>
+                                <Progress value={stat.percentage} />
+                            </div>
+                       )
+                   ))}
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
 
 
 export default function ProfilePage() {
@@ -312,7 +381,7 @@ export default function ProfilePage() {
             <Tabs defaultValue="profile" className="w-full">
                 <TabsList>
                     <TabsTrigger value="profile">My Profile</TabsTrigger>
-                    <TabsTrigger value="stats" disabled>My Stats</TabsTrigger>
+                    <TabsTrigger value="stats">My Stats</TabsTrigger>
                     {profile.isAdmin && <TabsTrigger value="admin" disabled>Admin</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="profile">
@@ -346,6 +415,17 @@ export default function ProfilePage() {
                                 </Button>
                             </CardContent>
                         </form>
+                    </Card>
+                </TabsContent>
+                 <TabsContent value="stats">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Learning Statistics</CardTitle>
+                            <CardDescription>Track your pronunciation progress across different languages.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <StatsDisplay assessmentResults={profile.assessmentResults || {}} />
+                        </CardContent>
                     </Card>
                 </TabsContent>
             </Tabs>
