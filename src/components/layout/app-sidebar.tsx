@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Languages } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { 
@@ -105,6 +105,14 @@ export function AppSidebar() {
               <Link href="/">
                 <BookOpen />
                 Learn
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname.startsWith('/interpret')} onClick={closeSidebar}>
+              <Link href="/interpret">
+                <Languages />
+                Interpreter
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
