@@ -87,6 +87,9 @@ export default function ProfilePage() {
             const resizedBlob = await new Promise<Blob>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
+                    if (!e.target?.result) {
+                        return reject(new Error("FileReader did not return a result."));
+                    }
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
@@ -126,7 +129,7 @@ export default function ProfilePage() {
                         );
                     };
                     img.onerror = reject;
-                    img.src = e.target?.result as string;
+                    img.src = e.target.result as string;
                 };
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
@@ -137,6 +140,7 @@ export default function ProfilePage() {
             const downloadURL = await getDownloadURL(snapshot.ref);
 
             await handleAvatarUpdate(downloadURL);
+            await updateDoc(doc(db, 'users', user.uid), { realPhotoUrl: downloadURL });
 
         } catch (error) {
             console.error("Error uploading file:", error);
@@ -154,15 +158,23 @@ export default function ProfilePage() {
         setIsGenerating(true);
         try {
             const result = await generateAvatar({
-                userId: user.uid,
                 userName: name,
-                baseImageUrl: profile?.avatarUrl // Pass current avatar URL if it exists
+                baseImageUrl: profile?.realPhotoUrl || profile?.avatarUrl 
             });
 
-            if (result.avatarUrl) {
-                await handleAvatarUpdate(result.avatarUrl);
+            if (result.imageDataUri) {
+                // Convert data URI to Blob
+                const response = await fetch(result.imageDataUri);
+                const blob = await response.blob();
+                
+                // Upload the Blob to Firebase Storage
+                const storageRef = ref(storage, `avatars/${user.uid}/ai-generated-avatar.png`);
+                const snapshot = await uploadBytes(storageRef, blob);
+                const downloadURL = await getDownloadURL(snapshot.ref);
+
+                await handleAvatarUpdate(downloadURL);
             } else {
-                 throw new Error("AI did not return a valid image URL.");
+                 throw new Error("AI did not return a valid image URI.");
             }
         } catch (error) {
             console.error("Error generating AI avatar:", error);
