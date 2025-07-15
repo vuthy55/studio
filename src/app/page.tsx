@@ -214,8 +214,8 @@ export default function LearnPage() {
         if (isLive) {
             setIsAssessingLive(true);
         } else {
-            setAssessmentResults(prev => ({...prev, [phraseId]: { status: 'in-progress' }}));
             setAssessingPhraseId(phraseId);
+            setAssessmentResults(prev => ({...prev, [phraseId]: { status: 'in-progress' }}));
         }
         
         let recognizer: sdk.SpeechRecognizer | undefined;
