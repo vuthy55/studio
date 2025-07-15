@@ -69,8 +69,10 @@ export default function ProfilePage() {
     const handleAvatarUpdate = async (newAvatarUrl: string) => {
         if (!user) return;
         try {
+            console.log(`[DEBUG ${new Date().toISOString()}] Starting Firestore avatar URL update...`);
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, { avatarUrl: newAvatarUrl });
+            console.log(`[DEBUG ${new Date().toISOString()}] Firestore avatar URL update successful.`);
             toast({ title: 'Success', description: 'Avatar updated successfully.' });
         } catch (error) {
             console.error("Error updating avatar:", error);
@@ -82,8 +84,10 @@ export default function ProfilePage() {
         const file = event.target.files?.[0];
         if (!file || !user) return;
 
+        console.log(`[DEBUG ${new Date().toISOString()}] --- Starting Photo Upload ---`);
         setIsUploading(true);
         try {
+            console.log(`[DEBUG ${new Date().toISOString()}] Starting image resize...`);
             const resizedBlob = await new Promise<Blob>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -103,7 +107,7 @@ export default function ProfilePage() {
                         } else {
                             if (height > MAX_HEIGHT) {
                                 width *= MAX_HEIGHT / height;
-                                width = MAX_HEIGHT;
+                                height = MAX_HEIGHT;
                             }
                         }
                         canvas.width = width;
@@ -116,6 +120,7 @@ export default function ProfilePage() {
                         canvas.toBlob(
                             (blob) => {
                                 if (blob) {
+                                    console.log(`[DEBUG ${new Date().toISOString()}] Image resize complete. Blob size: ${blob.size} bytes`);
                                     resolve(blob);
                                 } else {
                                     reject(new Error('Canvas to Blob conversion failed'));
@@ -133,10 +138,15 @@ export default function ProfilePage() {
             });
 
             const storageRef = ref(storage, `avatars/${user.uid}/profile.jpg`);
+            console.log(`[DEBUG ${new Date().toISOString()}] Starting upload to Firebase Storage...`);
             const snapshot = await uploadBytes(storageRef, resizedBlob);
+            console.log(`[DEBUG ${new Date().toISOString()}] Upload complete. Getting download URL...`);
             const downloadURL = await getDownloadURL(snapshot.ref);
+            console.log(`[DEBUG ${new Date().toISOString()}] Got download URL. Starting avatar update function...`);
 
             await handleAvatarUpdate(downloadURL);
+            console.log(`[DEBUG ${new Date().toISOString()}] --- Photo Upload Finished ---`);
+
 
         } catch (error) {
             console.error("Error uploading file:", error);
@@ -269,5 +279,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
