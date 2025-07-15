@@ -100,7 +100,7 @@ export default function ProfilePage() {
                 </Avatar>
                  <div>
                     <h1 className="text-3xl font-bold font-headline">{name}</h1>
-                    <p className="text-muted-foreground">{profile.email}</p>
+                    <p className="text-muted-foreground">{user.email}</p>
                     <div className="flex gap-2 mt-4">
                         <Button size="sm" variant="outline" disabled>
                             <Upload className="mr-2 h-4 w-4" /> Upload Photo
@@ -133,7 +133,7 @@ export default function ProfilePage() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="email">Email</Label>
-                                        <Input id="email" value={profile.email || ''} disabled />
+                                        <Input id="email" value={user.email || ''} disabled />
                                     </div>
                                      <div className="space-y-2">
                                         <Label htmlFor="mobile">Mobile Number</Label>
@@ -155,4 +155,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
