@@ -224,11 +224,11 @@ export default function LearnPage() {
         };
     
         return [...selectedTopic.phrases].sort((a, b) => {
-            const statusA = assessmentResults[`${a.id}-${toLanguage}`]?.status || assessmentResults[`${a.id}-${fromLanguage}`]?.status || 'unattempted';
-            const statusB = assessmentResults[`${b.id}-${toLanguage}`]?.status || assessmentResults[`${b.id}-${fromLanguage}`]?.status || 'unattempted';
+            const statusA = assessmentResults[`${a.id}-${toLanguage}`]?.status || 'unattempted';
+            const statusB = assessmentResults[`${b.id}-${toLanguage}`]?.status || 'unattempted';
             return getScore(statusA) - getScore(statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults, fromLanguage, toLanguage]);
+      }, [selectedTopic.phrases, assessmentResults, toLanguage]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -341,16 +341,9 @@ export default function LearnPage() {
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
                                             const toAnswerPronunciation = phrase.answer ? getPronunciation(phrase.answer, toLanguage) : '';
 
-                                            const fromPhraseId = `${phrase.id}-${fromLanguage}`;
                                             const toPhraseId = `${phrase.id}-${toLanguage}`;
-                                            
-                                            const fromResult = assessmentResults[fromPhraseId];
                                             const toResult = assessmentResults[toPhraseId];
-
-                                            const isAssessingFrom = isAssessing && assessingPhraseId === fromPhraseId;
                                             const isAssessingTo = isAssessing && assessingPhraseId === toPhraseId;
-
-                                            const isInProgressFrom = fromResult?.status === 'in-progress';
                                             const isInProgressTo = toResult?.status === 'in-progress';
 
                                             return (
@@ -362,24 +355,9 @@ export default function LearnPage() {
                                                             {fromPronunciation && <p className="text-sm text-muted-foreground italic">{fromPronunciation}</p>}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromText, fromLanguage)} disabled={isAssessing}>
-                                                                <Volume2 className="h-5 w-5" />
-                                                                <span className="sr-only">Play audio</span>
-                                                            </Button>
-                                                            <Button size="icon" variant={isAssessingFrom ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(fromPhraseId, fromText, fromLanguage)} disabled={isAssessing}>
-                                                                <Mic className={cn("h-5 w-5", isAssessingFrom && "animate-pulse")} />
-                                                                <span className="sr-only">Record pronunciation</span>
-                                                            </Button>
-                                                            {isInProgressFrom && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
-                                                            {fromResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                                                            {fromResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
+                                                            {/* Speaker for From language removed */}
                                                         </div>
                                                     </div>
-                                                    {(fromResult?.status === 'pass' || fromResult?.status === 'fail') && (
-                                                        <div className="text-xs text-muted-foreground pl-1">
-                                                            <p>Accuracy: <span className="font-bold">{fromResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{fromResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                        </div>
-                                                    )}
                                                 </div>
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex justify-between items-center w-full">
@@ -392,10 +370,19 @@ export default function LearnPage() {
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
-                                                             <Button size="icon" variant={isAssessingTo ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing}>
-                                                                <Mic className={cn("h-5 w-5", isAssessingTo && "animate-pulse")} />
-                                                                <span className="sr-only">Record pronunciation</span>
-                                                            </Button>
+                                                            <TooltipProvider>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button size="icon" variant={isAssessingTo ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing}>
+                                                                            <Mic className={cn("h-5 w-5", isAssessingTo && "animate-pulse")} />
+                                                                            <span className="sr-only">Record pronunciation</span>
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Click to practice. You need over 70% accuracy to pass.</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
                                                             {isInProgressTo && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
                                                             {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
                                                             {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
@@ -417,10 +404,7 @@ export default function LearnPage() {
                                                                 {fromAnswerPronunciation && <p className="text-sm text-muted-foreground italic">{fromAnswerPronunciation}</p>}
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(fromAnswerText, fromLanguage)} disabled={isAssessing}>
-                                                                    <Volume2 className="h-5 w-5" />
-                                                                    <span className="sr-only">Play audio</span>
-                                                                </Button>
+                                                                {/* Speaker for From language answer removed */}
                                                             </div>
                                                         </div>
                                                         <div className="flex justify-between items-center w-full">
