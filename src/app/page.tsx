@@ -301,10 +301,10 @@ export default function LearnPage() {
     const sortedPhrases = useMemo(() => {
         const getScore = (status: AssessmentStatus) => {
           switch (status) {
+            case 'in-progress': return -1;
             case 'fail': return 0;
             case 'unattempted': return 1;
             case 'pass': return 2;
-            case 'in-progress': return 1; 
             default: return 1;
           }
         };
