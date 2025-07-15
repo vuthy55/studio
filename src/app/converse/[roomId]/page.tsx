@@ -340,7 +340,11 @@ export default function RoomPage() {
     recognizer.sessionStopped = async (s, e) => {
         setIsSpeaking(false);
         if (recognizerRef.current) {
-            recognizerRef.current.close();
+             try {
+                recognizerRef.current.close();
+            } catch (e) {
+                // Ignore if it's already disposed.
+            }
             recognizerRef.current = null;
         }
 
@@ -366,7 +370,11 @@ export default function RoomPage() {
     recognizer.canceled = async (s, e) => {
         setIsSpeaking(false);
         if (recognizerRef.current) {
-            recognizerRef.current.close();
+            try {
+                recognizerRef.current.close();
+            } catch (e) {
+                // Ignore if it's already disposed.
+            }
             recognizerRef.current = null;
         }
         await runTransaction(db, async (transaction) => {
