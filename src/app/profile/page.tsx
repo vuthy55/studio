@@ -95,6 +95,9 @@ export default function ProfilePage() {
             const resizedBlob = await new Promise<Blob>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
+                    if (!e.target?.result) {
+                        return reject(new Error("FileReader did not return a result."));
+                    }
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
@@ -126,7 +129,7 @@ export default function ProfilePage() {
                         }, 'image/jpeg', 0.9);
                     };
                     img.onerror = (err) => reject(err);
-                    img.src = e.target?.result as string;
+                    img.src = e.target.result as string;
                 };
                 reader.onerror = (err) => reject(err);
                 reader.readAsDataURL(file);
@@ -234,7 +237,7 @@ export default function ProfilePage() {
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Info className="h-5 w-5 text-muted-foreground cursor-help" />
+                                    <Info className="h-5 w-5 text-accent cursor-help" />
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-xs" side="right">
                                     <p className="font-bold text-base mb-2">How Avatars Work</p>
@@ -288,5 +291,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
