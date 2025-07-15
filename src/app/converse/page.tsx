@@ -192,7 +192,7 @@ export default function ConversePage() {
                     <SelectTrigger id="language-select-create">
                       <SelectValue placeholder="Select a language" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper">
                       {languages.map(lang => (
                         <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                       ))}
@@ -278,7 +278,7 @@ export default function ConversePage() {
               <SelectTrigger id="language-select-join">
                 <SelectValue placeholder="Select a language" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper">
                 {languages.map(lang => (
                   <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                 ))}
@@ -293,5 +293,3 @@ export default function ConversePage() {
     </div>
   );
 }
-
-    
