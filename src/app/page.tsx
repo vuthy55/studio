@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Info, TestTube2 } from 'lucide-react';
-import { useSidebar } from '@/components/ui/sidebar';
 import {
   Tooltip,
   TooltipProvider,
@@ -25,9 +24,8 @@ import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { ai } from '@/ai/genkit';
-import { z } from 'zod';
+import { doc, updateDoc } from 'firebase/firestore';
+import { translateText } from './actions';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -132,26 +130,6 @@ export default function LearnPage() {
         }
     };
 
-    const translateTextFlow = ai.defineFlow(
-      {
-        name: 'translateTextFlow',
-        inputSchema: z.object({ text: z.string(), fromLanguage: z.string(), toLanguage: z.string() }),
-        outputSchema: z.object({ translatedText: z.string() }),
-      },
-      async ({ text, fromLanguage, toLanguage }) => {
-        const prompt = `Translate the following text from ${fromLanguage} to ${toLanguage}. Only provide the translated text, with no additional commentary or explanations.\n\nText to translate: "${text}"`;
-        
-        const llmResponse = await ai.generate({
-          prompt: prompt,
-          output: {
-            format: 'text',
-          },
-        });
-        
-        return { translatedText: llmResponse.text };
-      }
-    );
-    
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
             if (inputText && activeTab === 'live-translation') {
@@ -173,8 +151,10 @@ export default function LearnPage() {
         try {
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateTextFlow({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
-            setTranslatedText(result.translatedText);
+            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+            if (result.translatedText) {
+              setTranslatedText(result.translatedText);
+            }
         } catch (error) {
             console.error('Translation failed', error);
             toast({
