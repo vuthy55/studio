@@ -184,93 +184,121 @@ export default function LearnPage() {
         }
     }
 
-    const assessPronunciation = async (
-        phraseId: string, 
-        referenceText: string, 
-        lang: LanguageCode, 
-        isLive: boolean = false
-    ) => {
-        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-    
-        if (!azureKey || !azureRegion) {
-            toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured for assessment.' });
-            return;
-        }
-    
-        const locale = languageToLocaleMap[lang];
-        if (!locale) {
-            toast({ variant: 'destructive', title: 'Unsupported Language' });
-            return;
-        }
-        
-        if (isLive) {
-            setIsAssessingLive(true);
-            setLiveAssessmentResult({ status: 'in-progress' });
-        } else {
-            setAssessingPhraseId(phraseId);
-            setAssessmentResults(prev => ({...prev, [phraseId]: { status: 'in-progress' }}));
-        }
-        
-        let recognizer: sdk.SpeechRecognizer | undefined;
-        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
-       
-        try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-            speechConfig.speechRecognitionLanguage = locale;
-        
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            
-            const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
-                referenceText,
-                sdk.PronunciationAssessmentGradingSystem.HundredMark,
-                sdk.PronunciationAssessmentGranularity.Phoneme,
-                true
-            );
-            pronunciationConfig.enableMiscue = true;
+   const assessPronunciation = async (
+    phraseId: string,
+    referenceText: string,
+    lang: LanguageCode,
+    isLive: boolean = false
+  ) => {
+    console.log(`DEBUG: 1. Initializing assessment. isLive: ${isLive}, phraseId: ${phraseId}, referenceText: "${referenceText}", lang: ${lang}`);
 
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-            pronunciationConfig.applyTo(recognizer);
+    const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
+    const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
 
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer!.recognizeOnceAsync(resolve, reject);
-            });
-            
-            if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
-                 const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-                 if (jsonString) {
-                    const parsedResult = JSON.parse(jsonString);
-                    const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
-                    if(assessment) {
-                        const accuracyScore = assessment.AccuracyScore;
-                        const fluencyScore = assessment.FluencyScore;
-                        finalResult = {
-                            status: accuracyScore > 70 ? 'pass' : 'fail',
-                            accuracy: accuracyScore,
-                            fluency: fluencyScore,
-                        };
-                    }
-                 }
-            } else {
-                toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
-            }
-        } catch (error) {
-            console.error("Error during assessment:", error);
-            finalResult.status = 'fail';
-            toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
-        } finally {
-            if (recognizer) {
-                recognizer.close();
-            }
-            if (isLive) {
-                setLiveAssessmentResult(finalResult);
-                setIsAssessingLive(false);
-            } else {
-                setAssessmentResults(prev => ({ ...prev, [phraseId]: finalResult }));
-                setAssessingPhraseId(null);
-            }
+    if (!azureKey || !azureRegion) {
+      toast({
+        variant: 'destructive',
+        title: 'Configuration Error',
+        description: 'Azure credentials are not configured for assessment.',
+      });
+      return;
+    }
+
+    const locale = languageToLocaleMap[lang];
+    console.log(`DEBUG: 2. Language locale: ${locale}`);
+    if (!locale) {
+      toast({ variant: 'destructive', title: 'Unsupported Language' });
+      return;
+    }
+
+    if (isLive) {
+      setIsAssessingLive(true);
+      setLiveAssessmentResult({ status: 'in-progress' });
+    } else {
+      setAssessingPhraseId(phraseId);
+      setAssessmentResults((prev) => ({
+        ...prev,
+        [phraseId]: { status: 'in-progress' },
+      }));
+    }
+
+    let recognizer: sdk.SpeechRecognizer | undefined;
+    let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+
+    try {
+      const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+      speechConfig.speechRecognitionLanguage = locale;
+      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      
+      console.log('DEBUG: 3. Creating PronunciationAssessmentConfig.');
+      const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
+        referenceText,
+        sdk.PronunciationAssessmentGradingSystem.HundredMark,
+        sdk.PronunciationAssessmentGranularity.Phoneme,
+        true
+      );
+      pronunciationConfig.enableMiscue = true;
+      
+      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+      pronunciationConfig.applyTo(recognizer);
+      console.log('DEBUG: 4. PronunciationAssessmentConfig applied to recognizer.');
+
+      const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
+        recognizer!.recognizeOnceAsync(resolve, reject);
+      });
+      
+      console.log('DEBUG: 5. Received result from Azure SDK:', result);
+      
+      if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
+        const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+        console.log('DEBUG: 6. Raw assessment JSON:', jsonString);
+        
+        if (jsonString) {
+          const parsedResult = JSON.parse(jsonString);
+          const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
+          console.log('DEBUG: 7. Parsed PronunciationAssessment object:', assessment);
+
+          if (assessment) {
+            const accuracyScore = assessment.AccuracyScore;
+            const fluencyScore = assessment.FluencyScore;
+            finalResult = {
+              status: accuracyScore > 70 ? 'pass' : 'fail',
+              accuracy: accuracyScore,
+              fluency: fluencyScore,
+            };
+          } else {
+             console.log('DEBUG: 8. PronunciationAssessment object not found in JSON.');
+          }
         }
-    };
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Assessment Failed',
+          description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error during assessment:", error);
+      finalResult.status = 'fail';
+      toast({
+        variant: 'destructive',
+        title: 'Assessment Error',
+        description: `An unexpected error occurred during assessment.`,
+      });
+    } finally {
+      console.log('DEBUG: 9. FINALLY block - Cleaning up.');
+      if (recognizer) {
+        recognizer.close();
+      }
+      if (isLive) {
+        setLiveAssessmentResult(finalResult);
+        setIsAssessingLive(false);
+      } else {
+        setAssessmentResults((prev) => ({ ...prev, [phraseId]: finalResult }));
+        setAssessingPhraseId(null);
+      }
+    }
+  };
     
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
