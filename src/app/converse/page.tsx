@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { LoaderCircle, MessagesSquare, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -50,9 +51,7 @@ type Room = {
   name: string;
   createdBy: string;
   creatorName: string;
-  language: string;
   createdAt: any;
-  isActive: boolean;
 };
 
 export default function ConversePage() {
@@ -62,7 +61,10 @@ export default function ConversePage() {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('english');
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,15 +74,13 @@ export default function ConversePage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'), limit(3));
+    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
         const roomsData: Room[] = [];
         querySnapshot.forEach((doc) => {
-          if (doc.data().isActive !== false) {
-             roomsData.push({ id: doc.id, ...doc.data() } as Room);
-          }
+          roomsData.push({ id: doc.id, ...doc.data() } as Room);
         });
         setRooms(roomsData);
         setIsLoadingRooms(false);
@@ -96,7 +96,7 @@ export default function ConversePage() {
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoomName.trim() || !user) return;
+    if (!newRoomName.trim() || !user || !selectedLanguage) return;
 
     setIsCreatingRoom(true);
     try {
@@ -109,14 +109,13 @@ export default function ConversePage() {
         createdBy: user.uid,
         creatorName: userName,
         createdAt: serverTimestamp(),
-        isActive: true,
         currentSpeaker: null,
       });
       setNewRoomName('');
-      setIsDialogOpen(false);
-      router.push(`/converse/${docRef.id}`);
+      router.push(`/converse/${docRef.id}?lang=${selectedLanguage}`);
     } catch (error) {
       console.error('Error creating room:', error);
+       toast({ variant: 'destructive', title: 'Error', description: 'Could not create the room.' });
     } finally {
       setIsCreatingRoom(false);
     }
@@ -131,6 +130,18 @@ export default function ConversePage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete the room.' });
     }
   };
+
+  const handleJoinClick = (roomId: string) => {
+    setJoiningRoomId(roomId);
+    setIsJoinDialogOpen(true);
+  };
+
+  const handleConfirmJoin = () => {
+    if (joiningRoomId && selectedLanguage) {
+      router.push(`/converse/${joiningRoomId}?lang=${selectedLanguage}`);
+    }
+  };
+
 
   if (loading || isLoadingRooms) {
     return (
@@ -149,7 +160,7 @@ export default function ConversePage() {
             Join a room to practice speaking with others.
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2" />
@@ -161,27 +172,40 @@ export default function ConversePage() {
               <DialogHeader>
                 <DialogTitle>Create a new room</DialogTitle>
                 <DialogDescription>
-                  Give your new conversation room a name. Click create when you're done.
+                  Give your room a name and choose your language.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Room Name</Label>
                   <Input
                     id="name"
                     value={newRoomName}
                     onChange={(e) => setNewRoomName(e.target.value)}
-                    className="col-span-3"
                     placeholder="E.g. Thai Food Practice"
                     required
                   />
                 </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="language-select-create">Your Speaking Language</Label>
+                  <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as LanguageCode)}>
+                    <SelectTrigger id="language-select-create">
+                      <SelectValue placeholder="Select a language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languages.map(lang => (
+                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary">Cancel</Button>
+                </DialogClose>
                 <Button type="submit" disabled={isCreatingRoom}>
-                  {isCreatingRoom ? <LoaderCircle className="animate-spin" /> : 'Create'}
+                  {isCreatingRoom ? <LoaderCircle className="animate-spin" /> : 'Create & Join'}
                 </Button>
               </DialogFooter>
             </form>
@@ -195,16 +219,9 @@ export default function ConversePage() {
             <Card key={room.id} className="hover:bg-accent/50 transition-colors h-full flex flex-col">
               <CardHeader>
                 <div className="flex justify-between items-start">
-                  <div className="flex-grow">
-                     <Link href={`/converse/${room.id}`} passHref>
-                        <CardTitle className="flex items-center gap-2 cursor-pointer">
-                          <MessagesSquare className="text-primary" /> {room.name}
-                        </CardTitle>
-                      </Link>
-                      <CardDescription>
-                        Created by {room.creatorName || 'a user'}
-                      </CardDescription>
-                  </div>
+                    <CardTitle className="flex items-center gap-2 cursor-pointer" onClick={() => handleJoinClick(room.id)}>
+                      <MessagesSquare className="text-primary" /> {room.name}
+                    </CardTitle>
                   {user && user.uid === room.createdBy && (
                      <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -229,16 +246,15 @@ export default function ConversePage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-grow">
-                 <Link href={`/converse/${room.id}`} className="block h-full">
-                    <span className="sr-only">Join room {room.name}</span>
-                 </Link>
+                 <CardDescription>
+                    Created by {room.creatorName || 'a user'}
+                  </CardDescription>
               </CardContent>
-              <CardFooter>
-                 <Link href={`/converse/${room.id}`} className="w-full">
-                    <p className="text-xs text-muted-foreground">
-                      {room.createdAt?.toDate().toLocaleString()}
-                    </p>
-                 </Link>
+              <CardFooter className="flex flex-col items-start gap-4">
+                 <Button className="w-full" onClick={() => handleJoinClick(room.id)}>Join Room</Button>
+                 <p className="text-xs text-muted-foreground">
+                    {room.createdAt?.toDate().toLocaleString()}
+                </p>
               </CardFooter>
             </Card>
           ))}
@@ -250,6 +266,32 @@ export default function ConversePage() {
             <p className="mt-1 text-sm text-muted-foreground">Be the first to create one!</p>
         </div>
       )}
+       <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Your Language</DialogTitle>
+            <DialogDescription>Choose the language you will be speaking in the room.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+             <Label htmlFor="language-select-join">Your Speaking Language</Label>
+            <Select value={selectedLanguage} onValueChange={(v) => setSelectedLanguage(v as LanguageCode)}>
+              <SelectTrigger id="language-select-join">
+                <SelectValue placeholder="Select a language" />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.map(lang => (
+                  <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleConfirmJoin}>Join Room</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+    
