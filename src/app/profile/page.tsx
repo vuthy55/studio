@@ -55,6 +55,8 @@ export default function ProfilePage() {
                     setProfile(data);
                     setName(data.name || '');
                 } else {
+                    // This can happen briefly when a user first signs up
+                    // The login page logic should create this document
                     console.log("User profile not found, might be creating...");
                 }
             });
@@ -114,6 +116,7 @@ export default function ProfilePage() {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                  <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+                 <p className="ml-4">Loading profile...</p>
             </div>
         );
     }
