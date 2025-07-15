@@ -172,17 +172,22 @@ export default function LearnPage() {
         const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
         recognizer.recognizeOnceAsync(result => {
-            let assessment;
+            let assessmentResult;
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                assessment = sdk.PronunciationAssessmentResult.fromResult(result);
-                 setAssessmentResults(prev => ({
-                    ...prev,
-                    [phraseId]: {
-                        status: assessment.accuracyScore > 70 ? 'pass' : 'fail',
-                        accuracy: assessment.accuracyScore,
-                        fluency: assessment.fluencyScore,
-                    }
-                }));
+                assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
+                 if (assessmentResult) {
+                     setAssessmentResults(prev => ({
+                        ...prev,
+                        [phraseId]: {
+                            status: assessmentResult.accuracyScore > 70 ? 'pass' : 'fail',
+                            accuracy: assessmentResult.accuracyScore,
+                            fluency: assessmentResult.fluencyScore,
+                        }
+                    }));
+                 } else {
+                    toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
+                    setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+                 }
             } else {
                  toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
                  setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
@@ -484,4 +489,5 @@ export default function LearnPage() {
     );
 }
 
+    
     
