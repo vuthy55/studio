@@ -78,6 +78,10 @@ export default function LoginPage() {
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!signupCountry) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Please select your country." });
+        return;
+    }
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
@@ -178,7 +182,7 @@ export default function LoginPage() {
                     </div>
                      <div className="space-y-2">
                       <Label htmlFor="signup-country">Country</Label>
-                       <CountrySelect value={signupCountry} onChange={(e) => setSignupCountry(e.target.value)} />
+                       <CountrySelect required value={signupCountry} onChange={(e) => setSignupCountry(e.target.value)} />
                     </div>
                      <div className="space-y-2">
                       <Label htmlFor="signup-mobile">Mobile (Optional)</Label>
