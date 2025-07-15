@@ -220,7 +220,7 @@ export default function ProfilePage() {
                             <CardDescription>
                                 Manage your application settings.
                             </CardDescription>
-                        </CardHeader>
+                        </Header>
                         <CardContent className="space-y-4">
                              <div className="flex items-center justify-center h-48">
                                 <p className="text-muted-foreground">Settings options coming soon!</p>
@@ -249,3 +249,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
