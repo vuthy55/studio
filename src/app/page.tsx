@@ -214,50 +214,46 @@ export default function LearnPage() {
         if (isLive) {
             setIsAssessingLive(true);
         } else {
-            setIsAssessing(true);
+            setAssessmentResults(prev => ({...prev, [phraseId]: { status: 'in-progress' }}));
             setAssessingPhraseId(phraseId);
         }
         
         let recognizer: sdk.SpeechRecognizer | undefined;
         let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
-        let resultPhraseId = phraseId;
-
+       
         try {
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
             speechConfig.speechRecognitionLanguage = locale;
-            
+        
+            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+        
             const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
                 referenceText,
                 sdk.PronunciationAssessmentGradingSystem.HundredMark,
                 sdk.PronunciationAssessmentGranularity.Phoneme,
                 true
             );
-            pronunciationConfig.applyTo(speechConfig);
-        
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-        
+            pronunciationConfig.applyTo(recognizer);
+
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
             
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                const pronunciationResult = sdk.PronunciationAssessmentResult.fromResult(result);
-                if (pronunciationResult) {
-                    const accuracyScore = pronunciationResult.accuracyScore;
-                    const fluencyScore = pronunciationResult.fluencyScore;
-                    finalResult = {
-                        status: accuracyScore > 70 ? 'pass' : 'fail',
-                        accuracy: accuracyScore,
-                        fluency: fluencyScore,
-                    };
-                } else {
-                     finalResult.status = 'fail';
-                     toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not get assessment details from the service.' });
-                }
-            } else {
-                 finalResult.status = 'fail';
-                 toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
+                 const json = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+                 if (json) {
+                    const assessment = JSON.parse(json).PronunciationAssessment;
+                    if(assessment) {
+                        const accuracyScore = assessment.AccuracyScore;
+                        const fluencyScore = assessment.FluencyScore;
+                        finalResult = {
+                            status: accuracyScore > 70 ? 'pass' : 'fail',
+                            accuracy: accuracyScore,
+                            fluency: fluencyScore,
+                        };
+                    }
+                 }
             }
         } catch (error) {
             console.error("Error during assessment:", error);
@@ -271,8 +267,7 @@ export default function LearnPage() {
                 setIsAssessingLive(false);
                 setLiveAssessmentResult(finalResult);
             } else {
-                setAssessmentResults(prev => ({ ...prev, [resultPhraseId]: finalResult }));
-                setIsAssessing(false);
+                setAssessmentResults(prev => ({ ...prev, [phraseId]: finalResult }));
                 setAssessingPhraseId(null);
             }
         }
@@ -298,6 +293,7 @@ export default function LearnPage() {
             case 'fail': return 0;
             case 'unattempted': return 1;
             case 'pass': return 2;
+            case 'in-progress': return 3; // Keep in-progress items stable
             default: return 1;
           }
         };
@@ -308,15 +304,15 @@ export default function LearnPage() {
     
           const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
           const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
-    
+
           // Prevent re-sorting of the phrase currently being assessed
-          if (phraseIdA === assessingPhraseId || phraseIdB === assessingPhraseId) {
-            return 0;
+          if (statusA === 'in-progress' || statusB === 'in-progress') {
+              return 0;
           }
     
           return getScore(statusA) - getScore(statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
+      }, [selectedTopic.phrases, assessmentResults, toLanguage]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -450,7 +446,7 @@ export default function LearnPage() {
 
                                             const toPhraseId = `${phrase.id}-${toLanguage}`;
                                             const toResult = assessmentResults[toPhraseId];
-                                            const isCurrentlyAssessingThis = isAssessing && assessingPhraseId === toPhraseId;
+                                            const isCurrentlyAssessingThis = assessingPhraseId === toPhraseId;
                                             
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
@@ -478,7 +474,7 @@ export default function LearnPage() {
                                                             <TooltipProvider>
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
-                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessPronunciation(toPhraseId, toText, toLanguage)} disabled={isAssessing && !isCurrentlyAssessingThis}>
+                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessPronunciation(toPhraseId, toText, toLanguage)} disabled={assessingPhraseId !== null && !isCurrentlyAssessingThis}>
                                                                             {isCurrentlyAssessingThis ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                                             <span className="sr-only">Record pronunciation</span>
                                                                         </Button>
@@ -586,7 +582,7 @@ export default function LearnPage() {
                                                  <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant={isAssessingLive ? "destructive" : "ghost"} onClick={() => assessPronunciation('live', translatedText, toLanguage, true)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
+                                                            <Button size="icon" variant={isAssessingLive ? "destructive" : "ghost"} onClick={() => assessPronunciation('live-translation', translatedText, toLanguage, true)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
                                                                 {isAssessingLive ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                                 <span className="sr-only">Record pronunciation</span>
                                                             </Button>
@@ -610,5 +606,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
-    
