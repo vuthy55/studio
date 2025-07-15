@@ -299,31 +299,23 @@ export default function LearnPage() {
     }
     
     const sortedPhrases = useMemo(() => {
-        const getScore = (phraseId: string, currentStatus: AssessmentStatus) => {
-          if (currentStatus === 'in-progress') {
-            const previousStatus = assessmentResults[phraseId]?.status || 'unattempted';
-            if (previousStatus === 'fail') return 0; // If it was failing before, keep it at the top
-          }
-    
-          switch (currentStatus) {
-            case 'fail': return 0;
-            case 'unattempted': return 1;
-            case 'in-progress': return 1;
-            case 'pass': return 2;
-            default: return 1;
-          }
+        const getScore = (phraseId: string) => {
+          const result = assessmentResults[phraseId];
+          const status = result?.status;
+          
+          if (status === 'fail') return 0;
+          if (status === 'unattempted' || status === 'in-progress' || !status) return 1;
+          if (status === 'pass') return 2;
+          return 1;
         };
     
         return [...selectedTopic.phrases].sort((a, b) => {
           const phraseIdA = `${a.id}-${toLanguage}`;
           const phraseIdB = `${b.id}-${toLanguage}`;
     
-          const statusA = assessingPhraseId === phraseIdA ? 'in-progress' : (assessmentResults[phraseIdA]?.status || 'unattempted');
-          const statusB = assessingPhraseId === phraseIdB ? 'in-progress' : (assessmentResults[phraseIdB]?.status || 'unattempted');
-
-          return getScore(phraseIdA, statusA) - getScore(phraseIdB, statusB);
+          return getScore(phraseIdA) - getScore(phraseIdB);
         });
-    }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
+    }, [selectedTopic.phrases, assessmentResults, toLanguage]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -606,5 +598,7 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
 
     
