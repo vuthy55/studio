@@ -140,12 +140,12 @@ export default function LearnPage() {
     const assessFromMicrophone = async (phraseId: string, referenceText: string, lang: LanguageCode) => {
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
         const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-
+    
         if (!azureKey || !azureRegion) {
             toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured for assessment.' });
             return;
         }
-
+    
         const locale = languageToLocaleMap[lang];
         if (!locale) {
             toast({ variant: 'destructive', title: 'Unsupported Language' });
@@ -155,7 +155,7 @@ export default function LearnPage() {
         setIsAssessing(true);
         setAssessingPhraseId(phraseId);
         setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
-
+    
         const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
         speechConfig.speechRecognitionLanguage = locale;
         
@@ -165,35 +165,45 @@ export default function LearnPage() {
             granularity: "Phoneme",
             enableMiscue: "True"
         });
-
+    
         speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestPronunciationAssessmentJson, pronunciationAssessmentJson);
-
+    
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-
+    
         recognizer.recognizeOnceAsync(result => {
-            if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
-                if (assessmentResult) {
-                     setAssessmentResults(prev => ({
-                        ...prev,
-                        [phraseId]: {
-                            status: assessmentResult.accuracyScore > 70 ? 'pass' : 'fail',
-                            accuracy: assessmentResult.accuracyScore,
-                            fluency: assessmentResult.fluencyScore,
-                        }
-                    }));
+            try {
+                if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
+                    const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
+                    if (assessmentResult) {
+                         setAssessmentResults(prev => ({
+                            ...prev,
+                            [phraseId]: {
+                                status: assessmentResult.accuracyScore > 70 ? 'pass' : 'fail',
+                                accuracy: assessmentResult.accuracyScore,
+                                fluency: assessmentResult.fluencyScore,
+                            }
+                        }));
+                    } else {
+                        // This case handles when speech is recognized but assessment fails.
+                        toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
+                        setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+                    }
                 } else {
-                    toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
-                    setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+                     // This case handles when speech is not recognized at all.
+                     toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
+                     setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
                 }
-            } else {
-                 toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
-                 setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+            } catch (e) {
+                // This is the ultimate safety net for any unexpected errors during result processing.
+                console.error("Error processing assessment result:", e);
+                toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.` });
+                setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+            } finally {
+                recognizer.close();
+                setIsAssessing(false);
+                setAssessingPhraseId(null);
             }
-            recognizer.close();
-            setIsAssessing(false);
-            setAssessingPhraseId(null);
         }, err => {
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An error occurred during assessment: ${err}` });
             setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
