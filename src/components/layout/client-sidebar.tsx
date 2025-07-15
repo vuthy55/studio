@@ -1,11 +1,5 @@
 "use client";
 
-import dynamic from 'next/dynamic'
+import { AppSidebar } from '@/components/layout/app-sidebar';
 
-const AppSidebar = dynamic(() => import('@/components/layout/app-sidebar').then(mod => mod.AppSidebar), {
-  ssr: false,
-});
-
-export default function ClientSidebar() {
-  return <AppSidebar />;
-}
+export default AppSidebar;
