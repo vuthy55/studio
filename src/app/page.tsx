@@ -159,6 +159,7 @@ export default function LearnPage() {
         
         let recognizer: sdk.SpeechRecognizer | undefined;
         let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+        let resultPhraseId = phraseId;
 
         try {
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
@@ -171,11 +172,10 @@ export default function LearnPage() {
                 true
             );
         
-            pronunciationConfig.applyTo(speechConfig);
-
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
             recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-            
+            pronunciationConfig.applyTo(recognizer);
+
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
@@ -206,8 +206,8 @@ export default function LearnPage() {
             if (recognizer) {
                 recognizer.close();
             }
-            setAssessmentResults(prev => ({ ...prev, [phraseId]: finalResult }));
             setIsAssessing(false);
+            setAssessmentResults(prev => ({ ...prev, [resultPhraseId]: finalResult }));
             setAssessingPhraseId(null);
         }
     };
@@ -231,7 +231,6 @@ export default function LearnPage() {
           switch (status) {
             case 'fail': return 0;
             case 'unattempted': return 1;
-            case 'in-progress': return 1;
             case 'pass': return 2;
             default: return 1;
           }
@@ -241,13 +240,13 @@ export default function LearnPage() {
           const phraseIdA = `${a.id}-${toLanguage}`;
           const phraseIdB = `${b.id}-${toLanguage}`;
     
+          const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
+          const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
+    
           // Prevent re-sorting of the phrase currently being assessed
           if (phraseIdA === assessingPhraseId || phraseIdB === assessingPhraseId) {
             return 0;
           }
-    
-          const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
-          const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
     
           return getScore(statusA) - getScore(statusB);
         });
@@ -332,7 +331,7 @@ export default function LearnPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                                    <Info className="h-5 w-5 text-accent cursor-help" />
                                                 </TooltipTrigger>
                                                 <TooltipContent className="max-w-xs" side="right">
                                                     <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
@@ -413,8 +412,8 @@ export default function LearnPage() {
                                                             <TooltipProvider>
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
-                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing}>
-                                                                            <Mic className={cn("h-5 w-5", isCurrentlyAssessingThis && "animate-pulse")} />
+                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessFromMicrophone(toPhraseId, toText, toLanguage)} disabled={isAssessing && !isCurrentlyAssessingThis}>
+                                                                            {isCurrentlyAssessingThis ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                                             <span className="sr-only">Record pronunciation</span>
                                                                         </Button>
                                                                     </TooltipTrigger>
@@ -423,7 +422,6 @@ export default function LearnPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </TooltipProvider>
-                                                            {toResult?.status === 'in-progress' && <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />}
                                                             {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
                                                             {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                                         </div>
