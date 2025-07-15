@@ -110,24 +110,24 @@ export default function LoginPage() {
 
   return (
     <div className="flex justify-center items-center min-h-[calc(100vh-8rem)]">
-      <div className="relative w-full max-w-md">
-        <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute top-2 right-2 z-10"
-            onClick={() => router.push('/')}
-            aria-label="Close"
-        >
-            <X className="h-5 w-5" />
-        </Button>
+      <div className="w-full max-w-md">
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="flex justify-center bg-transparent p-0 mb-4">
-            <TabsTrigger value="login" className="flex-1">Login</TabsTrigger>
-            <TabsTrigger value="signup" className="flex-1">Sign Up</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
           <TabsContent value="login">
             <Card>
-              <CardHeader>
+              <CardHeader className="relative">
+                 <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-4 right-4"
+                    onClick={() => router.push('/')}
+                    aria-label="Close"
+                >
+                    <X className="h-5 w-5" />
+                </Button>
                 <CardTitle>Login</CardTitle>
                 <CardDescription>Access your account to see your progress.</CardDescription>
               </CardHeader>
@@ -153,7 +153,16 @@ export default function LoginPage() {
           </TabsContent>
           <TabsContent value="signup">
             <Card>
-              <CardHeader>
+              <CardHeader className="relative">
+                 <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-4 right-4"
+                    onClick={() => router.push('/')}
+                    aria-label="Close"
+                >
+                    <X className="h-5 w-5" />
+                </Button>
                 <CardTitle>Sign Up</CardTitle>
                 <CardDescription>Create a new account to start your journey.</CardDescription>
               </CardHeader>
