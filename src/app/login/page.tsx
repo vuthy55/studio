@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Chrome } from 'lucide-react';
+import { Chrome, X } from 'lucide-react';
 import { CountrySelect } from '@/components/ui/country-select';
 
 export default function LoginPage() {
@@ -110,76 +110,88 @@ export default function LoginPage() {
 
   return (
     <div className="flex justify-center items-center min-h-[calc(100vh-8rem)]">
-      <Tabs defaultValue="login" className="w-full max-w-md">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="signup">Sign Up</TabsTrigger>
-        </TabsList>
-        <TabsContent value="login">
-          <Card>
-            <CardHeader>
-              <CardTitle>Login</CardTitle>
-              <CardDescription>Access your account to see your progress.</CardDescription>
-            </CardHeader>
-            <form onSubmit={handleEmailLogin}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input id="login-email" type="email" placeholder="m@example.com" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input id="login-password" type="password" required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-                </div>
-              </CardContent>
-              <CardFooter className="flex-col gap-4">
-                <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
-                <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                  <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-        <TabsContent value="signup">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sign Up</CardTitle>
-              <CardDescription>Create a new account to start your journey.</CardDescription>
-            </CardHeader>
-             <form onSubmit={handleEmailSignUp}>
+      <div className="relative w-full max-w-md">
+        <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-2 right-2 z-10"
+            onClick={() => router.push('/')}
+            aria-label="Close"
+        >
+            <X className="h-5 w-5" />
+        </Button>
+        <Tabs defaultValue="login" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+          </TabsList>
+          <TabsContent value="login">
+            <Card>
+              <CardHeader>
+                <CardTitle>Login</CardTitle>
+                <CardDescription>Access your account to see your progress.</CardDescription>
+              </CardHeader>
+              <form onSubmit={handleEmailLogin}>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Name</Label>
-                    <Input id="signup-name" placeholder="Your Name" required value={signupName} onChange={e => setSignupName(e.target.value)} />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="signup-country">Country</Label>
-                     <CountrySelect value={signupCountry} onChange={(e) => setSignupCountry(e.target.value)} />
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="signup-mobile">Mobile (Optional)</Label>
-                    <Input id="signup-mobile" type="tel" placeholder="Your mobile number" value={signupMobile} onChange={e => setSignupMobile(e.target.value)} />
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input id="login-email" type="email" placeholder="m@example.com" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" placeholder="m@example.com" required value={signupEmail} onChange={e => setSignupEmail(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" required minLength={6} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
+                    <Label htmlFor="login-password">Password</Label>
+                    <Input id="login-password" type="password" required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
                   </div>
                 </CardContent>
                 <CardFooter className="flex-col gap-4">
-                  <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
-                   <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                      <Chrome className="mr-2 h-4 w-4" /> Sign up with Google
+                  <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
+                  <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                    <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
                   </Button>
                 </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </form>
+            </Card>
+          </TabsContent>
+          <TabsContent value="signup">
+            <Card>
+              <CardHeader>
+                <CardTitle>Sign Up</CardTitle>
+                <CardDescription>Create a new account to start your journey.</CardDescription>
+              </CardHeader>
+               <form onSubmit={handleEmailSignUp}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-name">Name</Label>
+                      <Input id="signup-name" placeholder="Your Name" required value={signupName} onChange={e => setSignupName(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="signup-email">Email</Label>
+                      <Input id="signup-email" type="email" placeholder="m@example.com" required value={signupEmail} onChange={e => setSignupEmail(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="signup-country">Country</Label>
+                       <CountrySelect value={signupCountry} onChange={(e) => setSignupCountry(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="signup-mobile">Mobile (Optional)</Label>
+                      <Input id="signup-mobile" type="tel" placeholder="Your mobile number" value={signupMobile} onChange={e => setSignupMobile(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Password</Label>
+                      <Input id="signup-password" type="password" required minLength={6} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
+                      <p className="text-xs text-muted-foreground">Password must be at least 6 characters long.</p>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex-col gap-4">
+                    <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
+                     <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                        <Chrome className="mr-2 h-4 w-4" /> Sign up with Google
+                    </Button>
+                  </CardFooter>
+              </form>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
