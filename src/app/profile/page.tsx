@@ -231,7 +231,7 @@ export default function ProfilePage() {
                                 <CardTitle>Admin Panel</CardTitle>
                                 <CardDescription>
                                     Manage application-wide settings.
-                                </Description>
+                                </CardDescription>
                             </Header>
                             <CardContent className="space-y-4">
                                 <div className="flex items-center justify-center h-48">
