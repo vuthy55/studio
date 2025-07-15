@@ -244,7 +244,8 @@ export default function LearnPage() {
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
                  const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
                  if (jsonString) {
-                    const assessment = JSON.parse(jsonString).PronunciationAssessment;
+                    const parsedResult = JSON.parse(jsonString);
+                    const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
                     if(assessment) {
                         const accuracyScore = assessment.AccuracyScore;
                         const fluencyScore = assessment.FluencyScore;
@@ -253,8 +254,12 @@ export default function LearnPage() {
                             accuracy: accuracyScore,
                             fluency: fluencyScore,
                         };
+                    } else {
+                         finalResult.status = 'fail';
                     }
                  }
+            } else {
+                finalResult.status = 'fail';
             }
         } catch (error) {
             console.error("Error during assessment:", error);
@@ -294,7 +299,7 @@ export default function LearnPage() {
             case 'fail': return 0;
             case 'unattempted': return 1;
             case 'pass': return 2;
-            case 'in-progress': return 3; // Keep in-progress items stable
+            case 'in-progress': return 1; // Treat in-progress as unattempted for sorting purposes
             default: return 1;
           }
         };
@@ -307,13 +312,13 @@ export default function LearnPage() {
           const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
 
           // Prevent re-sorting of the phrase currently being assessed
-          if (statusA === 'in-progress' || statusB === 'in-progress') {
+          if (assessingPhraseId === phraseIdA || assessingPhraseId === phraseIdB) {
               return 0;
           }
     
           return getScore(statusA) - getScore(statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults, toLanguage]);
+      }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
