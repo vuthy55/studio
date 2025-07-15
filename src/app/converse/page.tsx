@@ -64,7 +64,7 @@ export default function ConversePage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'), limit(20));
+    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'), limit(3));
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
