@@ -151,24 +151,25 @@ export default function LearnPage() {
             toast({ variant: 'destructive', title: 'Unsupported Language' });
             return;
         }
-
+        
         setIsAssessing(true);
         setAssessingPhraseId(phraseId);
         setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
 
-        const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
         speechConfig.speechRecognitionLanguage = locale;
+        
+        const pronunciationAssessmentJson = JSON.stringify({
+            referenceText: referenceText,
+            gradingSystem: "HundredMark",
+            granularity: "Phoneme",
+            enableMiscue: "True"
+        });
 
+        speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestPronunciationAssessmentJson, pronunciationAssessmentJson);
+
+        const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-
-        const pronunciationAssessmentConfig = new sdk.PronunciationAssessmentConfig(
-            referenceText,
-            sdk.PronunciationAssessmentGradingSystem.HundredMark,
-            sdk.PronunciationAssessmentGranularity.Phoneme,
-            true
-        );
-        pronunciationAssessmentConfig.applyTo(recognizer);
 
         recognizer.recognizeOnceAsync(result => {
             let assessment;
@@ -183,15 +184,15 @@ export default function LearnPage() {
                     }
                 }));
             } else {
-                 toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${result.reason}` });
-                 setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail' } }));
+                 toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
+                 setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
             }
             recognizer.close();
             setIsAssessing(false);
             setAssessingPhraseId(null);
         }, err => {
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An error occurred during assessment: ${err}` });
-            setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail' } }));
+            setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
             recognizer.close();
             setIsAssessing(false);
             setAssessingPhraseId(null);
@@ -482,3 +483,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
