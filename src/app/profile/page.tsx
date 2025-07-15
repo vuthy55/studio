@@ -5,8 +5,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { auth, db, storage } from '@/lib/firebase';
-import { getDownloadURL, ref, uploadString } from "firebase/storage";
+import { auth, db } from '@/lib/firebase';
 
 import { LoaderCircle, FilePen, Activity, Languages } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,8 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { generateAvatar } from '@/ai/flows/avatar-flow';
-import type { AssessmentResults } from './page';
+import type { AssessmentResults } from '../page';
 import { languages, phrasebook } from '@/lib/data';
 import {
   ChartContainer,
@@ -26,7 +24,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, BarChart, XAxis, YAxis, LegendItem } from "recharts"
+import { Bar, BarChart, XAxis, YAxis } from "recharts"
 
 
 type UserProfile = {
@@ -44,7 +42,6 @@ export default function ProfilePage() {
     const [profileLoading, setProfileLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [displayName, setDisplayName] = useState('');
-    const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
     const [stats, setStats] = useState<any>(null);
     const [statsLoading, setStatsLoading] = useState(true);
     const [statsMessage, setStatsMessage] = useState("Loading stats...");
@@ -56,8 +53,8 @@ export default function ProfilePage() {
         const userDoc = await getDoc(userRef);
 
         if (userDoc.exists()) {
-            const data = userDoc.data() as Omit<UserProfile, 'assessmentResults'>;
-            setProfile({ ...data, assessmentResults: {} }); // Initially load without results
+            const data = userDoc.data() as UserProfile;
+            setProfile(data);
             setDisplayName(data.name);
         }
         setProfileLoading(false);
@@ -116,7 +113,6 @@ export default function ProfilePage() {
       if (!user) return;
       setStatsLoading(true);
       
-      // 1. Load from localStorage first
       setStatsMessage("Checking local progress...");
       const localResultsRaw = localStorage.getItem('assessmentResults');
       let localResults: AssessmentResults = {};
@@ -130,7 +126,6 @@ export default function ProfilePage() {
         }
       }
 
-      // 2. Fetch from Firestore
       const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
       let dbResults: AssessmentResults = {};
@@ -138,13 +133,11 @@ export default function ProfilePage() {
         dbResults = userDoc.data().assessmentResults;
       }
 
-      // 3. Merge results (take the best score for each phrase)
       const mergedResults: AssessmentResults = { ...localResults, ...dbResults };
       for (const key in mergedResults) {
           const local = localResults[key];
           const remote = dbResults[key];
           if (local && remote) {
-              // If both exist, 'pass' is better than 'fail'
               if (local.status === 'pass' || remote.status === 'pass') {
                   mergedResults[key].status = 'pass';
                   mergedResults[key].accuracy = Math.max(local.accuracy || 0, remote.accuracy || 0);
@@ -152,7 +145,6 @@ export default function ProfilePage() {
           }
       }
 
-      // 4. Update state and localStorage with merged results
       setStats(calculateStats(mergedResults));
       localStorage.setItem('assessmentResults', JSON.stringify(mergedResults));
 
@@ -160,34 +152,18 @@ export default function ProfilePage() {
       setStatsLoading(false);
     }, [user]);
 
+    useEffect(() => {
+        if (user) {
+            loadAndCalculateStats();
+        }
+    }, [user, loadAndCalculateStats]);
+
     const handleSave = async () => {
         if (!profile) return;
         const userRef = doc(db, "users", profile.uid);
         await updateDoc(userRef, { name: displayName });
         setProfile(prev => prev ? { ...prev, name: displayName } : null);
         setIsEditing(false);
-    };
-
-    const handleGenerateAvatar = async () => {
-        if (!user) return;
-        setIsGeneratingAvatar(true);
-        try {
-            const {imageDataUri} = await generateAvatar({
-                prompt: "A friendly, welcoming, androgynous cartoon character for a language learning app. The character should have a simple, minimalist design with a warm smile. The background should be a solid, cheerful color. The style should be modern and flat.",
-            });
-            const storageRef = ref(storage, `avatars/${user.uid}.png`);
-            await uploadString(storageRef, imageDataUri, 'data_url');
-            const downloadURL = await getDownloadURL(storageRef);
-
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, { avatarUrl: downloadURL });
-            setProfile(prev => prev ? { ...prev, avatarUrl: downloadURL } : null);
-
-        } catch (error) {
-            console.error("Error generating avatar:", error);
-        } finally {
-            setIsGeneratingAvatar(false);
-        }
     };
 
     const chartData = useMemo(() => {
@@ -238,7 +214,7 @@ export default function ProfilePage() {
             <Tabs defaultValue="account" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="account"><FilePen className="mr-2" />My Account</TabsTrigger>
-                    <TabsTrigger value="stats" onClick={loadAndCalculateStats}><Activity className="mr-2" />My Stats</TabsTrigger>
+                    <TabsTrigger value="stats"><Activity className="mr-2" />My Stats</TabsTrigger>
                 </TabsList>
                 <TabsContent value="account">
                     <Card>
@@ -252,9 +228,6 @@ export default function ProfilePage() {
                                         <AvatarImage src={profile.avatarUrl} alt={profile.name} />
                                         <AvatarFallback>{profile.name.charAt(0)}</AvatarFallback>
                                     </Avatar>
-                                    <Button onClick={handleGenerateAvatar} disabled={isGeneratingAvatar} size="sm" className="absolute bottom-0 right-0">
-                                      {isGeneratingAvatar ? <LoaderCircle className="animate-spin" /> : "AI"}
-                                    </Button>
                                 </div>
                                 <div className="space-y-2 flex-1 w-full">
                                     <Label htmlFor="email">Email</Label>
@@ -354,4 +327,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-

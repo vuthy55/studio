@@ -12,7 +12,8 @@ import {
   onSnapshot,
   serverTimestamp,
   doc,
-  getDoc
+  getDoc,
+  limit
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -63,7 +64,7 @@ export default function ConversePage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'), limit(20));
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {

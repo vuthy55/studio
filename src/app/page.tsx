@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Info } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Info, TestTube2 } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   Tooltip,
@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from '@/components/ui/textarea';
 import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
-import { translateText } from '@/ai/flows/translate-flow';
+import { generateGoogleSpeech } from '@/ai/flows/google-tts-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,8 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -114,6 +116,42 @@ export default function LearnPage() {
         }
     };
     
+    const handlePlayGoogleAudio = async (text: string) => {
+        if (!text || assessingPhraseId || isRecognizing || isAssessingLive) return;
+        try {
+            const response = await generateGoogleSpeech({ text });
+            const audio = new Audio(response.audioDataUri);
+            audio.play().catch(e => console.error("Google Audio playback failed.", e));
+        } catch (error) {
+            console.error("Google TTS generation failed.", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error generating Google audio',
+                description: 'Could not generate audio using Google TTS.',
+            });
+        }
+    };
+
+    const translateTextFlow = ai.defineFlow(
+      {
+        name: 'translateTextFlow',
+        inputSchema: z.object({ text: z.string(), fromLanguage: z.string(), toLanguage: z.string() }),
+        outputSchema: z.object({ translatedText: z.string() }),
+      },
+      async ({ text, fromLanguage, toLanguage }) => {
+        const prompt = `Translate the following text from ${fromLanguage} to ${toLanguage}. Only provide the translated text, with no additional commentary or explanations.\n\nText to translate: "${text}"`;
+        
+        const llmResponse = await ai.generate({
+          prompt: prompt,
+          output: {
+            format: 'text',
+          },
+        });
+        
+        return { translatedText: llmResponse.text };
+      }
+    );
+    
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
             if (inputText && activeTab === 'live-translation') {
@@ -135,7 +173,7 @@ export default function LearnPage() {
         try {
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+            const result = await translateTextFlow({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
             setTranslatedText(result.translatedText);
         } catch (error) {
             console.error('Translation failed', error);
@@ -395,7 +433,7 @@ export default function LearnPage() {
                 </div>
 
                 <div className="w-full sm:w-auto sm:flex-1">
-                  <Label htmlFor="tts-voice">Voice</Label>
+                  <Label htmlFor="tts-voice">Voice (Azure)</Label>
                   <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
                       <SelectTrigger id="tts-voice">
                           <SelectValue placeholder="Select a voice" />
@@ -492,6 +530,18 @@ export default function LearnPage() {
                                                             <p className="font-bold text-lg text-primary">{toText}</p>
                                                         </div>
                                                         <div className="flex items-center shrink-0">
+                                                            <TooltipProvider>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayGoogleAudio(toText)} disabled={!!assessingPhraseId}>
+                                                                            <TestTube2 className="h-5 w-5" />
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Test Google Voice</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
                                                             <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
@@ -535,6 +585,18 @@ export default function LearnPage() {
                                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                             </div>
                                                             <div className="flex items-center shrink-0">
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayGoogleAudio(toAnswerText)} disabled={!!assessingPhraseId}>
+                                                                                <TestTube2 className="h-5 w-5" />
+                                                                            </Button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Test Google Voice</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
                                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!!assessingPhraseId}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
@@ -595,6 +657,18 @@ export default function LearnPage() {
                                                 )}
                                             </div>
                                             <div className="absolute top-2 right-2 flex flex-col space-y-1 items-center">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayGoogleAudio(translatedText)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
+                                                                <TestTube2 className="h-5 w-5" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Test Google Voice</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
                                                     <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play audio</span>
