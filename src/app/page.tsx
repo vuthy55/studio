@@ -159,6 +159,7 @@ export default function LearnPage() {
         setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
 
         let recognizer: sdk.SpeechRecognizer | undefined;
+        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
 
         try {
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
@@ -184,31 +185,25 @@ export default function LearnPage() {
                 if (assessment) {
                     const accuracyScore = assessment.accuracyScore;
                     const fluencyScore = assessment.fluencyScore;
-
-                    setAssessmentResults(prev => ({
-                        ...prev,
-                        [phraseId]: {
-                            status: accuracyScore > 70 ? 'pass' : 'fail',
-                            accuracy: accuracyScore,
-                            fluency: fluencyScore,
-                        }
-                    }));
+                    finalResult = {
+                        status: accuracyScore > 70 ? 'pass' : 'fail',
+                        accuracy: accuracyScore,
+                        fluency: fluencyScore,
+                    };
                 } else {
                      toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not get assessment details from the service.' });
-                     setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
                 }
             } else {
                  toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
-                 setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
             }
         } catch (error) {
             console.error("Error during assessment:", error);
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
-            setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
         } finally {
             if (recognizer) {
                 recognizer.close();
             }
+            setAssessmentResults(prev => ({ ...prev, [phraseId]: finalResult }));
             setIsAssessing(false);
             setAssessingPhraseId(null);
         }
@@ -232,8 +227,8 @@ export default function LearnPage() {
         const getScore = (status: AssessmentStatus) => {
           switch (status) {
             case 'fail': return 0; // Fails first
-            case 'in-progress': return 1;
-            case 'unattempted': return 2; // Unattempted next
+            case 'in-progress': return 1; // In-progress next
+            case 'unattempted': return 2; // Unattempted after
             case 'pass': return 3; // Passes last
             default: return 2;
           }
@@ -242,6 +237,12 @@ export default function LearnPage() {
         return [...selectedTopic.phrases].sort((a, b) => {
             const statusA = assessmentResults[`${a.id}-${toLanguage}`]?.status || 'unattempted';
             const statusB = assessmentResults[`${b.id}-${toLanguage}`]?.status || 'unattempted';
+            
+            // If one of the phrases is being assessed, don't change its position relative to others.
+            if (statusA === 'in-progress' || statusB === 'in-progress') {
+                return 0;
+            }
+
             return getScore(statusA) - getScore(statusB);
         });
       }, [selectedTopic.phrases, assessmentResults, toLanguage]);
@@ -360,7 +361,7 @@ export default function LearnPage() {
                                             const toPhraseId = `${phrase.id}-${toLanguage}`;
                                             const toResult = assessmentResults[toPhraseId];
                                             const isCurrentlyAssessingThis = isAssessing && assessingPhraseId === toPhraseId;
-                                            const isInProgressTo = toResult?.status === 'in-progress';
+                                            const isInProgressTo = toResult?.status === 'in-progress' || isCurrentlyAssessingThis;
 
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
