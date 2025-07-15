@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  getAuth, 
   signInWithPopup, 
   GoogleAuthProvider, 
   createUserWithEmailAndPassword, 
@@ -21,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Chrome } from 'lucide-react';
+import { CountrySelect } from '@/components/ui/country-select';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,6 +32,8 @@ export default function LoginPage() {
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [signupCountry, setSignupCountry] = useState('');
+
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,20 +42,20 @@ export default function LoginPage() {
     const userDoc = await getDoc(userRef);
 
     if (!userDoc.exists()) {
-      // New user, create their document
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
         name: user.displayName || signupName,
+        country: signupCountry,
         avatarUrl: user.photoURL,
-        isAdmin: user.email === 'thegreenhomecommunity@gmail.com', // Bootstrap admin
+        realPhotoUrl: user.photoURL,
+        isAdmin: user.email === 'thegreenhomecommunity@gmail.com',
         isBlocked: false,
         tokens: 0,
         createdAt: new Date(),
         ...additionalData,
       });
     }
-    // Existing user data is preserved.
   };
 
   const handleGoogleSignIn = async () => {
@@ -78,7 +80,7 @@ export default function LoginPage() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       await updateProfile(userCredential.user, { displayName: signupName });
-      await handleUserSetup(userCredential.user);
+      await handleUserSetup(userCredential.user, { country: signupCountry });
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -148,6 +150,10 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Name</Label>
                     <Input id="signup-name" placeholder="Your Name" required value={signupName} onChange={e => setSignupName(e.target.value)} />
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="signup-country">Country</Label>
+                     <CountrySelect value={signupCountry} onChange={(e) => setSignupCountry(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
