@@ -297,13 +297,6 @@ export default function LearnPage() {
         }
         return textObj.translations[lang] || textObj.english;
     }
-
-    const getPronunciation = (textObj: { pronunciations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
-        if (lang === 'english') {
-            return null;
-        }
-        return textObj.pronunciations[lang];
-    }
     
     const sortedPhrases = useMemo(() => {
         const getScore = (status: AssessmentStatus) => {
@@ -323,12 +316,9 @@ export default function LearnPage() {
           const statusA = assessmentResults[phraseIdA]?.status || 'unattempted';
           const statusB = assessmentResults[phraseIdB]?.status || 'unattempted';
 
-          if (assessingPhraseId === phraseIdA) return -1;
-          if (assessingPhraseId === phraseIdB) return 1;
-
           return getScore(statusA) - getScore(statusB);
         });
-      }, [selectedTopic.phrases, assessmentResults, toLanguage, assessingPhraseId]);
+      }, [selectedTopic.phrases, assessmentResults, toLanguage]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
