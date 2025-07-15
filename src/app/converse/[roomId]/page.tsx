@@ -15,7 +15,7 @@ import {
 import { auth, db } from '@/lib/firebase';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { generateSpeech } from '@/ai/flows/tts-flow';
-import { translateText } from '../actions';
+import { translateText } from '@/app/actions';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -330,8 +330,10 @@ export default function RoomPage() {
     
     recognizer.sessionStopped = async (s, e) => {
         setIsSpeaking(false);
-        recognizerRef.current?.close();
-        recognizerRef.current = null;
+        if (recognizerRef.current) {
+            recognizerRef.current.close();
+            recognizerRef.current = null;
+        }
 
         if (finalRecognizedText.trim()) {
             const speakerPayload = {
@@ -354,8 +356,10 @@ export default function RoomPage() {
     
     recognizer.canceled = async (s, e) => {
         setIsSpeaking(false);
-        recognizerRef.current?.close();
-        recognizerRef.current = null;
+        if (recognizerRef.current) {
+            recognizerRef.current.close();
+            recognizerRef.current = null;
+        }
         await runTransaction(db, async (transaction) => {
             transaction.update(roomDocRef, { currentSpeaker: null });
        });
@@ -453,5 +457,3 @@ export default function RoomPage() {
     </div>
   );
 }
-
-    
