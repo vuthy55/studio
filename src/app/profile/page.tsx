@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from '@/lib/firebase';
 import { useUser } from '@/hooks/use-user';
 import { LoaderCircle, User as UserIcon, Upload, Sparkles, LogOut } from "lucide-react";
@@ -84,7 +84,7 @@ export default function ProfilePage() {
 
         setIsUploading(true);
         try {
-            const resizedDataUrl = await new Promise<string>((resolve, reject) => {
+            const resizedBlob = await new Promise<Blob>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const img = new Image();
@@ -103,7 +103,7 @@ export default function ProfilePage() {
                         } else {
                             if (height > MAX_HEIGHT) {
                                 width *= MAX_HEIGHT / height;
-                                height = MAX_HEIGHT;
+                                width = MAX_HEIGHT;
                             }
                         }
                         canvas.width = width;
@@ -113,7 +113,17 @@ export default function ProfilePage() {
                             return reject(new Error('Could not get canvas context'));
                         }
                         ctx.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.9)); 
+                        canvas.toBlob(
+                            (blob) => {
+                                if (blob) {
+                                    resolve(blob);
+                                } else {
+                                    reject(new Error('Canvas to Blob conversion failed'));
+                                }
+                            },
+                            'image/jpeg',
+                            0.9
+                        );
                     };
                     img.onerror = reject;
                     img.src = e.target?.result as string;
@@ -123,18 +133,16 @@ export default function ProfilePage() {
             });
 
             const storageRef = ref(storage, `avatars/${user.uid}/profile.jpg`);
-            // We upload the resized image as a data URL string
-            const snapshot = await uploadString(storageRef, resizedDataUrl, 'data_url');
+            const snapshot = await uploadBytes(storageRef, resizedBlob);
             const downloadURL = await getDownloadURL(snapshot.ref);
 
             await handleAvatarUpdate(downloadURL);
 
         } catch (error) {
             console.error("Error uploading file:", error);
-            toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to upload and resize new photo.' });
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to upload new photo.' });
         } finally {
             setIsUploading(false);
-             // Reset the file input so the same file can be selected again
             if(fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
@@ -261,3 +269,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
