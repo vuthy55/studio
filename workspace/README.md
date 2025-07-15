@@ -19,20 +19,18 @@ Run the following command in your terminal. This will list all the storage bucke
 gcloud storage buckets list
 ```
 
-You should see output that looks something like this. Copy the URL that ends with `.appspot.com`.
+You should see output that includes a `storage_url`. Copy the URL that starts with `gs://`. For example:
 
 ```
-gs://trans3-92849.appspot.com/
-gs://staging.trans3-92849.appspot.com/
-...
+storage_url: gs://your-project-name.firebasestorage.app/
 ```
 
 ### Step 2: Apply the CORS Configuration
 
-Now, use the bucket URL you found in Step 1 to run the final command. For example, if your bucket name was `gs://trans3-92849.appspot.com`, you would run:
+Now, use the bucket URL you found in Step 1 to run the final command. For example, if your bucket URL was `gs://trans3-92849.firebasestorage.app/`, you would run:
 
 ```bash
-gsutil cors set workspace/cors.json gs://trans3-92849.appspot.com
+gsutil cors set workspace/cors.json gs://trans3-92849.firebasestorage.app
 ```
 
 This command uses the correct bucket name and points to the `workspace/cors.json` file provided in this project. This will apply the necessary rules to your bucket and should permanently resolve the upload errors.
