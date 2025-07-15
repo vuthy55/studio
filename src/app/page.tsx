@@ -34,6 +34,7 @@ export type AssessmentResult = {
   status: AssessmentStatus;
   accuracy?: number;
   fluency?: number;
+  correctCount?: number;
 };
 export type AssessmentResults = Record<string, AssessmentResult>;
 
@@ -334,7 +335,8 @@ export default function LearnPage() {
     }
 
     let recognizer: sdk.SpeechRecognizer | undefined;
-    let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+    const previousResult = isLive ? liveAssessmentResult : assessmentResults[phraseId];
+    let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0, correctCount: previousResult?.correctCount || 0 };
 
     try {
       const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
@@ -366,10 +368,13 @@ export default function LearnPage() {
           if (assessment) {
             const accuracyScore = assessment.AccuracyScore;
             const fluencyScore = assessment.FluencyScore;
+            const isPass = accuracyScore > 70;
+            
             finalResult = {
-              status: accuracyScore > 70 ? 'pass' : 'fail',
+              status: isPass ? 'pass' : 'fail',
               accuracy: accuracyScore,
               fluency: fluencyScore,
+              correctCount: isPass ? (previousResult?.correctCount || 0) + 1 : previousResult?.correctCount || 0,
             };
           }
         }

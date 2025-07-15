@@ -41,6 +41,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Badge } from '@/components/ui/badge';
 
 type LanguageStats = {
     language: string;
@@ -137,7 +138,8 @@ const StatsDialog = ({
         setAssessingPhraseId(phraseId);
 
         let recognizer: sdk.SpeechRecognizer | undefined;
-        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+        const previousResult = localResults[phraseId];
+        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0, correctCount: previousResult?.correctCount || 0 };
         
         try {
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
@@ -160,10 +162,13 @@ const StatsDialog = ({
                 const parsedResult = JSON.parse(result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult)!);
                 const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
                 if (assessment) {
+                    const accuracyScore = assessment.AccuracyScore;
+                    const isPass = accuracyScore > 70;
                     finalResult = {
-                        status: assessment.AccuracyScore > 70 ? 'pass' : 'fail',
-                        accuracy: assessment.AccuracyScore,
+                        status: isPass ? 'pass' : 'fail',
+                        accuracy: accuracyScore,
                         fluency: assessment.FluencyScore,
+                        correctCount: isPass ? (previousResult?.correctCount || 0) + 1 : previousResult?.correctCount || 0,
                     };
                 }
             } else {
@@ -182,9 +187,12 @@ const StatsDialog = ({
     };
 
     const passedCount = useMemo(() => {
-        return Object.values(localResults).filter(r => r.status === 'pass' && sortedPhrases.some(p => `${p.id}-${langCode}` in localResults)).length;
-    }, [localResults, langCode, sortedPhrases]);
-
+        return Object.keys(localResults).filter(key => key.endsWith(`-${langCode}`) && localResults[key]?.status === 'pass').length
+    }, [localResults, langCode]);
+    
+    const totalCount = useMemo(() => {
+        return phrasebook.flatMap(topic => topic.phrases).length;
+    }, []);
 
     return (
         <Dialog>
@@ -192,9 +200,9 @@ const StatsDialog = ({
                 <div className="space-y-2 cursor-pointer group">
                     <div className="flex justify-between items-baseline">
                         <h4 className="font-semibold group-hover:text-primary transition-colors">{language}</h4>
-                        <p className="text-sm text-muted-foreground">{passedCount} / {sortedPhrases.length}</p>
+                        <p className="text-sm text-muted-foreground">{passedCount} / {totalCount}</p>
                     </div>
-                    <Progress value={(passedCount / sortedPhrases.length) * 100} />
+                    <Progress value={(passedCount / totalCount) * 100} />
                 </div>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -219,7 +227,8 @@ const StatsDialog = ({
                                             <p className="font-medium">{translatedText}</p>
                                             <p className="text-sm text-muted-foreground">{phrase.english}</p>
                                         </div>
-                                        <div className="flex items-center">
+                                        <div className="flex items-center gap-2">
+                                            {(result?.correctCount || 0) > 0 && <Badge variant="secondary">{result?.correctCount}</Badge>}
                                             {result?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
                                             {result?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                         </div>
