@@ -12,7 +12,8 @@ import {
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton, 
-  SidebarFooter 
+  SidebarFooter,
+  useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -22,12 +23,19 @@ export function AppSidebar() {
   const pathname = usePathname();
   const [user, loading] = useAuthState(auth);
   const { toast } = useToast();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
       await auth.signOut();
       toast({ title: 'Success', description: 'You have been logged out.' });
-      // The auth state change will trigger redirects on protected pages
+      handleLinkClick();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
     }
@@ -36,13 +44,13 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
+        <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={handleLinkClick}>LinguaGo</Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
-              <Link href="/">
+              <Link href="/" onClick={handleLinkClick}>
                 <BookOpen />
                 Learn
               </Link>
@@ -50,7 +58,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/converse'} prefetch={true}>
-              <Link href="/converse">
+              <Link href="/converse" onClick={handleLinkClick}>
                 <MessagesSquare />
                 Converse
               </Link>
@@ -68,7 +76,7 @@ export function AppSidebar() {
             <>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
-                  <Link href="/profile">
+                  <Link href="/profile" onClick={handleLinkClick}>
                     <User />
                     Profile
                   </Link>
@@ -84,7 +92,7 @@ export function AppSidebar() {
           ) : (
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === '/login'}>
-                <Link href="/login">
+                <Link href="/login" onClick={handleLinkClick}>
                   <LogIn />
                   Login
                 </Link>
