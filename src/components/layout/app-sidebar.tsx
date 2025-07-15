@@ -49,7 +49,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/converse'} prefetch={true}>
+            <SidebarMenuButton asChild isActive={pathname.startsWith('/converse')} prefetch={true}>
               <Link href="/converse">
                 <MessagesSquare />
                 Converse
