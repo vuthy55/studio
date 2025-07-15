@@ -178,21 +178,26 @@ export default function LearnPage() {
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
-
+            
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
-                if (assessmentResult) {
-                     setAssessmentResults(prev => ({
+                const pronunciationAssessmentResultJson = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+                if (pronunciationAssessmentResultJson) {
+                    const parsedResult = JSON.parse(pronunciationAssessmentResultJson);
+                    const pronAssessment = parsedResult.PronunciationAssessment;
+                    const accuracyScore = pronAssessment?.AccuracyScore ?? 0;
+                    const fluencyScore = pronAssessment?.FluencyScore ?? 0;
+
+                    setAssessmentResults(prev => ({
                         ...prev,
                         [phraseId]: {
-                            status: assessmentResult.accuracyScore > 70 ? 'pass' : 'fail',
-                            accuracy: assessmentResult.accuracyScore,
-                            fluency: assessmentResult.fluencyScore,
+                            status: accuracyScore > 70 ? 'pass' : 'fail',
+                            accuracy: accuracyScore,
+                            fluency: fluencyScore,
                         }
                     }));
                 } else {
-                    toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
-                    setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+                     toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not get assessment details from the service.' });
+                     setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
                 }
             } else {
                  toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
@@ -495,3 +500,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
