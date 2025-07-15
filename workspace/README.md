@@ -7,26 +7,32 @@ To get started, take a look at src/app/page.tsx.
 
 ## Firebase Storage CORS Configuration
 
-If you are experiencing CORS errors when trying to upload files to Firebase Storage, you need to update the CORS configuration for your storage bucket. This happens because for security, browsers block requests from your web app's domain to the Firebase Storage domain unless Storage explicitly allows it.
+If you are experiencing CORS errors when trying to upload files to Firebase Storage, you need to update the CORS configuration for your storage bucket. This happens because, for security, browsers block requests from your web app's domain to the Firebase Storage domain unless Storage explicitly allows it.
 
-### Why the command looks different
+The error `NotFoundException: 404 The specified bucket does not exist` means the bucket name in the command is incorrect. Follow these steps to find the correct name and apply the settings.
 
-You might see your bucket name as `YOUR_PROJECT_ID.firebasestorage.app` in the Firebase console. However, when using the `gsutil` command-line tool, you must use the underlying Google Cloud Storage name, which is `gs://YOUR_PROJECT_ID.appspot.com`. This is the correct format for management commands.
+### Step 1: Find Your Correct Bucket Name
 
-### How to Fix It
+Run the following command in your terminal. This will list all the storage buckets in your project.
 
-1.  **Get your Project ID:** Find your Firebase Project ID. It's visible in your Firebase project settings. Let's assume it's `YOUR_PROJECT_ID`.
+```bash
+gcloud storage buckets list
+```
 
-2.  **Apply CORS settings:** Open a terminal in the root directory of this project (where this `workspace` folder is). Run the following command, replacing `YOUR_PROJECT_ID` with your actual project ID:
+You should see output that looks something like this. Copy the URL that ends with `.appspot.com`.
 
-    ```bash
-    gsutil cors set workspace/cors.json gs://YOUR_PROJECT_ID.appspot.com
-    ```
-    
-    For example, if your project ID is `trans3-92849`, the command would be:
-    ```bash
-    gsutil cors set workspace/cors.json gs://trans3-92849.appspot.com
-    ```
+```
+gs://trans3-92849.appspot.com/
+gs://staging.trans3-92849.appspot.com/
+...
+```
 
-This command correctly points to `workspace/cors.json` and will apply the rules to your bucket, allowing uploads from your app and fixing the error.
+### Step 2: Apply the CORS Configuration
 
+Now, use the bucket URL you found in Step 1 to run the final command. For example, if your bucket name was `gs://trans3-92849.appspot.com`, you would run:
+
+```bash
+gsutil cors set workspace/cors.json gs://trans3-92849.appspot.com
+```
+
+This command uses the correct bucket name and points to the `workspace/cors.json` file provided in this project. This will apply the necessary rules to your bucket and should permanently resolve the upload errors.
