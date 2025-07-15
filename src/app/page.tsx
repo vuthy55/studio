@@ -196,6 +196,8 @@ export default function LearnPage() {
         lang: LanguageCode, 
         isLive: boolean = false
     ) => {
+        console.log(`DEBUG: 1. Initializing assessment. isLive: ${isLive}, phraseId: ${phraseId}, referenceText: "${referenceText}", lang: ${lang}`);
+
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
         const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
     
@@ -205,6 +207,7 @@ export default function LearnPage() {
         }
     
         const locale = languageToLocaleMap[lang];
+        console.log(`DEBUG: 2. Language locale: ${locale}`);
         if (!locale) {
             toast({ variant: 'destructive', title: 'Unsupported Language' });
             return;
@@ -212,6 +215,7 @@ export default function LearnPage() {
         
         if (isLive) {
             setIsAssessingLive(true);
+            setLiveAssessmentResult(null);
         } else {
             setAssessingPhraseId(phraseId);
             setAssessmentResults(prev => ({...prev, [phraseId]: { status: 'in-progress' }}));
@@ -227,6 +231,7 @@ export default function LearnPage() {
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
             recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
         
+            console.log("DEBUG: 3. Creating PronunciationAssessmentConfig.");
             const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
                 referenceText,
                 sdk.PronunciationAssessmentGradingSystem.HundredMark,
@@ -234,31 +239,44 @@ export default function LearnPage() {
                 true
             );
             pronunciationConfig.applyTo(recognizer);
+            console.log("DEBUG: 4. PronunciationAssessmentConfig applied to recognizer.");
 
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
             
+            console.log("DEBUG: 5. Received result from Azure SDK:", result);
+
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                 const json = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-                 if (json) {
-                    const assessment = JSON.parse(json).PronunciationAssessment;
+                 const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+                 console.log("DEBUG: 6. Raw assessment JSON:", jsonString);
+                 if (jsonString) {
+                    const assessment = JSON.parse(jsonString).PronunciationAssessment;
+                    console.log("DEBUG: 7. Parsed PronunciationAssessment object:", assessment);
                     if(assessment) {
                         const accuracyScore = assessment.AccuracyScore;
                         const fluencyScore = assessment.FluencyScore;
+                        console.log(`DEBUG: 8. Extracted scores - Accuracy: ${accuracyScore}, Fluency: ${fluencyScore}`);
                         finalResult = {
                             status: accuracyScore > 70 ? 'pass' : 'fail',
                             accuracy: accuracyScore,
                             fluency: fluencyScore,
                         };
+                    } else {
+                        console.log("DEBUG: 8. PronunciationAssessment object not found in JSON.");
                     }
+                 } else {
+                     console.log("DEBUG: 6. No JSON result in properties.");
                  }
+            } else {
+                console.log(`DEBUG: 5. Recognition failed or no text. Reason: ${sdk.ResultReason[result.reason]}`);
             }
         } catch (error) {
             console.error("Error during assessment:", error);
             finalResult.status = 'fail';
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
         } finally {
+            console.log("DEBUG: 9. FINALLY block - Cleaning up.");
             if (recognizer) {
                 recognizer.close();
             }
@@ -473,7 +491,7 @@ export default function LearnPage() {
                                                             <TooltipProvider>
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
-                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessPronunciation(toPhraseId, toText, toLanguage)} disabled={assessingPhraseId !== null && !isCurrentlyAssessingThis}>
+                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessPronunciation(toPhraseId, toText, toLanguage, false)} disabled={assessingPhraseId !== null && !isCurrentlyAssessingThis}>
                                                                             {isCurrentlyAssessingThis ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                                             <span className="sr-only">Record pronunciation</span>
                                                                         </Button>
