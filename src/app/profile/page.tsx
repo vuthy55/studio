@@ -11,7 +11,6 @@ import { updateProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { User, BarChart, Settings, Shield, LoaderCircle, Camera, Sparkles } from "lucide-react";
-import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,7 +39,6 @@ export default function ProfilePage() {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     
-    // Editable fields
     const [name, setName] = useState('');
 
     useEffect(() => {
@@ -72,14 +70,12 @@ export default function ProfilePage() {
         try {
             const userRef = doc(db, "users", user.uid);
             
-            // Prepare the data to be updated
             const updatedData: Partial<UserProfile> = {
                 name: name,
             };
 
             await setDoc(userRef, updatedData, { merge: true });
 
-            // Also update the auth profile if the name has changed
             if (user.displayName !== name) {
                  await updateProfile(user, { displayName: name });
             }
@@ -102,7 +98,7 @@ export default function ProfilePage() {
     };
 
 
-    if (loading || !profile || !user) {
+    if (loading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -113,10 +109,18 @@ export default function ProfilePage() {
     if (error) {
         return <p>Error: {error.message}</p>;
     }
+    
+    if (!profile) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
 
-    const getInitials = (name?: string) => {
-        if (name) {
-            return name.charAt(0).toUpperCase();
+    const getInitials = (nameStr?: string) => {
+        if (nameStr) {
+            return nameStr.charAt(0).toUpperCase();
         }
         if (user?.email) {
             return user.email.charAt(0).toUpperCase();
@@ -171,7 +175,7 @@ export default function ProfilePage() {
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="email">Email</Label>
-                                            <Input id="email" type="email" value={profile.email || ''} disabled />
+                                            <Input id="email" type="email" value={user.email || ''} disabled />
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="mobile">Mobile</Label>
@@ -186,7 +190,7 @@ export default function ProfilePage() {
                                 
                                 <div className="flex justify-end">
                                     <Button type="submit" disabled={isSaving}>
-                                        {isSaving && <LoaderCircle className="animate-spin" />}
+                                        {isSaving && <LoaderCircle className="mr-2 animate-spin" />}
                                         {isSaving ? 'Saving...' : 'Save Changes'}
                                     </Button>
                                 </div>
