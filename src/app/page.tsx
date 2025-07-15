@@ -155,63 +155,60 @@ export default function LearnPage() {
         setIsAssessing(true);
         setAssessingPhraseId(phraseId);
         setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'in-progress' } }));
-    
-        const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-        speechConfig.speechRecognitionLanguage = locale;
+
+        let recognizer: sdk.SpeechRecognizer | undefined;
+
+        try {
+            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+            speechConfig.speechRecognitionLanguage = locale;
+            
+            const pronunciationAssessmentJson = JSON.stringify({
+                referenceText: referenceText,
+                gradingSystem: "HundredMark",
+                granularity: "Phoneme",
+                enableMiscue: "True"
+            });
+            speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestPronunciationAssessmentJson, pronunciationAssessmentJson);
         
-        const pronunciationAssessmentJson = JSON.stringify({
-            referenceText: referenceText,
-            gradingSystem: "HundredMark",
-            granularity: "Phoneme",
-            enableMiscue: "True"
-        });
-    
-        speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestPronunciationAssessmentJson, pronunciationAssessmentJson);
-    
-        const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-        const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-    
-        recognizer.recognizeOnceAsync(result => {
-            try {
-                if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                    const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
-                    if (assessmentResult) {
-                         setAssessmentResults(prev => ({
-                            ...prev,
-                            [phraseId]: {
-                                status: assessmentResult.accuracyScore > 70 ? 'pass' : 'fail',
-                                accuracy: assessmentResult.accuracyScore,
-                                fluency: assessmentResult.fluencyScore,
-                            }
-                        }));
-                    } else {
-                        // This case handles when speech is recognized but assessment fails.
-                        toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
-                        setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
-                    }
+            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+            
+            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
+                recognizer!.recognizeOnceAsync(resolve, reject);
+            });
+
+            if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
+                const assessmentResult = sdk.PronunciationAssessmentResult.fromResult(result);
+                if (assessmentResult) {
+                     setAssessmentResults(prev => ({
+                        ...prev,
+                        [phraseId]: {
+                            status: assessmentResult.accuracyScore > 70 ? 'pass' : 'fail',
+                            accuracy: assessmentResult.accuracyScore,
+                            fluency: assessmentResult.fluencyScore,
+                        }
+                    }));
                 } else {
-                     // This case handles when speech is not recognized at all.
-                     toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
-                     setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
+                    toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not assess pronunciation. Please try again.' });
+                    setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
                 }
-            } catch (e) {
-                // This is the ultimate safety net for any unexpected errors during result processing.
-                console.error("Error processing assessment result:", e);
-                toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.` });
-                setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
-            } finally {
-                recognizer.close();
-                setIsAssessing(false);
-                setAssessingPhraseId(null);
+            } else {
+                 toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
+                 setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
             }
-        }, err => {
-            toast({ variant: 'destructive', title: 'Assessment Error', description: `An error occurred during assessment: ${err}` });
+        } catch (error) {
+            console.error("Error during assessment:", error);
+            toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
             setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
-            recognizer.close();
+        } finally {
+            if (recognizer) {
+                recognizer.close();
+            }
             setIsAssessing(false);
             setAssessingPhraseId(null);
-        });
+        }
     };
+    
 
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
