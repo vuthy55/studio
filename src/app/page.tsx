@@ -26,7 +26,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail' | 'in-progress';
+type AssessmentStatus = 'unattempted' | 'pass' | 'fail'; // Removed 'in-progress'
 type AssessmentResult = {
   status: AssessmentStatus;
   accuracy?: number;
@@ -207,16 +207,11 @@ export default function LearnPage() {
       toast({ variant: 'destructive', title: 'Unsupported Language' });
       return;
     }
-
+    
     if (isLive) {
       setIsAssessingLive(true);
-      setLiveAssessmentResult({ status: 'in-progress' });
     } else {
       setAssessingPhraseId(phraseId);
-      setAssessmentResults((prev) => ({
-        ...prev,
-        [phraseId]: { ...prev[phraseId], status: 'in-progress' },
-      }));
     }
 
     let recognizer: sdk.SpeechRecognizer | undefined;
@@ -227,19 +222,16 @@ export default function LearnPage() {
       speechConfig.speechRecognitionLanguage = locale;
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
       
-      const pronunciationConfigJson = {
+      const pronunciationConfigJson = JSON.stringify({
           referenceText: referenceText,
           gradingSystem: "HundredMark",
           granularity: "Phoneme",
           enableMiscue: true,
-      };
-      const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(
-          JSON.stringify(pronunciationConfigJson)
-      );
+      });
 
+      const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(pronunciationConfigJson);
       recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
       pronunciationConfig.applyTo(recognizer);
-
 
       const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
         recognizer!.recognizeOnceAsync(resolve, reject);
@@ -268,6 +260,7 @@ export default function LearnPage() {
           title: 'Assessment Failed',
           description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}`,
         });
+        finalResult.status = 'fail';
       }
     } catch (error) {
       console.error("Error during assessment:", error);
@@ -303,10 +296,10 @@ export default function LearnPage() {
           const result = assessmentResults[phraseId];
           const status = result?.status;
           
-          if (status === 'fail') return 0;
-          if (status === 'unattempted' || status === 'in-progress' || !status) return 1;
-          if (status === 'pass') return 2;
-          return 1;
+          if (status === 'fail') return 0; // Failed phrases first
+          if (status === 'unattempted' || !status) return 1; // Unattempted/default next
+          if (status === 'pass') return 2; // Passed phrases last
+          return 1; // Default
         };
     
         return [...selectedTopic.phrases].sort((a, b) => {
@@ -598,7 +591,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
-    
-
-    
