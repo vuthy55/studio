@@ -155,7 +155,7 @@ export default function ProfilePage() {
         try {
             const result = await generateAvatar({
                 userName: name,
-                baseImageUrl: profile?.avatarUrl // Use the current avatar as the base
+                baseImageUrl: profile?.avatarUrl
             });
 
             if (result.imageDataUri) {
@@ -213,25 +213,9 @@ export default function ProfilePage() {
                     <AvatarFallback className="bg-muted">{avatarFallback}</AvatarFallback>
                 </Avatar>
                  <div>
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-3xl font-bold font-headline">{name}</h1>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Info className="h-5 w-5 text-muted-foreground cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs" side="right">
-                                    <p className="font-bold text-base mb-2">How Avatars Work</p>
-                                    <p className="text-sm">
-                                        You can upload a real photo or generate a unique AI avatar based on your current picture.
-                                        Only the most recent photo and avatar are saved to keep things tidy. Uploading a new one will replace the old one.
-                                    </p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
+                    <h1 className="text-3xl font-bold font-headline">{name}</h1>
                     <p className="text-muted-foreground">{user.email}</p>
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex items-center gap-2 mt-4">
                         <input
                             type="file"
                             ref={fileInputRef}
@@ -247,6 +231,20 @@ export default function ProfilePage() {
                              {isGenerating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                              {isGenerating ? 'Generating...' : 'Generate AI Avatar'}
                         </Button>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="h-5 w-5 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs" side="right">
+                                    <p className="font-bold text-base mb-2">How Avatars Work</p>
+                                    <p className="text-sm">
+                                        You can upload a real photo or generate a unique AI avatar based on your current picture.
+                                        Only the most recent photo and avatar are saved to keep things tidy. Uploading a new one will replace the old one.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 </div>
             </header>
@@ -290,3 +288,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
