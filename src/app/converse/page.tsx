@@ -38,6 +38,8 @@ import {
 } from '@/components/ui/dialog';
 import { LoaderCircle, MessagesSquare, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { languages, LanguageCode } from '@/lib/data';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Room = {
   id: string;
@@ -46,6 +48,7 @@ type Room = {
   creatorName: string;
   language: string;
   createdAt: any;
+  isActive: boolean;
 };
 
 export default function ConversePage() {
@@ -72,7 +75,7 @@ export default function ConversePage() {
         querySnapshot.forEach((doc) => {
           roomsData.push({ id: doc.id, ...doc.data() } as Room);
         });
-        setRooms(roomsData);
+        setRooms(roomsData.filter(room => room.isActive !== false));
         setIsLoadingRooms(false);
       },
       (error) => {
@@ -99,6 +102,8 @@ export default function ConversePage() {
         createdBy: user.uid,
         creatorName: userName,
         createdAt: serverTimestamp(),
+        isActive: true,
+        currentSpeaker: null,
       });
       setNewRoomName('');
       setIsDialogOpen(false);
