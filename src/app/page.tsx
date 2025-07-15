@@ -76,6 +76,7 @@ export default function LearnPage() {
         if (!text || isAssessing) return;
         const locale = languageToLocaleMap[lang];
         
+        // Use browser's native TTS if available and voice is 'default'
         if (speechSynthesis && selectedVoice === 'default') {
             const voices = speechSynthesis.getVoices();
             const voice = voices.find(v => v.lang === locale);
@@ -88,6 +89,7 @@ export default function LearnPage() {
             }
         }
         
+        // Fallback to Azure TTS
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
@@ -209,7 +211,6 @@ export default function LearnPage() {
         }
     };
     
-
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
             return textObj.english;
