@@ -161,40 +161,29 @@ export default function LearnPage() {
         let recognizer: sdk.SpeechRecognizer | undefined;
 
         try {
-            console.log("DEBUG: 1. Initializing assessment for phrase:", referenceText);
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
             speechConfig.speechRecognitionLanguage = locale;
             
-            const pronunciationAssessmentJson = JSON.stringify({
-                referenceText: referenceText,
-                gradingSystem: "HundredMark",
-                granularity: "Phoneme",
-                enableMiscue: "True"
-            });
-            speechConfig.setProperty(sdk.PropertyId.SpeechServiceResponse_RequestPronunciationAssessmentJson, pronunciationAssessmentJson);
+            const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
+                referenceText,
+                sdk.PronunciationAssessmentGradingSystem.HundredMark,
+                sdk.PronunciationAssessmentGranularity.Phoneme,
+                true
+            );
         
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
             recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+            pronunciationConfig.applyTo(recognizer);
             
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
                 recognizer!.recognizeOnceAsync(resolve, reject);
             });
             
-            console.log("DEBUG: 2. Received result from Azure SDK:", result);
-
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                const pronunciationAssessmentResultJson = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-                console.log("DEBUG: 3. Raw assessment JSON:", pronunciationAssessmentResultJson);
-                
-                if (pronunciationAssessmentResultJson) {
-                    const parsedResult = JSON.parse(pronunciationAssessmentResultJson);
-                    console.log("DEBUG: 4. Parsed JSON object:", parsedResult);
-                    const pronAssessment = parsedResult.PronunciationAssessment;
-                    console.log("DEBUG: 5. Extracted PronunciationAssessment object:", pronAssessment);
-
-                    const accuracyScore = pronAssessment?.AccuracyScore ?? 0;
-                    const fluencyScore = pronAssessment?.FluencyScore ?? 0;
-                    console.log(`DEBUG: 6. Final scores - Accuracy: ${accuracyScore}, Fluency: ${fluencyScore}`);
+                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
+                if (assessment) {
+                    const accuracyScore = assessment.accuracyScore;
+                    const fluencyScore = assessment.fluencyScore;
 
                     setAssessmentResults(prev => ({
                         ...prev,
@@ -205,21 +194,18 @@ export default function LearnPage() {
                         }
                     }));
                 } else {
-                     console.log("DEBUG: 3a. Assessment JSON was missing.");
                      toast({ variant: 'destructive', title: 'Assessment Failed', description: 'Could not get assessment details from the service.' });
                      setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
                 }
             } else {
-                 console.log(`DEBUG: 2a. Speech recognition failed or text was empty. Reason: ${sdk.ResultReason[result.reason]}`);
                  toast({ variant: 'destructive', title: 'Assessment Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
                  setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
             }
         } catch (error) {
-            console.error("DEBUG: CATCH BLOCK - Error during assessment:", error);
+            console.error("Error during assessment:", error);
             toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred during assessment.` });
             setAssessmentResults(prev => ({ ...prev, [phraseId]: { status: 'fail', accuracy: 0, fluency: 0 } }));
         } finally {
-            console.log("DEBUG: 7. FINALLY block - Cleaning up.");
             if (recognizer) {
                 recognizer.close();
             }
