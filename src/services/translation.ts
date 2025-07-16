@@ -1,7 +1,7 @@
 
 'use server';
 
-const API_KEY = process.env.GEMINI_API_KEY;
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent`;
 
 export interface TranslateTextInput {
@@ -20,7 +20,7 @@ export async function translateText(
   const { text, fromLanguage, toLanguage } = input;
 
   if (!API_KEY) {
-    throw new Error('GEMINI_API_KEY is not set.');
+    throw new Error('GEMINI_API_KEY is not set in environment variables.');
   }
 
   const prompt = `You are a direct translation assistant. Your only task is to translate the user's text from ${fromLanguage} to ${toLanguage}. Do not add any extra information, context, or phonetic guides. Only provide the direct translation. Text to translate: "${text}"`;
@@ -57,7 +57,9 @@ export async function translateText(
                 },
             ],
             generationConfig: {
-                temperature: 0,
+                temperature: 0.1,
+                topP: 1,
+                topK: 1,
             },
         }),
     });
@@ -69,12 +71,21 @@ export async function translateText(
     }
 
     const data = await response.json();
-    const translatedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (!translatedText) {
+    
+    // Check for empty or invalid response from the API
+    if (
+      !data.candidates ||
+      !data.candidates[0] ||
+      !data.candidates[0].content ||
+      !data.candidates[0].content.parts ||
+      !data.candidates[0].content.parts[0] ||
+      !data.candidates[0].content.parts[0].text
+    ) {
       console.error('Gemini API returned an empty or invalid response.', data);
       throw new Error('Failed to parse translation from API response.');
     }
+    
+    const translatedText = data.candidates[0].content.parts[0].text.trim();
 
     return { translatedText };
   } catch (error: any) {
