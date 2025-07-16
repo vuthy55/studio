@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { generateSpeech } from '@/services/tts';
 import { translateText } from '@/services/translation';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
+import { useDebounce } from '@/hooks/use-debounce';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -36,6 +37,7 @@ export default function LearnPage() {
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
     const [isRecognizing, setIsRecognizing] = useState(false);
+    const debouncedInputText = useDebounce(inputText, 500);
     
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
@@ -65,30 +67,43 @@ export default function LearnPage() {
             toast({
                 variant: 'destructive',
                 title: 'Error generating audio',
-                description: 'Could not generate audio for the selected language. Credentials might be missing.',
+                description: 'Could not generate audio. Azure credentials might be missing or incorrect.',
             });
         }
     };
     
-    const handleTranslation = async () => {
-        if (!inputText) return;
+    const handleTranslation = async (textToTranslate: string) => {
+        if (!textToTranslate) {
+            setTranslatedText('');
+            return;
+        }
         setIsTranslating(true);
         try {
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+            const result = await translateText({ text: textToTranslate, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
             setTranslatedText(result.translatedText);
         } catch (error) {
             console.error('Translation failed', error);
             toast({
                 variant: 'destructive',
                 title: 'Translation Error',
-                description: 'Could not translate the text.',
+                description: 'Could not translate the text. Azure credentials might be missing or incorrect.',
             });
         } finally {
             setIsTranslating(false);
         }
     };
+
+    useEffect(() => {
+        if (debouncedInputText && activeTab === 'live-translation') {
+            handleTranslation(debouncedInputText);
+        } else if (!debouncedInputText) {
+            setTranslatedText('');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedInputText, fromLanguage, toLanguage, activeTab]);
+
 
     const recognizeFromMicrophone = async () => {
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
@@ -163,10 +178,7 @@ export default function LearnPage() {
             <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
                 <div className="flex-1 w-full">
                     <Label htmlFor="from-language">From</Label>
-                    <Select value={fromLanguage} onValueChange={(value) => {
-                        setFromLanguage(value as LanguageCode);
-                        handleTranslation();
-                    }}>
+                    <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
                         <SelectTrigger id="from-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -185,10 +197,7 @@ export default function LearnPage() {
                 
                 <div className="flex-1 w-full">
                     <Label htmlFor="to-language">To</Label>
-                    <Select value={toLanguage} onValueChange={(value) => {
-                        setToLanguage(value as LanguageCode)
-                        handleTranslation();
-                    }}>
+                    <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
                         <SelectTrigger id="to-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -340,10 +349,7 @@ export default function LearnPage() {
                                                 placeholder={`Enter text or use the mic...`}
                                                 className="min-h-[120px] resize-none border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
                                                 value={inputText}
-                                                onChange={(e) => {
-                                                    setInputText(e.target.value)
-                                                    handleTranslation();
-                                                }}
+                                                onChange={(e) => setInputText(e.target.value)}
                                                 disabled={isRecognizing}
                                             />
                                             <div className="absolute bottom-2 right-2">
