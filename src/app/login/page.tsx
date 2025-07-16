@@ -11,7 +11,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from '@/lib/firebase';
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Chrome } from 'lucide-react';
+import { Chrome, LoaderCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,15 +45,14 @@ export default function LoginPage() {
         uid: user.uid,
         email: user.email,
         name: user.displayName || signupName,
-        avatarUrl: user.photoURL,
-        isAdmin: user.email === 'thegreenhomecommunity@gmail.com', // Bootstrap admin
+        avatarUrl: user.photoURL || null,
+        isAdmin: false,
         isBlocked: false,
-        tokens: 0,
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
         ...additionalData,
-      });
+      }, { merge: true });
     }
-    // Existing user data is preserved.
+    // For existing users, their data is preserved due to the merge option.
   };
 
   const handleGoogleSignIn = async () => {
@@ -129,7 +128,7 @@ export default function LoginPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex-col gap-4">
-                <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
+                <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Logging in...</> : 'Login'}</Button>
                 <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
                   <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
                 </Button>
@@ -159,7 +158,7 @@ export default function LoginPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex-col gap-4">
-                  <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
+                  <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Creating account...</> : 'Create Account'}</Button>
                    <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
                       <Chrome className="mr-2 h-4 w-4" /> Sign up with Google
                   </Button>
