@@ -9,7 +9,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { auth, db } from '@/lib/firebase';
 import { LoaderCircle, Save } from "lucide-react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -29,15 +29,15 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 export default function ProfilePage() {
-    const [user, authLoading] = useAuthState(auth);
+    console.log('DEBUG: ProfilePage - Component rendering');
+    const [user, authLoading, authError] = useAuthState(auth);
     const router = useRouter();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
 
-    // Get a reference to the user's document in Firestore
     const userDocRef = user ? doc(db, 'users', user.uid) : null;
-    
-    // Use the hook to get document data
+    console.log('DEBUG: ProfilePage - userDocRef created:', userDocRef?.path);
+
     const [profileData, profileLoading, profileError] = useDocumentData(userDocRef);
 
     const form = useForm<ProfileFormValues>({
@@ -46,21 +46,35 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
-        // If auth is done loading and there's no user, redirect to login
+        console.log('DEBUG: ProfilePage - Auth state change detected.');
+        console.log('DEBUG: ProfilePage - Auth loading:', authLoading);
+        console.log('DEBUG: ProfilePage - User object:', user);
+        if (authError) {
+             console.error('DEBUG: ProfilePage - Auth error:', authError);
+        }
+
         if (!authLoading && !user) {
+            console.log('DEBUG: ProfilePage - No user, redirecting to /login');
             router.push('/login');
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, authError]);
 
     useEffect(() => {
-        // When profile data is loaded from Firestore, update the form
+        console.log('DEBUG: ProfilePage - Profile data change detected.');
+        console.log('DEBUG: ProfilePage - Profile loading:', profileLoading);
+        console.log('DEBUG: ProfilePage - Profile data:', profileData);
+         if (profileError) {
+             console.error('DEBUG: ProfilePage - Profile data error:', profileError);
+        }
+
         if (profileData) {
+            console.log('DEBUG: ProfilePage - Resetting form with profile data.');
             form.reset({
                 name: profileData.name || '',
                 email: profileData.email || '',
             });
         }
-    }, [profileData, form]);
+    }, [profileData, form, profileLoading, profileError]);
 
     const onSubmit = async (data: ProfileFormValues) => {
         if (!user) {
@@ -70,16 +84,13 @@ export default function ProfilePage() {
 
         setIsSaving(true);
         try {
-            // Update Firestore document
             if (userDocRef) {
                 await updateDoc(userDocRef, { name: data.name });
             }
-            
-            // Update Firebase Auth profile
-            await updateProfile(user, { displayName: data.name });
-
+            if (auth.currentUser) {
+                 await updateProfile(auth.currentUser, { displayName: data.name });
+            }
             toast({ title: "Success", description: "Your profile has been updated." });
-
         } catch (error: any) {
             console.error("Error updating profile:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to update profile." });
@@ -88,11 +99,11 @@ export default function ProfilePage() {
         }
     };
     
-    // Show a loading spinner while auth or profile data is loading
-    if (authLoading || profileLoading) {
+    if (authLoading || (user && profileLoading)) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+                <p className="ml-4">Loading profile...</p>
             </div>
         );
     }
@@ -100,6 +111,7 @@ export default function ProfilePage() {
     if (!user) {
         return (
              <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
                 <p className="ml-4">Redirecting to login...</p>
             </div>
         );
@@ -109,6 +121,14 @@ export default function ProfilePage() {
         return (
              <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <p className="ml-4 text-destructive">Error loading profile: {profileError.message}</p>
+            </div>
+        );
+    }
+    
+    if (!profileData && !profileLoading) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <p className="ml-4">No profile data found. Was the account created correctly?</p>
             </div>
         );
     }

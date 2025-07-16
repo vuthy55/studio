@@ -9,7 +9,8 @@ import {
   GoogleAuthProvider, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  type User
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from '@/lib/firebase';
@@ -35,24 +36,36 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleUserSetup = async (user: any, additionalData = {}) => {
+  const handleUserSetup = async (user: User, additionalData = {}) => {
+    console.log('DEBUG: handleUserSetup - START for user:', user.uid);
     const userRef = doc(db, "users", user.uid);
-    const userDoc = await getDoc(userRef);
+    
+    try {
+      console.log('DEBUG: handleUserSetup - Checking for existing document...');
+      const userDoc = await getDoc(userRef);
 
-    if (!userDoc.exists()) {
-      // New user, create their document
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        name: user.displayName || signupName,
-        avatarUrl: user.photoURL || null,
-        isAdmin: false,
-        isBlocked: false,
-        createdAt: serverTimestamp(),
-        ...additionalData,
-      }, { merge: true });
+      if (!userDoc.exists()) {
+        console.log('DEBUG: handleUserSetup - Document does NOT exist. Creating new document.');
+        const newUserPayload = {
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName || signupName,
+          avatarUrl: user.photoURL || null,
+          isAdmin: false,
+          isBlocked: false,
+          createdAt: serverTimestamp(),
+          ...additionalData,
+        };
+        console.log('DEBUG: handleUserSetup - New user payload:', newUserPayload);
+        await setDoc(userRef, newUserPayload);
+        console.log('DEBUG: handleUserSetup - Successfully created new user document.');
+      } else {
+        console.log('DEBUG: handleUserSetup - Document exists. No need to create.');
+      }
+    } catch (error) {
+       console.error("DEBUG: handleUserSetup - ERROR during user setup:", error);
+       // We still want to proceed even if this fails, so we don't block login
     }
-    // For existing users, their data is preserved due to the merge option.
   };
 
   const handleGoogleSignIn = async () => {
