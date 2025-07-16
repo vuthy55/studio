@@ -4,16 +4,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  getAuth, 
   signInWithPopup, 
   GoogleAuthProvider, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   updateProfile,
-  type User
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,44 +33,11 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleUserSetup = async (user: User, additionalData = {}) => {
-    console.log('DEBUG: handleUserSetup - START for user:', user.uid);
-    const userRef = doc(db, "users", user.uid);
-    
-    try {
-      console.log('DEBUG: handleUserSetup - Checking for existing document...');
-      const userDoc = await getDoc(userRef);
-
-      if (!userDoc.exists()) {
-        console.log('DEBUG: handleUserSetup - Document does NOT exist. Creating new document.');
-        const newUserPayload = {
-          uid: user.uid,
-          email: user.email,
-          name: user.displayName || signupName,
-          avatarUrl: user.photoURL || null,
-          isAdmin: false,
-          isBlocked: false,
-          createdAt: serverTimestamp(),
-          ...additionalData,
-        };
-        console.log('DEBUG: handleUserSetup - New user payload:', newUserPayload);
-        await setDoc(userRef, newUserPayload);
-        console.log('DEBUG: handleUserSetup - Successfully created new user document.');
-      } else {
-        console.log('DEBUG: handleUserSetup - Document exists. No need to create.');
-      }
-    } catch (error) {
-       console.error("DEBUG: handleUserSetup - ERROR during user setup:", error);
-       // We still want to proceed even if this fails, so we don't block login
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      await handleUserSetup(result.user);
+      await signInWithPopup(auth, provider);
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -90,7 +54,6 @@ export default function LoginPage() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       await updateProfile(userCredential.user, { displayName: signupName });
-      await handleUserSetup(userCredential.user);
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
     } catch (error: any) {

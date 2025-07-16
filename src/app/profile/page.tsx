@@ -4,10 +4,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { useDocumentData } from 'react-firebase-hooks/firestore';
-import { doc, updateDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { LoaderCircle, Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,7 +14,6 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 
@@ -29,16 +26,10 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 export default function ProfilePage() {
-    console.log('DEBUG: ProfilePage - Component rendering');
     const [user, authLoading, authError] = useAuthState(auth);
     const router = useRouter();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
-
-    const userDocRef = user ? doc(db, 'users', user.uid) : null;
-    console.log('DEBUG: ProfilePage - userDocRef created:', userDocRef?.path);
-
-    const [profileData, profileLoading, profileError] = useDocumentData(userDocRef);
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
@@ -46,9 +37,6 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
-        console.log('DEBUG: ProfilePage - Auth state change detected.');
-        console.log('DEBUG: ProfilePage - Auth loading:', authLoading);
-        console.log('DEBUG: ProfilePage - User object:', user);
         if (authError) {
              console.error('DEBUG: ProfilePage - Auth error:', authError);
         }
@@ -60,36 +48,24 @@ export default function ProfilePage() {
     }, [user, authLoading, router, authError]);
 
     useEffect(() => {
-        console.log('DEBUG: ProfilePage - Profile data change detected.');
-        console.log('DEBUG: ProfilePage - Profile loading:', profileLoading);
-        console.log('DEBUG: ProfilePage - Profile data:', profileData);
-         if (profileError) {
-             console.error('DEBUG: ProfilePage - Profile data error:', profileError);
-        }
-
-        if (profileData) {
-            console.log('DEBUG: ProfilePage - Resetting form with profile data.');
+        if (user) {
+            console.log('DEBUG: ProfilePage - Resetting form with auth user data.');
             form.reset({
-                name: profileData.name || '',
-                email: profileData.email || '',
+                name: user.displayName || '',
+                email: user.email || '',
             });
         }
-    }, [profileData, form, profileLoading, profileError]);
+    }, [user, form]);
 
     const onSubmit = async (data: ProfileFormValues) => {
-        if (!user) {
+        if (!auth.currentUser) {
             toast({ variant: "destructive", title: "Error", description: "You are not logged in." });
             return;
         }
 
         setIsSaving(true);
         try {
-            if (userDocRef) {
-                await updateDoc(userDocRef, { name: data.name });
-            }
-            if (auth.currentUser) {
-                 await updateProfile(auth.currentUser, { displayName: data.name });
-            }
+            await updateProfile(auth.currentUser, { displayName: data.name });
             toast({ title: "Success", description: "Your profile has been updated." });
         } catch (error: any) {
             console.error("Error updating profile:", error);
@@ -99,7 +75,7 @@ export default function ProfilePage() {
         }
     };
     
-    if (authLoading || (user && profileLoading)) {
+    if (authLoading) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -117,18 +93,10 @@ export default function ProfilePage() {
         );
     }
 
-     if (profileError) {
+     if (authError) {
         return (
              <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <p className="ml-4 text-destructive">Error loading profile: {profileError.message}</p>
-            </div>
-        );
-    }
-    
-    if (!profileData && !profileLoading) {
-        return (
-            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <p className="ml-4">No profile data found. Was the account created correctly?</p>
+                <p className="ml-4 text-destructive">Error loading profile: {authError.message}</p>
             </div>
         );
     }
