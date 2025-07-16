@@ -1,12 +1,13 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { LoaderCircle } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { ProfileForm } from '@/components/profile/profile-form';
 
 export default function ProfilePage() {
     const [user, loading, error] = useAuthState(auth);
@@ -53,9 +54,8 @@ export default function ProfilePage() {
                     </div>
                 </div>
             </header>
-            <div>
-              <p>Welcome, {user.displayName || user.email}!</p>
-              <p>Profile features are coming soon.</p>
+            <div className="max-w-2xl mx-auto">
+              <ProfileForm user={user} />
             </div>
         </div>
     );

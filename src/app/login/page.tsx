@@ -10,8 +10,9 @@ import {
   GoogleAuthProvider,
   updateProfile
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from '@/lib/firebase';
+import type { UserProfile } from '@/lib/types';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,16 +41,18 @@ export default function LoginPage() {
 
     if (!userDoc.exists()) {
       // New user, create their document
-      await setDoc(userRef, {
+      const newUserProfile: Omit<UserProfile, 'createdAt'> = {
         uid: user.uid,
         email: user.email,
         name: user.displayName || signupName,
-        avatarUrl: user.photoURL,
-        isAdmin: user.email === 'thegreenhomecommunity@gmail.com', // Bootstrap admin
-        isBlocked: false,
-        tokens: 0,
-        createdAt: new Date(),
+        avatarUrl: user.photoURL || `https://placehold.co/100x100.png`,
+        isAdmin: false,
         ...additionalData,
+      };
+      
+      await setDoc(userRef, {
+        ...newUserProfile,
+        createdAt: serverTimestamp(),
       });
     }
     // Existing user data is preserved.
