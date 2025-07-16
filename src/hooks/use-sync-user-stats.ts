@@ -31,14 +31,17 @@ export function useSyncUserStats() {
   const [loading, setLoading] = useState(true);
   const isSyncing = useRef(false);
   const hasSyncedFromServer = useRef(false);
+  
+  console.log("DEBUG: useSyncUserStats hook initialized.");
 
   // Function to get stats from localStorage
   const getLocalStats = useCallback((): UserStats | null => {
     try {
       const cachedStats = localStorage.getItem(STATS_STORAGE_KEY);
+      console.log("DEBUG: Reading from localStorage. Found:", cachedStats ? "data" : "nothing");
       return cachedStats ? JSON.parse(cachedStats) : null;
     } catch (error) {
-      console.error("Failed to read from localStorage", error);
+      console.error("DEBUG: Failed to read from localStorage", error);
       return null;
     }
   }, []);
@@ -46,31 +49,45 @@ export function useSyncUserStats() {
   // Function to save stats to localStorage
   const saveLocalStats = useCallback((newStats: UserStats) => {
     try {
+      console.log("DEBUG: Saving to localStorage:", newStats);
       localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(newStats));
     } catch (error) {
-      console.error("Failed to write to localStorage", error);
+      console.error("DEBUG: Failed to write to localStorage", error);
     }
   }, []);
 
   const syncToServer = useCallback(async (statsToSync: UserStats) => {
-    if (!user || isSyncing.current) return;
+    if (!user) {
+        console.log("DEBUG: syncToServer skipped, no user.");
+        return;
+    }
+    if (isSyncing.current) {
+        console.log("DEBUG: syncToServer skipped, already syncing.");
+        return;
+    }
     isSyncing.current = true;
+    console.log("DEBUG: Syncing to server started for user:", user.uid);
     
     try {
       const statsRef = doc(db, 'user_stats', user.uid);
       await setDoc(statsRef, { ...statsToSync, lastSynced: serverTimestamp() }, { merge: true });
+      console.log("DEBUG: Sync to server successful.");
     } catch (error) {
-      console.error("Firestore sync failed:", error);
+      console.error("DEBUG: Firestore sync failed:", error);
     } finally {
       isSyncing.current = false;
+      console.log("DEBUG: Syncing to server finished.");
     }
   }, [user]);
 
   // Main effect to orchestrate loading and syncing
   useEffect(() => {
+    console.log("DEBUG: Main useEffect triggered. User:", user ? user.uid : "null");
+
     if (!user) {
       // Clear stats if user logs out
       if (stats !== null) {
+        console.log("DEBUG: User logged out, clearing stats.");
         setStats(null);
         localStorage.removeItem(STATS_STORAGE_KEY);
       }
@@ -78,111 +95,85 @@ export function useSyncUserStats() {
       return;
     }
 
-    if (user && !stats && !hasSyncedFromServer.current) {
+    if (user && !hasSyncedFromServer.current) {
+        console.log("DEBUG: User detected, beginning initial load.");
         setLoading(true);
 
         const initialLoad = async () => {
             // 1. Load from cache immediately for fast UI
             const localStats = getLocalStats();
             if (localStats) {
+                console.log("DEBUG: Loaded initial stats from local cache.");
                 setStats(localStats);
             }
 
             // 2. Fetch from Firestore
             const statsRef = doc(db, 'user_stats', user.uid);
+            console.log("DEBUG: Attempting to fetch from Firestore. Path:", statsRef.path);
+
             try {
                 const docSnap = await getDoc(statsRef);
                 const serverStats = docSnap.exists() ? docSnap.data() as UserStats : null;
                 hasSyncedFromServer.current = true;
+                console.log("DEBUG: Firestore fetch successful. Server data exists:", docSnap.exists());
                 
                 // 3. Merge server and local data
                 if (serverStats) {
                     const mergedStats = mergeStats(localStats, serverStats);
+                    console.log("DEBUG: Merged server and local stats.", {localStats, serverStats, mergedStats});
                     setStats(mergedStats);
                     saveLocalStats(mergedStats);
                 } else if (localStats) {
-                    // No server data, but local data exists. Push local to server.
+                    console.log("DEBUG: No server data, but local data exists. Pushing local to server.");
                     await syncToServer(localStats);
                 } else {
-                    // No data anywhere, create a default structure
+                    console.log("DEBUG: No data anywhere, creating default structure.");
                     const defaultStats = { learnedWords: {}, assessmentResults: {} };
                     setStats(defaultStats);
                     saveLocalStats(defaultStats);
                 }
             } catch (error) {
-                console.error("Error fetching user stats from Firestore:", error);
-                // If firestore fails, we rely on local stats
-                 if (!localStats) {
+                console.error("DEBUG: Error fetching user stats from Firestore:", error);
+                if (!localStats) {
+                    console.log("DEBUG: Firestore failed and no local stats, creating default structure.");
                     const defaultStats = { learnedWords: {}, assessmentResults: {} };
                     setStats(defaultStats);
                     saveLocalStats(defaultStats);
-                 }
+                }
             } finally {
                 setLoading(false);
+                console.log("DEBUG: Initial load process finished.");
             }
         };
 
         initialLoad();
     }
-  }, [user, stats, getLocalStats, saveLocalStats, syncToServer]);
-
-  // Effect for syncing on exit
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const currentStats = getLocalStats();
-      if (currentStats && user) {
-        // Use sendBeacon for reliable exit-syncing if available
-        const statsRef = doc(db, 'user_stats', user.uid);
-        const data = { ...currentStats, lastSynced: serverTimestamp() };
-        const blob = new Blob([JSON.stringify({
-            writes: [{
-                update: {
-                    name: `projects/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/databases/(default)/documents/user_stats/${user.uid}`,
-                    currentDocument: { exists: true },
-                    updateMask: { fieldPaths: Object.keys(data) }
-                },
-                update_transforms: [{
-                    field_path: 'lastSynced',
-                    set_to_server_value: 'REQUEST_TIME'
-                }]
-            }]
-        })], { type: 'application/json' });
-
-         // This is a simplified firestore REST call for beacon. 
-         // A more robust solution might use a cloud function.
-         // navigator.sendBeacon(`https://firestore.googleapis.com/v1/projects/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/databases/(default)/documents:commit`, blob);
-
-         // Fallback to simple sync for now
-         syncToServer(currentStats);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [getLocalStats, user, syncToServer]);
+  }, [user]);
 
   const mergeStats = (local: UserStats | null, server: UserStats): UserStats => {
-    if (!local) return server;
-
-    // A simple "server wins" strategy for now. Could be made more complex.
-    // For assessment results, merge them, giving precedence to local if it has more keys.
+    console.log("DEBUG: Merging stats...");
+    if (!local) {
+        console.log("DEBUG: No local stats, using server stats.");
+        return server;
+    }
+    
     const mergedAssessments = { ...(server.assessmentResults || {}), ...(local.assessmentResults || {}) };
     
-    // For learned words, merge and sum counts
     const mergedLearnedWords: { [key in LanguageCode]?: number } = { ...(server.learnedWords || {}) };
     Object.entries(local.learnedWords || {}).forEach(([lang, count]) => {
       mergedLearnedWords[lang as LanguageCode] = Math.max(mergedLearnedWords[lang as LanguageCode] || 0, count || 0);
     });
     
-    return {
+    const final = {
       assessmentResults: mergedAssessments,
       learnedWords: mergedLearnedWords
     };
+    console.log("DEBUG: Merge complete.", final);
+    return final;
   };
 
   const updateLearnedPhrase = useCallback((phraseId: string, lang: LanguageCode, result: AssessmentResult) => {
+    console.log("DEBUG: updateLearnedPhrase called.", { phraseId, lang, result });
     setStats(currentStats => {
       const newStats = {
         ...currentStats,
@@ -200,12 +191,10 @@ export function useSyncUserStats() {
       }
       
       saveLocalStats(newStats);
-      syncToServer(newStats); // Debounced sync could be an optimization here
+      syncToServer(newStats);
       return newStats;
     });
   }, [saveLocalStats, syncToServer]);
 
   return { stats, loading, updateLearnedPhrase, setStats };
 }
-
-    
