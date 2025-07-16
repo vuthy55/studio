@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Info } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, LoaderCircle, Info } from 'lucide-react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import {
   Tooltip,
@@ -16,20 +16,13 @@ import {
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from '@/components/ui/textarea';
-import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/ai/flows/tts-flow';
 import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type VoiceSelection = 'default' | 'male' | 'female';
-type AssessmentResult = {
-  status: 'unattempted' | 'pass' | 'fail';
-  accuracy?: number;
-  fluency?: number;
-};
 
 export default function LearnPage() {
     const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
@@ -42,14 +35,7 @@ export default function LearnPage() {
     const [isTranslating, setIsTranslating] = useState(false);
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
-
-    const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
-    const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
-
-    // Live Translation State
     const [isRecognizing, setIsRecognizing] = useState(false);
-    const [isAssessingLive, setIsAssessingLive] = useState(false);
-    const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
     
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
@@ -64,11 +50,10 @@ export default function LearnPage() {
         setToLanguage(fromLanguage);
         setInputText(translatedText);
         setTranslatedText(currentInput);
-        setLiveAssessmentResult(null);
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text || assessingPhraseId || isRecognizing || isAssessingLive) return;
+        if (!text || isRecognizing) return;
         const locale = languageToLocaleMap[lang];
         
         try {
@@ -91,7 +76,6 @@ export default function LearnPage() {
                 handleTranslation();
             } else if (!inputText) {
                 setTranslatedText('');
-                setLiveAssessmentResult(null);
             }
         }, 500);
 
@@ -102,7 +86,6 @@ export default function LearnPage() {
     const handleTranslation = async () => {
         if (!inputText) return;
         setIsTranslating(true);
-        setLiveAssessmentResult(null);
         try {
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
@@ -163,106 +146,6 @@ export default function LearnPage() {
             setIsRecognizing(false);
         }
     }
-
-   const assessPronunciation = async (
-    phraseId: string,
-    referenceText: string,
-    lang: LanguageCode,
-    isLive: boolean = false
-  ) => {
-    const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-    const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-
-    if (!azureKey || !azureRegion) {
-      toast({
-        variant: 'destructive',
-        title: 'Configuration Error',
-        description: 'Azure credentials are not configured for assessment.',
-      });
-      return;
-    }
-
-    const locale = languageToLocaleMap[lang];
-    if (!locale) {
-      toast({ variant: 'destructive', title: 'Unsupported Language' });
-      return;
-    }
-    
-    if (isLive) {
-      setIsAssessingLive(true);
-    } else {
-      setAssessingPhraseId(phraseId);
-    }
-
-    let recognizer: sdk.SpeechRecognizer | undefined;
-    let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
-
-    try {
-      const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-      speechConfig.speechRecognitionLanguage = locale;
-      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-      
-      const pronunciationConfigJson = JSON.stringify({
-          referenceText: referenceText,
-          gradingSystem: "HundredMark",
-          granularity: "Phoneme",
-          enableMiscue: true,
-      });
-
-      const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(pronunciationConfigJson);
-      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-      pronunciationConfig.applyTo(recognizer);
-
-      const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-        recognizer!.recognizeOnceAsync(resolve, reject);
-      });
-      
-      if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
-        const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-        
-        if (jsonString) {
-          const parsedResult = JSON.parse(jsonString);
-          const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
-
-          if (assessment) {
-            const accuracyScore = assessment.AccuracyScore;
-            const fluencyScore = assessment.FluencyScore;
-            finalResult = {
-              status: accuracyScore > 70 ? 'pass' : 'fail',
-              accuracy: accuracyScore,
-              fluency: fluencyScore,
-            };
-          }
-        }
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Assessment Failed',
-          description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}`,
-        });
-        finalResult.status = 'fail';
-      }
-    } catch (error) {
-      console.error("Error during assessment:", error);
-      finalResult.status = 'fail';
-      toast({
-        variant: 'destructive',
-        title: 'Assessment Error',
-        description: `An unexpected error occurred during assessment.`,
-      });
-    } finally {
-      if (recognizer) {
-        recognizer.close();
-      }
-      if (isLive) {
-        setLiveAssessmentResult(finalResult);
-        setIsAssessingLive(false);
-      } else {
-        setAssessmentResults(prev => ({...prev, [phraseId]: finalResult}));
-        setAssessingPhraseId(null);
-      }
-    }
-  };
     
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
@@ -273,7 +156,7 @@ export default function LearnPage() {
     
     const sortedPhrases = useMemo(() => {
         return [...selectedTopic.phrases];
-    }, [selectedTopic.phrases]);
+    }, [selectedTopic]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -361,8 +244,6 @@ export default function LearnPage() {
                                                     <ul className="list-disc pl-4 space-y-1 text-sm">
                                                         <li>Select a topic to learn relevant phrases.</li>
                                                         <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                                        <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your own pronunciation.</li>
-                                                        <li>You'll get a score for your accuracy.</li>
                                                     </ul>
                                                 </TooltipContent>
                                             </Tooltip>
@@ -399,10 +280,6 @@ export default function LearnPage() {
                                             
                                             const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
-
-                                            const toPhraseId = `${phrase.id}-${toLanguage}`;
-                                            const toResult = assessmentResults[toPhraseId];
-                                            const isCurrentlyAssessingThis = assessingPhraseId === toPhraseId;
                                             
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
@@ -421,32 +298,12 @@ export default function LearnPage() {
                                                             <p className="font-bold text-lg text-primary">{toText}</p>
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!!assessingPhraseId}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
-                                                            <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessPronunciation(toPhraseId, toText, toLanguage, false)} disabled={assessingPhraseId !== null && !isCurrentlyAssessingThis}>
-                                                                            {isCurrentlyAssessingThis ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                                            <span className="sr-only">Record pronunciation</span>
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>Click to practice your pronunciation.</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
-                                                            {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                                                            {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                                         </div>
                                                     </div>
-                                                    {(toResult?.status === 'pass' || toResult?.status === 'fail') && (
-                                                        <div className="text-xs text-muted-foreground pl-1">
-                                                            <p>Accuracy: <span className="font-bold">{toResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{toResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                        </div>
-                                                    )}
                                                 </div>
 
                                                 {phrase.answer && (
@@ -464,7 +321,7 @@ export default function LearnPage() {
                                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!!assessingPhraseId}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
@@ -497,7 +354,7 @@ export default function LearnPage() {
                                                  <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant={isRecognizing ? "destructive" : "ghost"} onClick={recognizeFromMicrophone} disabled={isRecognizing || isAssessingLive}>
+                                                            <Button size="icon" variant={isRecognizing ? "destructive" : "ghost"} onClick={recognizeFromMicrophone} disabled={isRecognizing}>
                                                                 {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                                 <span className="sr-only">Use microphone</span>
                                                             </Button>
@@ -517,32 +374,12 @@ export default function LearnPage() {
                                                 <p className="flex-grow text-base md:text-sm text-foreground">
                                                   {isTranslating ? 'Translating...' : translatedText || <span className="text-muted-foreground">Translation</span>}
                                                 </p>
-                                                {(liveAssessmentResult?.status === 'pass' || liveAssessmentResult?.status === 'fail') && (
-                                                    <div className="text-xs text-muted-foreground mt-2">
-                                                        <p>Accuracy: <span className="font-bold">{liveAssessmentResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{liveAssessmentResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                    </div>
-                                                )}
                                             </div>
                                             <div className="absolute top-2 right-2 flex flex-col space-y-1 items-center">
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
+                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={isTranslating || !translatedText || isRecognizing}>
                                                     <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
-                                                 <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button size="icon" variant={isAssessingLive ? "destructive" : "ghost"} onClick={() => assessPronunciation('live-translation', translatedText, toLanguage, true)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
-                                                                {isAssessingLive ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                                <span className="sr-only">Record pronunciation</span>
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Practice your pronunciation</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                {liveAssessmentResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                                                {liveAssessmentResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                             </div>
                                         </div>
                                     </div>
