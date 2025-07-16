@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,12 +23,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { useSyncUserStats } from '@/hooks/use-sync-user-stats';
 
 type VoiceSelection = 'default' | 'male' | 'female';
-
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail'; // Removed 'in-progress'
 type AssessmentResult = {
-  status: AssessmentStatus;
+  status: 'unattempted' | 'pass' | 'fail';
   accuracy?: number;
   fluency?: number;
 };
@@ -39,15 +38,25 @@ export default function LearnPage() {
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const { isMobile } = useSidebar();
     const { toast } = useToast();
-    const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
-    // Phrasebook Pronunciation Assessment State
-    const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
+    const { stats, updateLearnedPhrase, setStats } = useSyncUserStats();
+
+    // The assessmentResults are now derived from the stats hook for persistence
+    const assessmentResults: Record<string, AssessmentResult> = useMemo(() => {
+        const results: Record<string, AssessmentResult> = {};
+        if (stats?.assessmentResults) {
+            for (const [key, value] of Object.entries(stats.assessmentResults)) {
+                results[key] = value as AssessmentResult;
+            }
+        }
+        return results;
+    }, [stats]);
+    
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
 
     // Live Translation State
@@ -55,10 +64,6 @@ export default function LearnPage() {
     const [isAssessingLive, setIsAssessingLive] = useState(false);
     const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
     
-
-    useEffect(() => {
-        setSpeechSynthesis(window.speechSynthesis);
-    }, []);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -78,18 +83,6 @@ export default function LearnPage() {
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
         if (!text || assessingPhraseId || isRecognizing || isAssessingLive) return;
         const locale = languageToLocaleMap[lang];
-        
-        if (speechSynthesis && selectedVoice === 'default') {
-            const voices = speechSynthesis.getVoices();
-            const voice = voices.find(v => v.lang === locale);
-            if (voice) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.voice = voice;
-                utterance.lang = locale;
-                speechSynthesis.speak(utterance);
-                return;
-            }
-        }
         
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
@@ -278,7 +271,8 @@ export default function LearnPage() {
         setLiveAssessmentResult(finalResult);
         setIsAssessingLive(false);
       } else {
-        setAssessmentResults((prev) => ({ ...prev, [phraseId]: finalResult }));
+        // Update local state and trigger sync
+        updateLearnedPhrase(phraseId, lang, finalResult);
         setAssessingPhraseId(null);
       }
     }
@@ -591,3 +585,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    

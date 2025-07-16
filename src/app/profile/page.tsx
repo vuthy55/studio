@@ -1,22 +1,23 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { updateProfile } from "firebase/auth";
 import { auth } from '@/lib/firebase';
-import { LoaderCircle, Save } from "lucide-react";
+import { LoaderCircle, Save, Languages } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { languages as allLanguages, type LanguageCode } from '@/lib/data';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-
+import { useSyncUserStats } from '@/hooks/use-sync-user-stats';
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -30,6 +31,7 @@ export default function ProfilePage() {
     const router = useRouter();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
+    const { stats, loading: statsLoading } = useSyncUserStats();
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
@@ -37,19 +39,13 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
-        if (authError) {
-             console.error('DEBUG: ProfilePage - Auth error:', authError);
-        }
-
         if (!authLoading && !user) {
-            console.log('DEBUG: ProfilePage - No user, redirecting to /login');
             router.push('/login');
         }
-    }, [user, authLoading, router, authError]);
+    }, [user, authLoading, router]);
 
     useEffect(() => {
         if (user) {
-            console.log('DEBUG: ProfilePage - Resetting form with auth user data.');
             form.reset({
                 name: user.displayName || '',
                 email: user.email || '',
@@ -65,7 +61,9 @@ export default function ProfilePage() {
 
         setIsSaving(true);
         try {
-            await updateProfile(auth.currentUser, { displayName: data.name });
+            if (auth.currentUser.displayName !== data.name) {
+                await updateProfile(auth.currentUser, { displayName: data.name });
+            }
             toast({ title: "Success", description: "Your profile has been updated." });
         } catch (error: any) {
             console.error("Error updating profile:", error);
@@ -74,8 +72,22 @@ export default function ProfilePage() {
             setIsSaving(false);
         }
     };
+
+    const learnedStats = useMemo(() => {
+        if (!stats?.learnedWords) return [];
+        return Object.entries(stats.learnedWords)
+            .map(([langCode, count]) => {
+                const lang = allLanguages.find(l => l.value === langCode);
+                return {
+                    label: lang?.label || langCode,
+                    count,
+                };
+            })
+            .filter(item => item.count > 0)
+            .sort((a, b) => b.count - a.count);
+    }, [stats]);
     
-    if (authLoading) {
+    if (authLoading || (statsLoading && !stats)) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -87,16 +99,16 @@ export default function ProfilePage() {
     if (!user) {
         return (
              <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
                 <p className="ml-4">Redirecting to login...</p>
             </div>
         );
     }
 
-     if (authError) {
+    if (authError) {
         return (
              <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <p className="ml-4 text-destructive">Error loading profile: {authError.message}</p>
+                <p className="ml-4 text-destructive">Error loading authentication: {authError.message}</p>
             </div>
         );
     }
@@ -105,57 +117,93 @@ export default function ProfilePage() {
         <div className="space-y-8">
             <header>
                 <h1 className="text-3xl font-bold font-headline">Profile</h1>
-                <p className="text-muted-foreground">Manage your account settings.</p>
+                <p className="text-muted-foreground">Manage your account and track your progress.</p>
             </header>
             
-            <Card className="max-w-2xl">
-                <CardHeader>
-                    <CardTitle>Personal Information</CardTitle>
-                    <CardDescription>Update your name and view your account email.</CardDescription>
-                </CardHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <CardContent className="space-y-4">
-                           <FormField
-                                control={form.control}
-                                name="name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Name</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Your name" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Your email" {...field} readOnly disabled />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Personal Information</CardTitle>
+                            <CardDescription>Update your name and view your account email.</CardDescription>
+                        </CardHeader>
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)}>
+                                <CardContent className="space-y-4">
+                                <FormField
+                                        control={form.control}
+                                        name="name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Name</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Your name" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Your email" {...field} readOnly disabled />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </CardContent>
+                                <CardFooter>
+                                    <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
+                                        {isSaving ? (
+                                            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Save className="mr-2 h-4 w-4" />
+                                        )}
+                                        Save Changes
+                                    </Button>
+                                </CardFooter>
+                            </form>
+                        </Form>
+                    </Card>
+                </div>
+
+                <div className="lg:col-span-1">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Languages className="h-6 w-6" />
+                                Learning Statistics
+                            </CardTitle>
+                            <CardDescription>Unique phrases you've mastered.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {statsLoading && learnedStats.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Loading stats...</p>
+                            ) : learnedStats.length > 0 ? (
+                                <ul className="space-y-3">
+                                    {learnedStats.map(stat => (
+                                        <li key={stat.label} className="flex justify-between items-center text-sm">
+                                            <span className="font-medium">{stat.label}</span>
+                                            <span className="font-bold text-primary">{stat.count}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    No stats yet. Go to the 'Learn' page and practice your pronunciation to get started!
+                                </p>
+                            )}
                         </CardContent>
-                        <CardFooter>
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving ? (
-                                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Save className="mr-2 h-4 w-4" />
-                                )}
-                                Save Changes
-                            </Button>
-                        </CardFooter>
-                    </form>
-                </Form>
-            </Card>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
 }
+
+    
