@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Tell Turbopack to ignore the .genkit directory to prevent restart loops
+  watchOptions: {
+    ignored: ['**/.genkit/**'],
+  },
 };
 
 export default nextConfig;
