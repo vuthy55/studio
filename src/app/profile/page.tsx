@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { updateProfile } from "firebase/auth";
-import { auth } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, db } from '@/lib/firebase';
 import { LoaderCircle, Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +22,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
   email: z.string().email(),
+  country: z.string().max(50).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -31,10 +33,11 @@ export default function ProfilePage() {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const { isMobile } = useSidebar();
+    const [isFetchingData, setIsFetchingData] = useState(true);
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
-        defaultValues: { name: '', email: '' },
+        defaultValues: { name: '', email: '', country: '' },
     });
 
     useEffect(() => {
@@ -44,13 +47,29 @@ export default function ProfilePage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        if (user) {
-            form.reset({
-                name: user.displayName || '',
-                email: user.email || '',
-            });
-        }
-    }, [user, form]);
+        const fetchUserData = async () => {
+            if (user) {
+                setIsFetchingData(true);
+                try {
+                    const userDocRef = doc(db, "users", user.uid);
+                    const userDoc = await getDoc(userDocRef);
+                    const userData = userDoc.data();
+                    
+                    form.reset({
+                        name: user.displayName || '',
+                        email: user.email || '',
+                        country: userData?.country || '',
+                    });
+                } catch (error) {
+                    console.error("Error fetching user data:", error);
+                    toast({ variant: "destructive", title: "Error", description: "Could not load profile data." });
+                } finally {
+                    setIsFetchingData(false);
+                }
+            }
+        };
+        fetchUserData();
+    }, [user, form, toast]);
 
     const onSubmit = async (data: ProfileFormValues) => {
         if (!auth.currentUser) {
@@ -60,10 +79,17 @@ export default function ProfilePage() {
 
         setIsSaving(true);
         try {
+            // Update Firebase Auth profile
             if (auth.currentUser.displayName !== data.name) {
                 await updateProfile(auth.currentUser, { displayName: data.name });
             }
+
+            // Update Firestore document
+            const userDocRef = doc(db, "users", auth.currentUser.uid);
+            await setDoc(userDocRef, { country: data.country || '' }, { merge: true });
+
             toast({ title: "Success", description: "Your profile has been updated." });
+            form.reset(data); // To mark form as not dirty
         } catch (error: any) {
             console.error("Error updating profile:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to update profile." });
@@ -72,7 +98,7 @@ export default function ProfilePage() {
         }
     };
     
-    if (authLoading) {
+    if (authLoading || isFetchingData) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -111,7 +137,7 @@ export default function ProfilePage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Personal Information</CardTitle>
-                    <CardDescription>Update your name and view your account email.</CardDescription>
+                    <CardDescription>Update your name, country, and view your account email.</CardDescription>
                 </CardHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -137,6 +163,19 @@ export default function ProfilePage() {
                                         <FormLabel>Email</FormLabel>
                                         <FormControl>
                                             <Input placeholder="Your email" {...field} readOnly disabled />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="country"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Country</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="e.g. United States" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
