@@ -6,7 +6,7 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, Volume2, Bot, User, LoaderCircle, Sparkles } from 'lucide-react';
+import { Mic, Volume2, Bot, User, LoaderCircle, Sparkles, ArrowRightLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -24,7 +24,8 @@ type Message = {
 };
 
 export default function ConversePage() {
-  const [conversationLanguage, setConversationLanguage] = useState<LanguageCode>('spanish');
+  const [userLanguage, setUserLanguage] = useState<LanguageCode>('english');
+  const [aiLanguage, setAiLanguage] = useState<LanguageCode>('spanish');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
@@ -66,7 +67,7 @@ export default function ConversePage() {
 
     try {
         const { authToken, region } = await getSpeechRecognitionToken();
-        const locale = languageToLocaleMap[conversationLanguage];
+        const locale = languageToLocaleMap[userLanguage];
         if (!locale) {
             toast({ variant: 'destructive', title: 'Unsupported Language' });
             setIsRecognizing(false);
@@ -87,7 +88,7 @@ export default function ConversePage() {
             setMessages(prev => [...prev, userMessage]);
             await handleConversation(result.text, [...messages, userMessage]);
         } else {
-             toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Please try again.` });
+             toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
         }
     } catch (error: any) {
         console.error("Error during speech recognition:", error);
@@ -103,7 +104,7 @@ export default function ConversePage() {
   const handleConversation = async (userMessage: string, currentHistory: Message[]) => {
       setIsReplying(true);
       try {
-          const languageLabel = languages.find(l => l.value === conversationLanguage)?.label || conversationLanguage;
+          const languageLabel = languages.find(l => l.value === aiLanguage)?.label || aiLanguage;
           
           const input: ConverseInput = {
               history: currentHistory.slice(0, -1), // Don't include the latest message in history
@@ -116,7 +117,7 @@ export default function ConversePage() {
           const modelMessage: Message = { role: 'model', content: result.reply };
           setMessages(prev => [...prev, modelMessage]);
 
-          await handlePlayAudio(result.reply, conversationLanguage);
+          await handlePlayAudio(result.reply, aiLanguage);
 
       } catch (error) {
           console.error("Conversation failed", error);
@@ -129,6 +130,12 @@ export default function ConversePage() {
           setIsReplying(false);
       }
   };
+  
+  const handleLanguageSwitch = () => {
+    setUserLanguage(aiLanguage);
+    setAiLanguage(userLanguage);
+    setMessages([]); // Reset conversation
+  }
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -150,13 +157,36 @@ export default function ConversePage() {
                   <p className="text-muted-foreground">Practice your new language skills.</p>
               </div>
           </div>
-          <div className="w-full sm:w-auto sm:max-w-xs">
-              <Label htmlFor="conversation-language">Language</Label>
-              <Select value={conversationLanguage} onValueChange={(value) => {
-                  setConversationLanguage(value as LanguageCode);
-                  setMessages([]); // Reset conversation on language change
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="flex-1 w-full">
+                <Label htmlFor="user-language">Your Language</Label>
+                <Select value={userLanguage} onValueChange={(value) => {
+                    setUserLanguage(value as LanguageCode);
+                    setMessages([]);
+                }}>
+                    <SelectTrigger id="user-language">
+                        <SelectValue placeholder="Select a language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {languages.map(lang => (
+                            <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            
+             <Button variant="ghost" size="icon" className="mt-4 sm:mt-5 self-center" onClick={handleLanguageSwitch}>
+                    <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+                    <span className="sr-only">Switch languages</span>
+            </Button>
+
+            <div className="flex-1 w-full">
+              <Label htmlFor="ai-language">AI's Language</Label>
+              <Select value={aiLanguage} onValueChange={(value) => {
+                  setAiLanguage(value as LanguageCode);
+                  setMessages([]); 
               }}>
-                  <SelectTrigger id="conversation-language">
+                  <SelectTrigger id="ai-language">
                       <SelectValue placeholder="Select a language" />
                   </SelectTrigger>
                   <SelectContent>
@@ -165,6 +195,7 @@ export default function ConversePage() {
                       ))}
                   </SelectContent>
               </Select>
+            </div>
           </div>
       </header>
 
@@ -176,7 +207,7 @@ export default function ConversePage() {
                           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground pt-20">
                               <Sparkles className="h-12 w-12 mb-4" />
                               <h2 className="text-xl font-semibold">Start the conversation!</h2>
-                              <p>Click the microphone button to speak in {languages.find(l=>l.value === conversationLanguage)?.label}.</p>
+                              <p>Speak in {languages.find(l=>l.value === userLanguage)?.label} and get a reply in {languages.find(l=>l.value === aiLanguage)?.label}.</p>
                           </div>
                       )}
                       {messages.map((message, index) => (
@@ -199,7 +230,7 @@ export default function ConversePage() {
                                         size="icon"
                                         variant="ghost"
                                         className="h-7 w-7"
-                                        onClick={() => handlePlayAudio(message.content, conversationLanguage)}
+                                        onClick={() => handlePlayAudio(message.content, aiLanguage)}
                                         disabled={isPlayingAudio || isRecognizing || isReplying}
                                     >
                                         <Volume2 className="h-4 w-4" />
