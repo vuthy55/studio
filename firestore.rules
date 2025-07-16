@@ -4,25 +4,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read and write their own profile data.
-    match /users/{userId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
+    // Helper function to check if a user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Publicly readable list of rooms.
-    match /rooms/{roomId} {
-      allow read;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null; // Allows updating currentSpeaker
-      // Only the room creator can delete the room.
-      allow delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+    // --- Users Collection ---
+    // Users can read and update their own profile data.
+    // They can create their own user document upon signup.
+    match /users/{userId} {
+      allow read, update: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated();
+    }
 
-      // Rules for participants in a room.
-      match /participants/{userId} {
-        allow read;
-        // A user can only add or delete their own participant document.
-        allow create, delete: if request.auth != null && request.auth.uid == userId;
+    // --- Rooms Collection ---
+    // Any authenticated user can read the list of rooms and create a new room.
+    match /rooms/{roomId} {
+      allow read, create: if isAuthenticated();
+      
+      // The creator of the room can delete it.
+      allow delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
+      
+      // Any authenticated user can update the room (e.g., to set the current speaker).
+      allow update: if isAuthenticated();
+
+      // --- Participants Subcollection ---
+      // Any authenticated user can join or leave a room.
+      match /participants/{participantId} {
+        allow read, create, delete: if isAuthenticated();
       }
     }
   }
