@@ -207,8 +207,8 @@ export default function InterpretPage() {
     return (
         <div className="space-y-8">
             <header>
-                <h1 className="text-3xl font-bold font-headline">Interpreter Mode</h1>
-                <p className="text-muted-foreground">Have a face-to-face conversation with translation.</p>
+                <h1 className="text-3xl font-bold font-headline">PocketPal</h1>
+                <p className="text-muted-foreground">Your personal translator for face-to-face conversations.</p>
             </header>
 
             <Card className="shadow-lg">
@@ -253,7 +253,9 @@ export default function InterpretPage() {
                                  <Button size="icon" variant="ghost" onClick={async () => {
                                       const audio = new Audio();
                                       try {
-                                        const res = await generateSpeech({ text: entry.originalText, lang: languageToLocaleMap[entry.from]! });
+                                        const locale = languageToLocaleMap[entry.from];
+                                        if (!locale) return;
+                                        const res = await generateSpeech({ text: entry.originalText, lang: locale });
                                         audio.src = res.audioDataUri;
                                         audio.play();
                                       } catch(e) {
@@ -271,7 +273,9 @@ export default function InterpretPage() {
                                  <Button size="icon" variant="ghost" onClick={async () => {
                                        const audio = new Audio();
                                        try {
-                                        const res = await generateSpeech({ text: entry.translatedText, lang: languageToLocaleMap[entry.to]! });
+                                        const locale = languageToLocaleMap[entry.to];
+                                        if (!locale) return;
+                                        const res = await generateSpeech({ text: entry.translatedText, lang: locale });
                                         audio.src = res.audioDataUri;
                                         audio.play();
                                        } catch (e) {

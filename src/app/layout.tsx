@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 
 export const metadata: Metadata = {
-  title: 'Learn',
+  title: 'VibeSync',
   description: 'A modern minimal web app for backpackers in South East Asia.',
 };
 
@@ -27,12 +27,12 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <SidebarProvider>
           <AppSidebar />
-          <div className="flex-1 flex flex-col">
+          <SidebarInset>
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 md:hidden">
               <SidebarTrigger />
             </header>
             <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
-          </div>
+          </SidebarInset>
           <Toaster />
         </SidebarProvider>
       </body>

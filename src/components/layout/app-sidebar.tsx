@@ -96,7 +96,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
+        <Link href="/" className="font-headline text-2xl font-bold text-primary">VibeSync</Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -112,7 +112,7 @@ export function AppSidebar() {
             <SidebarMenuButton asChild isActive={pathname.startsWith('/interpret')} onClick={closeSidebar}>
               <Link href="/interpret">
                 <Languages />
-                Interpreter
+                PocketPal
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -131,9 +131,9 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-          <Link href="#">
+          <a href="https://paypal.me/your-paypal" target="_blank" rel="noopener noreferrer">
             <Heart className="mr-2 h-4 w-4" /> Donate
-          </Link>
+          </a>
         </Button>
       </SidebarFooter>
     </Sidebar>
