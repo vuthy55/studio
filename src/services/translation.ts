@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A service for translating text from one language to another using Azure Cognitive Services.
+ * @fileOverview A service for translating text from one language to another using the Google Gemini API.
  *
  * - translateText - A function that handles the text translation.
  * - TranslateTextInput - The input type for the translateText function.
@@ -9,7 +9,6 @@
  */
 import { z } from 'zod';
 import axios from 'axios';
-import { languages, type LanguageCode } from '@/lib/data';
 
 const TranslateTextInputSchema = z.object({
   text: z.string().describe('The text to be translated.'),
@@ -23,86 +22,55 @@ const TranslateTextOutputSchema = z.object({
 });
 export type TranslateTextOutput = z.infer<typeof TranslateTextOutputSchema>;
 
-const languageNameToCodeMap: Record<string, LanguageCode> = languages.reduce(
-  (acc, lang) => {
-    acc[lang.label] = lang.value;
-    return acc;
-  },
-  {} as Record<string, LanguageCode>
-);
 
-const languageCodeToAzureCode: Partial<Record<LanguageCode, string>> = {
-  english: 'en',
-  thai: 'th',
-  vietnamese: 'vi',
-  khmer: 'km',
-  filipino: 'fil',
-  malay: 'ms',
-  indonesian: 'id',
-  burmese: 'my',
-  laos: 'lo',
-  tamil: 'ta',
-  chinese: 'zh-Hans',
-  french: 'fr',
-  spanish: 'es',
-  italian: 'it',
-};
+const API_KEY = process.env.GEMINI_API_KEY;
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+
 
 export async function translateText(
   input: TranslateTextInput
 ): Promise<TranslateTextOutput> {
-  const apiKey = process.env.AZURE_TRANSLATOR_KEY;
-  const endpoint = process.env.AZURE_TRANSLATOR_ENDPOINT;
-  const region = process.env.AZURE_TTS_REGION;
 
-  if (!apiKey || !endpoint || !region) {
-    throw new Error('Azure Translator environment variables are not set.');
+  if (!API_KEY) {
+    throw new Error('Missing GEMINI_API_KEY environment variable.');
   }
 
-  const fromLangCode = languageNameToCodeMap[input.fromLanguage];
-  const toLangCode = languageNameToCodeMap[input.toLanguage];
-  
-  const azureFromCode = languageCodeToAzureCode[fromLangCode];
-  const azureToCode = languageCodeToAzureCode[toLangCode];
+  const prompt = `Translate the following text from ${input.fromLanguage} to ${input.toLanguage}.
+Only return the translated text in a JSON object with a single key "translatedText". Do not include any other explanations, text, or markdown.
 
-  if (!azureToCode) {
-    throw new Error(`Unsupported target language: ${input.toLanguage}`);
-  }
+Text to translate: "${input.text}"
+`;
 
   try {
-    const response = await axios({
-        baseURL: endpoint,
-        url: '/translate',
-        method: 'post',
-        headers: {
-            'Ocp-Apim-Subscription-Key': apiKey,
-            'Ocp-Apim-Subscription-Region': region,
-            'Content-type': 'application/json'
-        },
-        params: {
-            'api-version': '3.0',
-            'from': azureFromCode,
-            'to': azureToCode
-        },
-        data: [{
-            'text': input.text
+    const response = await axios.post(API_URL, {
+        contents: [{
+            parts: [{
+                text: prompt
+            }]
         }],
-        responseType: 'json'
+        "generationConfig": {
+            "response_mime_type": "application/json",
+        },
+        "safetySettings": [
+            { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+        ]
     });
 
-    const result = response.data;
-    if (
-      result &&
-      result.length > 0 &&
-      result[0].translations &&
-      result[0].translations.length > 0
-    ) {
-      return { translatedText: result[0].translations[0].text };
-    } else {
-      throw new Error('Translation failed to return a result.');
+    const responseData = JSON.parse(response.data.candidates[0].content.parts[0].text);
+    const validationResult = TranslateTextOutputSchema.safeParse(responseData);
+        
+    if (!validationResult.success) {
+        console.error("Gemini API translation response validation error:", validationResult.error);
+        throw new Error("Invalid response format from translation service.");
     }
+    
+    return validationResult.data;
+
   } catch (error: any) {
-    console.error('Error calling Azure Translator API:', error.response?.data || error.message);
+    console.error('Error calling Gemini API for translation:', error.response?.data || error.message);
     throw new Error('Failed to translate text.');
   }
 }
