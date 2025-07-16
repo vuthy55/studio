@@ -1,12 +1,17 @@
 
-'use server';
 import {initializeApp} from 'firebase-admin/app';
 import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 
 // Initialize Firebase Admin SDK
-initializeApp();
+try {
+  initializeApp();
+  logger.info('Firebase Admin SDK initialized successfully.');
+} catch (e) {
+  logger.error('Firebase Admin SDK initialization error', e);
+}
+
 const db = getFirestore();
 
 interface UserStats {
@@ -25,7 +30,7 @@ const mergeStats = (
   const serverAssessments = server?.assessmentResults || {};
   const localAssessments = local?.assessmentResults || {};
 
-  const mergedLearnedWords: {[key: string]: number} = {...serverLearned};
+  const mergedLearnedWords: {[key:string]: number} = {...serverLearned};
   Object.entries(localLearned).forEach(([lang, count]) => {
     mergedLearnedWords[lang] = Math.max(
       mergedLearnedWords[lang] || 0,
@@ -58,7 +63,7 @@ export const syncUserStats = onCall(async (request) => {
     if (clientStats) {
       logger.info(`Client stats received for user: ${uid}`, {
         uid,
-        clientStats,
+        clientStats: JSON.stringify(clientStats),
       });
     } else {
       logger.info(`No client stats received for user: ${uid}`, {uid});
