@@ -18,17 +18,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer }) => {
-    // Add a rule to ignore the .genkit directory
-    config.watchOptions = {
-        ...config.watchOptions,
-        ignored: [
-            ...(config.watchOptions.ignored as string[] || []),
-            '**/.genkit/**',
-        ],
-    };
-    return config;
-  },
 };
 
 export default nextConfig;
