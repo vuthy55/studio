@@ -4,13 +4,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { LoaderCircle } from "lucide-react";
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 export default function ProfilePage() {
     const [user, loading, error] = useAuthState(auth);
     const router = useRouter();
+    const { isMobile } = useSidebar();
 
     useEffect(() => {
         if (!loading && !user) {
@@ -45,6 +46,7 @@ export default function ProfilePage() {
         <div className="space-y-8">
             <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex items-center gap-4">
+                    {isMobile && <SidebarTrigger />}
                     <div>
                         <h1 className="text-3xl font-bold font-headline">Profile</h1>
                         <p className="text-muted-foreground">Manage your account settings and track your progress.</p>
@@ -52,7 +54,7 @@ export default function ProfilePage() {
                 </div>
             </header>
             <div>
-              <p>Welcome, {user.email}!</p>
+              <p>Welcome, {user.displayName || user.email}!</p>
               <p>Profile features are coming soon.</p>
             </div>
         </div>

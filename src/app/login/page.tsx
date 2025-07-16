@@ -4,11 +4,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  getAuth, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   updateProfile
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";

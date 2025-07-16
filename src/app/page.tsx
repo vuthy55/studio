@@ -46,9 +46,6 @@ export default function LearnPage() {
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
-    const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
-    const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
-
     const [isRecognizing, setIsRecognizing] = useState(false);
     const [isAssessingLive, setIsAssessingLive] = useState(false);
     const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
@@ -74,7 +71,7 @@ export default function LearnPage() {
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text || assessingPhraseId || isRecognizing || isAssessingLive) return;
+        if (!text || isRecognizing || isAssessingLive) return;
         const locale = languageToLocaleMap[lang];
         
         if (speechSynthesis && selectedVoice === 'default') {
@@ -183,10 +180,8 @@ export default function LearnPage() {
     }
 
    const assessPronunciation = async (
-    phraseId: string,
     referenceText: string,
     lang: LanguageCode,
-    isLive: boolean = false
   ) => {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
@@ -206,11 +201,7 @@ export default function LearnPage() {
       return;
     }
     
-    if (isLive) {
-      setIsAssessingLive(true);
-    } else {
-      setAssessingPhraseId(phraseId);
-    }
+    setIsAssessingLive(true);
 
     let recognizer: sdk.SpeechRecognizer | undefined;
     let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
@@ -272,13 +263,8 @@ export default function LearnPage() {
       if (recognizer) {
         recognizer.close();
       }
-      if (isLive) {
-        setLiveAssessmentResult(finalResult);
-        setIsAssessingLive(false);
-      } else {
-        setAssessmentResults((prev) => ({ ...prev, [phraseId]: finalResult }));
-        setAssessingPhraseId(null);
-      }
+      setLiveAssessmentResult(finalResult);
+      setIsAssessingLive(false);
     }
   };
     
@@ -291,7 +277,7 @@ export default function LearnPage() {
     
     const sortedPhrases = useMemo(() => {
         return [...selectedTopic.phrases];
-    }, [selectedTopic.phrases]);
+    }, [selectedTopic]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -379,8 +365,7 @@ export default function LearnPage() {
                                                     <ul className="list-disc pl-4 space-y-1 text-sm">
                                                         <li>Select a topic to learn relevant phrases.</li>
                                                         <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                                        <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your own pronunciation.</li>
-                                                        <li>You need over 70% accuracy to pass.</li>
+                                                        <li>The mic icon for pronunciation practice is only available in the Live Translation tab.</li>
                                                     </ul>
                                                 </TooltipContent>
                                             </Tooltip>
@@ -418,10 +403,6 @@ export default function LearnPage() {
                                             const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
 
-                                            const toPhraseId = `${phrase.id}-${toLanguage}`;
-                                            const toResult = assessmentResults[toPhraseId];
-                                            const isCurrentlyAssessingThis = assessingPhraseId === toPhraseId;
-                                            
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div className="flex flex-col gap-2">
@@ -439,32 +420,12 @@ export default function LearnPage() {
                                                             <p className="font-bold text-lg text-primary">{toText}</p>
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!!assessingPhraseId}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
-                                                            <TooltipProvider>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button size="icon" variant={isCurrentlyAssessingThis ? "destructive" : "ghost"} onClick={() => assessPronunciation(toPhraseId, toText, toLanguage, false)} disabled={assessingPhraseId !== null && !isCurrentlyAssessingThis}>
-                                                                            {isCurrentlyAssessingThis ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                                            <span className="sr-only">Record pronunciation</span>
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>Click to practice. You need over 70% accuracy to pass.</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </TooltipProvider>
-                                                            {toResult?.status === 'pass' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                                                            {toResult?.status === 'fail' && <XCircle className="h-5 w-5 text-red-500" />}
                                                         </div>
                                                     </div>
-                                                    {(toResult?.status === 'pass' || toResult?.status === 'fail') && (
-                                                        <div className="text-xs text-muted-foreground pl-1">
-                                                            <p>Accuracy: <span className="font-bold">{toResult.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{toResult.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                        </div>
-                                                    )}
                                                 </div>
 
                                                 {phrase.answer && (
@@ -482,7 +443,7 @@ export default function LearnPage() {
                                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!!assessingPhraseId}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
@@ -549,7 +510,7 @@ export default function LearnPage() {
                                                  <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant={isAssessingLive ? "destructive" : "ghost"} onClick={() => assessPronunciation('live-translation', translatedText, toLanguage, true)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
+                                                            <Button size="icon" variant={isAssessingLive ? "destructive" : "ghost"} onClick={() => assessPronunciation(translatedText, toLanguage)} disabled={isTranslating || !translatedText || isRecognizing || isAssessingLive}>
                                                                 {isAssessingLive ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                                 <span className="sr-only">Record pronunciation</span>
                                                             </Button>
