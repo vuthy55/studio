@@ -1,79 +1,119 @@
 
-import { initializeApp } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import * as logger from "firebase-functions/logger";
+'use server';
+import {initializeApp} from 'firebase-admin/app';
+import {getFirestore, Timestamp} from 'firebase-admin/firestore';
+import {onCall, HttpsError} from 'firebase-functions/v2/https';
+import * as logger from 'firebase-functions/logger';
 
 // Initialize Firebase Admin SDK
 initializeApp();
 const db = getFirestore();
 
 interface UserStats {
-  learnedWords: { [key: string]: number };
-  assessmentResults: { [key: string]: object };
+  learnedWords: {[key: string]: number};
+  assessmentResults: {[key: string]: object};
   lastSynced?: any;
 }
 
-const mergeStats = (local: UserStats | null, server: UserStats): UserStats => {
-    if (!local) {
-        return server;
-    }
-    
-    const mergedAssessments = { ...(server.assessmentResults || {}), ...(local.assessmentResults || {}) };
-    
-    const mergedLearnedWords: { [key: string]: number } = { ...(server.learnedWords || {}) };
-    Object.entries(local.learnedWords || {}).forEach(([lang, count]) => {
-      mergedLearnedWords[lang] = Math.max(mergedLearnedWords[lang] || 0, count || 0);
-    });
-    
-    return {
-      assessmentResults: mergedAssessments,
-      learnedWords: mergedLearnedWords
-    };
+// A more robust merge function
+const mergeStats = (
+  local: UserStats | null,
+  server: UserStats | null
+): UserStats => {
+  const serverLearned = server?.learnedWords || {};
+  const localLearned = local?.learnedWords || {};
+  const serverAssessments = server?.assessmentResults || {};
+  const localAssessments = local?.assessmentResults || {};
+
+  const mergedLearnedWords: {[key: string]: number} = {...serverLearned};
+  Object.entries(localLearned).forEach(([lang, count]) => {
+    mergedLearnedWords[lang] = Math.max(
+      mergedLearnedWords[lang] || 0,
+      count || 0
+    );
+  });
+
+  return {
+    learnedWords: mergedLearnedWords,
+    assessmentResults: {...serverAssessments, ...localAssessments},
+  };
 };
 
 export const syncUserStats = onCall(async (request) => {
+  logger.info('Sync request received.', {structuredData: true});
+
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    logger.warn('Sync request is unauthenticated.');
+    throw new HttpsError(
+      'unauthenticated',
+      'The function must be called while authenticated.'
+    );
   }
 
   const uid = request.auth.uid;
   const clientStats = request.data.stats as UserStats | null;
-  const statsRef = db.collection("user_stats").doc(uid);
+  const statsRef = db.collection('user_stats').doc(uid);
 
-  logger.info(`Sync request for user: ${uid}`, { uid });
+  logger.info(`Starting sync for user: ${uid}`, {uid});
+  if (clientStats) {
+    logger.info(`Client stats received for user: ${uid}`, {
+      uid,
+      clientStats,
+    });
+  } else {
+    logger.info(`No client stats received for user: ${uid}`, {uid});
+  }
 
   try {
     const docSnap = await statsRef.get();
 
-    if (docSnap.exists) {
-      // Document exists, merge server and client data
+    if (docSnap.exists()) {
+      logger.info(`Existing stats found for user: ${uid}`, {uid});
       const serverStats = docSnap.data() as UserStats;
       const mergedStats = mergeStats(clientStats, serverStats);
-      
-      await statsRef.set({
+
+      await statsRef.set(
+        {
+          ...mergedStats,
+          lastSynced: Timestamp.now(),
+        },
+        {merge: true}
+      );
+
+      logger.info(`Successfully merged and updated stats for user: ${uid}`, {
+        uid,
+      });
+      const finalStats = {
         ...mergedStats,
-        lastSynced: Timestamp.now(),
-      }, { merge: true });
-
-      logger.info(`Merged and updated stats for user: ${uid}`, { uid });
-      return { stats: { ...mergedStats, lastSynced: new Date().toISOString() } };
-
+        lastSynced: new Date().toISOString(),
+      };
+      return {stats: finalStats};
     } else {
-      // Document does not exist. Use client stats or create a new one.
-      const newStats = clientStats || { learnedWords: {}, assessmentResults: {} };
-      
+      logger.info(`No existing stats for user: ${uid}. Creating new document.`, {
+        uid,
+      });
+      const newStats = clientStats || {learnedWords: {}, assessmentResults: {}};
+
       await statsRef.set({
         ...newStats,
         createdAt: Timestamp.now(),
         lastSynced: Timestamp.now(),
       });
-      
-      logger.info(`Created new stats document for user: ${uid}`, { uid });
-      return { stats: { ...newStats, lastSynced: new Date().toISOString() } };
+
+      logger.info(`Successfully created new stats for user: ${uid}`, {uid});
+      const finalStats = {
+        ...newStats,
+        createdAt: new Date().toISOString(),
+        lastSynced: new Date().toISOString(),
+      };
+      return {stats: finalStats};
     }
-  } catch (error) {
-    logger.error("Error syncing user stats:", error, { uid });
-    throw new HttpsError("internal", "Could not sync user stats.", error);
+  } catch (error: any) {
+    logger.error('!!! CRITICAL: Error syncing user stats in Cloud Function.', {
+      uid,
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
+    throw new HttpsError('internal', 'Could not sync user stats.', error);
   }
 });
