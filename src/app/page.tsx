@@ -23,7 +23,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
-import { useSyncUserStats } from '@/hooks/use-sync-user-stats';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 type AssessmentResult = {
@@ -44,19 +43,7 @@ export default function LearnPage() {
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
-    const { stats, updateLearnedPhrase, setStats } = useSyncUserStats();
-
-    // The assessmentResults are now derived from the stats hook for persistence
-    const assessmentResults: Record<string, AssessmentResult> = useMemo(() => {
-        const results: Record<string, AssessmentResult> = {};
-        if (stats?.assessmentResults) {
-            for (const [key, value] of Object.entries(stats.assessmentResults)) {
-                results[key] = value as AssessmentResult;
-            }
-        }
-        return results;
-    }, [stats]);
-    
+    const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
 
     // Live Translation State
@@ -271,8 +258,7 @@ export default function LearnPage() {
         setLiveAssessmentResult(finalResult);
         setIsAssessingLive(false);
       } else {
-        // Update local state and trigger sync
-        updateLearnedPhrase(phraseId, lang, finalResult);
+        setAssessmentResults(prev => ({...prev, [phraseId]: finalResult}));
         setAssessingPhraseId(null);
       }
     }
@@ -286,23 +272,8 @@ export default function LearnPage() {
     }
     
     const sortedPhrases = useMemo(() => {
-        const getScore = (phraseId: string) => {
-          const result = assessmentResults[phraseId];
-          const status = result?.status;
-          
-          if (status === 'fail') return 0; // Failed phrases first
-          if (status === 'unattempted' || !status) return 1; // Unattempted/default next
-          if (status === 'pass') return 2; // Passed phrases last
-          return 1; // Default
-        };
-    
-        return [...selectedTopic.phrases].sort((a, b) => {
-          const phraseIdA = `${a.id}-${toLanguage}`;
-          const phraseIdB = `${b.id}-${toLanguage}`;
-    
-          return getScore(phraseIdA) - getScore(phraseIdB);
-        });
-    }, [selectedTopic.phrases, assessmentResults, toLanguage]);
+        return [...selectedTopic.phrases];
+    }, [selectedTopic.phrases]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -391,8 +362,7 @@ export default function LearnPage() {
                                                         <li>Select a topic to learn relevant phrases.</li>
                                                         <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
                                                         <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your own pronunciation.</li>
-                                                        <li>You need over 70% accuracy to pass.</li>
-                                                        <li>Failed phrases move to the top for more practice. Passed phrases move to the bottom.</li>
+                                                        <li>You'll get a score for your accuracy.</li>
                                                     </ul>
                                                 </TooltipContent>
                                             </Tooltip>
@@ -464,7 +434,7 @@ export default function LearnPage() {
                                                                         </Button>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
-                                                                        <p>Click to practice. You need over 70% accuracy to pass.</p>
+                                                                        <p>Click to practice your pronunciation.</p>
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </TooltipProvider>
@@ -585,5 +555,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
-    
