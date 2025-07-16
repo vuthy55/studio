@@ -53,7 +53,7 @@ export async function translateText(
 ): Promise<TranslateTextOutput> {
   const apiKey = process.env.AZURE_TRANSLATOR_KEY;
   const endpoint = process.env.AZURE_TRANSLATOR_ENDPOINT;
-  const region = process.env.AZURE_TTS_REGION;
+  const region = process.env.AZURE_TRANSLATOR_REGION;
 
   if (!apiKey || !endpoint || !region) {
     throw new Error('Azure Translator environment variables are not set.');
