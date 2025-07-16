@@ -1,11 +1,12 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read, create, and update their own user document.
     match /users/{userId} {
-      allow get, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
+      // A user can only read or write to their own document.
+      // This is the standard security model for user profiles.
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
