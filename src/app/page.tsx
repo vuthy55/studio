@@ -17,8 +17,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from '@/components/ui/textarea';
 import type { Phrase } from '@/lib/data';
-import { generateSpeech } from '@/ai/flows/tts-flow';
-import { translateText } from '@/ai/flows/translate-flow';
+import { generateSpeech } from '@/services/tts';
+import { translateText } from '@/services/translation';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -26,7 +26,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail'; // Removed 'in-progress'
+type AssessmentStatus = 'unattempted' | 'pass' | 'fail';
 type AssessmentResult = {
   status: AssessmentStatus;
   accuracy?: number;
@@ -46,11 +46,9 @@ export default function LearnPage() {
     const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
-    // Phrasebook Pronunciation Assessment State
     const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
 
-    // Live Translation State
     const [isRecognizing, setIsRecognizing] = useState(false);
     const [isAssessingLive, setIsAssessingLive] = useState(false);
     const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
@@ -292,23 +290,8 @@ export default function LearnPage() {
     }
     
     const sortedPhrases = useMemo(() => {
-        const getScore = (phraseId: string) => {
-          const result = assessmentResults[phraseId];
-          const status = result?.status;
-          
-          if (status === 'fail') return 0; // Failed phrases first
-          if (status === 'unattempted' || !status) return 1; // Unattempted/default next
-          if (status === 'pass') return 2; // Passed phrases last
-          return 1; // Default
-        };
-    
-        return [...selectedTopic.phrases].sort((a, b) => {
-          const phraseIdA = `${a.id}-${toLanguage}`;
-          const phraseIdB = `${b.id}-${toLanguage}`;
-    
-          return getScore(phraseIdA) - getScore(phraseIdB);
-        });
-    }, [selectedTopic.phrases, assessmentResults, toLanguage]);
+        return [...selectedTopic.phrases];
+    }, [selectedTopic.phrases]);
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
@@ -398,7 +381,6 @@ export default function LearnPage() {
                                                         <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
                                                         <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your own pronunciation.</li>
                                                         <li>You need over 70% accuracy to pass.</li>
-                                                        <li>Failed phrases move to the top for more practice. Passed phrases move to the bottom.</li>
                                                     </ul>
                                                 </TooltipContent>
                                             </Tooltip>

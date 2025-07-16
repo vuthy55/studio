@@ -5,15 +5,15 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, Volume2, Bot, User, LoaderCircle, Sparkles } from 'lucide-react';
+import { Mic, Volume2, Bot, User, LoaderCircle, Sparkles, PanelLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { generateSpeech } from '@/ai/flows/tts-flow';
-import { converse, type ConverseInput } from '@/ai/flows/converse-flow';
-import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { generateSpeech } from '@/services/tts';
+import { converse } from '@/services/converse';
 
 type Message = {
   role: 'user' | 'model';
@@ -28,6 +28,7 @@ export default function ConversePage() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { isMobile } = useSidebar();
 
   const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
       english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -72,16 +73,17 @@ export default function ConversePage() {
     }
 
     setIsRecognizing(true);
-    let recognizer: sdk.SpeechRecognizer | undefined;
+    let recognizer: any; // Using `any` to avoid full SDK type import in this component
 
     try {
+        const sdk = await import('microsoft-cognitiveservices-speech-sdk');
         const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
         speechConfig.speechRecognitionLanguage = locale;
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
-        const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-            recognizer!.recognizeOnceAsync(resolve, reject);
+        const result: any = await new Promise((resolve, reject) => {
+            recognizer.recognizeOnceAsync(resolve, reject);
         });
 
         if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
@@ -107,13 +109,14 @@ export default function ConversePage() {
       try {
           const languageLabel = languages.find(l => l.value === conversationLanguage)?.label || conversationLanguage;
           
-          const input: ConverseInput = {
-              history: currentHistory.slice(0, -1), // Don't include the latest message in history
+          const result = await converse({
+              history: currentHistory.slice(0, -1).map(m => ({
+                  role: m.role,
+                  parts: [{ text: m.content }]
+              })),
               language: languageLabel,
               userMessage: userMessage,
-          };
-
-          const result = await converse(input);
+          });
           
           const modelMessage: Message = { role: 'model', content: result.reply };
           setMessages(prev => [...prev, modelMessage]);
@@ -146,6 +149,7 @@ export default function ConversePage() {
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b">
           <div className="flex items-center gap-4">
+              {isMobile && <SidebarTrigger />}
               <div>
                   <h1 className="text-3xl font-bold font-headline">Converse</h1>
                   <p className="text-muted-foreground">Practice your new language skills.</p>
