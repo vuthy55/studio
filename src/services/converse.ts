@@ -29,14 +29,14 @@ const ConverseOutputSchema = z.object({
 export type ConverseOutput = z.infer<typeof ConverseOutputSchema>;
 
 
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
 
 
 export async function converse(input: ConverseInput): Promise<ConverseOutput> {
     
     if (!API_KEY) {
-        throw new Error("Missing NEXT_PUBLIC_GEMINI_API_KEY environment variable.");
+        throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
 
     const prompt = `You are a friendly and patient language tutor. Your role is to have a simple, encouraging conversation with a user who is learning ${input.language}.

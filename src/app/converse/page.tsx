@@ -31,6 +31,7 @@ export default function ConversePage() {
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { isMobile } = useSidebar();
+  const [azureCredentials, setAzureCredentials] = useState({ key: '', region: ''});
 
   const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
       english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',

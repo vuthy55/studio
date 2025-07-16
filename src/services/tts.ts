@@ -33,10 +33,14 @@ export async function generateSpeech(
   input: GenerateSpeechInput
 ): Promise<GenerateSpeechOutput> {
   const { text, lang, voice } = input;
-  const speechConfig = sdk.SpeechConfig.fromSubscription(
-    process.env.NEXT_PUBLIC_AZURE_TTS_KEY!,
-    process.env.NEXT_PUBLIC_AZURE_TTS_REGION!
-  );
+  const azureKey = process.env.AZURE_TTS_KEY;
+  const azureRegion = process.env.AZURE_TTS_REGION;
+
+  if (!azureKey || !azureRegion) {
+    throw new Error('Azure TTS credentials are not configured in environment variables.');
+  }
+
+  const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
   speechConfig.speechSynthesisLanguage = lang;
 
   // Select a voice based on language and user preference

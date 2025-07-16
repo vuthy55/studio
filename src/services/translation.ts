@@ -51,9 +51,9 @@ const languageCodeToAzureCode: Partial<Record<LanguageCode, string>> = {
 export async function translateText(
   input: TranslateTextInput
 ): Promise<TranslateTextOutput> {
-  const apiKey = process.env.NEXT_PUBLIC_AZURE_TRANSLATOR_KEY;
-  const endpoint = process.env.NEXT_PUBLIC_AZURE_TRANSLATOR_ENDPOINT;
-  const region = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
+  const apiKey = process.env.AZURE_TRANSLATOR_KEY;
+  const endpoint = process.env.AZURE_TRANSLATOR_ENDPOINT;
+  const region = process.env.AZURE_TTS_REGION;
 
   if (!apiKey || !endpoint || !region) {
     throw new Error('Azure Translator environment variables are not set.');
