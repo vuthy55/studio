@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { LoaderCircle } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import { ProfileForm } from '@/components/profile/profile-form';
 
 export default function ProfilePage() {
     const [user, loading, error] = useAuthState(auth);
@@ -55,7 +54,7 @@ export default function ProfilePage() {
                 </div>
             </header>
             <div className="max-w-2xl mx-auto">
-              <ProfileForm user={user} />
+              <p>Welcome to your profile, {user.email}!</p>
             </div>
         </div>
     );

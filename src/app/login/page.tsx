@@ -7,12 +7,9 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider,
-  updateProfile
+  GoogleAuthProvider
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from '@/lib/firebase';
-import type { UserProfile } from '@/lib/types';
+import { auth } from '@/lib/firebase';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,35 +32,11 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleUserSetup = async (user: any, additionalData = {}) => {
-    const userRef = doc(db, "users", user.uid);
-    const userDoc = await getDoc(userRef);
-
-    if (!userDoc.exists()) {
-      // New user, create their document
-      const newUserProfile: Omit<UserProfile, 'createdAt'> = {
-        uid: user.uid,
-        email: user.email,
-        name: user.displayName || signupName,
-        avatarUrl: user.photoURL || `https://placehold.co/100x100.png`,
-        isAdmin: false,
-        ...additionalData,
-      };
-      
-      await setDoc(userRef, {
-        ...newUserProfile,
-        createdAt: serverTimestamp(),
-      });
-    }
-    // Existing user data is preserved.
-  };
-
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      await handleUserSetup(result.user);
+      await signInWithPopup(auth, provider);
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -78,9 +51,7 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
-      await updateProfile(userCredential.user, { displayName: signupName });
-      await handleUserSetup(userCredential.user);
+      await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
     } catch (error: any) {
