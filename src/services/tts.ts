@@ -34,8 +34,8 @@ export async function generateSpeech(
 ): Promise<GenerateSpeechOutput> {
   const { text, lang, voice } = input;
   const speechConfig = sdk.SpeechConfig.fromSubscription(
-    process.env.AZURE_TTS_KEY!,
-    process.env.AZURE_TTS_REGION!
+    process.env.NEXT_PUBLIC_AZURE_TTS_KEY!,
+    process.env.NEXT_PUBLIC_AZURE_TTS_REGION!
   );
   speechConfig.speechSynthesisLanguage = lang;
 
