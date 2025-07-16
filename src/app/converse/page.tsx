@@ -16,6 +16,7 @@ import { generateSpeech } from '@/services/tts';
 import { converse, type ConverseInput } from '@/services/converse';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { getSpeechRecognitionToken } from '@/services/azure';
 
 type Message = {
   role: 'user' | 'model';
@@ -31,7 +32,6 @@ export default function ConversePage() {
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { isMobile } = useSidebar();
-  const [azureCredentials, setAzureCredentials] = useState({ key: '', region: ''});
 
   const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
       english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -61,25 +61,19 @@ export default function ConversePage() {
   };
 
   const recognizeFromMicrophone = async () => {
-    const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-    const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-
-    if (!azureKey || !azureRegion) {
-        toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
-        return;
-    }
-    
-    const locale = languageToLocaleMap[conversationLanguage];
-    if (!locale) {
-        toast({ variant: 'destructive', title: 'Unsupported Language' });
-        return;
-    }
-
     setIsRecognizing(true);
     let recognizer: sdk.SpeechRecognizer | undefined;
 
     try {
-        const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+        const { authToken, region } = await getSpeechRecognitionToken();
+        const locale = languageToLocaleMap[conversationLanguage];
+        if (!locale) {
+            toast({ variant: 'destructive', title: 'Unsupported Language' });
+            setIsRecognizing(false);
+            return;
+        }
+
+        const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(authToken, region);
         speechConfig.speechRecognitionLanguage = locale;
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
@@ -95,9 +89,9 @@ export default function ConversePage() {
         } else {
              toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Please try again.` });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error during speech recognition:", error);
-        toast({ variant: 'destructive', title: 'Recognition Error', description: `An unexpected error occurred.` });
+        toast({ variant: 'destructive', title: 'Recognition Error', description: error.message || `An unexpected error occurred.` });
     } finally {
         if (recognizer) {
             recognizer.close();

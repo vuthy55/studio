@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useDebounce } from '@/hooks/use-debounce';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { getSpeechRecognitionToken } from '@/services/azure';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -83,12 +84,12 @@ export default function LearnPage() {
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
             const result = await translateText({ text: textToTranslate, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
             setTranslatedText(result.translatedText);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Translation failed', error);
             toast({
                 variant: 'destructive',
                 title: 'Translation Error',
-                description: 'Could not translate the text. Azure credentials might be missing or incorrect.',
+                description: error.message || 'Could not translate the text.',
             });
         } finally {
             setIsTranslating(false);
@@ -106,25 +107,19 @@ export default function LearnPage() {
 
 
     const recognizeFromMicrophone = async () => {
-        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-    
-        if (!azureKey || !azureRegion) {
-            toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured for speech recognition.' });
-            return;
-        }
-
-        const locale = languageToLocaleMap[fromLanguage];
-        if (!locale) {
-            toast({ variant: 'destructive', title: 'Unsupported Language' });
-            return;
-        }
-
         setIsRecognizing(true);
         let recognizer: sdk.SpeechRecognizer | undefined;
 
         try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+            const { authToken, region } = await getSpeechRecognitionToken();
+            const locale = languageToLocaleMap[fromLanguage];
+            if (!locale) {
+                toast({ variant: 'destructive', title: 'Unsupported Language' });
+                setIsRecognizing(false);
+                return;
+            }
+
+            const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(authToken, region);
             speechConfig.speechRecognitionLanguage = locale;
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
             recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
@@ -138,9 +133,9 @@ export default function LearnPage() {
             } else {
                  toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error during speech recognition:", error);
-            toast({ variant: 'destructive', title: 'Recognition Error', description: `An unexpected error occurred during speech recognition.` });
+            toast({ variant: 'destructive', title: 'Recognition Error', description: error.message || `An unexpected error occurred during speech recognition.` });
         } finally {
             if (recognizer) {
                 recognizer.close();
