@@ -176,7 +176,7 @@ const Sidebar = React.forwardRef<
     },
     ref
   ) => {
-    const { isMobile, openMobile, setOpenMobile } = useSidebar()
+    const { isMobile, openMobile, setOpenMobile, state } = useSidebar()
 
     if (collapsible === "none") {
       return (
@@ -218,8 +218,8 @@ const Sidebar = React.forwardRef<
       <div
         ref={ref}
         className="group peer hidden md:block text-sidebar-foreground"
-        data-state={useSidebar().state}
-        data-collapsible={useSidebar().state === "collapsed" ? collapsible : ""}
+        data-state={state}
+        data-collapsible={state === "collapsed" ? collapsible : ""}
         data-variant={variant}
         data-side={side}
       >
@@ -763,5 +763,3 @@ export {
   SidebarTrigger,
   useSidebar,
 }
-
-    
