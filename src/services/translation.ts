@@ -1,6 +1,8 @@
 'use server';
 
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+import axios from 'axios';
+
+const API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
 
 export interface TranslateTextInput {
@@ -13,41 +15,64 @@ export interface TranslateTextOutput {
   translatedText: string;
 }
 
-export async function translateText(input: TranslateTextInput): Promise<TranslateTextOutput> {
+export async function translateText(
+  input: TranslateTextInput
+): Promise<TranslateTextOutput> {
   const { text, fromLanguage, toLanguage } = input;
 
   const prompt = `You are a direct translation assistant. Your only task is to translate the user's text from ${fromLanguage} to ${toLanguage}. Do not add any extra information, context, or phonetic guides. Only provide the direct translation. Text to translate: "${text}"`;
 
   try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
+    const { data } = await axios.post(
+      API_URL,
+      {
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold: 'BLOCK_NONE',
+          },
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold: 'BLOCK_NONE',
+          },
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_NONE',
+          },
+          {
+            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+            threshold: 'BLOCK_NONE',
+          },
+        ],
         generationConfig: {
-            // Ensure we get a deterministic response for translation
-            temperature: 0,
-        }
-      }),
-    });
+          temperature: 0,
+        },
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Translate API Error:", response.status, errorBody);
-        throw new Error(`API request failed with status ${response.status}`);
+    const translatedText = data.candidates?.[0]?.content?.parts?.[0]?.text.trim();
+
+    if (!translatedText) {
+      console.error('Gemini API returned an empty or invalid response.');
+      throw new Error('Failed to parse translation from API response.');
     }
 
-    const data = await response.json();
-    const translatedText = data.candidates?.[0]?.content?.parts?.[0]?.text.trim() || 'Translation failed.';
-
     return { translatedText };
-
-  } catch (error) {
-    console.error('Error calling translation API:', error);
+  } catch (error: any) {
+    console.error(
+      'Error calling Gemini API for translation:',
+      error.response?.data || error.message
+    );
     throw new Error('Failed to translate text.');
   }
 }
