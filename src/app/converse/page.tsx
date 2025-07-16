@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { generateSpeech } from '@/ai/flows/tts-flow';
 import { converse, type ConverseInput } from '@/ai/flows/converse-flow';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 type Message = {
   role: 'user' | 'model';
@@ -28,6 +29,7 @@ export default function ConversePage() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { isMobile } = useSidebar();
 
   const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
       english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -146,6 +148,7 @@ export default function ConversePage() {
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b">
           <div className="flex items-center gap-4">
+              {isMobile && <SidebarTrigger />}
               <div>
                   <h1 className="text-3xl font-bold font-headline">Converse</h1>
                   <p className="text-muted-foreground">Practice your new language skills.</p>

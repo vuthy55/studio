@@ -10,6 +10,7 @@ import { LoaderCircle, Save, Languages } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -29,6 +30,7 @@ export default function ProfilePage() {
     const router = useRouter();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
+    const { isMobile } = useSidebar();
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
@@ -98,9 +100,12 @@ export default function ProfilePage() {
 
     return (
         <div className="space-y-8">
-            <header>
-                <h1 className="text-3xl font-bold font-headline">Profile</h1>
-                <p className="text-muted-foreground">Manage your account and track your progress.</p>
+            <header className="flex items-center gap-4">
+                {isMobile && <SidebarTrigger />}
+                <div>
+                  <h1 className="text-3xl font-bold font-headline">Profile</h1>
+                  <p className="text-muted-foreground">Manage your account and track your progress.</p>
+                </div>
             </header>
             
             <Card>
