@@ -74,7 +74,7 @@ export default function LearnPage() {
     };
     
     const handleTranslation = async (textToTranslate: string) => {
-        if (!textToTranslate) {
+        if (!textToTranslate.trim()) {
             setTranslatedText('');
             return;
         }
@@ -130,6 +130,8 @@ export default function LearnPage() {
 
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 setInputText(result.text);
+                // Immediately trigger translation for voice input, bypassing debounce
+                await handleTranslation(result.text); 
             } else {
                  toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
             }
