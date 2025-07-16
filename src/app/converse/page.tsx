@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -9,10 +10,10 @@ import { Mic, Volume2, Bot, User, LoaderCircle, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { generateSpeech } from '@/ai/flows/tts-flow';
-import { converse, type ConverseInput } from '@/ai/flows/converse-flow';
+import { generateSpeech } from '@/services/tts';
+import { converse, type ConverseInput } from '@/services/converse';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 

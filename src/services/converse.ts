@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow for generating conversational AI responses.
@@ -7,7 +8,8 @@
  * - ConverseOutput - The return type for the converse function.
  */
 
-import { ai } from '@/ai/genkit';
+import { generate } from 'genkit/ai';
+import { geminiPro } from '@genkit/googleai';
 import { z } from 'zod';
 
 const MessageSchema = z.object({
@@ -28,37 +30,24 @@ const ConverseOutputSchema = z.object({
 export type ConverseOutput = z.infer<typeof ConverseOutputSchema>;
 
 export async function converse(input: ConverseInput): Promise<ConverseOutput> {
-  return converseFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'conversePrompt',
-  input: { schema: ConverseInputSchema },
-  output: { schema: ConverseOutputSchema },
-  prompt: `You are a friendly and patient language tutor. Your role is to have a simple, encouraging conversation with a user who is learning {{language}}.
+  const prompt = `You are a friendly and patient language tutor. Your role is to have a simple, encouraging conversation with a user who is learning ${input.language}.
 
 Keep your replies short, simple, and directly related to the user's message. Ask open-ended questions to encourage the user to keep talking. Do not correct their grammar unless they make a very significant error. The goal is to build confidence.
 
 Conversation History:
-{{#each history}}
-{{#if (eq role 'user')}}User: {{content}}{{/if}}
-{{#if (eq role 'model')}}Tutor: {{content}}{{/if}}
-{{/each}}
+${input.history.map(m => `${m.role === 'user' ? 'User' : 'Tutor'}: ${m.content}`).join('\n')}
 
-User's latest message: "{{userMessage}}"
+User's latest message: "${input.userMessage}"
 
-Your reply should only be the text of your response.
-`,
-});
+Your reply should only be the text of your response.`;
 
-const converseFlow = ai.defineFlow(
-  {
-    name: 'converseFlow',
-    inputSchema: ConverseInputSchema,
-    outputSchema: ConverseOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input);
-    return output!;
-  }
-);
+  const llmResponse = await generate({
+    model: geminiPro,
+    prompt: prompt,
+    output: {
+      schema: ConverseOutputSchema,
+    },
+  });
+
+  return llmResponse.output() as ConverseOutput;
+}

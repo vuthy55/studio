@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from '@/components/ui/textarea';
-import { generateSpeech } from '@/ai/flows/tts-flow';
-import { translateText } from '@/ai/flows/translate-flow';
+import { generateSpeech } from '@/services/tts';
+import { translateText } from '@/services/translation';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
@@ -70,19 +70,6 @@ export default function LearnPage() {
         }
     };
     
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            if (inputText && activeTab === 'live-translation') {
-                handleTranslation();
-            } else if (!inputText) {
-                setTranslatedText('');
-            }
-        }, 500);
-
-        return () => clearTimeout(debounceTimer);
-    }, [inputText, fromLanguage, toLanguage, activeTab]);
-
-
     const handleTranslation = async () => {
         if (!inputText) return;
         setIsTranslating(true);
@@ -176,7 +163,10 @@ export default function LearnPage() {
             <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
                 <div className="flex-1 w-full">
                     <Label htmlFor="from-language">From</Label>
-                    <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
+                    <Select value={fromLanguage} onValueChange={(value) => {
+                        setFromLanguage(value as LanguageCode);
+                        handleTranslation();
+                    }}>
                         <SelectTrigger id="from-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -195,7 +185,10 @@ export default function LearnPage() {
                 
                 <div className="flex-1 w-full">
                     <Label htmlFor="to-language">To</Label>
-                    <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
+                    <Select value={toLanguage} onValueChange={(value) => {
+                        setToLanguage(value as LanguageCode)
+                        handleTranslation();
+                    }}>
                         <SelectTrigger id="to-language">
                             <SelectValue placeholder="Select a language" />
                         </SelectTrigger>
@@ -347,7 +340,10 @@ export default function LearnPage() {
                                                 placeholder={`Enter text or use the mic...`}
                                                 className="min-h-[120px] resize-none border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
                                                 value={inputText}
-                                                onChange={(e) => setInputText(e.target.value)}
+                                                onChange={(e) => {
+                                                    setInputText(e.target.value)
+                                                    handleTranslation();
+                                                }}
                                                 disabled={isRecognizing}
                                             />
                                             <div className="absolute bottom-2 right-2">

@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { updateProfile } from "firebase/auth";
 import { auth } from '@/lib/firebase';
-import { LoaderCircle, Save, Languages } from "lucide-react";
+import { LoaderCircle, Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
