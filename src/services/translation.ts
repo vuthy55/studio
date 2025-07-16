@@ -1,7 +1,7 @@
 
 'use server';
 
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent`;
 
 export interface TranslateTextInput {
@@ -72,7 +72,6 @@ export async function translateText(
 
     const data = await response.json();
     
-    // Check for empty or invalid response from the API
     if (
       !data.candidates ||
       !data.candidates[0] ||
