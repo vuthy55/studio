@@ -1,5 +1,3 @@
-'use server';
-
 import {genkit, type GenkitError} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import next from '@genkit-ai/next';
