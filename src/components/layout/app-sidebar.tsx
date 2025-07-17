@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 
 export function AppSidebar() {
@@ -38,15 +39,25 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="font-headline text-2xl font-bold text-primary">VibeSync</Link>
+        <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+        <SheetDescription className="sr-only">Main navigation links for the application.</SheetDescription>
+        <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
               <Link href="/" onClick={() => setOpenMobile(false)}>
-                <Share2 />
-                SyncHub
+                <BookOpen />
+                Learn
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+           <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/converse'} prefetch={true}>
+              <Link href="/converse" onClick={() => setOpenMobile(false)}>
+                <MessagesSquare />
+                Converse
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

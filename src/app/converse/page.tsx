@@ -1,12 +1,10 @@
 
 "use client";
 
-import { useState } from 'react';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import LearnPageContent from '@/components/synchub/LearnPageContent';
+import ConversePageContent from '@/components/synchub/ConversePageContent';
 
-
-export default function LinguaGoPage() {
+export default function ConversePage() {
     const { isMobile } = useSidebar();
 
     return (
@@ -15,13 +13,13 @@ export default function LinguaGoPage() {
                 <div className="flex items-center gap-4">
                     {isMobile && <SidebarTrigger />}
                     <div>
-                        <h1 className="text-3xl font-bold font-headline">LinguaGo</h1>
-                        <p className="text-muted-foreground">Your offline phrasebook for Southeast Asia.</p>
+                        <h1 className="text-3xl font-bold font-headline">Converse</h1>
+                        <p className="text-muted-foreground">Practice your language skills with an AI tutor.</p>
                     </div>
                 </div>
             </header>
-
-            <LearnPageContent />
+            
+            <ConversePageContent />
         </div>
     );
 }
