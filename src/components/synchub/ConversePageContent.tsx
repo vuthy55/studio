@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { generateSpeech } from '@/services/tts';
 import { converse } from '@/services/converse';
 import { useLanguage } from '@/context/LanguageContext';
@@ -22,7 +21,7 @@ type Message = {
   content: string;
 };
 
-export default function ConversePage() {
+export default function ConversePageContent() {
   const { toLanguage, setToLanguage } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecognizing, setIsRecognizing] = useState(false);
@@ -30,7 +29,6 @@ export default function ConversePage() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { isMobile } = useSidebar();
 
   const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
       english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -148,17 +146,16 @@ export default function ConversePage() {
 
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-[calc(100vh-14rem)]">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b">
           <div className="flex items-center gap-4">
-              {isMobile && <SidebarTrigger />}
               <div>
-                  <h1 className="text-3xl font-bold font-headline">Converse</h1>
-                  <p className="text-muted-foreground">Practice your new language skills.</p>
+                  <h2 className="text-2xl font-bold font-headline">Live Practice</h2>
+                  <p className="text-muted-foreground">Practice your new language skills with an AI tutor.</p>
               </div>
           </div>
           <div className="w-full sm:w-auto sm:max-w-xs">
-              <Label htmlFor="conversation-language">Language</Label>
+              <Label htmlFor="conversation-language">Practice Language</Label>
               <Select value={toLanguage} onValueChange={(value) => {
                   setToLanguage(value as LanguageCode);
                   setMessages([]); // Reset conversation on language change

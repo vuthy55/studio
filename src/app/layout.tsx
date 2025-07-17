@@ -6,7 +6,7 @@ import ClientSidebar from '@/components/layout/client-sidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
 
 export const metadata: Metadata = {
-  title: 'Learn',
+  title: 'VibeSync',
   description: 'A modern minimal web app for backpackers in South East Asia.',
 };
 

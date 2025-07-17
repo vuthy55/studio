@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2 } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { 
@@ -38,23 +38,15 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
+        <Link href="/" className="font-headline text-2xl font-bold text-primary">VibeSync</Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
               <Link href="/" onClick={() => setOpenMobile(false)}>
-                <BookOpen />
-                Learn
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/converse'} prefetch={true}>
-              <Link href="/converse" onClick={() => setOpenMobile(false)}>
-                <MessagesSquare />
-                Converse
+                <Share2 />
+                SyncHub
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
