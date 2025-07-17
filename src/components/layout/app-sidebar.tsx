@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2 } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Wrench } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { 
@@ -85,6 +85,15 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/test'} prefetch={true}>
+              <Link href="/test" onClick={() => setOpenMobile(false)}>
+                <Wrench />
+                Genkit Test
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
 
         </SidebarMenu>
       </SidebarContent>
