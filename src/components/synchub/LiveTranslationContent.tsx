@@ -216,11 +216,62 @@ export default function LiveTranslationContent() {
     return (
         <Card className="shadow-lg mt-6">
             <CardContent className="space-y-6 pt-6">
+                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6">
+                    <div className="flex-1 w-full">
+                        <Label htmlFor="from-language-select-live">From</Label>
+                        <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
+                            <SelectTrigger id="from-language-select-live">
+                                <SelectValue placeholder="Select a language" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {languages.map(lang => (
+                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Button variant="ghost" size="icon" className="self-end" onClick={swapLanguages}>
+                        <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+                        <span className="sr-only">Switch languages</span>
+                    </Button>
+                    
+                    <div className="flex-1 w-full">
+                        <Label htmlFor="to-language-select-live">To</Label>
+                        <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
+                            <SelectTrigger id="to-language-select-live">
+                                <SelectValue placeholder="Select a language" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {languages.map(lang => (
+                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                     <div className="w-full sm:w-auto sm:flex-1 self-end">
+                      <Label htmlFor="tts-voice-live" className="sr-only">Voice</Label>
+                      <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
+                          <SelectTrigger id="tts-voice-live">
+                              <SelectValue placeholder="Select a voice" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="default">Default</SelectItem>
+                              <SelectItem value="male">Male</SelectItem>
+                              <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
+                      </Select>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* From Language Section */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                            <Label htmlFor="from-language-live">From: {languages.find(l => l.value === fromLanguage)?.label}</Label>
+                            <Label htmlFor="from-language-live">
+                                {languages.find(l => l.value === fromLanguage)?.label}
+                            </Label>
                             <Button size="icon" variant="ghost" onClick={recognizeFromMicrophone} disabled={isRecognizing || isAssessing}>
                                 {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                 <span className="sr-only">Record from microphone</span>
@@ -238,7 +289,9 @@ export default function LiveTranslationContent() {
                     {/* To Language Section */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                           <Label htmlFor="to-language-live">To: {languages.find(l => l.value === toLanguage)?.label}</Label>
+                           <Label htmlFor="to-language-live">
+                                {languages.find(l => l.value === toLanguage)?.label}
+                           </Label>
                            <div className="flex items-center">
                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={!translatedText || isAssessing}>
                                     <Volume2 className="h-5 w-5" />
@@ -264,52 +317,6 @@ export default function LiveTranslationContent() {
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4">
-                    <div className="flex-1 w-full">
-                        <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
-                            <SelectTrigger id="from-language-select-live">
-                                <SelectValue placeholder="Select a language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {languages.map(lang => (
-                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Button variant="ghost" size="icon" className="self-center" onClick={swapLanguages}>
-                        <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
-                        <span className="sr-only">Switch languages</span>
-                    </Button>
-                    
-                    <div className="flex-1 w-full">
-                        <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
-                            <SelectTrigger id="to-language-select-live">
-                                <SelectValue placeholder="Select a language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {languages.map(lang => (
-                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                     <div className="w-full sm:w-auto sm:flex-1">
-                      <Label htmlFor="tts-voice-live" className="sr-only">Voice</Label>
-                      <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
-                          <SelectTrigger id="tts-voice-live">
-                              <SelectValue placeholder="Select a voice" />
-                          </SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="default">Default</SelectItem>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                          </SelectContent>
-                      </Select>
-                    </div>
-                </div>
             </CardContent>
         </Card>
     );
