@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
-import ConversePageContent from '@/components/synchub/ConversePageContent';
+import GroupConverseContent from '@/components/synchub/GroupConverseContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wifi } from 'lucide-react';
@@ -41,7 +41,7 @@ export default function SyncHubPage() {
                     <LiveTranslationContent />
                 </TabsContent>
                 <TabsContent value="sync-live">
-                   <ConversePageContent />
+                   <GroupConverseContent />
                 </TabsContent>
                 <TabsContent value="sync-online">
                     <Card>
