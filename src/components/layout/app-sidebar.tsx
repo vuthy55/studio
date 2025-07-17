@@ -12,7 +12,8 @@ import {
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton, 
-  SidebarFooter 
+  SidebarFooter,
+  useSidebar
 } from '@/components/ui/sidebar';
 import { SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -23,12 +24,13 @@ export function AppSidebar() {
   const pathname = usePathname();
   const [user, loading] = useAuthState(auth);
   const { toast } = useToast();
+  const { setOpenMobile } = useSidebar();
 
   const handleLogout = async () => {
     try {
       await auth.signOut();
       toast({ title: 'Success', description: 'You have been logged out.' });
-      // The auth state change will trigger redirects on protected pages
+      setOpenMobile(false);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
     }
@@ -49,7 +51,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
-              <Link href="/">
+              <Link href="/" onClick={() => setOpenMobile(false)}>
                 <BookOpen />
                 Learn
               </Link>
@@ -57,7 +59,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/converse'} prefetch={true}>
-              <Link href="/converse">
+              <Link href="/converse" onClick={() => setOpenMobile(false)}>
                 <MessagesSquare />
                 Converse
               </Link>
@@ -75,7 +77,7 @@ export function AppSidebar() {
             <>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
-                  <Link href="/profile">
+                  <Link href="/profile" onClick={() => setOpenMobile(false)}>
                     <User />
                     Profile
                   </Link>
@@ -91,7 +93,7 @@ export function AppSidebar() {
           ) : (
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === '/login'}>
-                <Link href="/login">
+                <Link href="/login" onClick={() => setOpenMobile(false)}>
                   <LogIn />
                   Login
                 </Link>
