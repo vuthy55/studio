@@ -43,7 +43,7 @@ export default function LearnPage() {
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
-    const [activeTab, setActiveTab] = useState('phrasebook');
+    const [activeTab, setActiveTab] = useState('live-translation');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
@@ -216,6 +216,10 @@ export default function LearnPage() {
 
     let recognizer: sdk.SpeechRecognizer | undefined;
     let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+    
+    console.log(`--- DEBUG: Starting assessment ---`);
+    console.log(`--- DEBUG: Reference Text: "${referenceText}"`);
+    console.log(`--- DEBUG: Locale: ${locale}`);
 
     try {
       const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
@@ -228,6 +232,7 @@ export default function LearnPage() {
           granularity: "Phoneme",
           enableMiscue: true,
       });
+      console.log("--- DEBUG: Pronunciation Config:", pronunciationConfigJson);
 
       const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(pronunciationConfigJson);
       recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
@@ -239,10 +244,13 @@ export default function LearnPage() {
       
       if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
         const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+        console.log("--- DEBUG: Full JSON Response from Azure ---");
+        console.log(jsonString);
         
         if (jsonString) {
           const parsedResult = JSON.parse(jsonString);
           const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
+          console.log("--- DEBUG: Parsed Assessment Object:", assessment);
 
           if (assessment) {
             const accuracyScore = assessment.AccuracyScore;
@@ -274,6 +282,8 @@ export default function LearnPage() {
       if (recognizer) {
         recognizer.close();
       }
+      console.log("--- DEBUG: Final Result:", finalResult);
+      console.log(`--- DEBUG: Assessment finished ---`);
       // Set result state based on where it was called from
       if(phraseId) {
         setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
@@ -562,3 +572,5 @@ export default function LearnPage() {
         </div>
     );
 }
+
+    
