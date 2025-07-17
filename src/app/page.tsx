@@ -29,16 +29,16 @@ export default function SyncHubPage() {
 
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
                     <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
+                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
-                 <TabsContent value="live-translation">
-                    <LiveTranslationContent />
-                </TabsContent>
                 <TabsContent value="prep-vibe">
                     <LearnPageContent />
+                </TabsContent>
+                 <TabsContent value="live-translation">
+                    <LiveTranslationContent />
                 </TabsContent>
                 <TabsContent value="sync-live">
                    <ConversePageContent />
