@@ -68,7 +68,9 @@ export default function AdminPage() {
             setIsLoading(false);
             setIsFetchingNext(false);
         }
-    }, [lastVisible, toast]);
+    // We remove toast from the dependency array to prevent the infinite loop.
+    // The toast function itself is stable and doesn't need to be a dependency.
+    }, [lastVisible]);
 
     useEffect(() => {
         if (!authLoading && !user) {
