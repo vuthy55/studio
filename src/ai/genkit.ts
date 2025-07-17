@@ -12,5 +12,6 @@ export const ai = genkit({
   plugins: [googleAI()],
   logSinks: [],
   enableTracing: true,
-  model: 'googleai/gemini-1.0-pro',
+  // We will rely on the model specified in the flow itself for now
+  // to allow the model listing to work without a default model error.
 });
