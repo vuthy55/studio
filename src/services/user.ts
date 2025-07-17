@@ -47,15 +47,11 @@ export async function updateUserProfile(input: UpdateUserProfileInput): Promise<
   const { userId, data } = input;
   try {
     const userDocRef = doc(db, 'users', userId);
-    // Ensure email is not overwritten if it exists in doc but not in data
-    const finalData = { ...data };
-    if (!finalData.email) {
-      const currentProfile = await getUserProfile(userId);
-      if (currentProfile?.email) {
-        finalData.email = currentProfile.email;
-      }
-    }
-    await setDoc(userDocRef, finalData, { merge: true });
+    // Use the provided data and merge it with the existing document.
+    // This correctly handles both creating a new profile and updating an existing one.
+    // The `email` is expected to be passed in `data` during the initial creation.
+    // For subsequent updates, `merge: true` ensures existing fields (like email) are not removed.
+    await setDoc(userDocRef, data, { merge: true });
   } catch (error) {
     console.error("Error updating user profile: ", error);
     throw new Error('Could not update user profile.');
