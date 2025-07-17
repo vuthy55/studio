@@ -38,6 +38,8 @@ export default function AdminPage() {
     const fetchUsers = useCallback(async (loadMore = false) => {
         if (!loadMore) {
             setIsLoading(true);
+            setUsers([]);
+            setLastVisible(null);
         } else {
             setIsFetchingNext(true);
         }
