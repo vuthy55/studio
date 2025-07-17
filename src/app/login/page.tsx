@@ -7,17 +7,21 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  updateProfile
 } from "firebase/auth";
 import { auth } from '@/lib/firebase';
+import { countries } from 'countries-list';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { Chrome } from 'lucide-react';
+import { updateUserProfile } from '@/services/user';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,14 +33,33 @@ export default function LoginPage() {
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [signupCountry, setSignupCountry] = useState('');
+  const [signupMobile, setSignupMobile] = useState('');
+
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const countryOptions = Object.entries(countries).map(([code, country]) => ({
+    value: code,
+    label: country.name
+  }));
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+       // Create a profile for the new Google user in Firestore
+      await updateUserProfile({
+        userId: user.uid,
+        data: {
+          name: user.displayName || 'New User',
+          email: user.email!,
+          country: '',
+          mobile: user.phoneNumber || ''
+        }
+      });
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -51,7 +74,23 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
+      const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
+      const user = userCredential.user;
+      
+      // Update Firebase Auth profile
+      await updateProfile(user, { displayName: signupName });
+
+      // Create user profile in Firestore
+      await updateUserProfile({
+        userId: user.uid,
+        data: {
+          name: signupName,
+          email: signupEmail,
+          country: signupCountry,
+          mobile: signupMobile
+        }
+      });
+
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -129,6 +168,23 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <Input id="signup-password" type="password" required minLength={6} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-country">Country</Label>
+                     <Select value={signupCountry} onValueChange={setSignupCountry} required>
+                        <SelectTrigger id="signup-country">
+                            <SelectValue placeholder="Select your country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {countryOptions.map(country => (
+                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="signup-mobile">Mobile Number (Optional)</Label>
+                    <Input id="signup-mobile" type="tel" placeholder="+1 123 456 7890" value={signupMobile} onChange={e => setSignupMobile(e.target.value)} />
                   </div>
                 </CardContent>
                 <CardFooter className="flex-col gap-4">
