@@ -1,13 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import type { SyncRoom, Participant } from '@/lib/types';
-import { LoaderCircle, Mic, LogOut, User as UserIcon } from 'lucide-react';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, updateDoc, writeBatch, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { LoaderCircle, Mic, LogOut, User as UserIcon, Volume2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +18,10 @@ import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { translateText } from '@/ai/flows/translate-flow';
+import { generateSpeech } from '@/services/tts';
 
+type MicStatus = 'idle' | 'listening' | 'processing' | 'locked';
 
 function SyncRoomPageContent() {
     const params = useParams();
@@ -32,16 +36,24 @@ function SyncRoomPageContent() {
     const [accessDenied, setAccessDenied] = useState<string | null>(null);
     const [hasJoined, setHasJoined] = useState(false);
     
+    // Join form state
     const [guestEmail, setGuestEmail] = useState('');
     const [guestName, setGuestName] = useState('');
     const [guestLanguage, setGuestLanguage] = useState<AzureLanguageCode | ''>('');
+    const [userLanguage, setUserLanguage] = useState<AzureLanguageCode | ''>('');
     const [isJoining, setIsJoining] = useState(false);
     
-    const [userLanguage, setUserLanguage] = useState<AzureLanguageCode | ''>('');
-    const [isMicPressed, setIsMicPressed] = useState(false);
+    // In-room state
+    const [micStatus, setMicStatus] = useState<MicStatus>('idle');
+    const [lastMessage, setLastMessage] = useState<RoomMessage | null>(null);
+    
+    const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
+    const audioQueue = useRef<RoomMessage[]>([]);
+    const isPlayingAudio = useRef(false);
 
-    const currentUserIsSpeaker = room?.activeSpeakerUid === user?.uid;
-    const isMicLocked = room?.activeSpeakerUid !== null && !currentUserIsSpeaker;
+    const currentUserParticipant = participants.find(p => p.uid === user?.uid);
+
+    // --- Data and Auth Effects ---
 
     useEffect(() => {
         if (!roomId) return;
@@ -54,6 +66,12 @@ function SyncRoomPageContent() {
                     setAccessDenied("You are not invited to this room.");
                 } else {
                     setRoom(roomData);
+                    // Update mic status based on room data
+                    if (roomData.activeSpeakerUid) {
+                        setMicStatus(roomData.activeSpeakerUid === user?.uid ? 'listening' : 'locked');
+                    } else {
+                        setMicStatus('idle');
+                    }
                 }
             } else {
                 setAccessDenied("This room does not exist.");
@@ -66,8 +84,8 @@ function SyncRoomPageContent() {
         });
 
         const participantsRef = collection(db, 'syncRooms', roomId, 'participants');
-        const q = query(participantsRef);
-        const unsubscribeParticipants = onSnapshot(q, (snapshot) => {
+        const participantsQuery = query(participantsRef);
+        const unsubscribeParticipants = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => doc.data() as Participant);
             setParticipants(parts);
 
@@ -77,38 +95,159 @@ function SyncRoomPageContent() {
             }
         });
         
+        // Listen for new messages
+        const messagesRef = collection(db, 'syncRooms', roomId, 'messages');
+        const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
+        const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+             if (!snapshot.empty) {
+                const newMessage = snapshot.docs[0].data() as RoomMessage;
+                // Only process if it's a new message
+                if (newMessage.id !== lastMessage?.id) {
+                     setLastMessage(newMessage);
+                     audioQueue.current.push(newMessage);
+                     processAudioQueue();
+                }
+            }
+        });
+
         return () => {
             unsubscribeRoom();
             unsubscribeParticipants();
+            unsubscribeMessages();
+            recognizerRef.current?.close();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, user, authLoading]);
 
-    const handleMicPress = async () => {
-        if (!user || !room || room.activeSpeakerUid) return;
-        setIsMicPressed(true);
-        const roomRef = doc(db, 'syncRooms', roomId);
-        try {
-            await updateDoc(roomRef, { activeSpeakerUid: user.uid });
-        } catch (error) {
-            console.error("Error pressing mic:", error);
-            setIsMicPressed(false);
-        }
-    };
+    // --- Audio Playback Logic ---
 
-    const handleMicRelease = async () => {
-        if (!user || !room || room.activeSpeakerUid !== user.uid) return;
-        setIsMicPressed(false);
-        const roomRef = doc(db, 'syncRooms', roomId);
+    const processAudioQueue = async () => {
+        if (isPlayingAudio.current || audioQueue.current.length === 0) {
+            return;
+        }
+        isPlayingAudio.current = true;
+        
+        const messageToPlay = audioQueue.current.shift();
+        if (!messageToPlay || !currentUserParticipant) {
+            isPlayingAudio.current = false;
+            return;
+        }
+
         try {
+            const speakerLangLabel = azureLanguages.find(l => l.value === messageToPlay.speakerLanguage)?.label || messageToPlay.speakerLanguage;
+            const listenerLangLabel = azureLanguages.find(l => l.value === currentUserParticipant.selectedLanguage)?.label || currentUserParticipant.selectedLanguage;
+            let textToSpeak = messageToPlay.text;
+
+            // Translate if languages are different
+            if (speakerLangLabel !== listenerLangLabel) {
+                 const translationResult = await translateText({
+                    text: messageToPlay.text,
+                    fromLanguage: speakerLangLabel,
+                    toLanguage: listenerLangLabel,
+                });
+                textToSpeak = translationResult.translatedText;
+            }
+
+            // Synthesize audio
+            const { audioDataUri } = await generateSpeech({ 
+                text: textToSpeak, 
+                lang: currentUserParticipant.selectedLanguage || 'en-US'
+            });
+            const audio = new Audio(audioDataUri);
+            await audio.play();
+
+            // Wait for audio to finish before processing next item
+            audio.onended = () => {
+                isPlayingAudio.current = false;
+                processAudioQueue(); 
+            };
+        } catch(e) {
+            console.error("Error processing audio queue: ", e);
+            toast({ variant: 'destructive', title: 'Audio Error', description: 'Could not play back audio.' });
+            isPlayingAudio.current = false;
+            processAudioQueue(); // Try next item
+        }
+    }
+
+    // --- Speech Recognition Logic ---
+
+    const handleMicTap = async () => {
+        if (!user || !room || micStatus !== 'idle' || !currentUserParticipant) return;
+        
+        const roomRef = doc(db, 'syncRooms', roomId);
+        
+        try {
+            // Lock the mic for this user
+            await updateDoc(roomRef, { activeSpeakerUid: user.uid });
+            setMicStatus('listening');
+            
+            // Start speech recognition
+            const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
+            const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
+            if (!azureKey || !azureRegion) throw new Error("Azure credentials not configured.");
+            
+            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+            speechConfig.speechRecognitionLanguage = currentUserParticipant.selectedLanguage;
+            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+            recognizerRef.current = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+
+            recognizerRef.current.recognized = async (s, e) => {
+                if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
+                    recognizerRef.current?.stopContinuousRecognitionAsync(); // Stop listening
+                    setMicStatus('processing');
+                    
+                    const newMessageRef = doc(collection(db, `syncRooms/${roomId}/messages`));
+                    const newMessage: RoomMessage = {
+                        id: newMessageRef.id,
+                        text: e.result.text,
+                        speakerName: currentUserParticipant.name,
+                        speakerUid: user.uid,
+                        speakerLanguage: currentUserParticipant.selectedLanguage,
+                        createdAt: serverTimestamp()
+                    };
+                    
+                    await setDoc(newMessageRef, newMessage);
+                    
+                    // Unlock the mic after processing
+                    await updateDoc(roomRef, { activeSpeakerUid: null });
+                    setMicStatus('idle');
+                }
+            };
+            
+            recognizerRef.current.canceled = async (s, e) => {
+                console.error(`CANCELED: Reason=${e.reason}`);
+                if (e.reason === sdk.CancellationReason.Error) {
+                    toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
+                }
+                await updateDoc(roomRef, { activeSpeakerUid: null });
+                setMicStatus('idle');
+            };
+
+            recognizerRef.current.sessionStopped = async (s, e) => {
+                if (micStatus === 'listening') {
+                    await updateDoc(roomRef, { activeSpeakerUid: null });
+                    setMicStatus('idle');
+                }
+            };
+
+            recognizerRef.current.startContinuousRecognitionAsync();
+
+        } catch (error: any) {
+            console.error("Error during mic tap:", error);
+            toast({ variant: "destructive", title: "Error", description: `Could not start microphone: ${error.message}` });
             await updateDoc(roomRef, { activeSpeakerUid: null });
-        } catch (error) {
-            console.error("Error releasing mic:", error);
+            setMicStatus('idle');
         }
     };
     
+    // --- Room Management Handlers ---
+
     const handleLeaveRoom = async () => {
         if (!user) return;
         try {
+            if (room?.activeSpeakerUid === user.uid) {
+                 await updateDoc(doc(db, 'syncRooms', roomId), { activeSpeakerUid: null });
+            }
             const participantRef = doc(db, `syncRooms/${roomId}/participants`, user.uid);
             await deleteDoc(participantRef);
             toast({ title: "You have left the room." });
@@ -181,6 +320,28 @@ function SyncRoomPageContent() {
         }
     };
     
+    const getMicButtonContent = () => {
+        switch (micStatus) {
+            case 'listening': return <Volume2 className="h-12 w-12" />;
+            case 'processing': return <CheckCircle className="h-12 w-12" />;
+            case 'locked':
+            case 'idle':
+            default: return <Mic className="h-10 w-10" />;
+        }
+    }
+
+    const getMicButtonTooltip = () => {
+         switch (micStatus) {
+            case 'listening': return 'Listening...';
+            case 'processing': return 'Processing...';
+            case 'locked': return 'Mic is locked by another user';
+            case 'idle':
+            default: return 'Tap to talk';
+        }
+    }
+    
+    // --- Render Logic ---
+
     if (loading || authLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -220,6 +381,7 @@ function SyncRoomPageContent() {
                     <div>
                         <h1 className="text-3xl font-bold font-headline">{room.topic}</h1>
                         <p className="text-muted-foreground">Welcome to the Sync Room!</p>
+                        {lastMessage && <p className="text-sm mt-2 italic">Last: "{lastMessage.text}" by {lastMessage.speakerName}</p>}
                     </div>
                     <Button variant="ghost" onClick={handleLeaveRoom}>
                         <LogOut className="mr-2 h-4 w-4" />
@@ -247,23 +409,23 @@ function SyncRoomPageContent() {
                     <Button 
                         size="lg" 
                         className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
-                             isMicPressed && 'bg-green-500 hover:bg-green-600 scale-110',
-                             isMicLocked && 'bg-muted text-muted-foreground'
+                             micStatus === 'listening' && 'bg-green-500 hover:bg-green-600 scale-110 animate-pulse',
+                             micStatus === 'processing' && 'bg-blue-500 hover:bg-blue-600',
+                             micStatus === 'locked' && 'bg-muted text-muted-foreground cursor-not-allowed'
                         )}
-                        onMouseDown={handleMicPress}
-                        onMouseUp={handleMicRelease}
-                        onTouchStart={handleMicPress}
-                        onTouchEnd={handleMicRelease}
-                        disabled={isMicLocked}
+                        onClick={handleMicTap}
+                        disabled={micStatus !== 'idle'}
                     >
-                        <Mic className="h-10 w-10" />
+                        {getMicButtonContent()}
                     </Button>
-                     <p className="text-sm text-muted-foreground mt-4">{isMicLocked ? "Mic is locked by another user" : "Press and hold to talk"}</p>
+                     <p className="text-sm text-muted-foreground mt-4">{getMicButtonTooltip()}</p>
                 </div>
             </div>
         )
     }
     
+    // --- Join Forms ---
+
     if (user) {
         return (
              <div className="flex justify-center items-center h-screen">

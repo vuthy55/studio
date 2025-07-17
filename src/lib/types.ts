@@ -21,3 +21,12 @@ export type Participant = {
     isEmcee: boolean;
     isMuted: boolean;
 }
+
+export type RoomMessage = {
+    id: string;
+    text: string;
+    speakerName: string;
+    speakerUid: string | null;
+    speakerLanguage: AzureLanguageCode | '';
+    createdAt: FieldValue;
+}

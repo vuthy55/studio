@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2 } from 'lucide-react';
-import type { SyncRoom } from '@/lib/types';
+import type { SyncRoom, Participant } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -121,21 +121,37 @@ export default function SyncOnlineHome() {
                 emails.push(user.email!);
             }
             
-            const newRoom: Omit<SyncRoom, 'id' | 'createdAt'> = {
+            const batch = writeBatch(db);
+
+            // 1. Create the room document
+            const newRoomRef = doc(collection(db, 'syncRooms'));
+            const newRoom: Omit<SyncRoom, 'id'> = {
                 topic: roomTopic,
                 creatorUid: user.uid,
+                createdAt: serverTimestamp(),
                 status: 'active',
                 invitedEmails: emails,
                 activeSpeakerUid: null,
                 emceeUids: [user.uid],
             };
+            batch.set(newRoomRef, newRoom);
 
-            const roomRef = await addDoc(collection(db, 'syncRooms'), {
-                ...newRoom,
-                createdAt: serverTimestamp()
-            });
+            // 2. Create the creator's participant document
+            const participantRef = doc(db, 'syncRooms', newRoomRef.id, 'participants', user.uid);
+            const creatorParticipant: Participant = {
+                uid: user.uid,
+                name: user.displayName || 'Creator',
+                email: user.email!,
+                selectedLanguage: spokenLanguage,
+                isEmcee: true,
+                isMuted: false,
+            };
+            batch.set(participantRef, creatorParticipant);
+
+            // 3. Commit the batch
+            await batch.commit();
             
-            const joinLink = `${window.location.origin}/sync-room/${roomRef.id}`;
+            const joinLink = `${window.location.origin}/sync-room/${newRoomRef.id}`;
             setCreatedRoomLink(joinLink);
 
         } catch (error) {
@@ -148,6 +164,8 @@ export default function SyncOnlineHome() {
 
     const handleDeleteRoom = async (roomId: string) => {
         try {
+            // Future enhancement: Use a Cloud Function to delete subcollections for production apps.
+            // For now, deleting the document is sufficient for this app's scope.
             await deleteDoc(doc(db, 'syncRooms', roomId));
             toast({ title: "Room Deleted", description: "The sync room has been successfully deleted." });
             fetchInvitedRooms(); // Re-fetch the list
