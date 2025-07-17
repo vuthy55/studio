@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { translateText } from '@/ai/flows/translate-flow';
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
@@ -112,23 +113,43 @@ export default function GroupConverseContent() {
             
             const result = sdk.AutoDetectSourceLanguageResult.fromResult(e.result);
             const detectedLangLocale = result.language;
-            const detectedText = e.result.text;
+            const originalText = e.result.text;
             
             const detectedLangCode = Object.keys(languageToLocaleMap).find(key => languageToLocaleMap[key as LanguageCode] === detectedLangLocale) as LanguageCode | undefined;
-            const detectedLangLabel = languages.find(l => l.value === detectedLangCode)?.label || 'Unknown';
-            setLastSpoken({ lang: detectedLangLabel, text: detectedText });
             
-            const targetLanguages = selectedLanguages.filter(l => languageToLocaleMap[l] !== detectedLangLocale);
+            if (!detectedLangCode) {
+                // If language is not one of the selected, just restart listening
+                setStatus('listening');
+                resetInactivityTimer();
+                recognizerRef.current?.startContinuousRecognitionAsync();
+                return;
+            }
+
+            const fromLangLabel = languages.find(l => l.value === detectedLangCode)?.label || 'Unknown';
+            setLastSpoken({ lang: fromLangLabel, text: originalText });
             
-            for (const lang of targetLanguages) {
-                const locale = languageToLocaleMap[lang];
+            const targetLanguages = selectedLanguages.filter(l => l.value !== detectedLangCode);
+            
+            for (const targetLang of targetLanguages) {
+                const toLangLabel = languages.find(l => l.value === targetLang)?.label || targetLang;
+                
+                // 1. Translate the text
+                const translationResult = await translateText({
+                    text: originalText,
+                    fromLanguage: fromLangLabel,
+                    toLanguage: toLangLabel,
+                });
+                const translatedText = translationResult.translatedText;
+
+                // 2. Synthesize the translated text
+                const targetLocale = languageToLocaleMap[targetLang];
                 if (synthesizerRef.current) {
                   const synthesisConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-                  synthesisConfig.speechSynthesisLanguage = locale;
+                  synthesisConfig.speechSynthesisLanguage = targetLocale;
                   const synthesizer = new sdk.SpeechSynthesizer(synthesisConfig);
 
                   await new Promise<void>((resolve, reject) => {
-                    synthesizer.speakTextAsync(detectedText, 
+                    synthesizer.speakTextAsync(translatedText, 
                       (result) => {
                         synthesizer.close();
                         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
@@ -233,7 +254,7 @@ export default function GroupConverseContent() {
           size="lg"
           className={cn(
               "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
-              status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
+              status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-[pulse_4s_cubic-bezier(0.4,0,0.6,1)_infinite]',
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
               (status === 'idle' || status === 'error') && 'bg-primary hover:bg-primary/90'
           )}
