@@ -3,6 +3,7 @@ import './globals.css';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import ClientSidebar from '@/components/layout/client-sidebar';
+import { LanguageProvider } from '@/context/LanguageContext';
 
 export const metadata: Metadata = {
   title: 'Learn',
@@ -25,13 +26,15 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <SidebarProvider>
-          <ClientSidebar />
-          <SidebarInset>
-            <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
-          </SidebarInset>
-          <Toaster />
-        </SidebarProvider>
+        <LanguageProvider>
+          <SidebarProvider>
+            <ClientSidebar />
+            <SidebarInset>
+              <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+            </SidebarInset>
+            <Toaster />
+          </SidebarProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

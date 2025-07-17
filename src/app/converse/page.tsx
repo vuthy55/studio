@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { generateSpeech } from '@/services/tts';
 import { converse } from '@/services/converse';
+import { useLanguage } from '@/context/LanguageContext';
 
 type Message = {
   role: 'user' | 'model';
@@ -21,7 +23,7 @@ type Message = {
 };
 
 export default function ConversePage() {
-  const [conversationLanguage, setConversationLanguage] = useState<LanguageCode>('spanish');
+  const { toLanguage, setToLanguage } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
@@ -66,7 +68,7 @@ export default function ConversePage() {
         return;
     }
     
-    const locale = languageToLocaleMap[conversationLanguage];
+    const locale = languageToLocaleMap[toLanguage];
     if (!locale) {
         toast({ variant: 'destructive', title: 'Unsupported Language' });
         return;
@@ -107,7 +109,7 @@ export default function ConversePage() {
   const handleConversation = async (userMessage: string, currentHistory: Message[]) => {
       setIsReplying(true);
       try {
-          const languageLabel = languages.find(l => l.value === conversationLanguage)?.label || conversationLanguage;
+          const languageLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
           
           const result = await converse({
               history: currentHistory.slice(0, -1).map(m => ({
@@ -121,7 +123,7 @@ export default function ConversePage() {
           const modelMessage: Message = { role: 'model', content: result.reply };
           setMessages(prev => [...prev, modelMessage]);
 
-          await handlePlayAudio(result.reply, conversationLanguage);
+          await handlePlayAudio(result.reply, toLanguage);
 
       } catch (error) {
           console.error("Conversation failed", error);
@@ -157,8 +159,8 @@ export default function ConversePage() {
           </div>
           <div className="w-full sm:w-auto sm:max-w-xs">
               <Label htmlFor="conversation-language">Language</Label>
-              <Select value={conversationLanguage} onValueChange={(value) => {
-                  setConversationLanguage(value as LanguageCode);
+              <Select value={toLanguage} onValueChange={(value) => {
+                  setToLanguage(value as LanguageCode);
                   setMessages([]); // Reset conversation on language change
               }}>
                   <SelectTrigger id="conversation-language">
@@ -181,7 +183,7 @@ export default function ConversePage() {
                           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground pt-20">
                               <Sparkles className="h-12 w-12 mb-4" />
                               <h2 className="text-xl font-semibold">Start the conversation!</h2>
-                              <p>Click the microphone button to speak in {languages.find(l=>l.value === conversationLanguage)?.label}.</p>
+                              <p>Click the microphone button to speak in {languages.find(l=>l.value === toLanguage)?.label}.</p>
                           </div>
                       )}
                       {messages.map((message, index) => (
@@ -204,7 +206,7 @@ export default function ConversePage() {
                                         size="icon"
                                         variant="ghost"
                                         className="h-7 w-7"
-                                        onClick={() => handlePlayAudio(message.content, conversationLanguage)}
+                                        onClick={() => handlePlayAudio(message.content, toLanguage)}
                                         disabled={isPlayingAudio || isRecognizing || isReplying}
                                     >
                                         <Volume2 className="h-4 w-4" />

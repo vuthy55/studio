@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { useLanguage } from '@/context/LanguageContext';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -34,8 +35,7 @@ type AssessmentResult = {
 };
 
 export default function LearnPage() {
-    const [fromLanguage, setFromLanguage] = useState<LanguageCode>('english');
-    const [toLanguage, setToLanguage] = useState<LanguageCode>('thai');
+    const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const { isMobile } = useSidebar();
     const { toast } = useToast();
@@ -43,7 +43,7 @@ export default function LearnPage() {
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
-    const [activeTab, setActiveTab] = useState('live-translation');
+    const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
@@ -68,8 +68,7 @@ export default function LearnPage() {
 
     const handleSwitchLanguages = () => {
         const currentInput = inputText;
-        setFromLanguage(toLanguage);
-        setToLanguage(fromLanguage);
+        swapLanguages();
         setInputText(translatedText);
         setTranslatedText(currentInput);
         setLiveAssessmentResult(null);
@@ -562,7 +561,3 @@ export default function LearnPage() {
         </div>
     );
 }
-
-    
-
-    
