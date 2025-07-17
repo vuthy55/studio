@@ -49,12 +49,12 @@ export default function LoginPage() {
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
 
-    const dataWithRole = { 
+    const dataToSave = { 
         ...data, 
-        role: existingData.role || 'user' 
+        role: existingData.role || 'user'
     };
 
-    await setDoc(userDocRef, dataWithRole, { merge: true });
+    await setDoc(userDocRef, dataToSave, { merge: true });
   };
 
   const handleGoogleSignIn = async () => {
@@ -63,12 +63,22 @@ export default function LoginPage() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-       await updateUserProfileInFirestore(user.uid, {
-          name: user.displayName || 'New User',
-          email: user.email!,
-          country: '', 
-          mobile: user.phoneNumber || ''
-      });
+
+      // Check if user document already exists
+      const userDocRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(userDocRef);
+
+      // If user is new, create their profile in Firestore
+      if (!docSnap.exists()) {
+        await updateUserProfileInFirestore(user.uid, {
+            name: user.displayName || 'New User',
+            email: user.email!,
+            country: '', // Initialize empty for new users
+            mobile: user.phoneNumber || '', // Initialize from auth if available
+            role: 'user' // Default role
+        });
+      }
+
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -96,7 +106,8 @@ export default function LoginPage() {
           name: signupName,
           email: signupEmail,
           country: signupCountry,
-          mobile: signupMobile
+          mobile: signupMobile,
+          role: 'user'
       });
 
       toast({ title: "Success", description: "Account created successfully." });
