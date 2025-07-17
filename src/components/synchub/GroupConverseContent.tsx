@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
-import { languages, type LanguageCode } from '@/lib/data';
+import type { LanguageCode } from '@/lib/data';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,12 +35,10 @@ export default function GroupConverseContent() {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const languageToLabelMap: Record<string, string> = 
-    [...languages.map(l => ({[l.value]:l.label})), ...azureLanguages.map(l => ({[l.value]: l.label}))]
-    .reduce((acc, curr) => ({...acc, ...curr}), {});
+    azureLanguages.reduce((acc, curr) => ({...acc, [curr.value]: l.label}), {});
   
   const localeToLanguageMap: Record<string, LanguageCode | string> = 
-    [...languages, ...azureLanguages]
-    .reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {});
+    azureLanguages.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {});
 
 
   const stopConversation = useCallback((showToast = true) => {
@@ -210,13 +208,6 @@ export default function GroupConverseContent() {
   }, [stopConversation]);
 
   const allLanguageOptions = azureLanguages.filter(l => !selectedLanguages.includes(l.value));
-  const commonLanguageOptions = languages
-    .map(lang => {
-        const matchingAzureLang = azureLanguages.find(azLang => azLang.value.startsWith(lang.value.substring(0,2)));
-        return matchingAzureLang ? { label: lang.label, value: matchingAzureLang.value } : null;
-    })
-    .filter((l): l is { label: string; value: AzureLanguageCode } => l !== null && !selectedLanguages.includes(l.value))
-
 
   return (
     <Card className="shadow-lg mt-6 w-full max-w-2xl mx-auto">
@@ -248,18 +239,9 @@ export default function GroupConverseContent() {
                         </SelectTrigger>
                         <SelectContent>
                           <ScrollArea className="h-72">
-                            <SelectGroup>
-                              <Label className="px-2 py-1.5 text-xs font-semibold">Common Languages</Label>
-                            {commonLanguageOptions.map(lang => (
-                                  <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                            <SelectGroup>
-                              <Label className="px-2 py-1.5 text-xs font-semibold">All Languages</Label>
-                              {allLanguageOptions.map(lang => (
-                                  <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                              ))}
-                            </SelectGroup>
+                            {allLanguageOptions.map(lang => (
+                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                            ))}
                           </ScrollArea>
                         </SelectContent>
                     </Select>
@@ -303,3 +285,5 @@ export default function GroupConverseContent() {
     </Card>
   );
 }
+
+    
