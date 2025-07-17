@@ -16,6 +16,7 @@ const translateFlow = ai.defineFlow(
     const prompt = `You are a direct translation assistant. Your only task is to translate the user's text from ${fromLanguage} to ${toLanguage}. Do not add any extra information, context, or phonetic guides. Only provide the direct translation. Text to translate: "${text}"`;
 
     const response = await ai.generate({
+      model: 'googleai/gemini-2.0-flash',
       prompt: prompt,
       config: {
         temperature: 0.1,
