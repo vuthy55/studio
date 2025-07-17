@@ -8,7 +8,8 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  updateProfile as updateAuthProfile
+  updateProfile as updateAuthProfile,
+  type User
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -43,14 +44,17 @@ export default function LoginPage() {
     label: country.name
   }));
 
-  const updateUserProfileInFirestore = async (userId: string, data: any) => {
-    const userDocRef = doc(db, 'users', userId);
+  const updateUserProfileInFirestore = async (user: User, data: any) => {
+    const userDocRef = doc(db, 'users', user.uid);
     
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
 
+    // Always ensure the email from auth is the source of truth
     const dataToSave = { 
+        ...existingData,
         ...data, 
+        email: user.email!,
         role: existingData.role || 'user'
     };
 
@@ -64,18 +68,15 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check if user document already exists
       const userDocRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userDocRef);
 
-      // If user is new, create their profile in Firestore
+      // If user is new (or profile is incomplete), create/update their profile in Firestore
       if (!docSnap.exists()) {
-        await updateUserProfileInFirestore(user.uid, {
+        await updateUserProfileInFirestore(user, {
             name: user.displayName || 'New User',
-            email: user.email!,
-            country: '', // Initialize empty for new users
-            mobile: user.phoneNumber || '', // Initialize from auth if available
-            role: 'user' // Default role
+            country: '', 
+            mobile: user.phoneNumber || '',
         });
       }
 
@@ -102,17 +103,15 @@ export default function LoginPage() {
       
       await updateAuthProfile(user, { displayName: signupName });
 
-      await updateUserProfileInFirestore(user.uid, {
+      await updateUserProfileInFirestore(user, {
           name: signupName,
-          email: signupEmail,
           country: signupCountry,
           mobile: signupMobile,
-          role: 'user'
       });
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
-    } catch (error: any) {
+    } catch (error: any)
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {

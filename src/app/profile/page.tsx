@@ -48,8 +48,10 @@ export default function ProfilePage() {
             
             if (userDocSnap.exists()) {
                 const dbProfile = userDocSnap.data() as UserProfile;
+                // Ensure email from auth is always the source of truth
                 setProfile({ ...dbProfile, email: authEmail });
             } else {
+                // If no profile exists, create a basic one to be saved.
                 setProfile({
                     name: user.displayName || '',
                     email: authEmail,
@@ -99,8 +101,9 @@ export default function ProfilePage() {
                 name: profile.name || '',
                 country: profile.country || '',
                 mobile: profile.mobile || '',
-                email: user.email, // Ensure email from auth is saved
-                role: profile.role || 'user' // Ensure role is saved
+                // Always save the email from auth as the source of truth
+                email: user.email, 
+                role: profile.role || 'user'
             };
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
