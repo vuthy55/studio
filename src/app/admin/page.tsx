@@ -62,24 +62,30 @@ export default function AdminPage() {
             }
 
         } catch (error: any) {
-            console.error("Error fetching users:", error);
-            toast({ variant: "destructive", title: "Error", description: `Could not fetch users: ${error.message}` });
+            console.error("Error fetching users. If the console shows a 'permission-denied' or 'failed-precondition' error, you may need to create a Firestore index.", error);
+            console.log("FULL FIREBASE ERROR:", error);
+            toast({ 
+                variant: "destructive", 
+                title: "Error Fetching Users", 
+                description: "Could not fetch users. Check the browser console for details. You may need to create a Firestore index." 
+            });
         } finally {
             setIsLoading(false);
             setIsFetchingNext(false);
         }
-    // We remove toast from the dependency array to prevent the infinite loop.
-    // The toast function itself is stable and doesn't need to be a dependency.
-    }, [lastVisible]);
+    }, [lastVisible, toast]);
 
     useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
-        } else if(user) {
-           fetchUsers(true);
-        } else if (!authLoading) {
-            setIsLoading(false);
+        if (authLoading) {
+            return;
         }
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+        
+        fetchUsers(true);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading, router]);
 
@@ -87,7 +93,6 @@ export default function AdminPage() {
         setIsUpdating(userId);
         const newRole = currentRole === 'admin' ? 'user' : 'admin';
         
-        // Prevent admin from revoking their own admin status from this UI
         if (user?.uid === userId) {
             toast({ variant: "destructive", title: "Action not allowed", description: "You cannot change your own role from this panel."});
             setIsUpdating(null);
@@ -183,3 +188,4 @@ export default function AdminPage() {
         </div>
     );
 }
+
