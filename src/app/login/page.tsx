@@ -10,7 +10,7 @@ import {
   GoogleAuthProvider,
   updateProfile as updateAuthProfile
 } from "firebase/auth";
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { countries } from 'countries-list';
 
@@ -22,6 +22,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { Chrome } from 'lucide-react';
+
+const ADMIN_EMAIL = "thegreenhomecommunity@gmail.com";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,8 +47,21 @@ export default function LoginPage() {
 
   const updateUserProfileInFirestore = async (userId: string, data: any) => {
     const userDocRef = doc(db, 'users', userId);
-    // Ensure new users always have the 'user' role by default
-    const dataWithRole = { ...data, role: data.role || 'user' };
+    
+    // Check if the user is the designated admin
+    const isAdmin = data.email === ADMIN_EMAIL;
+    
+    // Check if a profile already exists
+    const docSnap = await getDoc(userDocRef);
+    const existingData = docSnap.exists() ? docSnap.data() : {};
+
+    // Ensure new users always have the 'user' role by default, unless they are the admin
+    // Or if they already have a role assigned.
+    const dataWithRole = { 
+        ...data, 
+        role: isAdmin ? 'admin' : (existingData.role || 'user') 
+    };
+
     await setDoc(userDocRef, dataWithRole, { merge: true });
   };
 
@@ -56,7 +71,7 @@ export default function LoginPage() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-       // Create a profile for the new Google user in Firestore
+       // Create/update a profile for the Google user in Firestore
       await updateUserProfileInFirestore(user.uid, {
           name: user.displayName || 'New User',
           email: user.email!,
@@ -109,7 +124,14 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const user = userCredential.user;
+
+       // On login, check if the user is the admin and update their role if needed.
+       if (user.email === ADMIN_EMAIL) {
+          await updateUserProfileInFirestore(user.uid, { email: user.email });
+       }
+
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
