@@ -24,7 +24,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const [user, loading] = useAuthState(auth);
   const { toast } = useToast();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
 
   const handleLogout = async () => {
     try {
@@ -39,8 +39,12 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-        <SheetDescription className="sr-only">Main navigation links for the application.</SheetDescription>
+        {isMobile && (
+          <>
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+            <SheetDescription className="sr-only">Main navigation links for the application.</SheetDescription>
+          </>
+        )}
         <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
       </SidebarHeader>
       <SidebarContent>
