@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -10,6 +9,7 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
       function isAdmin() {
+        // This rule assumes an 'admin' role is stored in the user's profile document.
         return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
       
@@ -19,45 +19,57 @@ service cloud.firestore {
 
     // Sync Rooms: Handles creation, reading, and updates for rooms.
     match /syncRooms/{roomId} {
+      function isInvited() {
+        return request.auth != null && request.auth.token.email in resource.data.invitedEmails;
+      }
+      function isEmcee() {
+        return request.auth != null && request.auth.uid in resource.data.emceeUids;
+      }
+      function isChangingOnlySpeaker() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
+      }
+
       // Authenticated users can create a room, ensuring they are the creator.
       allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
 
       // Allow reads if the user's email is on the invite list.
-      allow read: if request.auth != null && request.auth.token.email in resource.data.invitedEmails;
+      allow read: if isInvited();
 
-      // Allow updates (like changing speaker or closing room) if the user is an emcee.
-      allow update: if request.auth != null && request.auth.uid in resource.data.emceeUids;
-
-      // Allow creator to delete the room
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorUid;
+      // Allow updates if user is an emcee OR if an invited user is only changing the active speaker.
+      allow update: if isEmcee() || (isInvited() && isChangingOnlySpeaker());
+      
+      // Allow the creator of the room to delete it.
+      allow delete: if request.auth != null && resource.data.creatorUid == request.auth.uid;
     }
 
     // Participants sub-collection: Handles who can join and how.
     match /syncRooms/{roomId}/participants/{participantId} {
-      // A function to check if the requesting user is on the room's invite list.
-      function isInvited() {
+      function isRoomInvited() {
         let room = get(/databases/$(database)/documents/syncRooms/$(roomId));
-        // Check if room data exists before trying to access it
-        return room != null && request.auth != null && request.auth.token.email in room.data.invitedEmails;
+        // Check if the room exists before trying to access its data.
+        return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+               request.auth != null &&
+               request.auth.token.email in room.data.invitedEmails;
       }
 
-      // A function to check if the user is an emcee for the room.
-      function isEmcee() {
+      function isRoomEmcee() {
         let room = get(/databases/$(database)/documents/syncRooms/$(roomId));
-        return room != null && request.auth != null && request.auth.uid in room.data.emceeUids;
+        return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+               request.auth != null &&
+               request.auth.uid in room.data.emceeUids;
       }
       
       // Allow reading/listing participants if the user is invited.
-      allow list, read: if isInvited();
+      allow list, read: if isRoomInvited();
       
       // Allow creating a participant document (joining a room) if:
       // 1. The user is logged in, their email is on the invite list, and the document ID is their UID.
       // 2. A guest (not logged in) provides an email that is on the invite list.
-      allow create: if (request.auth != null && isInvited() && request.resource.data.uid == request.auth.uid) ||
+      allow create: if (request.auth != null && isRoomInvited() && request.resource.data.uid == request.auth.uid) ||
                        (request.auth == null && request.resource.data.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails);
       
       // Allow emcees to update participants (e.g., mute, promote to emcee).
-      allow update: if isEmcee();
+      allow update: if isRoomEmcee();
 
       // Allow participants to remove themselves (leave room).
       allow delete: if request.auth != null && request.auth.uid == participantId;
