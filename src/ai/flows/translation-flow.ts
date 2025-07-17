@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for translating text from one language to another.
@@ -6,6 +7,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/googleai';
 import {
   TranslateTextInput,
   TranslateTextInputSchema,
@@ -36,6 +38,7 @@ const translationPrompt = ai.definePrompt({
 Text to translate: "{{{text}}}"`,
   config: {
     temperature: 0.1,
+    model: googleAI('gemini-pro'), // Let Genkit handle the model and API key
   },
 });
 
@@ -46,16 +49,7 @@ const translateTextFlow = ai.defineFlow(
     outputSchema: TranslateTextOutputSchema,
   },
   async (input: TranslateTextInput) => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured in the environment.');
-    }
-
-    const {output} = await translationPrompt(input, {
-      config: {
-        apiKey: apiKey,
-      },
-    });
+    const {output} = await translationPrompt(input);
 
     if (!output) {
       throw new Error('Translation prompt returned no output.');

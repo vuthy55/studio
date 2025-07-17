@@ -5,6 +5,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 export async function runTestFlow(): Promise<string> {
   console.log('Running Genkit Test Flow...');
@@ -23,22 +24,18 @@ const testFlow = ai.defineFlow(
     name: 'testFlow',
   },
   async () => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured in the environment for testFlow.');
-    }
-
+    // The googleAI() plugin in genkit.ts automatically uses the GEMINI_API_KEY 
+    // from the environment variables. We just need to reference the model.
     console.log('Calling AI model in testFlow...');
-    const llm = ai.getPlugin('googleai')!.getModel('gemini-pro', { apiKey });
-    const { output } = await ai.generate({
-      model: llm,
+    const {output} = await ai.generate({
+      model: googleAI('gemini-pro'),
       prompt: 'Tell me a one-sentence joke.',
     });
 
     if (!output) {
       throw new Error('Test flow returned no output.');
     }
-    
+
     return output.text;
   }
 );
