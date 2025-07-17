@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { countries } from 'countries-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { updateProfile as updateAuthProfile } from "firebase/auth";
+
 
 export interface UserProfile {
   name: string;
@@ -35,18 +37,23 @@ export default function ProfilePage() {
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
     const fetchProfile = useCallback(async (uid: string) => {
+        if (!user) return;
         setIsFetchingProfile(true);
         try {
             const userDocRef = doc(db, 'users', uid);
             const userDocSnap = await getDoc(userDocRef);
 
+            const authEmail = user.email || '';
+            
             if (userDocSnap.exists()) {
-                setProfile(userDocSnap.data() as UserProfile);
+                const dbProfile = userDocSnap.data();
+                setProfile({ ...dbProfile, email: authEmail });
             } else {
-                // If no profile exists, pre-fill with auth data
                 setProfile({
-                    name: auth.currentUser?.displayName || '',
-                    email: auth.currentUser?.email || '',
+                    name: user.displayName || '',
+                    email: authEmail,
+                    country: '',
+                    mobile: ''
                 });
             }
         } catch (fetchError) {
@@ -55,7 +62,7 @@ export default function ProfilePage() {
         } finally {
             setIsFetchingProfile(false);
         }
-    }, [toast]);
+    }, [user, toast]);
 
     useEffect(() => {
         if (loading) return;
@@ -80,12 +87,17 @@ export default function ProfilePage() {
         if (!user) return;
         setIsSaving(true);
         try {
+            // Update Firebase Auth display name
+            if (profile.name && profile.name !== user.displayName) {
+                await updateAuthProfile(user, { displayName: profile.name });
+            }
+
             const userDocRef = doc(db, 'users', user.uid);
-            // Ensure email is not overwritten if it exists from auth
             const dataToSave = {
-                ...profile,
-                email: user.email, 
-                name: profile.name || user.displayName
+                name: profile.name || '',
+                country: profile.country || '',
+                mobile: profile.mobile || '',
+                email: user.email // Ensure email from auth is saved
             };
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
@@ -98,7 +110,7 @@ export default function ProfilePage() {
     };
     
     const getInitials = (name?: string) => {
-        return name ? name.charAt(0).toUpperCase() : '?';
+        return name ? name.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || '?');
     };
 
     const countryOptions = Object.entries(countries).map(([code, country]) => ({

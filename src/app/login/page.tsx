@@ -58,7 +58,7 @@ export default function LoginPage() {
       await updateUserProfileInFirestore(user.uid, {
           name: user.displayName || 'New User',
           email: user.email!,
-          country: '', // Google sign-in doesn't provide this
+          country: '', 
           mobile: user.phoneNumber || ''
       });
       toast({ title: "Success", description: "Logged in successfully." });
@@ -173,7 +173,7 @@ export default function LoginPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-country">Country</Label>
-                     <Select onValueChange={setSignupCountry} required>
+                     <Select onValueChange={setSignupCountry} value={signupCountry} required>
                         <SelectTrigger id="signup-country">
                             <SelectValue placeholder="Select your country" />
                         </SelectTrigger>
