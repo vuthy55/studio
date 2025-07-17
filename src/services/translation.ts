@@ -1,16 +1,19 @@
 'use server';
 
 import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 
-export interface TranslateTextInput {
-  text: string;
-  fromLanguage: string;
-  toLanguage: string;
-}
+export const TranslateTextInputSchema = z.object({
+  text: z.string(),
+  fromLanguage: z.string(),
+  toLanguage: z.string(),
+});
+export type TranslateTextInput = z.infer<typeof TranslateTextInputSchema>;
 
-export interface TranslateTextOutput {
-  translatedText: string;
-}
+export const TranslateTextOutputSchema = z.object({
+  translatedText: z.string(),
+});
+export type TranslateTextOutput = z.infer<typeof TranslateTextOutputSchema>;
 
 export async function translateText(
   input: TranslateTextInput
@@ -26,7 +29,7 @@ export async function translateText(
       config: {
         temperature: 0.1,
       },
-       safetySettings: [
+      safetySettings: [
         {
           category: 'HARM_CATEGORY_HATE_SPEECH',
           threshold: 'BLOCK_NONE',

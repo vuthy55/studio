@@ -1,21 +1,29 @@
 'use server';
 
 import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 
-type HistoryItem = {
-  role: 'user' | 'model';
-  parts: { text: string }[];
-};
 
-export interface ConverseInput {
-  history: HistoryItem[];
-  language: string;
-  userMessage: string;
-}
+const HistoryItemSchema = z.object({
+  role: z.enum(['user', 'model']),
+  parts: z.array(z.object({ text: z.string() })),
+});
+export type HistoryItem = z.infer<typeof HistoryItemSchema>;
 
-export interface ConverseOutput {
-  reply: string;
-}
+
+export const ConverseInputSchema = z.object({
+  history: z.array(HistoryItemSchema),
+  language: z.string(),
+  userMessage: z.string(),
+});
+export type ConverseInput = z.infer<typeof ConverseInputSchema>;
+
+
+const ConverseOutputSchema = z.object({
+  reply: z.string(),
+});
+export type ConverseOutput = z.infer<typeof ConverseOutputSchema>;
+
 
 export async function converse(input: ConverseInput): Promise<ConverseOutput> {
   const { history, language, userMessage } = input;
