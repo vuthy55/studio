@@ -24,18 +24,18 @@ const testFlow = ai.defineFlow(
     name: 'testFlow',
   },
   async () => {
-    // The googleAI() plugin in genkit.ts automatically uses the GEMINI_API_KEY 
-    // from the environment variables. We just need to reference the model.
+    // The googleAI() plugin in genkit.ts automatically uses the GEMINI_API_KEY
+    // from the environment variables. We just need to reference the model by its string ID.
     console.log('Calling AI model in testFlow...');
-    const {output} = await ai.generate({
-      model: googleAI('gemini-pro'),
+    const {text} = await ai.generate({
+      model: 'gemini-pro',
       prompt: 'Tell me a one-sentence joke.',
     });
 
-    if (!output) {
+    if (!text) {
       throw new Error('Test flow returned no output.');
     }
 
-    return output.text;
+    return text;
   }
 );

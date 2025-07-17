@@ -7,7 +7,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/googleai';
 import {
   TranslateTextInput,
   TranslateTextInputSchema,
@@ -38,7 +37,7 @@ const translationPrompt = ai.definePrompt({
 Text to translate: "{{{text}}}"`,
   config: {
     temperature: 0.1,
-    model: googleAI('gemini-pro'), // Let Genkit handle the model and API key
+    model: 'gemini-pro', // Let Genkit handle the model and API key
   },
 });
 
