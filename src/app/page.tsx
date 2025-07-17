@@ -47,9 +47,14 @@ export default function LearnPage() {
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
+    
+    // For "Live Translation" tab assessment
     const [isAssessingLive, setIsAssessingLive] = useState(false);
     const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
-    
+
+    // For "Phrasebook" tab assessments
+    const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
+    const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
 
     useEffect(() => {
         setSpeechSynthesis(window.speechSynthesis);
@@ -71,7 +76,7 @@ export default function LearnPage() {
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text || isRecognizing || isAssessingLive) return;
+        if (!text || isRecognizing || isAssessingLive || assessingPhraseId) return;
         const locale = languageToLocaleMap[lang];
         
         if (speechSynthesis && selectedVoice === 'default') {
@@ -182,6 +187,7 @@ export default function LearnPage() {
    const assessPronunciation = async (
     referenceText: string,
     lang: LanguageCode,
+    phraseId?: string,
   ) => {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
@@ -201,7 +207,12 @@ export default function LearnPage() {
       return;
     }
     
-    setIsAssessingLive(true);
+    // Set loading state based on where it's called from
+    if(phraseId) {
+      setAssessingPhraseId(phraseId);
+    } else {
+      setIsAssessingLive(true);
+    }
 
     let recognizer: sdk.SpeechRecognizer | undefined;
     let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
@@ -263,8 +274,14 @@ export default function LearnPage() {
       if (recognizer) {
         recognizer.close();
       }
-      setLiveAssessmentResult(finalResult);
-      setIsAssessingLive(false);
+      // Set result state based on where it was called from
+      if(phraseId) {
+        setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+        setAssessingPhraseId(null);
+      } else {
+        setLiveAssessmentResult(finalResult);
+        setIsAssessingLive(false);
+      }
     }
   };
     
@@ -365,7 +382,7 @@ export default function LearnPage() {
                                                     <ul className="list-disc pl-4 space-y-1 text-sm">
                                                         <li>Select a topic to learn relevant phrases.</li>
                                                         <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                                        <li>The mic icon for pronunciation practice is only available in the Live Translation tab.</li>
+                                                        <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation.</li>
                                                     </ul>
                                                 </TooltipContent>
                                             </Tooltip>
@@ -377,6 +394,7 @@ export default function LearnPage() {
                                             const topic = phrasebook.find(t => t.id === value);
                                             if (topic) {
                                                 setSelectedTopic(topic);
+                                                setPhraseAssessments({}); // Reset assessments on topic change
                                             }
                                         }}
                                     >
@@ -403,14 +421,28 @@ export default function LearnPage() {
                                             const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
                                             const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
 
+                                            const assessment = phraseAssessments[phrase.id];
+                                            const isAssessingCurrent = assessingPhraseId === phrase.id;
+
                                             return (
                                             <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex justify-between items-center w-full">
                                                         <div>
                                                             <p className="font-semibold text-lg">{fromText}</p>
+                                                            {assessment && (
+                                                                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                                                                    {assessment.status === 'pass' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                                                                    {assessment.status === 'fail' && <XCircle className="h-4 w-4 text-red-500" />}
+                                                                    <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
+                                                            <Button size="icon" variant="ghost" onClick={() => assessPronunciation(fromText, fromLanguage, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                                {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                                <span className="sr-only">Record pronunciation</span>
+                                                            </Button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -420,7 +452,7 @@ export default function LearnPage() {
                                                             <p className="font-bold text-lg text-primary">{toText}</p>
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
                                                             </Button>
@@ -443,7 +475,7 @@ export default function LearnPage() {
                                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                             </div>
                                                             <div className="flex items-center shrink-0">
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
