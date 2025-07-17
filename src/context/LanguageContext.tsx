@@ -15,33 +15,38 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+// This function will now be used inside the effect
 const getInitialLanguage = (key: string, fallback: LanguageCode): LanguageCode => {
-    if (typeof window !== 'undefined') {
-        const storedValue = localStorage.getItem(key);
-        const isValid = storedValue && languages.some(l => l.value === storedValue);
-        if (isValid) {
-            return storedValue as LanguageCode;
-        }
-    }
-    return fallback;
+    const storedValue = localStorage.getItem(key);
+    const isValid = storedValue && languages.some(l => l.value === storedValue);
+    return isValid ? storedValue as LanguageCode : fallback;
 };
 
-
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [fromLanguage, setFromLanguageState] = useState<LanguageCode>(() => getInitialLanguage('fromLanguage', 'english'));
-  const [toLanguage, setToLanguageState] = useState<LanguageCode>(() => getInitialLanguage('toLanguage', 'thai'));
+  // Initialize state with default values, which will match the server render
+  const [fromLanguage, setFromLanguageState] = useState<LanguageCode>('english');
+  const [toLanguage, setToLanguageState] = useState<LanguageCode>('thai');
+  const [isMounted, setIsMounted] = useState(false);
+
+  // After the component mounts on the client, load the values from localStorage
+  useEffect(() => {
+    setIsMounted(true);
+    setFromLanguageState(getInitialLanguage('fromLanguage', 'english'));
+    setToLanguageState(getInitialLanguage('toLanguage', 'thai'));
+  }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    // Only save to localStorage after the initial mount and when the value changes
+    if (isMounted) {
       localStorage.setItem('fromLanguage', fromLanguage);
     }
-  }, [fromLanguage]);
+  }, [fromLanguage, isMounted]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (isMounted) {
       localStorage.setItem('toLanguage', toLanguage);
     }
-  }, [toLanguage]);
+  }, [toLanguage, isMounted]);
 
   const setFromLanguage = (language: LanguageCode) => {
     setFromLanguageState(language);
