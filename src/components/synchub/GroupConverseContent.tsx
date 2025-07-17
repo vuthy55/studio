@@ -69,10 +69,10 @@ export default function GroupConverseContent() {
   }, [stopConversation, toast]);
 
   const handleLanguageSelect = (lang: LanguageCode) => {
-    if (selectedLanguages.length < 5 && !selectedLanguages.includes(lang)) {
+    if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
       setSelectedLanguages(prev => [...prev, lang]);
-    } else if (selectedLanguages.length >= 5) {
-      toast({ variant: 'destructive', title: 'Limit Reached', description: 'You can select a maximum of 5 languages.' });
+    } else if (selectedLanguages.length >= 4) {
+      toast({ variant: 'destructive', title: 'Limit Reached', description: 'You can select a maximum of 4 languages.' });
     }
   };
 
@@ -230,7 +230,7 @@ export default function GroupConverseContent() {
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
         <div className="w-full space-y-4">
-            <Label className="flex items-center gap-2 font-semibold"><Languages className="h-5 w-5"/> Conversation Languages ({selectedLanguages.length}/5)</Label>
+            <Label className="flex items-center gap-2 font-semibold"><Languages className="h-5 w-5"/> Conversation Languages ({selectedLanguages.length}/4)</Label>
             <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
                 {selectedLanguages.map(lang => (
                     <Badge key={lang} variant="secondary" className="text-base py-1 px-3">
@@ -240,7 +240,7 @@ export default function GroupConverseContent() {
                         </button>
                     </Badge>
                 ))}
-                {selectedLanguages.length < 5 && (
+                {selectedLanguages.length < 4 && (
                      <Select onValueChange={(val) => handleLanguageSelect(val as LanguageCode)}>
                         <SelectTrigger className="w-40 h-9 border-dashed">
                             <SelectValue placeholder="Add language..." />
@@ -259,7 +259,7 @@ export default function GroupConverseContent() {
           size="lg"
           className={cn(
               "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
-              status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-[pulse_3s_cubic-bezier(0.4,0,0.6,1)_infinite]',
+              status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-[pulse_10s_cubic-bezier(0.4,0,0.6,1)_infinite]',
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
               (status === 'idle' || status === 'error') && 'bg-primary hover:bg-primary/90'
           )}
