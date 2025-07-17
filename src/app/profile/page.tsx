@@ -35,10 +35,12 @@ export default function ProfilePage() {
     useEffect(() => {
         const fetchProfile = async () => {
             if (user) {
+                console.log('--- DEBUG: Fetching profile for user ID:', user.uid);
                 const userProfile = await getUserProfile(user.uid);
                 if (userProfile) {
                     setProfile(userProfile);
                 } else {
+                    console.log('--- DEBUG: No profile found in Firestore, pre-filling from auth data.');
                     // Pre-fill with auth data if no firestore doc exists
                     setProfile({
                         name: user.displayName || '',

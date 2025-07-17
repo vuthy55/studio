@@ -22,17 +22,24 @@ export interface UpdateUserProfileInput {
  * @returns The user profile data, or null if not found.
  */
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  console.log('--- DEBUG: [Service] getUserProfile called with userId:', userId);
+  if (!userId) {
+    console.error('--- DEBUG: [Service] getUserProfile called with null or undefined userId.');
+    return null;
+  }
   try {
     const userDocRef = doc(db, 'users', userId);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
+      console.log('--- DEBUG: [Service] Profile found for', userId);
       return userDocSnap.data() as UserProfile;
     } else {
+      console.log('--- DEBUG: [Service] No profile document found for', userId);
       return null;
     }
   } catch (error) {
-    console.error("Error getting user profile: ", error);
+    console.error("--- DEBUG: [Service] Full error in getUserProfile:", error);
     throw new Error('Could not fetch user profile.');
   }
 }
@@ -45,14 +52,17 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
  */
 export async function updateUserProfile(input: UpdateUserProfileInput): Promise<void> {
   const { userId, data } = input;
+  console.log('--- DEBUG: [Service] updateUserProfile called for userId:', userId, 'with data:', data);
+  if (!userId) {
+    console.error('--- DEBUG: [Service] updateUserProfile called with null or undefined userId.');
+    return;
+  }
   try {
     const userDocRef = doc(db, 'users', userId);
-    // Use setDoc with merge: true. This will create the document if it doesn't exist,
-    // and update the fields specified in `data` if it does exist, without
-    // overwriting the entire document. This is the correct, idempotent way to handle this.
     await setDoc(userDocRef, data, { merge: true });
+    console.log('--- DEBUG: [Service] Successfully updated profile for', userId);
   } catch (error) {
-    console.error("Error updating user profile: ", error);
+    console.error("--- DEBUG: [Service] Full error in updateUserProfile:", error);
     throw new Error('Could not update user profile.');
   }
 }
