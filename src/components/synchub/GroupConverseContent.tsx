@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
@@ -246,18 +247,20 @@ export default function GroupConverseContent() {
                             <SelectValue placeholder="Add language..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectGroup>
-                            <Label className="px-2 py-1.5 text-xs font-semibold">Common Languages</Label>
-                           {commonLanguageOptions.map(lang => (
-                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                            ))}
-                          </SelectGroup>
-                          <SelectGroup>
-                            <Label className="px-2 py-1.5 text-xs font-semibold">All Languages</Label>
-                             {allLanguageOptions.map(lang => (
-                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                            ))}
-                          </SelectGroup>
+                          <ScrollArea className="h-72">
+                            <SelectGroup>
+                              <Label className="px-2 py-1.5 text-xs font-semibold">Common Languages</Label>
+                            {commonLanguageOptions.map(lang => (
+                                  <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <Label className="px-2 py-1.5 text-xs font-semibold">All Languages</Label>
+                              {allLanguageOptions.map(lang => (
+                                  <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </ScrollArea>
                         </SelectContent>
                     </Select>
                 )}
