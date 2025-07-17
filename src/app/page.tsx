@@ -430,7 +430,14 @@ export default function LearnPage() {
                                                     <div className="flex justify-between items-center w-full">
                                                         <div>
                                                             <p className="font-semibold text-lg">{fromText}</p>
-                                                            {assessment && (
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <div>
+                                                            <p className="font-bold text-lg text-primary">{toText}</p>
+                                                             {assessment && (
                                                                 <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                                                     {assessment.status === 'pass' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
                                                                     {assessment.status === 'fail' && <XCircle className="h-4 w-4 text-red-500" />}
@@ -439,22 +446,13 @@ export default function LearnPage() {
                                                             )}
                                                         </div>
                                                         <div className="flex items-center shrink-0">
-                                                            <Button size="icon" variant="ghost" onClick={() => assessPronunciation(fromText, fromLanguage, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                                {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                                <span className="sr-only">Record pronunciation</span>
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex justify-between items-center w-full">
-                                                         <div>
-                                                            <p className="font-bold text-lg text-primary">{toText}</p>
-                                                        </div>
-                                                        <div className="flex items-center shrink-0">
                                                             <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" />
                                                                 <span className="sr-only">Play audio</span>
+                                                            </Button>
+                                                            <Button size="icon" variant="ghost" onClick={() => assessPronunciation(toText, toLanguage, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                                {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                                <span className="sr-only">Record pronunciation</span>
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -466,8 +464,6 @@ export default function LearnPage() {
                                                         <div className="flex justify-between items-center w-full">
                                                             <div>
                                                                 <p className="font-semibold text-lg">{fromAnswerText}</p>
-                                                            </div>
-                                                            <div className="flex items-center shrink-0">
                                                             </div>
                                                         </div>
                                                         <div className="flex justify-between items-center w-full">
