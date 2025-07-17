@@ -250,8 +250,8 @@ export default function LiveTranslationContent() {
                         </Select>
                     </div>
 
-                     <div className="w-full sm:w-auto sm:flex-1 self-end">
-                      <Label htmlFor="tts-voice-live" className="sr-only">Voice</Label>
+                     <div className="w-full sm:w-auto sm:flex-1">
+                      <Label htmlFor="tts-voice-live">Voice</Label>
                       <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
                           <SelectTrigger id="tts-voice-live">
                               <SelectValue placeholder="Select a voice" />
