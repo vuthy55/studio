@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
@@ -22,6 +22,7 @@ export default function SyncOnlineHome() {
     const [user, loading] = useAuthState(auth);
     const router = useRouter();
     const { toast } = useToast();
+    const [isMounted, setIsMounted] = useState(false);
 
     const [isCreating, setIsCreating] = useState(false);
     const [roomTopic, setRoomTopic] = useState('');
@@ -29,6 +30,10 @@ export default function SyncOnlineHome() {
     const [inviteeEmails, setInviteeEmails] = useState('');
     
     const [createdRoomLink, setCreatedRoomLink] = useState('');
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,8 +101,21 @@ export default function SyncOnlineHome() {
         setCreatedRoomLink('');
     };
 
-    if (loading) {
-        return <LoaderCircle className="animate-spin" />;
+    if (!isMounted || loading) {
+        return (
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
+                    <CardDescription>Create a private room for a real-time, multi-language voice conversation.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-2">
+                        <LoaderCircle className="animate-spin h-5 w-5" />
+                        <p>Loading...</p>
+                    </div>
+                </CardContent>
+            </Card>
+        );
     }
 
     return (
