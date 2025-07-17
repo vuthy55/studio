@@ -23,8 +23,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from "@/hooks/use-toast";
 import { Chrome } from 'lucide-react';
 
-const ADMIN_EMAIL = "thegreenhomecommunity@gmail.com";
-
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -48,11 +46,9 @@ export default function LoginPage() {
   const updateUserProfileInFirestore = async (userId: string, data: any) => {
     const userDocRef = doc(db, 'users', userId);
     
-    // Check if a profile already exists
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
 
-    // Ensure new users always have the 'user' role by default, unless they already have a role.
     const dataWithRole = { 
         ...data, 
         role: existingData.role || 'user' 
@@ -67,8 +63,7 @@ export default function LoginPage() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-       // Create/update a profile for the Google user in Firestore
-      await updateUserProfileInFirestore(user.uid, {
+       await updateUserProfileInFirestore(user.uid, {
           name: user.displayName || 'New User',
           email: user.email!,
           country: '', 
@@ -95,10 +90,8 @@ export default function LoginPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       const user = userCredential.user;
       
-      // Update Firebase Auth profile
       await updateAuthProfile(user, { displayName: signupName });
 
-      // Create user profile in Firestore
       await updateUserProfileInFirestore(user.uid, {
           name: signupName,
           email: signupEmail,
@@ -108,7 +101,8 @@ export default function LoginPage() {
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
-    } catch (error: any)      console.error("Email sign-up error", error);
+    } catch (error: any) {
+      console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsLoading(false);
