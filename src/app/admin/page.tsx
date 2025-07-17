@@ -16,7 +16,6 @@ import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
-
 interface UserWithId extends UserProfile {
     id: string;
 }
@@ -39,7 +38,6 @@ export default function AdminPage() {
     const fetchUsers = useCallback(async (loadMore = false) => {
         if (!loadMore) {
             setIsLoading(true);
-            setUsers([]);
         } else {
             setIsFetchingNext(true);
         }
@@ -82,12 +80,15 @@ export default function AdminPage() {
     }, [lastVisible, toast]);
 
     useEffect(() => {
-        if (authLoading) return;
+        if (authLoading) {
+            return;
+        }
         if (!user) {
             router.push('/login');
             return;
         }
-        fetchUsers();
+        // Initial fetch
+        fetchUsers(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading, router]);
 
