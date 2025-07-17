@@ -46,7 +46,17 @@ const translateTextFlow = ai.defineFlow(
     outputSchema: TranslateTextOutputSchema,
   },
   async (input: TranslateTextInput) => {
-    const {output} = await translationPrompt(input);
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not configured in the environment.');
+    }
+
+    const {output} = await translationPrompt(input, {
+      config: {
+        apiKey: apiKey,
+      },
+    });
+
     if (!output) {
       throw new Error('Translation prompt returned no output.');
     }
