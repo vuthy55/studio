@@ -24,6 +24,7 @@ export interface UserProfile {
   email: string;
   country?: string;
   mobile?: string;
+  role?: 'admin' | 'user';
 }
 
 export default function ProfilePage() {
@@ -32,7 +33,7 @@ export default function ProfilePage() {
     const { isMobile } = useSidebar();
     const { toast } = useToast();
     
-    const [profile, setProfile] = useState<Partial<UserProfile>>({ name: '', email: '', country: '', mobile: '' });
+    const [profile, setProfile] = useState<Partial<UserProfile>>({ name: '', email: '', country: '', mobile: '', role: 'user' });
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
@@ -46,14 +47,15 @@ export default function ProfilePage() {
             const authEmail = user.email || '';
             
             if (userDocSnap.exists()) {
-                const dbProfile = userDocSnap.data();
+                const dbProfile = userDocSnap.data() as UserProfile;
                 setProfile({ ...dbProfile, email: authEmail });
             } else {
                 setProfile({
                     name: user.displayName || '',
                     email: authEmail,
                     country: '',
-                    mobile: ''
+                    mobile: '',
+                    role: 'user'
                 });
             }
         } catch (fetchError) {
@@ -97,7 +99,8 @@ export default function ProfilePage() {
                 name: profile.name || '',
                 country: profile.country || '',
                 mobile: profile.mobile || '',
-                email: user.email // Ensure email from auth is saved
+                email: user.email, // Ensure email from auth is saved
+                role: profile.role || 'user' // Ensure role is saved
             };
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });

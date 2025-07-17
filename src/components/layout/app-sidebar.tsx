@@ -2,9 +2,9 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { 
   Sidebar, 
   SidebarHeader, 
@@ -17,6 +17,9 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useEffect, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import type { UserProfile } from '@/app/profile/page';
 
 
 export function AppSidebar() {
@@ -24,6 +27,22 @@ export function AppSidebar() {
   const [user, loading] = useAuthState(auth);
   const { toast } = useToast();
   const { setOpenMobile } = useSidebar();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setUserProfile(userDocSnap.data() as UserProfile);
+        }
+      } else {
+        setUserProfile(null);
+      }
+    };
+    fetchProfile();
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -69,6 +88,16 @@ export function AppSidebar() {
             </SidebarMenuItem>
            ) : user ? (
             <>
+              {userProfile?.role === 'admin' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === '/admin'}>
+                    <Link href="/admin" onClick={() => setOpenMobile(false)}>
+                      <Shield />
+                      Admin
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
                   <Link href="/profile" onClick={() => setOpenMobile(false)}>

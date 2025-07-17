@@ -45,7 +45,9 @@ export default function LoginPage() {
 
   const updateUserProfileInFirestore = async (userId: string, data: any) => {
     const userDocRef = doc(db, 'users', userId);
-    await setDoc(userDocRef, data, { merge: true });
+    // Ensure new users always have the 'user' role by default
+    const dataWithRole = { ...data, role: data.role || 'user' };
+    await setDoc(userDocRef, dataWithRole, { merge: true });
   };
 
   const handleGoogleSignIn = async () => {
