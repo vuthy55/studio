@@ -36,12 +36,10 @@ export default function AdminPage() {
     const [hasMore, setHasMore] = useState(true);
 
     const fetchUsers = useCallback(async (loadMore = false) => {
-        if (!loadMore) {
-            setIsLoading(true);
-            setUsers([]);
-            setLastVisible(null);
-        } else {
+        if (loadMore) {
             setIsFetchingNext(true);
+        } else {
+            setIsLoading(true);
         }
         
         try {
@@ -82,14 +80,11 @@ export default function AdminPage() {
     }, [lastVisible, toast]);
 
     useEffect(() => {
-        if (authLoading) {
-            return;
-        }
+        if (authLoading) return;
         if (!user) {
             router.push('/login');
             return;
         }
-        // Initial fetch
         fetchUsers(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading, router]);
@@ -203,3 +198,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
