@@ -59,20 +59,6 @@ export default function LiveTranslationContent() {
         }
     };
     
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            if (inputText) {
-                handleTranslation();
-            } else {
-                setTranslatedText('');
-                setAssessmentResult(null);
-            }
-        }, 500);
-
-        return () => clearTimeout(debounceTimer);
-    }, [inputText, fromLanguage, toLanguage]);
-
-
     const handleTranslation = async () => {
         if (!inputText) return;
         setIsTranslating(true);
@@ -93,6 +79,19 @@ export default function LiveTranslationContent() {
             setIsTranslating(false);
         }
     };
+
+    useEffect(() => {
+        const debounceTimer = setTimeout(() => {
+            if (inputText) {
+                handleTranslation();
+            } else {
+                setTranslatedText('');
+                setAssessmentResult(null);
+            }
+        }, 500);
+
+        return () => clearTimeout(debounceTimer);
+    }, [inputText, fromLanguage, toLanguage]);
 
     const recognizeFromMicrophone = async () => {
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;

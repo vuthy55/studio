@@ -16,7 +16,7 @@ const translationPrompt = ai.definePrompt({
   name: 'translationPrompt',
   input: {schema: TranslateTextInputSchema},
   output: {schema: TranslateTextOutputSchema},
-  model: 'gemini-pro',
+  // The model is defined globally in src/ai/genkit.ts
   prompt: `Translate the following text from {{{fromLanguage}}} to {{{toLanguage}}}. Only provide the translated text as the output.
 
 Text to translate:

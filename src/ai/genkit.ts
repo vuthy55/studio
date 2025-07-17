@@ -4,12 +4,15 @@
  */
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
+import {next} from '@genkit-ai/next';
 
 // Log the API key to verify it's loaded. This will only show in the server console.
 console.log('GEMINI_API_KEY loaded:', process.env.GEMINI_API_KEY ? 'Yes' : 'No');
 
 export const ai = genkit({
   plugins: [
-    googleAI({}), // Pass empty options object for correct initialization
+    next(),
+    googleAI(),
   ],
+  model: 'gemini-pro',
 });

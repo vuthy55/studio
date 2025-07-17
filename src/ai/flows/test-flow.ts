@@ -26,7 +26,7 @@ const testFlow = ai.defineFlow(
     // from the environment variables. We just need to reference the model by its string ID.
     console.log('Calling AI model in testFlow...');
     const {text} = await ai.generate({
-      model: 'gemini-pro',
+      // The model is set globally in genkit.ts, so we don't need to specify it here.
       prompt: 'Tell me a one-sentence joke.',
     });
 
