@@ -13,8 +13,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { generateSpeech } from '@/services/tts';
-import { converse } from '@/services/converse';
+import { converse } from '@/ai/flows/converse-flow';
+import type { HistoryItem } from '@/ai/flows/types';
 import { useLanguage } from '@/context/LanguageContext';
+import type { Message as GenkitMessage } from 'genkit';
+
 
 type Message = {
   role: 'user' | 'model';
@@ -109,11 +112,13 @@ export default function ConversePageContent() {
       try {
           const languageLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
           
+          const historyForApi: GenkitMessage[] = currentHistory.slice(0, -1).map(m => ({
+            role: m.role,
+            content: [{ text: m.content }]
+          }));
+
           const result = await converse({
-              history: currentHistory.slice(0, -1).map(m => ({
-                  role: m.role,
-                  parts: [{ text: m.content }]
-              })),
+              history: historyForApi,
               language: languageLabel,
               userMessage: userMessage,
           });
