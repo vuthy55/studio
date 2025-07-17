@@ -91,6 +91,7 @@ export default function LiveTranslationContent() {
         }, 500);
 
         return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inputText, fromLanguage, toLanguage]);
 
     const recognizeFromMicrophone = async () => {
