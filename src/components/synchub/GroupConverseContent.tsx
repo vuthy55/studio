@@ -18,6 +18,9 @@ type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
+// Helper function to add a delay
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function GroupConverseContent() {
   const [selectedLanguages, setSelectedLanguages] = useState<LanguageCode[]>(['english', 'thai']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
@@ -128,7 +131,7 @@ export default function GroupConverseContent() {
             const fromLangLabel = languages.find(l => l.value === detectedLangCode)?.label || 'Unknown';
             setLastSpoken({ lang: fromLangLabel, text: originalText });
             
-            const targetLanguages = selectedLanguages.filter(l => l.value !== detectedLangCode);
+            const targetLanguages = selectedLanguages.filter(l => l !== detectedLangCode);
             
             for (const targetLang of targetLanguages) {
                 const toLangLabel = languages.find(l => l.value === targetLang)?.label || targetLang;
@@ -163,6 +166,8 @@ export default function GroupConverseContent() {
                          reject(err);
                       });
                   });
+                   // Add a delay between languages
+                  await sleep(2000);
                 }
             }
 
@@ -254,7 +259,7 @@ export default function GroupConverseContent() {
           size="lg"
           className={cn(
               "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
-              status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-[pulse_4s_cubic-bezier(0.4,0,0.6,1)_infinite]',
+              status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-[pulse_3s_cubic-bezier(0.4,0,0.6,1)_infinite]',
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
               (status === 'idle' || status === 'error') && 'bg-primary hover:bg-primary/90'
           )}
