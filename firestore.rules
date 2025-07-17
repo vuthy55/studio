@@ -1,66 +1,53 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isUserAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isUserProfileOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isUserAdmin() {
-      return isUserAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Rules for User Profiles
+    
+    // User Profiles
     match /users/{userId} {
-      allow read: if isUserProfileOwner(userId) || isUserAdmin();
-      allow create: if isUserProfileOwner(userId);
-      allow update: if isUserProfileOwner(userId) || isUserAdmin();
-      allow delete: if isUserAdmin(); // Only admins can delete user profiles
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rules for Sync Rooms
+    // Sync Rooms
     match /syncRooms/{roomId} {
-      let room = get(/databases/$(database)/documents/syncRooms/$(roomId));
-      let isInvited = request.auth.token.email in room.data.invitedEmails;
-      let isCreator = request.auth.uid == room.data.creatorUid;
-      let isEmcee = request.auth.uid in room.data.emceeUids;
+      // Authenticated users can create a room, ensuring they are the creator.
+      allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
 
-      // Allow authenticated users to create a room if they set themselves as creator
-      allow create: if isUserAuthenticated() && request.auth.uid == request.resource.data.creatorUid;
+      // Allow reads if the user's email is on the invite list.
+      allow read: if request.auth != null && request.auth.token.email in resource.data.invitedEmails;
 
-      // Allow invited users, creators, or emcees to read room data
-      allow read: if isInvited || isCreator || isEmcee;
+      // Allow updates (like changing speaker) if the user is an emcee.
+      allow update: if request.auth != null && request.auth.uid in resource.data.emceeUids;
+    }
 
-      // Allow creators or emcees to update the room
-      allow update: if isCreator || isEmcee;
-
-      // Only the creator can delete the room
-      allow delete: if isCreator;
-
-      // Rules for Participants subcollection
-      match /participants/{participantId} {
-        // Let anyone who has read access to the room also read the participant list
-        allow read: if isInvited || isCreator || isEmcee;
-
-        // Allow an invited user to add themselves as a participant
-        allow create: if isInvited && (
-                        (isUserAuthenticated() && participantId == request.auth.uid) ||
-                        (!isUserAuthenticated() && participantId == request.resource.data.email.replace(/[^a-zA-Z0-9]/g, "_"))
-                      );
-
-        // Allow Emcees to update participants (mute, promote), and users to update their own status
-        allow update: if isEmcee || (isUserAuthenticated() && participantId == request.auth.uid);
-
-        // Allow users to remove themselves (leave room), or emcees to remove others
-        allow delete: if isEmcee || (isUserAuthenticated() && participantId == request.auth.uid);
+    // Participants sub-collection
+    match /syncRooms/{roomId}/participants/{participantId} {
+      // Anyone can read the participant list for a room they can access.
+      function canReadRoom() {
+        return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+               request.auth != null &&
+               request.auth.token.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails;
       }
+
+      allow list: if canReadRoom();
+      allow read: if canReadRoom();
+      
+      // Allow a user on the invite list to add themselves as a participant.
+      allow create: if canReadRoom() && 
+                       (request.resource.data.uid == request.auth.uid || 
+                        request.resource.data.email == request.auth.token.email);
+      
+      // Allow emcees to update participants (mute, etc.).
+      function isEmcee() {
+          return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+                 request.auth != null &&
+                 request.auth.uid in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.emceeUids;
+      }
+      allow update: if isEmcee();
+
+      // Allow participants to remove themselves (leave room).
+      allow delete: if request.auth != null && request.auth.uid == participantId;
     }
   }
 }
