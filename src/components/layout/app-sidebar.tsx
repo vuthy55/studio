@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2 } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { 
@@ -47,6 +47,15 @@ export function AppSidebar() {
               <Link href="/" onClick={() => setOpenMobile(false)}>
                 <Share2 />
                 SyncHub
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/test'}>
+              <Link href="/test" onClick={() => setOpenMobile(false)}>
+                <TestTube />
+                AI Test Page
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
