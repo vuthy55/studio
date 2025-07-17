@@ -48,18 +48,14 @@ export default function LoginPage() {
   const updateUserProfileInFirestore = async (userId: string, data: any) => {
     const userDocRef = doc(db, 'users', userId);
     
-    // Check if the user is the designated admin
-    const isAdmin = data.email === ADMIN_EMAIL;
-    
     // Check if a profile already exists
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
 
-    // Ensure new users always have the 'user' role by default, unless they are the admin
-    // Or if they already have a role assigned.
+    // Ensure new users always have the 'user' role by default, unless they already have a role.
     const dataWithRole = { 
         ...data, 
-        role: isAdmin ? 'admin' : (existingData.role || 'user') 
+        role: existingData.role || 'user' 
     };
 
     await setDoc(userDocRef, dataWithRole, { merge: true });
@@ -112,8 +108,7 @@ export default function LoginPage() {
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
-    } catch (error: any) {
-      console.error("Email sign-up error", error);
+    } catch (error: any)      console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsLoading(false);
@@ -124,14 +119,7 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      const user = userCredential.user;
-
-       // On login, check if the user is the admin and update their role if needed.
-       if (user.email === ADMIN_EMAIL) {
-          await updateUserProfileInFirestore(user.uid, { email: user.email });
-       }
-
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
