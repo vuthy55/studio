@@ -15,6 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
 
 function SyncRoomPageContent() {
     const params = useParams();
@@ -33,16 +35,26 @@ function SyncRoomPageContent() {
     const [guestName, setGuestName] = useState('');
     const [guestLanguage, setGuestLanguage] = useState<AzureLanguageCode | ''>('');
     const [isJoining, setIsJoining] = useState(false);
+    
+    // Registered user join state
+    const [userLanguage, setUserLanguage] = useState<AzureLanguageCode | ''>('');
+
 
     useEffect(() => {
-        if (!roomId) return;
+        if (!roomId || authLoading) return;
         setLoading(true);
 
         const roomRef = doc(db, 'syncRooms', roomId);
         getDoc(roomRef).then(async docSnap => {
             if (docSnap.exists()) {
                 const roomData = { id: docSnap.id, ...docSnap.data() } as SyncRoom;
-                setRoom(roomData);
+                
+                // Permission check
+                if (user && !roomData.invitedEmails.includes(user.email!)) {
+                    setAccessDenied("You are not invited to this room.");
+                } else {
+                     setRoom(roomData);
+                }
 
                 // Check if user is already a participant
                 if (user) {
@@ -61,8 +73,36 @@ function SyncRoomPageContent() {
         }).finally(() => {
             setLoading(false);
         });
-    }, [roomId, user]);
+    }, [roomId, user, authLoading]);
     
+    const handleRegisteredUserJoin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !userLanguage || !room) {
+             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select your language.' });
+            return;
+        }
+
+        setIsJoining(true);
+        try {
+            const newParticipant: Participant = {
+                name: user.displayName || 'User',
+                email: user.email!,
+                uid: user.uid,
+                selectedLanguage: userLanguage,
+                isEmcee: room.creatorUid === user.uid, // Creator is first emcee
+                isMuted: false,
+            };
+            await setDoc(doc(db, `syncRooms/${roomId}/participants`, user.uid), newParticipant);
+            toast({ title: 'Success', description: 'You have joined the room.' });
+            setHasJoined(true);
+        } catch (error) {
+            console.error("Error joining as registered user:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room.' });
+        } finally {
+            setIsJoining(false);
+        }
+    }
+
     const handleGuestJoin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!room || !guestEmail || !guestName || !guestLanguage) {
@@ -90,6 +130,8 @@ function SyncRoomPageContent() {
             await setDoc(doc(db, `syncRooms/${roomId}/participants`, guestId), newParticipant);
             toast({ title: 'Success', description: 'You have joined the room.' });
             setHasJoined(true);
+             // We can check if guest is already in participants list via email, but for now we assume they are new
+             // This might lead to duplicate guests if they rejoin.
         } catch (error) {
             console.error("Error joining as guest:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room.' });
@@ -123,7 +165,12 @@ function SyncRoomPageContent() {
     }
 
     if (!room) {
-        return null; // Should be covered by loading/error states
+        // This case can happen briefly before accessDenied is set.
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
     }
 
     // Main room UI if joined
@@ -142,6 +189,44 @@ function SyncRoomPageContent() {
                         <Mic className="h-10 w-10 mr-2" /> Talk
                     </Button>
                 </div>
+            </div>
+        )
+    }
+    
+    // Logged-in user join form
+    if (user) {
+        return (
+             <div className="flex justify-center items-center h-screen">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="items-center text-center">
+                        <Avatar className="h-20 w-20 text-3xl mb-2">
+                             <AvatarFallback>{user.displayName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <CardTitle>Join "{room.topic}"</CardTitle>
+                        <CardDescription>Welcome, {user.displayName || user.email}! Please select your spoken language to enter the room.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <form onSubmit={handleRegisteredUserJoin} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="user-language">Your Language</Label>
+                                <Select onValueChange={(v) => setUserLanguage(v as AzureLanguageCode)} value={userLanguage} required>
+                                    <SelectTrigger id="user-language">
+                                        <SelectValue placeholder="Select your language..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {azureLanguages.map(lang => (
+                                            <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <Button type="submit" className="w-full" disabled={isJoining}>
+                                {isJoining ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Join Room
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         )
     }
@@ -166,7 +251,7 @@ function SyncRoomPageContent() {
                         </div>
                         <div className="space-y-2">
                              <Label htmlFor="guest-language">Your Language</Label>
-                            <Select onValueChange={(v) => setGuestLanguage(v as AzureLanguageCode)} value={guestLanguage}>
+                            <Select onValueChange={(v) => setGuestLanguage(v as AzureLanguageCode)} value={guestLanguage} required>
                                 <SelectTrigger id="guest-language">
                                     <SelectValue placeholder="Select your language..." />
                                 </SelectTrigger>
