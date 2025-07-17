@@ -111,7 +111,7 @@ export default function LoginPage() {
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
-    } catch (error: any)
+    } catch (error: any) {
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
