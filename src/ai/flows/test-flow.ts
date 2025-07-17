@@ -7,7 +7,7 @@ export async function runTestFlow(name: string): Promise<string> {
   console.log('Running test flow for:', name);
   try {
     const llmResponse = await ai.generate({
-      model: 'gemini-pro',
+      model: 'googleai/gemini-pro',
       prompt: `Tell me a joke about ${name}.`,
     });
 

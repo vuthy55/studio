@@ -2,6 +2,12 @@ import {genkit, type GenkitError} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import next from '@genkit-ai/next';
 
+if (!process.env.GEMINI_API_KEY) {
+  console.warn(
+    'GEMINI_API_KEY is not set. Genkit flows will not work. Please add it to your .env file.'
+  );
+}
+
 export const ai = genkit({
   plugins: [
     next(),
