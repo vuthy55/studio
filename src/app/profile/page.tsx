@@ -96,9 +96,18 @@ export default function ProfilePage() {
                 await updateAuthProfile(user, { displayName: profile.name });
             }
             
-            // Update Firebase Auth email
+            // This logic is now disabled in the UI but kept here for reference.
+            // If the email field were enabled, this is how it would work.
             if (profile.email && profile.email !== user.email) {
-                await updateEmail(user, profile.email);
+                 try {
+                    await updateEmail(user, profile.email);
+                } catch (error: any) {
+                    if (error.code === 'auth/requires-recent-login') {
+                        toast({ variant: 'destructive', title: 'Action Required', description: 'Changing your email requires you to log in again. Please log out and log back in to complete this change.', duration: 8000 });
+                    } else {
+                        throw error; // Rethrow other errors
+                    }
+                }
             }
 
             const userDocRef = doc(db, 'users', user.uid);
@@ -106,7 +115,7 @@ export default function ProfilePage() {
                 name: profile.name || '',
                 country: profile.country || '',
                 mobile: profile.mobile || '',
-                // Always save the email from auth as the source of truth after update
+                // Always save the email from auth as the source of truth
                 email: user.email, 
                 role: profile.role || 'user'
             };
@@ -114,11 +123,7 @@ export default function ProfilePage() {
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
             console.error("Error updating profile: ", error);
-             if (error.code === 'auth/requires-recent-login') {
-                toast({ variant: 'destructive', title: 'Action Required', description: 'Changing your email requires you to log in again. Please log out and log back in to complete this change.' });
-            } else {
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
-            }
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
         } finally {
             setIsSaving(false);
         }
@@ -184,8 +189,8 @@ export default function ProfilePage() {
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
-                             <p className="text-xs text-muted-foreground">Changing email may require you to log in again.</p>
+                            <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} disabled />
+                             <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="country">Country</Label>
