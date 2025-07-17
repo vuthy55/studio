@@ -1,16 +1,18 @@
+
 "use client"
 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
+import Link from "next/link";
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -206,7 +208,15 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            <div className="flex h-full w-full flex-col">{children}</div>
+            <div className="flex h-full w-full flex-col">
+              <SheetHeader className="p-4 border-b border-sidebar-border">
+                <SheetTitle asChild>
+                  <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
+                </SheetTitle>
+                <SheetDescription className="sr-only">Main navigation sidebar</SheetDescription>
+              </SheetHeader>
+              {children}
+            </div>
           </SheetContent>
         </Sheet>
       )

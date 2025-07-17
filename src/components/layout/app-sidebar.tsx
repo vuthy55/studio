@@ -15,7 +15,6 @@ import {
   SidebarFooter,
   useSidebar
 } from '@/components/ui/sidebar';
-import { SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,13 +37,7 @@ export function AppSidebar() {
   
   return (
     <Sidebar>
-      <SheetHeader className="p-4 border-b border-sidebar-border">
-          <SheetTitle asChild>
-            <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
-          </SheetTitle>
-          <SheetDescription className="sr-only">Main navigation sidebar</SheetDescription>
-      </SheetHeader>
-      <SidebarHeader className="hidden">
+      <SidebarHeader>
         <Link href="/" className="font-headline text-2xl font-bold text-primary">LinguaGo</Link>
       </SidebarHeader>
       <SidebarContent>
