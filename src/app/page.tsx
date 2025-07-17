@@ -34,25 +34,27 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
-                <TabsContent value="prep-vibe">
-                    <LearnPageContent />
-                </TabsContent>
-                 <TabsContent value="live-translation">
-                    <LiveTranslationContent />
-                </TabsContent>
-                <TabsContent value="sync-live">
-                   <GroupConverseContent />
-                </TabsContent>
-                <TabsContent value="sync-online">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                            <CardDescription>This feature is coming soon! Connect with other learners online.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground">Stay tuned for updates. Here you'll be able to practice your skills in real-time conversations with native speakers and fellow learners from around the world.</p>
-                        </CardContent>
-                    </Card>
+                <TabsContent value={activeTab} forceMount className="mt-6">
+                    <div hidden={activeTab !== 'prep-vibe'}>
+                        <LearnPageContent />
+                    </div>
+                    <div hidden={activeTab !== 'live-translation'}>
+                        <LiveTranslationContent />
+                    </div>
+                    <div hidden={activeTab !== 'sync-live'}>
+                       <GroupConverseContent />
+                    </div>
+                    <div hidden={activeTab !== 'sync-online'}>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
+                                <CardDescription>This feature is coming soon! Connect with other learners online.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-muted-foreground">Stay tuned for updates. Here you'll be able to practice your skills in real-time conversations with native speakers and fellow learners from around the world.</p>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </TabsContent>
             </Tabs>
         </div>
