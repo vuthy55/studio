@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
-import { translateText } from '@/ai/flows/translation-flow';
+// import { translateText } from '@/ai/flows/translation-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
@@ -63,27 +63,27 @@ export default function LiveTranslationContent() {
         if (!inputText) return;
         setIsTranslating(true);
         setAssessmentResult(null);
-        try {
-            const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
-            const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
-            setTranslatedText(result.translatedText);
-        } catch (error) {
-            console.error('Translation failed', error);
-            toast({
-                variant: 'destructive',
-                title: 'Translation Error',
-                description: 'Could not translate the text.',
-            });
-        } finally {
-            setIsTranslating(false);
-        }
+        // try {
+        //     const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
+        //     const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
+        //     const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+        //     setTranslatedText(result.translatedText);
+        // } catch (error) {
+        //     console.error('Translation failed', error);
+        //     toast({
+        //         variant: 'destructive',
+        //         title: 'Translation Error',
+        //         description: 'Could not translate the text.',
+        //     });
+        // } finally {
+        //     setIsTranslating(false);
+        // }
     };
 
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
             if (inputText) {
-                handleTranslation();
+                // handleTranslation();
             } else {
                 setTranslatedText('');
                 setAssessmentResult(null);
