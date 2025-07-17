@@ -208,6 +208,12 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
+            <SheetHeader className="sr-only">
+                <SheetTitle>Navigation Menu</SheetTitle>
+                <SheetDescription>
+                  Main navigation links for the application.
+                </SheetDescription>
+            </SheetHeader>
             <div className="flex h-full w-full flex-col">
               {children}
             </div>
@@ -765,3 +771,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    
