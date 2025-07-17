@@ -8,9 +8,10 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  updateProfile
+  updateProfile as updateAuthProfile
 } from "firebase/auth";
-import { auth } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { countries } from 'countries-list';
 
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { Chrome } from 'lucide-react';
-import { updateUserProfile } from '@/services/user';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,13 +36,17 @@ export default function LoginPage() {
   const [signupCountry, setSignupCountry] = useState('');
   const [signupMobile, setSignupMobile] = useState('');
 
-
   const [isLoading, setIsLoading] = useState(false);
 
   const countryOptions = Object.entries(countries).map(([code, country]) => ({
     value: code,
     label: country.name
   }));
+
+  const updateUserProfileInFirestore = async (userId: string, data: any) => {
+    const userDocRef = doc(db, 'users', userId);
+    await setDoc(userDocRef, data, { merge: true });
+  };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -51,14 +55,11 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
        // Create a profile for the new Google user in Firestore
-      await updateUserProfile({
-        userId: user.uid,
-        data: {
+      await updateUserProfileInFirestore(user.uid, {
           name: user.displayName || 'New User',
           email: user.email!,
-          country: '',
+          country: '', // Google sign-in doesn't provide this
           mobile: user.phoneNumber || ''
-        }
       });
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
@@ -72,23 +73,24 @@ export default function LoginPage() {
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!signupCountry) {
+        toast({ variant: "destructive", title: "Error", description: "Please select your country." });
+        return;
+    }
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       const user = userCredential.user;
       
       // Update Firebase Auth profile
-      await updateProfile(user, { displayName: signupName });
+      await updateAuthProfile(user, { displayName: signupName });
 
       // Create user profile in Firestore
-      await updateUserProfile({
-        userId: user.uid,
-        data: {
+      await updateUserProfileInFirestore(user.uid, {
           name: signupName,
           email: signupEmail,
           country: signupCountry,
           mobile: signupMobile
-        }
       });
 
       toast({ title: "Success", description: "Account created successfully." });
@@ -171,7 +173,7 @@ export default function LoginPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-country">Country</Label>
-                     <Select value={signupCountry} onValueChange={setSignupCountry} required>
+                     <Select onValueChange={setSignupCountry} required>
                         <SelectTrigger id="signup-country">
                             <SelectValue placeholder="Select your country" />
                         </SelectTrigger>

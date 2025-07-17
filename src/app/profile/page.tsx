@@ -2,9 +2,10 @@
 "use client";
 
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { LoaderCircle, Save } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +13,16 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getUserProfile, updateUserProfile, type UserProfile } from '@/services/user';
 import { useToast } from '@/hooks/use-toast';
 import { countries } from 'countries-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  country?: string;
+  mobile?: string;
+}
 
 export default function ProfilePage() {
     const [user, loading, error] = useAuthState(auth);
@@ -25,32 +32,39 @@ export default function ProfilePage() {
     
     const [profile, setProfile] = useState<Partial<UserProfile>>({ name: '', email: '', country: '', mobile: '' });
     const [isSaving, setIsSaving] = useState(false);
+    const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
-    useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-        }
-    }, [user, loading, router]);
+    const fetchProfile = useCallback(async (uid: string) => {
+        setIsFetchingProfile(true);
+        try {
+            const userDocRef = doc(db, 'users', uid);
+            const userDocSnap = await getDoc(userDocRef);
 
-    useEffect(() => {
-        const fetchProfile = async () => {
-            if (user) {
-                console.log('--- DEBUG: Fetching profile for user ID:', user.uid);
-                const userProfile = await getUserProfile(user.uid);
-                if (userProfile) {
-                    setProfile(userProfile);
-                } else {
-                    console.log('--- DEBUG: No profile found in Firestore, pre-filling from auth data.');
-                    // Pre-fill with auth data if no firestore doc exists
-                    setProfile({
-                        name: user.displayName || '',
-                        email: user.email || '',
-                    });
-                }
+            if (userDocSnap.exists()) {
+                setProfile(userDocSnap.data() as UserProfile);
+            } else {
+                // If no profile exists, pre-fill with auth data
+                setProfile({
+                    name: auth.currentUser?.displayName || '',
+                    email: auth.currentUser?.email || '',
+                });
             }
-        };
-        fetchProfile();
-    }, [user]);
+        } catch (fetchError) {
+            console.error("Error fetching user profile:", fetchError);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch your profile." });
+        } finally {
+            setIsFetchingProfile(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+        fetchProfile(user.uid);
+    }, [user, loading, router, fetchProfile]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
@@ -66,17 +80,17 @@ export default function ProfilePage() {
         if (!user) return;
         setIsSaving(true);
         try {
-            await updateUserProfile({
-                userId: user.uid,
-                data: {
-                    name: profile.name!,
-                    email: profile.email!,
-                    country: profile.country,
-                    mobile: profile.mobile,
-                }
-            });
+            const userDocRef = doc(db, 'users', user.uid);
+            // Ensure email is not overwritten if it exists from auth
+            const dataToSave = {
+                ...profile,
+                email: user.email, 
+                name: profile.name || user.displayName
+            };
+            await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
+            console.error("Error updating profile: ", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile.' });
         } finally {
             setIsSaving(false);
@@ -92,7 +106,7 @@ export default function ProfilePage() {
       label: country.name
     }));
 
-    if (loading || !profile) {
+    if (loading || isFetchingProfile) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
