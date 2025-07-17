@@ -19,13 +19,13 @@ service cloud.firestore {
 
     // Sync Rooms: Handles creation, reading, and updates for rooms.
     match /syncRooms/{roomId} {
-      function isInvited() {
+       function isInvited() {
         return request.auth != null && request.auth.token.email in resource.data.invitedEmails;
       }
       function isEmcee() {
         return request.auth != null && request.auth.uid in resource.data.emceeUids;
       }
-      function isChangingOnlySpeaker() {
+      function isOnlyChangingSpeaker() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
       }
 
@@ -35,8 +35,8 @@ service cloud.firestore {
       // Allow reads if the user's email is on the invite list.
       allow read: if isInvited();
 
-      // Allow updates if user is an emcee OR if an invited user is only changing the active speaker.
-      allow update: if isEmcee() || (isInvited() && isChangingOnlySpeaker());
+      // Allow updates if user is an emcee, OR if an invited user is only changing the speaker.
+      allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
       
       // Allow the creator of the room to delete it.
       allow delete: if request.auth != null && resource.data.creatorUid == request.auth.uid;
@@ -44,32 +44,30 @@ service cloud.firestore {
 
     // Participants sub-collection: Handles who can join and how.
     match /syncRooms/{roomId}/participants/{participantId} {
-      function isRoomInvited() {
-        let room = get(/databases/$(database)/documents/syncRooms/$(roomId));
-        // Check if the room exists before trying to access its data.
-        return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-               request.auth != null &&
-               request.auth.token.email in room.data.invitedEmails;
+      function roomData() {
+        return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
       }
-
-      function isRoomEmcee() {
-        let room = get(/databases/$(database)/documents/syncRooms/$(roomId));
-        return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-               request.auth != null &&
-               request.auth.uid in room.data.emceeUids;
+      function roomExists() {
+        return exists(/databases/$(database)/documents/syncRooms/$(roomId));
+      }
+      function isInvitedToRoom() {
+        return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
+      }
+      function isEmceeInRoom() {
+        return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
       }
       
       // Allow reading/listing participants if the user is invited.
-      allow list, read: if isRoomInvited();
+      allow list, read: if isInvitedToRoom();
       
       // Allow creating a participant document (joining a room) if:
       // 1. The user is logged in, their email is on the invite list, and the document ID is their UID.
       // 2. A guest (not logged in) provides an email that is on the invite list.
-      allow create: if (request.auth != null && isRoomInvited() && request.resource.data.uid == request.auth.uid) ||
-                       (request.auth == null && request.resource.data.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails);
+      allow create: if (request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid) ||
+                       (request.auth == null && request.resource.data.email in roomData().invitedEmails);
       
       // Allow emcees to update participants (e.g., mute, promote to emcee).
-      allow update: if isRoomEmcee();
+      allow update: if isEmceeInRoom();
 
       // Allow participants to remove themselves (leave room).
       allow delete: if request.auth != null && request.auth.uid == participantId;
