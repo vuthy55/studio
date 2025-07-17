@@ -45,9 +45,9 @@ export default function AdminPage() {
             let q;
 
             if (initialFetch || !lastVisible) {
-                q = query(usersRef, orderBy("name"), limit(USERS_PER_PAGE));
+                q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
             } else {
-                q = query(usersRef, orderBy("name"), startAfter(lastVisible), limit(USERS_PER_PAGE));
+                q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
             }
             
             const querySnapshot = await getDocs(q);
@@ -76,7 +76,7 @@ export default function AdminPage() {
         } else if(user) {
            fetchUsers(true);
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, fetchUsers]);
 
     const handleRoleChange = async (userId: string, currentRole: 'admin' | 'user') => {
         setIsUpdating(userId);
@@ -135,7 +135,7 @@ export default function AdminPage() {
                         <TableBody>
                             {users.map((u) => (
                                 <TableRow key={u.id}>
-                                    <TableCell>{u.name}</TableCell>
+                                    <TableCell>{u.name || 'N/A'}</TableCell>
                                     <TableCell>{u.email}</TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
