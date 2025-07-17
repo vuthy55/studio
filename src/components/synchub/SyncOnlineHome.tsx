@@ -1,24 +1,43 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, setDoc, doc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2 } from 'lucide-react';
 import type { SyncRoom } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 interface InvitedRoom extends SyncRoom {
     id: string;
@@ -40,49 +59,49 @@ export default function SyncOnlineHome() {
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
+    const fetchInvitedRooms = useCallback(async () => {
+        if (!user) {
+            setInvitedRooms([]);
+            setIsFetchingRooms(false);
+            return;
+        }
+        setIsFetchingRooms(true);
+        try {
+            const roomsRef = collection(db, 'syncRooms');
+            const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
+            const querySnapshot = await getDocs(q);
+            const rooms = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom));
+            setInvitedRooms(rooms);
+        } catch (error: any) {
+            console.error("Error fetching invited rooms:", error);
+            if (error.code === 'failed-precondition') {
+                 toast({ 
+                    variant: "destructive", 
+                    title: "Error: Missing Index", 
+                    description: "A Firestore index is required. Please check the browser console for a link to create it.",
+                    duration: 10000
+                });
+                console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
+            } else {
+                toast({ variant: 'destructive', title: 'Could not fetch rooms', description: 'There was an error fetching your room invitations.' });
+            }
+        } finally {
+            setIsFetchingRooms(false);
+        }
+    }, [user, toast]);
+
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
     useEffect(() => {
-        const fetchInvitedRooms = async () => {
-            if (!user) {
-                setInvitedRooms([]);
-                setIsFetchingRooms(false);
-                return;
-            }
-            setIsFetchingRooms(true);
-            try {
-                const roomsRef = collection(db, 'syncRooms');
-                const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
-                const querySnapshot = await getDocs(q);
-                const rooms = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom));
-                setInvitedRooms(rooms);
-            } catch (error: any) {
-                console.error("Error fetching invited rooms:", error);
-                if (error.code === 'failed-precondition') {
-                     toast({ 
-                        variant: "destructive", 
-                        title: "Error: Missing Index", 
-                        description: "A Firestore index is required. Please check the browser console for a link to create it.",
-                        duration: 10000
-                    });
-                    console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
-                } else {
-                    toast({ variant: 'destructive', title: 'Could not fetch rooms', description: 'There was an error fetching your room invitations.' });
-                }
-            } finally {
-                setIsFetchingRooms(false);
-            }
-        };
-
         if (isMounted && user) {
             fetchInvitedRooms();
         } else if (!loading) {
-            // handles case where user is not logged in
-            setIsFetchingRooms(false);
+             setIsFetchingRooms(false);
+             setInvitedRooms([]);
         }
-    }, [user, isMounted, toast, loading]);
+    }, [user, isMounted, loading, fetchInvitedRooms]);
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -115,17 +134,6 @@ export default function SyncOnlineHome() {
                 ...newRoom,
                 createdAt: serverTimestamp()
             });
-
-            const creatorParticipant = {
-                name: user.displayName || 'Creator',
-                email: user.email!,
-                uid: user.uid,
-                selectedLanguage: spokenLanguage,
-                isEmcee: true,
-                isMuted: false,
-            };
-
-            await setDoc(doc(db, `syncRooms/${roomRef.id}/participants`, user.uid), creatorParticipant);
             
             const joinLink = `${window.location.origin}/sync-room/${roomRef.id}`;
             setCreatedRoomLink(joinLink);
@@ -135,6 +143,17 @@ export default function SyncOnlineHome() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not create the room.' });
         } finally {
             setIsCreating(false);
+        }
+    };
+
+    const handleDeleteRoom = async (roomId: string) => {
+        try {
+            await deleteDoc(doc(db, 'syncRooms', roomId));
+            toast({ title: "Room Deleted", description: "The sync room has been successfully deleted." });
+            fetchInvitedRooms(); // Re-fetch the list
+        } catch (error) {
+             console.error("Error deleting room:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the room.' });
         }
     };
     
@@ -160,7 +179,7 @@ export default function SyncOnlineHome() {
                 <CardContent>
                     <div className="flex items-center gap-2 text-muted-foreground">
                         <LoaderCircle className="animate-spin h-5 w-5" />
-                        <p>Loading...</p>
+                        <p>Loading user data...</p>
                     </div>
                 </CardContent>
             </Card>
@@ -275,14 +294,39 @@ export default function SyncOnlineHome() {
                         ) : invitedRooms.length > 0 ? (
                             <ul className="space-y-3">
                                 {invitedRooms.map(room => (
-                                    <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg">
-                                        <div>
+                                    <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
+                                        <div className="flex-grow">
                                             <p className="font-semibold">{room.topic}</p>
                                             <p className="text-sm text-muted-foreground">Click to join the conversation</p>
                                         </div>
-                                        <Button asChild>
-                                            <Link href={`/sync-room/${room.id}`}>Join Room</Link>
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button asChild>
+                                                <Link href={`/sync-room/${room.id}`}>Join Room</Link>
+                                            </Button>
+                                            {room.creatorUid === user.uid && (
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                         <Button variant="destructive" size="icon">
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action cannot be undone. This will permanently delete the sync room and all of its data.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteRoom(room.id)}>
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            )}
+                                        </div>
                                     </li>
                                 ))}
                             </ul>

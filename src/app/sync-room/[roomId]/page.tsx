@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import type { SyncRoom, Participant } from '@/lib/types';
-import { LoaderCircle, Mic } from 'lucide-react';
+import { LoaderCircle, Mic, LogOut, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 
 function SyncRoomPageContent() {
@@ -26,55 +27,98 @@ function SyncRoomPageContent() {
     const router = useRouter();
 
     const [room, setRoom] = useState<SyncRoom | null>(null);
+    const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(true);
     const [accessDenied, setAccessDenied] = useState<string | null>(null);
     const [hasJoined, setHasJoined] = useState(false);
     
-    // Guest form state
     const [guestEmail, setGuestEmail] = useState('');
     const [guestName, setGuestName] = useState('');
     const [guestLanguage, setGuestLanguage] = useState<AzureLanguageCode | ''>('');
     const [isJoining, setIsJoining] = useState(false);
     
-    // Registered user join state
     const [userLanguage, setUserLanguage] = useState<AzureLanguageCode | ''>('');
+    const [isMicPressed, setIsMicPressed] = useState(false);
 
+    const currentUserIsSpeaker = room?.activeSpeakerUid === user?.uid;
+    const isMicLocked = room?.activeSpeakerUid !== null && !currentUserIsSpeaker;
 
     useEffect(() => {
-        if (!roomId || authLoading) return;
-        setLoading(true);
-
+        if (!roomId) return;
         const roomRef = doc(db, 'syncRooms', roomId);
-        getDoc(roomRef).then(async docSnap => {
+
+        const unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
             if (docSnap.exists()) {
                 const roomData = { id: docSnap.id, ...docSnap.data() } as SyncRoom;
-                
-                // Permission check
-                if (user && !roomData.invitedEmails.includes(user.email!)) {
+                if (user && roomData.invitedEmails && !roomData.invitedEmails.includes(user.email!)) {
                     setAccessDenied("You are not invited to this room.");
                 } else {
-                     setRoom(roomData);
-                }
-
-                // Check if user is already a participant
-                if (user) {
-                    const participantRef = doc(db, `syncRooms/${roomId}/participants`, user.uid);
-                    const participantSnap = await getDoc(participantRef);
-                    if (participantSnap.exists()) {
-                        setHasJoined(true);
-                    }
+                    setRoom(roomData);
                 }
             } else {
                 setAccessDenied("This room does not exist.");
             }
-        }).catch(err => {
+            setLoading(false);
+        }, (err) => {
             console.error("Error fetching room:", err);
             setAccessDenied("Could not retrieve room information.");
-        }).finally(() => {
             setLoading(false);
         });
+
+        const participantsRef = collection(db, 'syncRooms', roomId, 'participants');
+        const q = query(participantsRef);
+        const unsubscribeParticipants = onSnapshot(q, (snapshot) => {
+            const parts = snapshot.docs.map(doc => doc.data() as Participant);
+            setParticipants(parts);
+
+            if (user) {
+                const isParticipant = parts.some(p => p.uid === user.uid);
+                setHasJoined(isParticipant);
+            }
+        });
+        
+        return () => {
+            unsubscribeRoom();
+            unsubscribeParticipants();
+        }
     }, [roomId, user, authLoading]);
+
+    const handleMicPress = async () => {
+        if (!user || !room || room.activeSpeakerUid) return;
+        setIsMicPressed(true);
+        const roomRef = doc(db, 'syncRooms', roomId);
+        try {
+            await updateDoc(roomRef, { activeSpeakerUid: user.uid });
+        } catch (error) {
+            console.error("Error pressing mic:", error);
+            setIsMicPressed(false);
+        }
+    };
+
+    const handleMicRelease = async () => {
+        if (!user || !room || room.activeSpeakerUid !== user.uid) return;
+        setIsMicPressed(false);
+        const roomRef = doc(db, 'syncRooms', roomId);
+        try {
+            await updateDoc(roomRef, { activeSpeakerUid: null });
+        } catch (error) {
+            console.error("Error releasing mic:", error);
+        }
+    };
     
+    const handleLeaveRoom = async () => {
+        if (!user) return;
+        try {
+            const participantRef = doc(db, `syncRooms/${roomId}/participants`, user.uid);
+            await deleteDoc(participantRef);
+            toast({ title: "You have left the room." });
+            router.push('/');
+        } catch (error) {
+            console.error("Error leaving room:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not leave the room.' });
+        }
+    };
+
     const handleRegisteredUserJoin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !userLanguage || !room) {
@@ -89,15 +133,15 @@ function SyncRoomPageContent() {
                 email: user.email!,
                 uid: user.uid,
                 selectedLanguage: userLanguage,
-                isEmcee: room.creatorUid === user.uid, // Creator is first emcee
+                isEmcee: room.creatorUid === user.uid,
                 isMuted: false,
             };
             await setDoc(doc(db, `syncRooms/${roomId}/participants`, user.uid), newParticipant);
             toast({ title: 'Success', description: 'You have joined the room.' });
             setHasJoined(true);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error joining as registered user:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room: ' + error.message });
         } finally {
             setIsJoining(false);
         }
@@ -110,14 +154,13 @@ function SyncRoomPageContent() {
             return;
         }
 
-        if (!room.invitedEmails.includes(guestEmail)) {
+        if (room.invitedEmails && !room.invitedEmails.includes(guestEmail)) {
             toast({ variant: 'destructive', title: 'Not Invited', description: 'This email is not on the invitation list.' });
             return;
         }
 
         setIsJoining(true);
         try {
-            // Using email as ID for guests, but sanitized
             const guestId = guestEmail.replace(/[^a-zA-Z0-9]/g, "_");
             const newParticipant: Participant = {
                 name: guestName,
@@ -130,11 +173,9 @@ function SyncRoomPageContent() {
             await setDoc(doc(db, `syncRooms/${roomId}/participants`, guestId), newParticipant);
             toast({ title: 'Success', description: 'You have joined the room.' });
             setHasJoined(true);
-             // We can check if guest is already in participants list via email, but for now we assume they are new
-             // This might lead to duplicate guests if they rejoin.
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error joining as guest:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room: ' + error.message });
         } finally {
             setIsJoining(false);
         }
@@ -165,7 +206,6 @@ function SyncRoomPageContent() {
     }
 
     if (!room) {
-        // This case can happen briefly before accessDenied is set.
         return (
             <div className="flex justify-center items-center h-screen">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -173,27 +213,57 @@ function SyncRoomPageContent() {
         );
     }
 
-    // Main room UI if joined
     if (hasJoined) {
         return (
-            <div className="p-4 md:p-6">
-                <h1 className="text-3xl font-bold font-headline">{room.topic}</h1>
-                <p className="text-muted-foreground">Welcome to the Sync Room!</p>
-                {/* Future room UI goes here */}
-                 <div className="mt-8">
-                    <h2 className="text-xl font-semibold">Participants</h2>
-                    {/* Placeholder for participant list */}
-                </div>
-                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2">
-                    <Button size="lg" className="rounded-full w-32 h-32 text-lg">
-                        <Mic className="h-10 w-10 mr-2" /> Talk
+            <div className="p-4 md:p-6 flex flex-col h-screen">
+                 <header className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-3xl font-bold font-headline">{room.topic}</h1>
+                        <p className="text-muted-foreground">Welcome to the Sync Room!</p>
+                    </div>
+                    <Button variant="ghost" onClick={handleLeaveRoom}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Leave Room
                     </Button>
+                </header>
+
+                 <div className="flex-grow my-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {participants.map(p => (
+                        <Card key={p.email} className={cn(
+                            "flex flex-col items-center justify-center p-4 text-center border-4",
+                             room.activeSpeakerUid === p.uid ? 'border-primary shadow-lg' : 'border-border'
+                        )}>
+                            <Avatar className="h-16 w-16 text-2xl mb-2">
+                                <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <Mic className={cn("h-8 w-8 my-2", room.activeSpeakerUid === p.uid ? 'text-primary' : 'text-muted-foreground' )} />
+                            <p className="font-bold truncate w-full">{p.name}</p>
+                            <p className="text-sm text-muted-foreground">{azureLanguages.find(l => l.value === p.selectedLanguage)?.label.split(' ')[0]}</p>
+                        </Card>
+                    ))}
+                </div>
+                 
+                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                    <Button 
+                        size="lg" 
+                        className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
+                             isMicPressed && 'bg-green-500 hover:bg-green-600 scale-110',
+                             isMicLocked && 'bg-muted text-muted-foreground'
+                        )}
+                        onMouseDown={handleMicPress}
+                        onMouseUp={handleMicRelease}
+                        onTouchStart={handleMicPress}
+                        onTouchEnd={handleMicRelease}
+                        disabled={isMicLocked}
+                    >
+                        <Mic className="h-10 w-10" />
+                    </Button>
+                     <p className="text-sm text-muted-foreground mt-4">{isMicLocked ? "Mic is locked by another user" : "Press and hold to talk"}</p>
                 </div>
             </div>
         )
     }
     
-    // Logged-in user join form
     if (user) {
         return (
              <div className="flex justify-center items-center h-screen">
@@ -231,7 +301,6 @@ function SyncRoomPageContent() {
         )
     }
 
-    // Guest join form
     return (
         <div className="flex justify-center items-center h-screen">
             <Card className="w-full max-w-md">
