@@ -72,5 +72,20 @@ service cloud.firestore {
       // Allow participants to remove themselves (leave room).
       allow delete: if request.auth != null && request.auth.uid == participantId;
     }
+    
+    // Messages sub-collection: Handles sending and receiving messages in a room.
+    match /syncRooms/{roomId}/messages/{messageId} {
+        function isInvitedToRoom() {
+            return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+                   request.auth != null &&
+                   request.auth.token.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails;
+        }
+
+        // Allow invited users to list/read messages.
+        allow list, read: if isInvitedToRoom();
+        
+        // Allow invited users to create messages, ensuring data integrity.
+        allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
+    }
   }
 }
