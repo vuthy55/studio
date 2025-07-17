@@ -1,11 +1,9 @@
-
 'use server';
 /**
  * @fileOverview A simple Genkit flow for testing the connection to the AI model.
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/googleai';
 
 export async function runTestFlow(): Promise<string> {
   console.log('Running Genkit Test Flow...');
