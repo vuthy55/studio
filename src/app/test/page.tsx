@@ -2,11 +2,10 @@
 'use client';
 
 import { runTestFlow } from '@/ai/flows/test-flow';
-import { getAvailableModels } from '@/ai/flows/list-models-flow';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 
 export default function TestPage() {
@@ -14,24 +13,14 @@ export default function TestPage() {
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [models, setModels] = useState<string[]>([]);
-  const [loadingModels, setLoadingModels] = useState(true);
 
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        setLoadingModels(true);
-        const availableModels = await getAvailableModels();
-        setModels(availableModels);
-      } catch (e: any) {
-        console.error('Error fetching models:', e);
-        setError('Could not fetch available models.');
-      } finally {
-        setLoadingModels(false);
-      }
-    };
-    fetchModels();
-  }, []);
+  // Hardcoded list of known working models for this environment.
+  const models = [
+    'googleai/gemini-2.0-flash',
+    'googleai/gemini-pro',
+    'googleai/gemini-2.0-flash-preview-image-generation',
+    'googleai/gemini-2.5-flash-preview-tts',
+  ];
 
   const handleRunTest = async () => {
     setLoading(true);
@@ -57,7 +46,7 @@ export default function TestPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p>
-            Enter a topic and click the button to get a joke.
+            Enter a topic and click the button to get a joke. This uses the `googleai/gemini-2.0-flash` model.
           </p>
           <div className="flex gap-2">
             <Input
@@ -87,21 +76,14 @@ export default function TestPage() {
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Available AI Models</CardTitle>
-          <CardDescription>This is the list of models Genkit has detected.</CardDescription>
+          <CardDescription>This is a list of known compatible models for this app.</CardDescription>
         </CardHeader>
         <CardContent>
-          {loadingModels ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <LoaderCircle className="animate-spin h-5 w-5" />
-              <p>Loading models...</p>
-            </div>
-          ) : (
-            <ul className="list-disc pl-5 space-y-1 bg-secondary p-4 rounded-md">
-              {models.map((model) => (
-                <li key={model} className="font-mono text-sm">{model}</li>
-              ))}
-            </ul>
-          )}
+          <ul className="list-disc pl-5 space-y-1 bg-secondary p-4 rounded-md">
+            {models.map((model) => (
+              <li key={model} className="font-mono text-sm">{model}</li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
     </div>
