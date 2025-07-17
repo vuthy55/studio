@@ -20,57 +20,66 @@ export async function translateText(
   const { text, fromLanguage, toLanguage } = input;
 
   if (!API_KEY) {
+    console.error('Translation Error: GEMINI_API_KEY is not set in environment variables.');
     throw new Error('GEMINI_API_KEY is not set in environment variables.');
   }
 
   const prompt = `You are a direct translation assistant. Your only task is to translate the user's text from ${fromLanguage} to ${toLanguage}. Do not add any extra information, context, or phonetic guides. Only provide the direct translation. Text to translate: "${text}"`;
+  
+  const requestBody = {
+      contents: [
+          {
+              parts: [{ text: prompt }],
+          },
+      ],
+      safetySettings: [
+          {
+              category: 'HARM_CATEGORY_HATE_SPEECH',
+              threshold: 'BLOCK_NONE',
+          },
+          {
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_NONE',
+          },
+          {
+              category: 'HARM_CATEGORY_HARASSMENT',
+              threshold: 'BLOCK_NONE',
+          },
+          {
+              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+              threshold: 'BLOCK_NONE',
+          },
+      ],
+      generationConfig: {
+          temperature: 0.1,
+          topP: 1,
+          topK: 1,
+      },
+  };
 
   try {
+    console.log('DEBUG: Calling Gemini API for translation with URL:', API_URL);
+    console.log('DEBUG: Request Body:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'x-goog-api-key': API_KEY,
         },
-        body: JSON.stringify({
-            contents: [
-                {
-                    parts: [{ text: prompt }],
-                },
-            ],
-            safetySettings: [
-                {
-                    category: 'HARM_CATEGORY_HATE_SPEECH',
-                    threshold: 'BLOCK_NONE',
-                },
-                {
-                    category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                    threshold: 'BLOCK_NONE',
-                },
-                {
-                    category: 'HARM_CATEGORY_HARASSMENT',
-                    threshold: 'BLOCK_NONE',
-                },
-                {
-                    category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                    threshold: 'BLOCK_NONE',
-                },
-            ],
-            generationConfig: {
-                temperature: 0.1,
-                topP: 1,
-                topK: 1,
-            },
-        }),
+        body: JSON.stringify(requestBody),
     });
     
+    const responseBody = await response.text();
+    console.log('DEBUG: Gemini API Response Status:', response.status);
+    console.log('DEBUG: Gemini API Response Body:', responseBody);
+
     if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Gemini API Error:", response.status, errorBody);
+        console.error("Gemini API Error:", response.status, responseBody);
         throw new Error(`API request failed with status ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = JSON.parse(responseBody);
     
     if (
       !data.candidates ||
