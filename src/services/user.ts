@@ -29,7 +29,6 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     if (userDocSnap.exists()) {
       return userDocSnap.data() as UserProfile;
     } else {
-      console.log('No such document for user:', userId);
       return null;
     }
   } catch (error) {
@@ -48,7 +47,15 @@ export async function updateUserProfile(input: UpdateUserProfileInput): Promise<
   const { userId, data } = input;
   try {
     const userDocRef = doc(db, 'users', userId);
-    await setDoc(userDocRef, data, { merge: true });
+    // Ensure email is not overwritten if it exists in doc but not in data
+    const finalData = { ...data };
+    if (!finalData.email) {
+      const currentProfile = await getUserProfile(userId);
+      if (currentProfile?.email) {
+        finalData.email = currentProfile.email;
+      }
+    }
+    await setDoc(userDocRef, finalData, { merge: true });
   } catch (error) {
     console.error("Error updating user profile: ", error);
     throw new Error('Could not update user profile.');
