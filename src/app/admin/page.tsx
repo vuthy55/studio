@@ -34,10 +34,12 @@ export default function AdminPage() {
     const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const [isFetchingNext, setIsFetchingNext] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
 
-    const fetchUsers = useCallback(async (initialFetch = false) => {
-        if (initialFetch) {
+    const fetchUsers = useCallback(async (loadMore = false) => {
+        if (!loadMore) {
             setIsLoading(true);
+            setUsers([]);
         } else {
             setIsFetchingNext(true);
         }
@@ -46,21 +48,23 @@ export default function AdminPage() {
             const usersRef = collection(db, 'users');
             let q;
 
-            if (initialFetch || !lastVisible) {
-                q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
+            if (loadMore && lastVisible) {
+                 q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
             } else {
-                q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
+                 q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
             }
             
             const querySnapshot = await getDocs(q);
             const fetchedUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+            const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+            setLastVisible(lastDoc || null);
+            setHasMore(querySnapshot.docs.length === USERS_PER_PAGE);
             
-            setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
-            
-            if (initialFetch) {
-                setUsers(fetchedUsers);
-            } else {
+            if (loadMore) {
                 setUsers(prev => [...prev, ...fetchedUsers]);
+            } else {
+                setUsers(fetchedUsers);
             }
 
         } catch (error: any) {
@@ -78,16 +82,12 @@ export default function AdminPage() {
     }, [lastVisible, toast]);
 
     useEffect(() => {
-        if (authLoading) {
-            return;
-        }
+        if (authLoading) return;
         if (!user) {
             router.push('/login');
             return;
         }
-        
-        fetchUsers(true);
-
+        fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading, router]);
 
@@ -190,8 +190,8 @@ export default function AdminPage() {
             </Card>
 
             <div className="flex justify-center">
-                {lastVisible && (
-                     <Button onClick={() => fetchUsers()} disabled={isFetchingNext}>
+                {hasMore && (
+                     <Button onClick={() => fetchUsers(true)} disabled={isFetchingNext}>
                         {isFetchingNext ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Load More
                     </Button>
@@ -200,4 +200,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
