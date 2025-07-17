@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import ConversePageContent from '@/components/synchub/ConversePageContent';
+import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wifi } from 'lucide-react';
 
@@ -27,11 +28,15 @@ export default function SyncHubPage() {
             </header>
 
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
                     <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
+                 <TabsContent value="live-translation">
+                    <LiveTranslationContent />
+                </TabsContent>
                 <TabsContent value="prep-vibe">
                     <LearnPageContent />
                 </TabsContent>

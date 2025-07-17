@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,13 +13,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Textarea } from '@/components/ui/textarea';
-import type { Phrase } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
-import { translateText } from '@/services/translation';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -36,28 +32,10 @@ export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const { toast } = useToast();
-    const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
-    const [inputText, setInputText] = useState('');
-    const [translatedText, setTranslatedText] = useState('');
-    const [isTranslating, setIsTranslating] = useState(false);
-    const [activeTab, setActiveTab] = useState('phrasebook');
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
-    const [isRecognizing, setIsRecognizing] = useState(false);
-    
-    // For "Live Translation" tab assessment
-    const [isAssessingLive, setIsAssessingLive] = useState(false);
-    const [liveAssessmentResult, setLiveAssessmentResult] = useState<AssessmentResult | null>(null);
-
-    // For "Phrasebook" tab assessments
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setSpeechSynthesis(window.speechSynthesis);
-        }
-    }, []);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -65,29 +43,9 @@ export default function LearnPageContent() {
         chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
     };
 
-    const handleSwitchLanguages = () => {
-        const currentInput = inputText;
-        swapLanguages();
-        setInputText(translatedText);
-        setTranslatedText(currentInput);
-        setLiveAssessmentResult(null);
-    };
-
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!text || isRecognizing || isAssessingLive || assessingPhraseId) return;
+        if (!text || !!assessingPhraseId) return;
         const locale = languageToLocaleMap[lang];
-        
-        if (speechSynthesis && selectedVoice === 'default') {
-            const voices = speechSynthesis.getVoices();
-            const voice = voices.find(v => v.lang === locale);
-            if (voice) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.voice = voice;
-                utterance.lang = locale;
-                speechSynthesis.speak(utterance);
-                return;
-            }
-        }
         
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
@@ -103,89 +61,10 @@ export default function LearnPageContent() {
         }
     };
     
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            if (inputText && activeTab === 'live-translation') {
-                handleTranslation();
-            } else if (!inputText) {
-                setTranslatedText('');
-                setLiveAssessmentResult(null);
-            }
-        }, 500);
-
-        return () => clearTimeout(debounceTimer);
-    }, [inputText, fromLanguage, toLanguage, activeTab]);
-
-
-    const handleTranslation = async () => {
-        if (!inputText) return;
-        setIsTranslating(true);
-        setLiveAssessmentResult(null);
-        try {
-            const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
-            const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
-            setTranslatedText(result.translatedText);
-        } catch (error) {
-            console.error('Translation failed', error);
-            toast({
-                variant: 'destructive',
-                title: 'Translation Error',
-                description: 'Could not translate the text.',
-            });
-        } finally {
-            setIsTranslating(false);
-        }
-    };
-
-    const recognizeFromMicrophone = async () => {
-        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-    
-        if (!azureKey || !azureRegion) {
-            toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured for speech recognition.' });
-            return;
-        }
-
-        const locale = languageToLocaleMap[fromLanguage];
-        if (!locale) {
-            toast({ variant: 'destructive', title: 'Unsupported Language' });
-            return;
-        }
-
-        setIsRecognizing(true);
-        let recognizer: sdk.SpeechRecognizer | undefined;
-
-        try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-            speechConfig.speechRecognitionLanguage = locale;
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer!.recognizeOnceAsync(resolve, reject);
-            });
-
-            if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                setInputText(result.text);
-            } else {
-                 toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Please try again. Reason: ${sdk.ResultReason[result.reason]}` });
-            }
-        } catch (error) {
-            console.error("Error during speech recognition:", error);
-            toast({ variant: 'destructive', title: 'Recognition Error', description: `An unexpected error occurred during speech recognition.` });
-        } finally {
-            if (recognizer) {
-                recognizer.close();
-            }
-            setIsRecognizing(false);
-        }
-    }
-
    const assessPronunciation = async (
     referenceText: string,
     lang: LanguageCode,
-    phraseId?: string,
+    phraseId: string,
   ) => {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
@@ -205,12 +84,7 @@ export default function LearnPageContent() {
       return;
     }
     
-    // Set loading state based on where it's called from
-    if(phraseId) {
-      setAssessingPhraseId(phraseId);
-    } else {
-      setIsAssessingLive(true);
-    }
+    setAssessingPhraseId(phraseId);
 
     let recognizer: sdk.SpeechRecognizer | undefined;
     let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
@@ -221,7 +95,7 @@ export default function LearnPageContent() {
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
       
       const pronunciationConfigJson = JSON.stringify({
-          referenceText: `${referenceText}.`, // Add a period to improve accuracy for single words.
+          referenceText: `${referenceText}.`,
           gradingSystem: "HundredMark",
           granularity: "Phoneme",
           enableMiscue: true,
@@ -272,14 +146,8 @@ export default function LearnPageContent() {
       if (recognizer) {
         recognizer.close();
       }
-      // Set result state based on where it was called from
-      if(phraseId) {
-        setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
-        setAssessingPhraseId(null);
-      } else {
-        setLiveAssessmentResult(finalResult);
-        setIsAssessingLive(false);
-      }
+      setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+      setAssessingPhraseId(null);
     }
   };
     
@@ -315,7 +183,7 @@ export default function LearnPageContent() {
                         </Select>
                     </div>
 
-                    <Button variant="ghost" size="icon" className="mt-4 sm:mt-5 self-center" onClick={handleSwitchLanguages}>
+                    <Button variant="ghost" size="icon" className="mt-4 sm:mt-5 self-center" onClick={swapLanguages}>
                         <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
                         <span className="sr-only">Switch languages</span>
                     </Button>
