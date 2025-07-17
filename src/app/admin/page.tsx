@@ -36,10 +36,14 @@ export default function AdminPage() {
     const [hasMore, setHasMore] = useState(true);
 
     const fetchUsers = useCallback(async (loadMore = false) => {
+        if (!user) return;
+        
         if (loadMore) {
             setIsFetchingNext(true);
         } else {
             setIsLoading(true);
+            setUsers([]);
+            setLastVisible(null);
         }
         
         try {
@@ -53,6 +57,7 @@ export default function AdminPage() {
             }
             
             const querySnapshot = await getDocs(q);
+            
             const fetchedUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
             const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
 
@@ -66,18 +71,27 @@ export default function AdminPage() {
             }
 
         } catch (error: any) {
-            console.error("Error fetching users. If the console shows a 'permission-denied' or 'failed-precondition' error, you may need to create a Firestore index.", error);
-            console.log("FULL FIREBASE ERROR:", error);
-            toast({ 
-                variant: "destructive", 
-                title: "Error Fetching Users", 
-                description: "Could not fetch users. Check the browser console for details. You may need to create a Firestore index." 
-            });
+            console.error("Error fetching users:", error);
+            if (error.code === 'failed-precondition') {
+                 toast({ 
+                    variant: "destructive", 
+                    title: "Error: Missing Index", 
+                    description: "A Firestore index is required for this query. Please check the browser console for a link to create it.",
+                    duration: 10000
+                });
+                console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
+            } else {
+                 toast({ 
+                    variant: "destructive", 
+                    title: "Error Fetching Users", 
+                    description: "Could not fetch users. Check the console for details." 
+                });
+            }
         } finally {
             setIsLoading(false);
             setIsFetchingNext(false);
         }
-    }, [lastVisible, toast]);
+    }, [user, lastVisible, toast]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -198,5 +212,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
