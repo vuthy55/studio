@@ -14,6 +14,7 @@ import { LoaderCircle, Shield, User as UserIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 
 interface UserWithId extends UserProfile {
@@ -26,6 +27,7 @@ export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
     const { toast } = useToast();
+    const { isMobile } = useSidebar();
 
     const [users, setUsers] = useState<UserWithId[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -123,9 +125,12 @@ export default function AdminPage() {
     
     return (
         <div className="space-y-8">
-            <header>
-                <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
-                <p className="text-muted-foreground">Manage users and app settings.</p>
+            <header className="flex items-center gap-4">
+                {isMobile && <SidebarTrigger />}
+                <div>
+                  <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
+                  <p className="text-muted-foreground">Manage users and app settings.</p>
+                </div>
             </header>
             
             <Card>
@@ -137,7 +142,7 @@ export default function AdminPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Name</TableHead>
+                                <TableHead className="hidden sm:table-cell">Name</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Role</TableHead>
                             </TableRow>
@@ -145,8 +150,8 @@ export default function AdminPage() {
                         <TableBody>
                             {users.map((u) => (
                                 <TableRow key={u.id}>
-                                    <TableCell>{u.name || 'N/A'}</TableCell>
-                                    <TableCell>{u.email}</TableCell>
+                                    <TableCell className="hidden sm:table-cell">{u.name || 'N/A'}</TableCell>
+                                    <TableCell className="font-medium">{u.email}</TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             {isUpdating === u.id ? (
@@ -156,15 +161,22 @@ export default function AdminPage() {
                                                     id={`role-switch-${u.id}`}
                                                     checked={u.role === 'admin'}
                                                     onCheckedChange={() => handleRoleChange(u.id, u.role || 'user')}
-                                                    disabled={isUpdating === u.id}
+                                                    disabled={isUpdating === u.id || user?.uid === u.id}
+                                                    aria-label={`Toggle admin role for ${u.email}`}
                                                 />
                                             )}
-                                            <label htmlFor={`role-switch-${u.id}`}>
+                                            <label htmlFor={`role-switch-${u.id}`} className="sr-only">
+                                                Toggle admin role for {u.email}
+                                            </label>
+                                            <div className="hidden sm:block">
                                                 {u.role === 'admin' ? 
                                                     <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
                                                     <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
                                                 }
-                                            </label>
+                                            </div>
+                                             <div className="block sm:hidden">
+                                                 {u.role === 'admin' ? <Shield className="h-4 w-4 text-primary" /> : <UserIcon className="h-4 w-4 text-muted-foreground" />}
+                                            </div>
                                         </div>
                                     </TableCell>
                                 </TableRow>
