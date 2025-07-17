@@ -77,8 +77,11 @@ export default function AdminPage() {
             router.push('/login');
         } else if(user) {
            fetchUsers(true);
+        } else if (!authLoading) {
+            setIsLoading(false);
         }
-    }, [user, authLoading, router, fetchUsers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, authLoading, router]);
 
     const handleRoleChange = async (userId: string, currentRole: 'admin' | 'user') => {
         setIsUpdating(userId);
