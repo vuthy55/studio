@@ -7,8 +7,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import GroupConverseContent from '@/components/synchub/GroupConverseContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wifi } from 'lucide-react';
+import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 
 
 export default function SyncHubPage() {
@@ -45,15 +44,7 @@ export default function SyncHubPage() {
                        <GroupConverseContent />
                     </div>
                     <div hidden={activeTab !== 'sync-online'}>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                                <CardDescription>This feature is coming soon! Connect with other learners online.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-muted-foreground">Stay tuned for updates. Here you'll be able to practice your skills in real-time conversations with native speakers and fellow learners from around the world.</p>
-                            </CardContent>
-                        </Card>
+                        <SyncOnlineHome />
                     </div>
                 </TabsContent>
             </Tabs>
