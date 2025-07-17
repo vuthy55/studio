@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
-import { translateText } from '@/services/translation';
+// import { translateText } from '@/services/translation';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
@@ -59,18 +59,18 @@ export default function LiveTranslationContent() {
         }
     };
     
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            if (inputText) {
-                handleTranslation();
-            } else {
-                setTranslatedText('');
-                setAssessmentResult(null);
-            }
-        }, 500);
+    // useEffect(() => {
+    //     const debounceTimer = setTimeout(() => {
+    //         if (inputText) {
+    //             handleTranslation();
+    //         } else {
+    //             setTranslatedText('');
+    //             setAssessmentResult(null);
+    //         }
+    //     }, 500);
 
-        return () => clearTimeout(debounceTimer);
-    }, [inputText, fromLanguage, toLanguage]);
+    //     return () => clearTimeout(debounceTimer);
+    // }, [inputText, fromLanguage, toLanguage]);
 
 
     const handleTranslation = async () => {
@@ -80,8 +80,9 @@ export default function LiveTranslationContent() {
         try {
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
-            setTranslatedText(result.translatedText);
+            // const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+            // setTranslatedText(result.translatedText);
+            setTranslatedText("Translation is temporarily disabled.");
         } catch (error) {
             console.error('Translation failed', error);
             toast({
