@@ -4,9 +4,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { languages, type LanguageCode } from '@/lib/data';
+import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Mic, LoaderCircle, X, Languages, Users, Volume2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,7 @@ const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function GroupConverseContent() {
-  const [selectedLanguages, setSelectedLanguages] = useState<LanguageCode[]>(['english', 'thai']);
+  const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
 
@@ -32,11 +33,14 @@ export default function GroupConverseContent() {
   const synthesizerRef = useRef<sdk.SpeechSynthesizer | null>(null);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const languageToLocaleMap: Record<LanguageCode, string> = {
-    english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
-    malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
-    chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
-  };
+  const languageToLabelMap: Record<string, string> = 
+    [...languages.map(l => ({[l.value]:l.label})), ...azureLanguages.map(l => ({[l.value]: l.label}))]
+    .reduce((acc, curr) => ({...acc, ...curr}), {});
+  
+  const localeToLanguageMap: Record<string, LanguageCode | string> = 
+    [...languages, ...azureLanguages]
+    .reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {});
+
 
   const stopConversation = useCallback((showToast = true) => {
     if (recognizerRef.current) {
@@ -68,7 +72,7 @@ export default function GroupConverseContent() {
     }, INACTIVITY_TIMEOUT);
   }, [stopConversation, toast]);
 
-  const handleLanguageSelect = (lang: LanguageCode) => {
+  const handleLanguageSelect = (lang: AzureLanguageCode) => {
     if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
       setSelectedLanguages(prev => [...prev, lang]);
     } else if (selectedLanguages.length >= 4) {
@@ -76,7 +80,7 @@ export default function GroupConverseContent() {
     }
   };
 
-  const removeLanguage = (langToRemove: LanguageCode) => {
+  const removeLanguage = (langToRemove: AzureLanguageCode) => {
     if (selectedLanguages.length > 2) {
       setSelectedLanguages(prev => prev.filter(lang => lang !== langToRemove));
     } else {
@@ -102,7 +106,7 @@ export default function GroupConverseContent() {
         const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         
         const autoDetectSourceLanguageConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(
-            selectedLanguages.map(l => languageToLocaleMap[l])
+            selectedLanguages
         );
 
         recognizerRef.current = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectSourceLanguageConfig, audioConfig);
@@ -118,23 +122,13 @@ export default function GroupConverseContent() {
             const detectedLangLocale = result.language;
             const originalText = e.result.text;
             
-            const detectedLangCode = Object.keys(languageToLocaleMap).find(key => languageToLocaleMap[key as LanguageCode] === detectedLangLocale) as LanguageCode | undefined;
-            
-            if (!detectedLangCode) {
-                // If language is not one of the selected, just restart listening
-                setStatus('listening');
-                resetInactivityTimer();
-                recognizerRef.current?.startContinuousRecognitionAsync();
-                return;
-            }
-
-            const fromLangLabel = languages.find(l => l.value === detectedLangCode)?.label || 'Unknown';
+            const fromLangLabel = localeToLanguageMap[detectedLangLocale] || 'Unknown';
             setLastSpoken({ lang: fromLangLabel, text: originalText });
             
-            const targetLanguages = selectedLanguages.filter(l => l !== detectedLangCode);
+            const targetLanguages = selectedLanguages.filter(l => l !== detectedLangLocale);
             
-            for (const targetLang of targetLanguages) {
-                const toLangLabel = languages.find(l => l.value === targetLang)?.label || targetLang;
+            for (const targetLangLocale of targetLanguages) {
+                const toLangLabel = localeToLanguageMap[targetLangLocale] || targetLangLocale;
                 
                 // 1. Translate the text
                 const translationResult = await translateText({
@@ -145,10 +139,9 @@ export default function GroupConverseContent() {
                 const translatedText = translationResult.translatedText;
 
                 // 2. Synthesize the translated text
-                const targetLocale = languageToLocaleMap[targetLang];
                 if (synthesizerRef.current) {
                   const synthesisConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-                  synthesisConfig.speechSynthesisLanguage = targetLocale;
+                  synthesisConfig.speechSynthesisLanguage = targetLangLocale;
                   const synthesizer = new sdk.SpeechSynthesizer(synthesisConfig);
 
                   await new Promise<void>((resolve, reject) => {
@@ -215,7 +208,14 @@ export default function GroupConverseContent() {
     };
   }, [stopConversation]);
 
-  const languageOptions = languages.filter(l => !selectedLanguages.includes(l.value));
+  const allLanguageOptions = azureLanguages.filter(l => !selectedLanguages.includes(l.value));
+  const commonLanguageOptions = languages
+    .map(lang => {
+        const matchingAzureLang = azureLanguages.find(azLang => azLang.value.startsWith(lang.value.substring(0,2)));
+        return matchingAzureLang ? { label: lang.label, value: matchingAzureLang.value } : null;
+    })
+    .filter((l): l is { label: string; value: AzureLanguageCode } => l !== null && !selectedLanguages.includes(l.value))
+
 
   return (
     <Card className="shadow-lg mt-6 w-full max-w-2xl mx-auto">
@@ -234,21 +234,30 @@ export default function GroupConverseContent() {
             <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
                 {selectedLanguages.map(lang => (
                     <Badge key={lang} variant="secondary" className="text-base py-1 px-3">
-                        {languages.find(l => l.value === lang)?.label}
+                        {localeToLanguageMap[lang] || lang}
                         <button onClick={() => removeLanguage(lang)} className="ml-2 rounded-full hover:bg-destructive/20 p-0.5">
                             <X className="h-3 w-3" />
                         </button>
                     </Badge>
                 ))}
                 {selectedLanguages.length < 4 && (
-                     <Select onValueChange={(val) => handleLanguageSelect(val as LanguageCode)}>
+                     <Select onValueChange={(val) => handleLanguageSelect(val as AzureLanguageCode)}>
                         <SelectTrigger className="w-40 h-9 border-dashed">
                             <SelectValue placeholder="Add language..." />
                         </SelectTrigger>
                         <SelectContent>
-                           {languageOptions.map(lang => (
+                          <SelectGroup>
+                            <Label className="px-2 py-1.5 text-xs font-semibold">Common Languages</Label>
+                           {commonLanguageOptions.map(lang => (
                                 <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                             ))}
+                          </SelectGroup>
+                          <SelectGroup>
+                            <Label className="px-2 py-1.5 text-xs font-semibold">All Languages</Label>
+                             {allLanguageOptions.map(lang => (
+                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                     </Select>
                 )}

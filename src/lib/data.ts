@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from "lucide-react";
 import { Hand, Compass, Utensils, Hash, MessageCircleQuestion } from "lucide-react";
 
@@ -208,7 +209,7 @@ export const phrasebook: Topic[] = [
             { id: 'n-20', english: 'Twenty', translations: { thai: 'ยี่สิบ', vietnamese: 'Hai mươi', khmer: 'ម្ភៃ', spanish: 'Veinte', french: 'Vingt' }, pronunciations: { thai: 'yii-sip', vietnamese: 'hai meu-oi', khmer: 'ma-phai', spanish: 'bayn-te', french: 'van' } },
             { id: 'n-30', english: 'Thirty', translations: { thai: 'สามสิบ', vietnamese: 'Ba mươi', khmer: 'សាមសិប', spanish: 'Treinta', french: 'Trente' }, pronunciations: { thai: 'saam-sip', vietnamese: 'bah meu-oi', khmer: 'saam-seb', spanish: 'trayn-ta', french: 'tront' } },
             { id: 'n-40', english: 'Forty', translations: { thai: 'สี่สิบ', vietnamese: 'Bốn mươi', khmer: 'សែសិប', spanish: 'Cuarenta', french: 'Quarante' }, pronunciations: { thai: 'sii-sip', vietnamese: 'bohn meu-oi', khmer: 'sai-seb', spanish: 'kwa-ren-ta', french: 'ka-ront' } },
-            { id: 'n-50', english: 'Fifty', translations: { thai: 'ห้าสิบ', vietnamese: 'Năm mươi', khmer: 'ហាសិប', spanish: 'Cincuenta', french: 'Cinquante' }, pronunciations: { thai: 'haa-sip', vietnamese: 'nam meu-oi', khmer: 'ha-seb', spanish: 'seen-kwen-ta', french: 'san-kont' } },
+            { id: 'n-50', english: 'Fifty', translations: { thai: 'ห้าสิบ', vietnamese: 'Năm mươi', khmer: 'ហាសិប', spanish: 'Cinquenta', french: 'Cinquante' }, pronunciations: { thai: 'haa-sip', vietnamese: 'nam meu-oi', khmer: 'ha-seb', spanish: 'seen-kwen-ta', french: 'san-kont' } },
             { id: 'n-60', english: 'Sixty', translations: { thai: 'หกสิบ', vietnamese: 'Sáu mươi', khmer: 'ហុកសិប', spanish: 'Sesenta', french: 'Soixante' }, pronunciations: { thai: 'hok-sip', vietnamese: 'sau meu-oi', khmer: 'hok-seb', spanish: 'se-sen-ta', french: 'swa-sont' } },
             { id: 'n-70', english: 'Seventy', translations: { thai: 'เจ็ดสิบ', vietnamese: 'Bảy mươi', khmer: 'ចិតសិប', spanish: 'Setenta', french: 'Soixante-dix' }, pronunciations: { thai: 'jet-sip', vietnamese: 'bai meu-oi', khmer: 'chet-seb', spanish: 'se-ten-ta', french: 'swa-sont-dees' } },
             { id: 'n-80', english: 'Eighty', translations: { thai: 'แปดสิบ', vietnamese: 'Tám mươi', khmer: 'ប៉ែតសិប', spanish: 'Ochenta', french: 'Quatre-vingts' }, pronunciations: { thai: 'paet-sip', vietnamese: 'tahm meu-oi', khmer: 'paet-seb', spanish: 'o-chen-ta', french: 'ka-truh-van' } },
