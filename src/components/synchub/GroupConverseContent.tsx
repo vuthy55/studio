@@ -35,7 +35,7 @@ export default function GroupConverseContent() {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const languageToLabelMap: Record<string, string> = 
-    azureLanguages.reduce((acc, curr) => ({...acc, [curr.value]: l.label}), {});
+    azureLanguages.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {});
   
   const localeToLanguageMap: Record<string, LanguageCode | string> = 
     azureLanguages.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {});
@@ -285,5 +285,7 @@ export default function GroupConverseContent() {
     </Card>
   );
 }
+
+    
 
     
