@@ -81,8 +81,8 @@ function SyncRoomPageContent() {
 
     const handleStopMic = useCallback(() => {
         if (recognizerRef.current) {
-            setIsCoolingDown(true);
             console.log("Stopping mic and closing recognizer...");
+            setIsCoolingDown(true);
             recognizerRef.current.close();
             recognizerRef.current = null;
             console.log("Recognizer instance destroyed (set to null).");
@@ -399,7 +399,6 @@ function SyncRoomPageContent() {
             case 'listening': return <Volume2 className="h-12 w-12" />;
             case 'processing': return <CheckCircle className="h-12 w-12" />;
             case 'locked':
-            case 'idle':
             default: return <Mic className="h-10 w-10" />;
         }
     }
@@ -638,5 +637,3 @@ function SyncRoomPageContent() {
 export default function SyncRoomPage() {
     return <SyncRoomPageContent />;
 }
-
-    
