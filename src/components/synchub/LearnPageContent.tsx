@@ -134,7 +134,7 @@ export default function LearnPageContent() {
         }
     };
     
-   const assessPronunciation = async (
+   const assessPronunciation = (
     referenceText: string,
     lang: LanguageCode,
     phraseId: string,
@@ -143,15 +143,13 @@ export default function LearnPageContent() {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
         return;
     }
+    if (assessingPhraseId) return;
+
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
 
     if (!azureKey || !azureRegion) {
-      toast({
-        variant: 'destructive',
-        title: 'Configuration Error',
-        description: 'Azure credentials are not configured for assessment.',
-      });
+      toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
       return;
     }
 
@@ -161,10 +159,7 @@ export default function LearnPageContent() {
       return;
     }
     
-    setAssessingPhraseId(phraseId);
-
     let recognizer: sdk.SpeechRecognizer | undefined;
-    let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
     
     try {
       const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
@@ -182,47 +177,36 @@ export default function LearnPageContent() {
       recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
       pronunciationConfig.applyTo(recognizer);
 
-      const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-        recognizer!.recognizeOnceAsync(resolve, reject);
-      });
-      
-      if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
-        const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-        
-        if (jsonString) {
-          const parsedResult = JSON.parse(jsonString);
-          const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
+      recognizer.sessionStarted = () => {
+        setAssessingPhraseId(phraseId);
+      };
 
-          if (assessment) {
-            const accuracyScore = assessment.AccuracyScore;
-            const fluencyScore = assessment.FluencyScore;
-            const isPass = accuracyScore > 70;
-            finalResult = {
-              status: isPass ? 'pass' : 'fail',
-              accuracy: accuracyScore,
-              fluency: fluencyScore,
-            };
+      recognizer.recognized = async (s, e) => {
+        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
+        if (e.result && e.result.reason === sdk.ResultReason.RecognizedSpeech) {
+          const jsonString = e.result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+          if (jsonString) {
+            const parsedResult = JSON.parse(jsonString);
+            const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
+            if (assessment) {
+              const accuracyScore = assessment.AccuracyScore;
+              const fluencyScore = assessment.FluencyScore;
+              const isPass = accuracyScore > 70;
+              finalResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
+              
+              const newStats = {...(practiceStats[phraseId] || { pass: 0, fail: 0 })};
+              if(isPass) newStats.pass++; else newStats.fail++;
+              setPracticeStats(prev => ({...prev, [phraseId]: newStats}));
 
-            const newStats = {...(practiceStats[phraseId] || { pass: 0, fail: 0 })};
-            if(isPass) {
-                newStats.pass++;
-            } else {
-                newStats.fail++;
-            }
-            setPracticeStats(prev => ({...prev, [phraseId]: newStats}));
-            
-            if (isPass && newStats.pass > 0 && newStats.pass % PRACTICE_TO_EARN_THRESHOLD === 0) {
+              if (isPass && newStats.pass > 0 && newStats.pass % PRACTICE_TO_EARN_THRESHOLD === 0) {
                  try {
                     const userDocRef = doc(db, 'users', user.uid);
                     const logRef = doc(collection(db, `users/${user.uid}/transactionLogs`));
                     const batch = writeBatch(db);
-
                     const userDoc = await getDoc(userDocRef);
                     if (!userDoc.exists()) throw "User document does not exist!";
-                    
                     const currentBalance = userDoc.data().tokenBalance || 0;
                     const newBalance = currentBalance + PRACTICE_EARN_REWARD;
-                    
                     batch.update(userDocRef, { tokenBalance: newBalance });
                     batch.set(logRef, {
                         actionType: 'practice_earn',
@@ -230,47 +214,45 @@ export default function LearnPageContent() {
                         timestamp: serverTimestamp(),
                         description: `Earned for mastering a phrase.`
                     });
-
                     await batch.commit();
-
                     toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
-                } catch(e) {
-                    console.error("Token reward transaction failed: ", e);
+                } catch(err) {
+                    console.error("Token reward transaction failed: ", err);
                     toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
                 }
+              }
             }
           }
         }
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Assessment Failed',
-          description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}`,
-        });
-        finalResult.status = 'fail';
-        setPracticeStats(prev => {
-            const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-            return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
-        });
+        setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+      };
+
+      recognizer.canceled = (s, e) => {
+          toast({ variant: 'destructive', title: 'Assessment Cancelled', description: `Could not assess pronunciation. Please try again. Reason: ${e.reason}`});
+          setPracticeStats(prev => {
+              const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
+              return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
+          });
+      };
+
+      recognizer.sessionStopped = () => {
+        setAssessingPhraseId(null);
+        recognizer?.close();
       }
+
+      recognizer.recognizeOnceAsync(
+        () => {}, // Success callback - handled by events now
+        (err) => {
+           toast({ variant: 'destructive', title: 'Mic Error', description: `Could not start microphone: ${err}` });
+           setAssessingPhraseId(null);
+        }
+      );
+
     } catch (error) {
-      console.error("Error during assessment:", error);
-      finalResult.status = 'fail';
-      setPracticeStats(prev => {
-            const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-            return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
-      });
-      toast({
-        variant: 'destructive',
-        title: 'Assessment Error',
-        description: `An unexpected error occurred during assessment.`,
-      });
-    } finally {
-      if (recognizer) {
-        recognizer.close();
-      }
-      setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+      console.error("Error during assessment setup:", error);
+      toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.`});
       setAssessingPhraseId(null);
+      if (recognizer) recognizer.close();
     }
   };
     
