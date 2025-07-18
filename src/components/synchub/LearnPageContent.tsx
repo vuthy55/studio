@@ -20,7 +20,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -158,6 +158,15 @@ export default function LearnPageContent() {
                         const currentBalance = userDoc.data().tokenBalance || 0;
                         const newBalance = currentBalance + PRACTICE_EARN_REWARD;
                         transaction.update(userDocRef, { tokenBalance: newBalance });
+
+                        const logRef = collection(db, `users/${user.uid}/transactionLogs`);
+                        addDoc(logRef, {
+                            actionType: 'practice_earn',
+                            tokenChange: PRACTICE_EARN_REWARD,
+                            timestamp: serverTimestamp(),
+                            description: `Earned for mastering a phrase.`
+                        });
+
                     }).then(() => {
                         toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
                     }).catch(e => {

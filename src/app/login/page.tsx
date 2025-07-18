@@ -11,7 +11,7 @@ import {
   updateProfile as updateAuthProfile,
   type User
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { countries } from 'countries-list';
 
@@ -23,6 +23,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { Chrome } from 'lucide-react';
+
+const SIGNUP_BONUS = 100;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,22 +46,32 @@ export default function LoginPage() {
     label: country.name
   }));
 
-  const updateUserProfileInFirestore = async (user: User, data: any) => {
+  const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);
     
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
 
-    // Always ensure the email from auth is the source of truth
     const dataToSave = { 
         ...existingData,
         ...data, 
         email: user.email!,
         role: existingData.role || 'user',
-        tokenBalance: existingData.tokenBalance ?? 100, // Grant 100 tokens to new users
+        tokenBalance: existingData.tokenBalance ?? (isNewUser ? SIGNUP_BONUS : 0),
     };
 
     await setDoc(userDocRef, dataToSave, { merge: true });
+
+    // Log the signup bonus transaction for new users
+    if (isNewUser) {
+        const logRef = collection(db, 'users', user.uid, 'transactionLogs');
+        await addDoc(logRef, {
+            actionType: 'signup_bonus',
+            tokenChange: SIGNUP_BONUS,
+            timestamp: serverTimestamp(),
+            description: 'Welcome bonus for signing up!'
+        });
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -71,15 +83,13 @@ export default function LoginPage() {
 
       const userDocRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userDocRef);
+      const isNewUser = !docSnap.exists();
 
-      // If user is new (or profile is incomplete), create/update their profile in Firestore
-      if (!docSnap.exists()) {
-        await updateUserProfileInFirestore(user, {
-            name: user.displayName || 'New User',
-            country: '', 
-            mobile: user.phoneNumber || '',
-        });
-      }
+      await updateUserProfileInFirestore(user, {
+          name: user.displayName || 'New User',
+          country: '', 
+          mobile: user.phoneNumber || '',
+      }, isNewUser);
 
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
@@ -108,7 +118,7 @@ export default function LoginPage() {
           name: signupName,
           country: signupCountry,
           mobile: signupMobile,
-      });
+      }, true); // This is a new user
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');

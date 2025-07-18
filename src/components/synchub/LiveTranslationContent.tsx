@@ -16,7 +16,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction } from 'firebase/firestore';
+import { doc, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -144,6 +144,14 @@ export default function LiveTranslationContent() {
                 
                 const newBalance = currentBalance - TRANSLATION_COST;
                 transaction.update(userDocRef, { tokenBalance: newBalance });
+                
+                const logRef = collection(db, `users/${user.uid}/transactionLogs`);
+                addDoc(logRef, {
+                    actionType: 'translation_spend',
+                    tokenChange: -TRANSLATION_COST,
+                    timestamp: serverTimestamp(),
+                    description: `Translated: "${inputText}"`
+                });
             });
 
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
@@ -278,6 +286,15 @@ export default function LiveTranslationContent() {
                         const currentBalance = userDoc.data().tokenBalance || 0;
                         const newBalance = currentBalance + PRACTICE_EARN_REWARD;
                         transaction.update(userDocRef, { tokenBalance: newBalance });
+
+                        const logRef = collection(db, `users/${user.uid}/transactionLogs`);
+                        addDoc(logRef, {
+                            actionType: 'practice_earn',
+                            tokenChange: PRACTICE_EARN_REWARD,
+                            timestamp: serverTimestamp(),
+                            description: `Earned for mastering a saved phrase.`
+                        });
+
                     }).then(() => {
                         toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token!` });
                     }).catch(e => console.error("Token reward transaction failed: ", e));
