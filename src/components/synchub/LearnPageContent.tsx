@@ -31,9 +31,11 @@ type AssessmentResult = {
   fluency?: number;
 };
 
-// We will use a simple in-memory cache for practice counts for now.
-// For a more robust solution, this could be moved to context or a state manager.
-const practiceCounts: Record<string, number> = {};
+type PracticeStats = {
+    pass: number;
+    fail: number;
+}
+
 const PRACTICE_TO_EARN_THRESHOLD = 3;
 const PRACTICE_EARN_REWARD = 1;
 
@@ -46,6 +48,7 @@ export default function LearnPageContent() {
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
+    const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
     const [user] = useAuthState(auth);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
@@ -141,22 +144,30 @@ export default function LearnPageContent() {
               fluency: fluencyScore,
             };
 
-            if (isPass) {
-                practiceCounts[phraseId] = (practiceCounts[phraseId] || 0) + 1;
-                if (practiceCounts[phraseId] % PRACTICE_TO_EARN_THRESHOLD === 0) {
-                     await runTransaction(db, async (transaction) => {
+            setPracticeStats(prev => {
+                const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
+                const newPassCount = currentStats.pass + (isPass ? 1 : 0);
+                const newFailCount = currentStats.fail + (isPass ? 0 : 1);
+                
+                if (isPass && newPassCount > 0 && newPassCount % PRACTICE_TO_EARN_THRESHOLD === 0) {
+                     runTransaction(db, async (transaction) => {
                         const userDocRef = doc(db, 'users', user.uid);
                         const userDoc = await transaction.get(userDocRef);
-                        if (!userDoc.exists()) {
-                            throw "User document does not exist!";
-                        }
-                        const newBalance = (userDoc.data().tokenBalance || 0) + PRACTICE_EARN_REWARD;
+                        if (!userDoc.exists()) throw "User document does not exist!";
+                        
+                        const currentBalance = userDoc.data().tokenBalance || 0;
+                        const newBalance = currentBalance + PRACTICE_EARN_REWARD;
                         transaction.update(userDocRef, { tokenBalance: newBalance });
+                    }).then(() => {
+                        toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
+                    }).catch(e => {
+                        console.error("Token reward transaction failed: ", e);
+                        toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
                     });
-                    toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
                 }
-            }
 
+                return { ...prev, [phraseId]: { pass: newPassCount, fail: newFailCount }};
+            });
           }
         }
       } else {
@@ -166,10 +177,18 @@ export default function LearnPageContent() {
           description: `Could not assess pronunciation. Please try again. Reason: ${sdk.ResultReason[result.reason]}`,
         });
         finalResult.status = 'fail';
+        setPracticeStats(prev => {
+            const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
+            return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
+        });
       }
     } catch (error) {
       console.error("Error during assessment:", error);
       finalResult.status = 'fail';
+      setPracticeStats(prev => {
+            const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
+            return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
+      });
       toast({
         variant: 'destructive',
         title: 'Assessment Error',
@@ -276,7 +295,8 @@ export default function LearnPageContent() {
                                 const topic = phrasebook.find(t => t.id === value);
                                 if (topic) {
                                     setSelectedTopic(topic);
-                                    setPhraseAssessments({}); // Reset assessments on topic change
+                                    setPhraseAssessments({});
+                                    setPracticeStats({});
                                 }
                             }}
                         >
@@ -304,6 +324,7 @@ export default function LearnPageContent() {
                                 const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
 
                                 const assessment = phraseAssessments[phrase.id];
+                                const currentPracticeStats = practiceStats[phrase.id] || { pass: 0, fail: 0 };
                                 const isAssessingCurrent = assessingPhraseId === phrase.id;
 
                                 return (
@@ -320,10 +341,16 @@ export default function LearnPageContent() {
                                             <div>
                                                 <p className="font-bold text-lg text-primary">{toText}</p>
                                                  {assessment && (
-                                                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                                                        {assessment.status === 'pass' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                                                        {assessment.status === 'fail' && <XCircle className="h-4 w-4 text-red-500" />}
-                                                        <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
+                                                        <div className="flex items-center gap-1">
+                                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                            <span className="font-bold">{currentPracticeStats.pass}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                             <XCircle className="h-4 w-4 text-red-500" />
+                                                            <span className="font-bold">{currentPracticeStats.fail}</span>
+                                                        </div>
+                                                        <p>| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
                                                     </div>
                                                 )}
                                             </div>
