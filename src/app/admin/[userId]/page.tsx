@@ -127,83 +127,79 @@ export default function UserDetailPage() {
                 </Button>
             </header>
             
-             <form onSubmit={handleSaveChanges}>
-                <div className="grid gap-8 md:grid-cols-3">
-                    <div className="md:col-span-1">
-                        <Card>
-                            <CardHeader className="items-center text-center">
-                                <Avatar className="h-24 w-24 text-4xl">
-                                    <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                                </Avatar>
-                                <CardTitle className="text-2xl">{profile.name || 'User Name'}</CardTitle>
-                                <CardDescription>{profile.email}</CardDescription>
-                            </CardHeader>
-                            <CardContent className="text-center">
-                                 {profile.role === 'admin' ? 
-                                    <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                                    <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                                }
-                            </CardContent>
-                        </Card>
-                    </div>
+            <div className="space-y-8 max-w-2xl mx-auto">
+                 <Card>
+                    <CardHeader className="items-center text-center">
+                        <Avatar className="h-24 w-24 text-4xl">
+                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                        </Avatar>
+                        <CardTitle className="text-2xl pt-2">{profile.name || 'User Name'}</CardTitle>
+                        <CardDescription>{profile.email}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-center">
+                            {profile.role === 'admin' ? 
+                            <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                            <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                        }
+                    </CardContent>
+                </Card>
 
-                    <div className="md:col-span-2">
-                        <Card>
-                             <CardHeader>
-                                <CardTitle>Edit Profile</CardTitle>
-                                <CardDescription>Modify the user's details below.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Name</Label>
-                                    <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
+                <form onSubmit={handleSaveChanges}>
+                     <Card>
+                            <CardHeader>
+                            <CardTitle>Edit Profile</CardTitle>
+                            <CardDescription>Modify the user's details below.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name</Label>
+                                <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="country">Country</Label>
+                                <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                                    <SelectTrigger id="country">
+                                        <SelectValue placeholder="Select user's country" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {countryOptions.map(country => (
+                                            <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="mobile">Mobile Number</Label>
+                                <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
+                            </div>
+                            <div className="flex items-center space-x-2 rounded-md border p-4">
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Administrator Role</p>
+                                    <p className="text-sm text-muted-foreground">
+                                    Admins can manage users and other app settings.
+                                    </p>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email</Label>
-                                    <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="country">Country</Label>
-                                    <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                                        <SelectTrigger id="country">
-                                            <SelectValue placeholder="Select user's country" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {countryOptions.map(country => (
-                                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="mobile">Mobile Number</Label>
-                                    <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
-                                </div>
-                                <div className="flex items-center space-x-2 rounded-md border p-4">
-                                    <div className="flex-1 space-y-1">
-                                      <p className="text-sm font-medium leading-none">Administrator Role</p>
-                                      <p className="text-sm text-muted-foreground">
-                                        Admins can manage users and other app settings.
-                                      </p>
-                                    </div>
-                                    <Switch
-                                        checked={profile.role === 'admin'}
-                                        onCheckedChange={handleRoleChange}
-                                        disabled={adminUser?.uid === userId}
-                                        aria-label="Toggle admin role"
-                                    />
-                                </div>
-                                 <div className="flex justify-end">
-                                    <Button type="submit" disabled={isSaving}>
-                                        {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                        Save Changes
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-            </form>
+                                <Switch
+                                    checked={profile.role === 'admin'}
+                                    onCheckedChange={handleRoleChange}
+                                    disabled={adminUser?.uid === userId}
+                                    aria-label="Toggle admin role"
+                                />
+                            </div>
+                                <div className="flex justify-end">
+                                <Button type="submit" disabled={isSaving}>
+                                    {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Save Changes
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </form>
+            </div>
         </div>
     );
 }
