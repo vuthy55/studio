@@ -4,13 +4,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, doc, setDoc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, getDocs, doc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { LoaderCircle, Shield, User as UserIcon } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +30,6 @@ export default function AdminPage() {
     const [users, setUsers] = useState<UserWithId[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-    const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const [isFetchingNext, setIsFetchingNext] = useState(false);
     const [hasMore, setHasMore] = useState(true);
 
@@ -103,28 +101,8 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading, router]);
 
-    const handleRoleChange = async (userId: string, currentRole: 'admin' | 'user') => {
-        setIsUpdating(userId);
-        const newRole = currentRole === 'admin' ? 'user' : 'admin';
-        
-        if (user?.uid === userId) {
-            toast({ variant: "destructive", title: "Action not allowed", description: "You cannot change your own role from this panel."});
-            setIsUpdating(null);
-            return;
-        }
-
-        try {
-            const userDocRef = doc(db, 'users', userId);
-            await setDoc(userDocRef, { role: newRole }, { merge: true });
-            
-            setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, role: newRole } : u));
-            toast({ title: "Success", description: "User role updated." });
-        } catch (error: any) {
-            console.error("Error updating role:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to update user role." });
-        } finally {
-            setIsUpdating(null);
-        }
+    const handleRowClick = (userId: string) => {
+        router.push(`/admin/${userId}`);
     };
     
     if (authLoading || isLoading) {
@@ -148,53 +126,38 @@ export default function AdminPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Users</CardTitle>
-                    <CardDescription>A list of all users in the system.</CardDescription>
+                    <CardDescription>A list of all users in the system. Click a user to view and edit their details.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="hidden sm:table-cell">Name</TableHead>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Role</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {users.map((u) => (
-                                <TableRow key={u.id}>
-                                    <TableCell className="hidden sm:table-cell">{u.name || 'N/A'}</TableCell>
-                                    <TableCell className="font-medium">{u.email}</TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            {isUpdating === u.id ? (
-                                                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                <Switch
-                                                    id={`role-switch-${u.id}`}
-                                                    checked={u.role === 'admin'}
-                                                    onCheckedChange={() => handleRoleChange(u.id, u.role || 'user')}
-                                                    disabled={isUpdating === u.id || user?.uid === u.id}
-                                                    aria-label={`Toggle admin role for ${u.email}`}
-                                                />
-                                            )}
-                                            <label htmlFor={`role-switch-${u.id}`} className="sr-only">
-                                                Toggle admin role for {u.email}
-                                            </label>
-                                            <div className="hidden sm:block">
-                                                {u.role === 'admin' ? 
-                                                    <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                                                    <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                                                }
-                                            </div>
-                                             <div className="block sm:hidden">
-                                                 {u.role === 'admin' ? <Shield className="h-4 w-4 text-primary" /> : <UserIcon className="h-4 w-4 text-muted-foreground" />}
-                                            </div>
-                                        </div>
-                                    </TableCell>
+                    <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="hidden sm:table-cell">Name</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Role</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {users.map((u) => (
+                                    <TableRow key={u.id} onClick={() => handleRowClick(u.id)} className="cursor-pointer">
+                                        <TableCell className="hidden sm:table-cell font-medium">{u.name || 'N/A'}</TableCell>
+                                        <TableCell>{u.email}</TableCell>
+                                        <TableCell>
+                                            {u.role === 'admin' ? 
+                                                <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                                                <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                                            }
+                                        </TableCell>
+                                        <TableCell>
+                                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                     {users.length === 0 && !isLoading && (
                         <p className="text-center text-muted-foreground py-8">No users found.</p>
                     )}
