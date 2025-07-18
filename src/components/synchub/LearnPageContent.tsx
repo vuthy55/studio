@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, Info } from 'lucide-react';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import {
   Tooltip,
   TooltipProvider,
