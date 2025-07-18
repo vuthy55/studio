@@ -28,7 +28,7 @@ type MicStatus = 'idle' | 'listening' | 'processing' | 'locked';
 const EmceeIcon = () => (
     <Tooltip>
         <TooltipTrigger asChild>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-amber-500 cursor-help">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-accent cursor-help">
                 <path d="M12.378 1.602a.75.75 0 00-.756 0L3.34 6.347a.75.75 0 00-.34.654v4.994c0 4.14 2.654 7.822 6.499 9.422a.75.75 0 00.518 0c3.845-1.6 6.499-5.282 6.499-9.422V7.001a.75.75 0 00-.34-.654L12.378 1.602zM12 7.5a.75.75 0 01.75.75v3.626a.75.75 0 01-1.5 0V8.25a.75.75 0 01.75-.75zM12 15a1 1 0 100-2 1 1 0 000 2z" />
                 <path d="M12 7.5a.75.75 0 01.75.75v3.626a.75.75 0 01-1.5 0V8.25a.75.75 0 01.75-.75zM11.25 12a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5z" clipRule="evenodd" transform="rotate(90 12 12.75)" />
                 <text x="50%" y="58%" dominantBaseline="middle" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">E</text>
@@ -135,10 +135,8 @@ function SyncRoomPageContent() {
         const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
             if (!snapshot.empty) {
                 const newMessage = snapshot.docs[0].data() as RoomMessage;
-                // Only process if the message is new
                 if (newMessage.id !== lastMessage?.id) {
                      setLastMessage(newMessage);
-                     // Prevent self-echo by not queueing messages from the current user.
                     if (newMessage.speakerUid !== user?.uid) {
                         audioQueue.current.push(newMessage);
                         processAudioQueue();
@@ -152,7 +150,9 @@ function SyncRoomPageContent() {
         return () => {
             unsubscribeMessages();
         }
-    }, [room, lastMessage, user?.uid]);
+    // Only re-run when room changes. lastMessage is now managed internally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [room, user?.uid]);
 
 
     // --- Audio Playback Logic ---
@@ -243,7 +243,6 @@ function SyncRoomPageContent() {
             };
             
             recognizerRef.current.canceled = async (s, e) => {
-                // Only log and notify if it's a real error. `NoError` is a normal cancellation.
                 if (e.reason === sdk.CancellationReason.Error) {
                     console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
                     toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
@@ -252,8 +251,6 @@ function SyncRoomPageContent() {
             };
 
             recognizerRef.current.sessionStopped = async (s, e) => {
-                // This event fires when recognition stops for any reason (e.g., success, cancellation, timeout).
-                // It's the ideal place to reset the UI state.
                 if (micStatus === 'listening') {
                     await updateDoc(roomRef, { activeSpeakerUid: null });
                 }
@@ -397,7 +394,7 @@ function SyncRoomPageContent() {
     if (!user) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <Card className="w-full max-w-md text-center">
+                 <Card className="w-full max-w-md text-center">
                     <CardHeader>
                         <CardTitle>Authentication Required</CardTitle>
                         <CardDescription>You need to be logged in to join a sync room.</CardDescription>
@@ -544,17 +541,24 @@ function SyncRoomPageContent() {
                                         Promote
                                     </Button>
                                 )}
-                                 {(isCurrentUserEmcee && isEmcee && !isOwner && !isCurrentUser) || (isCurrentUser && isEmcee && !isOwner) && (
-                                    <Button 
-                                        size="sm" 
-                                        variant="destructive" 
-                                        className="w-full text-xs h-8"
-                                        onClick={() => handleDemoteEmcee(p.uid)}
-                                        disabled={!!isUpdatingParticipant}
-                                    >
-                                        <ArrowDownCircle className="mr-2 h-4 w-4" />
-                                        Demote
-                                    </Button>
+                                 {((isCurrentUserEmcee && isEmcee && !isOwner) || (isOwner && isEmcee && !isCurrentUser)) && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button 
+                                                size="sm" 
+                                                variant="destructive" 
+                                                className="w-full text-xs h-8"
+                                                onClick={() => handleDemoteEmcee(p.uid)}
+                                                disabled={!!isUpdatingParticipant}
+                                            >
+                                                <ArrowDownCircle className="mr-2 h-4 w-4" />
+                                                Demote
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Remove as Emcee</p>
+                                        </TooltipContent>
+                                    </Tooltip>
                                 )}
                             </div>
                         </Card>
