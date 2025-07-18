@@ -78,12 +78,20 @@ function SyncRoomPageContent() {
     }, [user, participants]);
 
 
-    const handleStopMic = useCallback(async () => {
+    const handleStopMic = useCallback(() => {
         if (recognizerRef.current) {
-            recognizerRef.current.stopContinuousRecognitionAsync();
+            try {
+                // This call might fail if the recognizer is already stopped, but that's okay.
+                recognizerRef.current.stopContinuousRecognitionAsync();
+            } catch (e) {
+                console.warn("Could not stop recognizer, it might be already stopped.", e);
+            }
         }
         const roomRef = doc(db, 'syncRooms', roomId);
-        await updateDoc(roomRef, { activeSpeakerUid: null });
+        // We update Firestore regardless of the recognizer state to unlock the mic.
+        updateDoc(roomRef, { activeSpeakerUid: null }).catch(err => {
+            console.error("Failed to update active speaker to null in Firestore:", err);
+        });
         setMicStatus('idle');
     }, [roomId]);
 
@@ -106,9 +114,10 @@ function SyncRoomPageContent() {
                     toast({ variant: 'destructive', title: 'Access Denied', description: 'You are not invited to this room.' });
                 } else {
                     setRoom(roomData);
-                    if (roomData.activeSpeakerUid) {
-                        setMicStatus(roomData.activeSpeakerUid === user?.uid ? 'listening' : 'locked');
-                    } else {
+                    if (roomData.activeSpeakerUid && roomData.activeSpeakerUid !== user?.uid) {
+                        setMicStatus('locked');
+                    } else if (!roomData.activeSpeakerUid) {
+                        // If speaker becomes null, ensure mic is idle for everyone
                         setMicStatus('idle');
                     }
                 }
@@ -134,12 +143,17 @@ function SyncRoomPageContent() {
         return () => {
             unsubscribeRoom();
             unsubscribeParticipants();
+            // This ensures mic is released if user navigates away while speaking.
+            if(room?.activeSpeakerUid === user?.uid) {
+                updateDoc(roomRef, { activeSpeakerUid: null });
+            }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, user, authLoading, router, toast]);
 
-    // Speech Recognizer Setup
+    // Speech Recognizer Setup: Create ONE recognizer and reuse it.
      useEffect(() => {
-        if (!currentUserParticipant) return;
+        if (!currentUserParticipant || recognizerRef.current) return;
 
         const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
         const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
@@ -154,9 +168,9 @@ function SyncRoomPageContent() {
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
             speechConfig.speechRecognitionLanguage = currentUserParticipant.selectedLanguage;
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizerRef.current = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+            const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
             
-            recognizerRef.current.recognized = async (s, e) => {
+            recognizer.recognized = async (s, e) => {
                 if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
                     setMicStatus('processing');
                     
@@ -171,41 +185,43 @@ function SyncRoomPageContent() {
                     };
                     
                     await setDoc(newMessageRef, newMessage);
-                    await handleStopMic();
+                    handleStopMic();
                 } else if (e.result.reason === sdk.ResultReason.NoMatch) {
-                    // This handles cases where speech is detected but not recognized (e.g., silence)
-                    await handleStopMic();
+                    handleStopMic();
                 }
             };
             
-            recognizerRef.current.canceled = async (s, e) => {
+            recognizer.canceled = (s, e) => {
                 console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
                 if (e.reason === sdk.CancellationReason.Error) {
                     toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
                 }
-                await handleStopMic();
+                handleStopMic();
             };
 
-            recognizerRef.current.sessionStopped = async (s, e) => {
-                await handleStopMic();
+            recognizer.sessionStopped = (s, e) => {
+                handleStopMic();
             };
+
+            recognizerRef.current = recognizer;
 
         } catch (error: any) {
             console.error("Error setting up recognizer:", error);
             toast({ variant: "destructive", title: "Mic Setup Error", description: error.message });
         }
         
-        // Cleanup function
+        // Cleanup function for when the component unmounts
         return () => {
             if (recognizerRef.current) {
+                handleStopMic(); // ensure mic is released in firestore
                 recognizerRef.current.close();
                 recognizerRef.current = null;
             }
         };
 
-    // We only want to re-run this effect when the participant data is available or changes.
+    // This effect should only run ONCE per user join.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUserParticipant, roomId, toast]);
+    }, [currentUserParticipant]);
     
      useEffect(() => {
         if (!room) return; 
@@ -285,27 +301,31 @@ function SyncRoomPageContent() {
     // --- Speech Recognition Logic ---
 
     const handleMicTap = async () => {
-        if (!user || !room || !currentUserParticipant || (micStatus !== 'idle' && !isCurrentUserEmcee) || !recognizerRef.current) return;
+        if (!user || !room || !currentUserParticipant || !recognizerRef.current) return;
         
-        const roomRef = doc(db, 'syncRooms', roomId);
-        
-        try {
-            await updateDoc(roomRef, { activeSpeakerUid: user.uid });
-            
-            recognizerRef.current.startContinuousRecognitionAsync(
-                () => { setMicStatus('listening'); },
-                (err) => {
-                    console.error("Error starting recognition:", err);
-                    toast({ variant: "destructive", title: "Mic Error", description: `Could not start microphone: ${err}` });
-                    updateDoc(roomRef, { activeSpeakerUid: null });
-                }
-            );
+        // If mic is idle, or if Emcee wants to override
+        if (micStatus === 'idle' || isCurrentUserEmcee) {
+            // Stop any current recognition before starting a new one (e.g., Emcee override)
+            if (micStatus === 'listening') {
+                handleStopMic();
+            }
 
-        } catch (error: any) {
-            console.error("Error during mic tap:", error);
-            toast({ variant: "destructive", title: "Error", description: `Could not start microphone: ${error.message}` });
-            if (room.activeSpeakerUid === user.uid) {
-                await updateDoc(roomRef, { activeSpeakerUid: null });
+            const roomRef = doc(db, 'syncRooms', roomId);
+            try {
+                await updateDoc(roomRef, { activeSpeakerUid: user.uid });
+                
+                recognizerRef.current.startContinuousRecognitionAsync(
+                    () => { setMicStatus('listening'); },
+                    (err) => {
+                        console.error("Error starting recognition:", err);
+                        toast({ variant: "destructive", title: "Mic Error", description: `Could not start microphone: ${err}` });
+                        handleStopMic();
+                    }
+                );
+            } catch (error: any) {
+                console.error("Error during mic tap:", error);
+                toast({ variant: "destructive", title: "Error", description: `Could not start microphone: ${error.message}` });
+                handleStopMic();
             }
         }
     };
@@ -316,7 +336,7 @@ function SyncRoomPageContent() {
         if (!user) return;
         try {
             if (room?.activeSpeakerUid === user.uid) {
-                 await handleStopMic();
+                 handleStopMic();
             }
             const participantRef = doc(db, `syncRooms/${roomId}/participants`, user.uid);
             await deleteDoc(participantRef);
@@ -604,19 +624,26 @@ function SyncRoomPageContent() {
                 </div>
                 
                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                    <Button 
-                        size="lg" 
-                        className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
-                            micStatus === 'listening' && 'bg-green-500 hover:bg-green-600 scale-110',
-                            micStatus === 'processing' && 'bg-blue-500 hover:bg-blue-600',
-                            (micStatus === 'locked' && !isCurrentUserEmcee) && 'bg-muted text-muted-foreground cursor-not-allowed'
-                        )}
-                        onClick={handleMicTap}
-                        disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing'}
-                    >
-                        {getMicButtonContent()}
-                    </Button>
-                    <p className="text-sm text-muted-foreground mt-4">{getMicButtonTooltip()}</p>
+                     <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button 
+                                size="lg" 
+                                className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
+                                    micStatus === 'listening' && 'bg-green-500 hover:bg-green-600 scale-110',
+                                    micStatus === 'processing' && 'bg-blue-500 hover:bg-blue-600',
+                                    (micStatus === 'locked' && !isCurrentUserEmcee) && 'bg-muted text-muted-foreground cursor-not-allowed'
+                                )}
+                                onClick={handleMicTap}
+                                disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing' || micStatus === 'listening'}
+                                aria-label={getMicButtonTooltip()}
+                            >
+                                {getMicButtonContent()}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                           <p>{getMicButtonTooltip()}</p>
+                        </TooltipContent>
+                    </Tooltip>
                 </div>
             </div>
         </TooltipProvider>
