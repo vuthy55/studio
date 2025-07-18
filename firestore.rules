@@ -40,44 +40,58 @@ service cloud.firestore {
       
       // Allow the creator of the room to delete it.
       allow delete: if request.auth != null && resource.data.creatorUid == request.auth.uid;
-    }
 
-    // Participants sub-collection: Handles who can join and how.
-    match /syncRooms/{roomId}/participants/{participantId} {
-      function roomData() {
-        return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
-      }
-      function roomExists() {
-        return exists(/databases/$(database)/documents/syncRooms/$(roomId));
-      }
-      function isInvitedToRoom() {
-        return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
-      }
-      function isEmceeInRoom() {
-        return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
-      }
-      
-      allow list, read: if isInvitedToRoom();
-      
-      allow create: if request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid;
-      
-      // Allow emcees to update participants OR allow a user to update their own document.
-      allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
-
-      allow delete: if request.auth != null && request.auth.uid == participantId;
-    }
-    
-    // Messages sub-collection: Handles sending and receiving messages in a room.
-    match /syncRooms/{roomId}/messages/{messageId} {
-        function isInvitedToRoom() {
-            return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-                   request.auth != null &&
-                   request.auth.token.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails;
+      // Sub-collections for a room
+      match /participants/{participantId} {
+        function roomData() {
+          return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
         }
-
+        function isRoomCreator() {
+          return request.auth != null && request.auth.uid == roomData().creatorUid;
+        }
+        function roomExists() {
+          return exists(/databases/$(database)/documents/syncRooms/$(roomId));
+        }
+        function isInvitedToRoom() {
+          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
+        }
+        function isEmceeInRoom() {
+          return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
+        }
+        
         allow list, read: if isInvitedToRoom();
         
-        allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
+        allow create: if request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid;
+        
+        // Allow emcees to update participants OR allow a user to update their own document.
+        allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
+
+        // Allow a user to delete their own participant doc, or the room creator to delete any.
+        allow delete: if request.auth != null && (request.auth.uid == participantId || isRoomCreator());
+      }
+      
+      match /messages/{messageId} {
+          function roomData() {
+            return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
+          }
+           function isRoomCreator() {
+            return request.auth != null && request.auth.uid == roomData().creatorUid;
+          }
+          function isInvitedToRoom() {
+              return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+                    request.auth != null &&
+                    request.auth.token.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails;
+          }
+
+          allow list, read: if isInvitedToRoom();
+          
+          allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
+
+          // Allow the room creator to delete messages.
+          allow delete: if isRoomCreator();
+      }
     }
   }
 }
+
+    
