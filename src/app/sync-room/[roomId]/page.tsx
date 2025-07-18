@@ -486,7 +486,7 @@ function SyncRoomPageContent() {
                                             <h3 className="font-semibold mb-2 text-green-600">Present</h3>
                                             <ul className="space-y-1">
                                                 {participants.map(p => (
-                                                    <li key={p.uid} className="text-sm text-muted-foreground">{p.email} ({p.name})</li>
+                                                    <li key={p.uid} className="text-sm text-foreground">{p.name}</li>
                                                 ))}
                                             </ul>
                                         </div>
@@ -588,3 +588,5 @@ function SyncRoomPageContent() {
 export default function SyncRoomPage() {
     return <SyncRoomPageContent />;
 }
+
+    

@@ -145,8 +145,6 @@ export default function SyncOnlineHome() {
                 name: user.displayName || 'Creator',
                 email: user.email!,
                 selectedLanguage: spokenLanguage,
-                isEmcee: true,
-                isMuted: false,
             };
             batch.set(participantRef, creatorParticipant);
 
@@ -353,7 +351,7 @@ export default function SyncOnlineHome() {
                                                                 <br/><br/>
                                                                 Please type <strong>delete</strong> to confirm.
                                                             </AlertDialogDescription>
-                                                        </AlertDialogHeader>
+                                                        </Header>
                                                         <Input 
                                                             id="delete-confirm"
                                                             value={deleteConfirmation}

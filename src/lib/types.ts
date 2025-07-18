@@ -18,7 +18,6 @@ export type Participant = {
     name: string;
     email: string;
     selectedLanguage: AzureLanguageCode | '';
-    isEmcee: boolean; // Note: This is now derived from room.emceeUids, but kept for potential future direct use
 }
 
 export type RoomMessage = {
@@ -30,4 +29,5 @@ export type RoomMessage = {
     createdAt: FieldValue;
 }
 
+    
     
