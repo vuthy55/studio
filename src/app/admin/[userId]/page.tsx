@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft } from "lucide-react";
+import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins } from "lucide-react";
 import Link from 'next/link';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,8 +69,8 @@ export default function UserDetailPage() {
     }, [adminUser, adminLoading, router, userId, fetchProfile]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { id, value } = e.target;
-        setProfile(prev => ({ ...prev, [id]: value }));
+        const { id, value, type } = e.target;
+        setProfile(prev => ({ ...prev, [id]: type === 'number' ? Number(value) : value }));
     };
 
     const handleCountryChange = (value: string) => {
@@ -91,9 +91,9 @@ export default function UserDetailPage() {
         setIsSaving(true);
         try {
             const userDocRef = doc(db, 'users', userId);
-            const { name, email, country, mobile, role } = profile;
+            const { name, email, country, mobile, role, tokenBalance } = profile;
             
-            await setDoc(userDocRef, { name, email, country, mobile, role }, { merge: true });
+            await setDoc(userDocRef, { name, email, country, mobile, role, tokenBalance }, { merge: true });
             
             toast({ title: 'Success', description: 'User profile updated successfully.' });
         } catch (error: any) {
@@ -135,6 +135,10 @@ export default function UserDetailPage() {
                         </Avatar>
                         <CardTitle className="text-2xl pt-2">{profile.name || 'User Name'}</CardTitle>
                         <CardDescription>{profile.email}</CardDescription>
+                         <div className="flex items-center gap-2 text-lg font-bold text-amber-500 pt-2">
+                           <Coins className="h-6 w-6" />
+                           <span>{profile.tokenBalance ?? 0}</span>
+                        </div>
                     </CardHeader>
                     <CardContent className="text-center">
                             {profile.role === 'admin' ? 
@@ -158,6 +162,10 @@ export default function UserDetailPage() {
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
                                 <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="tokenBalance">Token Balance</Label>
+                                <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="country">Country</Label>

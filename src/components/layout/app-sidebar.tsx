@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { 
@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
 
 
@@ -30,18 +30,19 @@ export function AppSidebar() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          setUserProfile(userDocSnap.data() as UserProfile);
+    if (user) {
+      const userDocRef = doc(db, 'users', user.uid);
+      const unsubscribe = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+          setUserProfile(doc.data() as UserProfile);
+        } else {
+          setUserProfile(null);
         }
-      } else {
-        setUserProfile(null);
-      }
-    };
-    fetchProfile();
+      });
+      return () => unsubscribe();
+    } else {
+      setUserProfile(null);
+    }
   }, [user]);
 
   const handleLogout = async () => {
@@ -126,7 +127,13 @@ export function AppSidebar() {
 
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="flex-col items-stretch gap-y-4">
+        {user && userProfile && (
+           <div className="flex items-center justify-center gap-2 text-sm font-bold text-amber-500 border rounded-full p-2">
+             <Coins className="h-5 w-5" />
+             <span>{userProfile.tokenBalance ?? 0}</span>
+           </div>
+        )}
         <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
           <Link href="#">
             <Heart className="mr-2 h-4 w-4" /> Donate

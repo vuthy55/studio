@@ -55,7 +55,8 @@ export default function LoginPage() {
         ...existingData,
         ...data, 
         email: user.email!,
-        role: existingData.role || 'user'
+        role: existingData.role || 'user',
+        tokenBalance: existingData.tokenBalance ?? 100, // Grant 100 tokens to new users
     };
 
     await setDoc(userDocRef, dataToSave, { merge: true });

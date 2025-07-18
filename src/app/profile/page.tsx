@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { LoaderCircle, Save } from "lucide-react";
+import { LoaderCircle, Save, Coins } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -25,6 +25,7 @@ export interface UserProfile {
   country?: string;
   mobile?: string;
   role?: 'admin' | 'user';
+  tokenBalance?: number;
 }
 
 export default function ProfilePage() {
@@ -33,7 +34,7 @@ export default function ProfilePage() {
     const { isMobile } = useSidebar();
     const { toast } = useToast();
     
-    const [profile, setProfile] = useState<Partial<UserProfile>>({ name: '', email: '', country: '', mobile: '', role: 'user' });
+    const [profile, setProfile] = useState<Partial<UserProfile>>({ name: '', email: '', country: '', mobile: '', role: 'user', tokenBalance: 0 });
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
@@ -57,7 +58,8 @@ export default function ProfilePage() {
                     email: authEmail,
                     country: '',
                     mobile: '',
-                    role: 'user'
+                    role: 'user',
+                    tokenBalance: 0
                 });
             }
         } catch (fetchError) {
@@ -111,13 +113,15 @@ export default function ProfilePage() {
             }
 
             const userDocRef = doc(db, 'users', user.uid);
+            const { name, country, mobile, role, tokenBalance } = profile;
             const dataToSave = {
-                name: profile.name || '',
-                country: profile.country || '',
-                mobile: profile.mobile || '',
+                name: name || '',
+                country: country || '',
+                mobile: mobile || '',
                 // Always save the email from auth as the source of truth
                 email: user.email, 
-                role: profile.role || 'user'
+                role: role || 'user',
+                tokenBalance: tokenBalance || 0,
             };
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
@@ -171,13 +175,19 @@ export default function ProfilePage() {
             
             <Card className="max-w-2xl mx-auto">
                 <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <Avatar className="h-20 w-20 text-3xl">
-                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
-                            <CardDescription>{profile.email}</CardDescription>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-20 w-20 text-3xl">
+                                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
+                                <CardDescription>{profile.email}</CardDescription>
+                            </div>
+                        </div>
+                         <div className="flex items-center gap-2 text-lg font-bold text-amber-500">
+                           <Coins className="h-6 w-6" />
+                           <span>{profile.tokenBalance ?? 0}</span>
                         </div>
                     </div>
                 </CardHeader>
