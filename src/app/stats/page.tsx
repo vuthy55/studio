@@ -29,36 +29,6 @@ export default function StatsPage() {
     const [transactions, setTransactions] = useState<TransactionLog[]>([]);
     const [isFetching, setIsFetching] = useState(true);
 
-    const fetchInitialData = useCallback(async (uid: string) => {
-        setIsFetching(true);
-        
-        // Profile snapshot - listen directly to the user's document
-        const userDocRef = doc(db, 'users', uid);
-        const profileUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
-             if (userDoc.exists()) {
-                setProfile({ ...userDoc.data() } as UserProfile);
-             }
-        });
-
-        // Transactions snapshot
-        const transRef = collection(db, 'users', uid, 'transactionLogs');
-        const q = query(transRef, orderBy('timestamp', 'desc'), limit(20));
-        const transactionsUnsubscribe = onSnapshot(q, (snapshot) => {
-            const transData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLog));
-            setTransactions(transData);
-            setIsFetching(false);
-        }, (err) => {
-            console.error("Error fetching transactions: ", err);
-            setIsFetching(false);
-        });
-
-        return () => {
-            profileUnsubscribe();
-            transactionsUnsubscribe();
-        };
-
-    }, []);
-    
     useEffect(() => {
         if (loading) return;
         if (error) {
@@ -70,13 +40,39 @@ export default function StatsPage() {
             router.push('/login');
             return;
         }
-        
-        const unsubscribePromise = fetchInitialData(user.uid);
-        return () => {
-             unsubscribePromise.then(fn => fn()).catch(e => console.error(e));
-        }
 
-    }, [user, loading, error, router, fetchInitialData]);
+        setIsFetching(true);
+        
+        // Profile snapshot listener
+        const userDocRef = doc(db, 'users', user.uid);
+        const profileUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
+             if (userDoc.exists()) {
+                setProfile({ ...userDoc.data() } as UserProfile);
+             }
+        }, (err) => {
+            console.error("Error fetching profile:", err);
+            // Don't stop fetching transactions if profile fails
+        });
+
+        // Transactions snapshot listener
+        const transRef = collection(db, 'users', user.uid, 'transactionLogs');
+        const q = query(transRef, orderBy('timestamp', 'desc'), limit(20));
+        const transactionsUnsubscribe = onSnapshot(q, (snapshot) => {
+            const transData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLog));
+            setTransactions(transData);
+            setIsFetching(false); // Consider loading complete when transactions arrive
+        }, (err) => {
+            console.error("Error fetching transactions: ", err);
+            setIsFetching(false);
+        });
+
+        // Cleanup function to unsubscribe from listeners on component unmount
+        return () => {
+            profileUnsubscribe();
+            transactionsUnsubscribe();
+        };
+
+    }, [user, loading, error, router]);
 
     const getActionText = (log: TransactionLog) => {
         switch (log.actionType) {
