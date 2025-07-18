@@ -57,19 +57,13 @@ service cloud.firestore {
         return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
       }
       
-      // Allow reading/listing participants if the user is invited.
       allow list, read: if isInvitedToRoom();
       
-      // Allow creating a participant document (joining a room) if:
-      // 1. The user is logged in, their email is on the invite list, and the document ID is their UID.
-      // 2. A guest (not logged in) provides an email that is on the invite list.
-      allow create: if (request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid) ||
-                       (request.auth == null && request.resource.data.email in roomData().invitedEmails);
+      allow create: if request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid;
       
-      // Allow emcees to update participants (e.g., mute, promote to emcee).
-      allow update: if isEmceeInRoom();
+      // Allow emcees to update participants OR allow a user to update their own document.
+      allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
 
-      // Allow participants to remove themselves (leave room).
       allow delete: if request.auth != null && request.auth.uid == participantId;
     }
     
@@ -81,10 +75,8 @@ service cloud.firestore {
                    request.auth.token.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails;
         }
 
-        // Allow invited users to list/read messages.
         allow list, read: if isInvitedToRoom();
         
-        // Allow invited users to create messages, ensuring data integrity.
         allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
     }
   }
