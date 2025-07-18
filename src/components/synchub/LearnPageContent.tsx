@@ -16,7 +16,6 @@ import {
 import { generateSpeech } from '@/services/tts';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -46,23 +45,14 @@ export default function LearnPageContent() {
     const { toast } = useToast();
     const [user] = useAuthState(auth);
     
-    // State initialization with lazy loading from localStorage
-    const [selectedTopic, setSelectedTopic] = useState<Topic>(() => {
-        if (typeof window === 'undefined') return phrasebook[0];
-        const savedTopicId = localStorage.getItem('selectedTopicId');
-        return phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
-    });
-    
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>(() => {
-        if (typeof window === 'undefined') return 'default';
-        return (localStorage.getItem('selectedVoice') as VoiceSelection) || 'default';
-    });
-
+    // Initialize state with default values to ensure server/client match
+    const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
 
-     // Load progress from local storage on initial mount
+     // Load progress and selections from local storage on client-side mount
     useEffect(() => {
         try {
             const savedAssessments = localStorage.getItem('phraseAssessments');
@@ -72,6 +62,15 @@ export default function LearnPageContent() {
             const savedStats = localStorage.getItem('practiceStats');
             if (savedStats) {
                 setPracticeStats(JSON.parse(savedStats));
+            }
+            const savedTopicId = localStorage.getItem('selectedTopicId');
+            const savedTopic = phrasebook.find(t => t.id === savedTopicId);
+            if (savedTopic) {
+                setSelectedTopic(savedTopic);
+            }
+            const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
+            if (savedVoice) {
+                setSelectedVoice(savedVoice);
             }
         } catch (error) {
             console.error("Failed to load progress from local storage", error);
@@ -96,11 +95,17 @@ export default function LearnPageContent() {
     }, [practiceStats]);
     
     useEffect(() => {
-        localStorage.setItem('selectedTopicId', selectedTopic.id);
+        // Only save if selectedTopic has been initialized from client
+        if (selectedTopic.id !== phrasebook[0].id || localStorage.getItem('selectedTopicId')) {
+            localStorage.setItem('selectedTopicId', selectedTopic.id);
+        }
     }, [selectedTopic]);
 
     useEffect(() => {
-        localStorage.setItem('selectedVoice', selectedVoice);
+        // Only save if voice has been initialized from client
+        if (selectedVoice !== 'default' || localStorage.getItem('selectedVoice')) {
+            localStorage.setItem('selectedVoice', selectedVoice);
+        }
     }, [selectedVoice]);
 
 
