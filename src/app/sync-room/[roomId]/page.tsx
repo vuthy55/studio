@@ -80,13 +80,10 @@ function SyncRoomPageContent() {
 
     const handleStopMic = useCallback(() => {
         if (recognizerRef.current) {
-            try {
-                // This stops recognition and closes the connection.
-                recognizerRef.current.close();
-                recognizerRef.current = null;
-            } catch (e) {
-                console.warn("Could not close recognizer, it might be already closed.", e);
-            }
+            console.log("Stopping mic and closing recognizer...");
+            recognizerRef.current.close();
+            recognizerRef.current = null;
+            console.log("Recognizer instance destroyed (set to null).");
         }
         const roomRef = doc(db, 'syncRooms', roomId);
         updateDoc(roomRef, { activeSpeakerUid: null }).catch(err => {
@@ -142,24 +139,11 @@ function SyncRoomPageContent() {
         return () => {
             unsubscribeRoom();
             unsubscribeParticipants();
-            if(room?.activeSpeakerUid === user?.uid) {
-                updateDoc(roomRef, { activeSpeakerUid: null });
-            }
+            handleStopMic(); // Ensure cleanup on unmount
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, user, authLoading, router, toast]);
 
-    // Cleanup recognizer on component unmount
-    useEffect(() => {
-        return () => {
-            if (recognizerRef.current) {
-                recognizerRef.current.close();
-                recognizerRef.current = null;
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-    
      useEffect(() => {
         if (!room) return; 
 
@@ -255,6 +239,7 @@ function SyncRoomPageContent() {
             }
             
             try {
+                console.log("Creating new SpeechRecognizer instance...");
                 const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
                 speechConfig.speechRecognitionLanguage = currentUserParticipant.selectedLanguage;
                 const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -264,6 +249,7 @@ function SyncRoomPageContent() {
 
                 recognizer.recognized = async (s, e) => {
                     if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
+                        console.log("Speech recognized:", e.result.text);
                         setMicStatus('processing');
         
                         const newMessageRef = doc(collection(db, `syncRooms/${roomId}/messages`));
@@ -279,6 +265,7 @@ function SyncRoomPageContent() {
                         await setDoc(newMessageRef, newMessage);
                         handleStopMic();
                     } else if (e.result.reason === sdk.ResultReason.NoMatch) {
+                        console.log("No speech could be recognized.");
                         handleStopMic();
                     }
                 };
@@ -292,14 +279,19 @@ function SyncRoomPageContent() {
                 };
         
                 recognizer.sessionStopped = (s, e) => {
+                    console.log("Recognition session stopped.");
                     handleStopMic();
                 };
 
                 const roomRef = doc(db, 'syncRooms', roomId);
                 await updateDoc(roomRef, { activeSpeakerUid: user.uid });
                 
+                console.log("Starting continuous recognition...");
                 recognizer.startContinuousRecognitionAsync(
-                    () => { setMicStatus('listening'); },
+                    () => { 
+                        console.log("Recognition started successfully.");
+                        setMicStatus('listening'); 
+                    },
                     (err) => {
                         console.error("Error starting recognition:", err);
                         toast({ variant: "destructive", title: "Mic Error", description: `Could not start microphone: ${err}` });
@@ -307,7 +299,7 @@ function SyncRoomPageContent() {
                     }
                 );
             } catch (error: any) {
-                console.error("Error during mic tap:", error);
+                console.error("Error during mic tap setup:", error);
                 toast({ variant: "destructive", title: "Error", description: `Could not start microphone: ${error.message}` });
                 handleStopMic();
             }
