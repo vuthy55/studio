@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Info } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, Info } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -21,6 +21,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -422,7 +423,7 @@ export default function LearnPageContent() {
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
                                                 <Button size="icon" variant="ghost" onClick={() => assessPronunciation(toText, toLanguage, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>
                                             </div>
