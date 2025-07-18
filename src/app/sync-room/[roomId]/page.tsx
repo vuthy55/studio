@@ -61,6 +61,7 @@ function SyncRoomPageContent() {
     const [micStatus, setMicStatus] = useState<MicStatus>('idle');
     const [lastMessage, setLastMessage] = useState<RoomMessage | null>(null);
     const [isUpdatingParticipant, setIsUpdatingParticipant] = useState<string | null>(null);
+    const [isCoolingDown, setIsCoolingDown] = useState(false);
     
     const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
     const audioQueue = useRef<RoomMessage[]>([]);
@@ -80,10 +81,16 @@ function SyncRoomPageContent() {
 
     const handleStopMic = useCallback(() => {
         if (recognizerRef.current) {
+            setIsCoolingDown(true);
             console.log("Stopping mic and closing recognizer...");
             recognizerRef.current.close();
             recognizerRef.current = null;
             console.log("Recognizer instance destroyed (set to null).");
+
+            setTimeout(() => {
+                setIsCoolingDown(false);
+                console.log("Mic cool-down finished. Ready for next use.");
+            }, 1500); // 1.5 second cool-down period
         }
         const roomRef = doc(db, 'syncRooms', roomId);
         updateDoc(roomRef, { activeSpeakerUid: null }).catch(err => {
@@ -221,7 +228,7 @@ function SyncRoomPageContent() {
 
     // --- Speech Recognition Logic ---
     const handleMicTap = async () => {
-        if (!user || !room || !currentUserParticipant) return;
+        if (!user || !room || !currentUserParticipant || isCoolingDown) return;
         
         if (micStatus === 'listening') {
              handleStopMic();
@@ -398,6 +405,7 @@ function SyncRoomPageContent() {
     }
 
     const getMicButtonTooltip = () => {
+        if (isCoolingDown) return 'Mic cooling down...';
          switch (micStatus) {
             case 'listening': return 'Listening... (Tap to Stop)';
             case 'processing': return 'Processing...';
@@ -607,13 +615,14 @@ function SyncRoomPageContent() {
                                 className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
                                     micStatus === 'listening' && 'bg-green-500 hover:bg-green-600 scale-110',
                                     micStatus === 'processing' && 'bg-blue-500 hover:bg-blue-600',
+                                    isCoolingDown && 'bg-yellow-500 hover:bg-yellow-600 cursor-wait',
                                     (micStatus === 'locked' && !isCurrentUserEmcee) && 'bg-muted text-muted-foreground cursor-not-allowed'
                                 )}
                                 onClick={handleMicTap}
-                                disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing'}
+                                disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing' || isCoolingDown}
                                 aria-label={getMicButtonTooltip()}
                             >
-                                {getMicButtonContent()}
+                                {isCoolingDown ? <LoaderCircle className="h-10 w-10 animate-spin" /> : getMicButtonContent()}
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
