@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, Timestamp, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { BarChart, Coins, LoaderCircle, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,10 +31,11 @@ export default function StatsPage() {
 
     const fetchInitialData = useCallback(async (uid: string) => {
         setIsFetching(true);
-        // Profile snapshot
-        const profileUnsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-             const userDoc = snapshot.docs.find(doc => doc.id === uid);
-             if (userDoc) {
+        
+        // Profile snapshot - listen directly to the user's document
+        const userDocRef = doc(db, 'users', uid);
+        const profileUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
+             if (userDoc.exists()) {
                 setProfile({ ...userDoc.data() } as UserProfile);
              }
         });
@@ -70,9 +71,9 @@ export default function StatsPage() {
             return;
         }
         
-        const unsubscribe = fetchInitialData(user.uid);
+        const unsubscribePromise = fetchInitialData(user.uid);
         return () => {
-             unsubscribe.then(fn => fn()).catch(e => console.error(e));
+             unsubscribePromise.then(fn => fn()).catch(e => console.error(e));
         }
 
     }, [user, loading, error, router, fetchInitialData]);
