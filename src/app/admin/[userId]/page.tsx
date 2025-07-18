@@ -19,6 +19,7 @@ import { countries } from 'countries-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
+import { Badge } from '@/components/ui/badge';
 
 export default function UserDetailPage() {
     const params = useParams();
@@ -206,4 +207,3 @@ export default function UserDetailPage() {
         </div>
     );
 }
-
