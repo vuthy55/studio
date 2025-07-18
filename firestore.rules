@@ -9,7 +9,6 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
       function isAdmin() {
-        // This rule assumes an 'admin' role is stored in the user's profile document.
         return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
       
@@ -29,69 +28,42 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
       }
 
-      // Authenticated users can create a room, ensuring they are the creator.
       allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
-
-      // Allow reads if the user's email is on the invite list.
       allow read: if isInvited();
-
-      // Allow updates if user is an emcee, OR if an invited user is only changing the speaker.
       allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
-      
-      // Allow the creator of the room to delete it.
       allow delete: if request.auth != null && resource.data.creatorUid == request.auth.uid;
 
-      // Sub-collections for a room
+      // --- Subcollection Rules ---
+
+      // Participants sub-collection: Handles who can join and how.
       match /participants/{participantId} {
-        function roomData() {
-          return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
+        function isCreator() {
+          return request.auth != null && request.auth.uid == get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid;
         }
-        function isRoomCreator() {
-          return request.auth != null && request.auth.uid == roomData().creatorUid;
+        function isSelf() {
+          return request.auth != null && request.auth.uid == participantId;
         }
-        function roomExists() {
-          return exists(/databases/$(database)/documents/syncRooms/$(roomId));
-        }
-        function isInvitedToRoom() {
-          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
-        }
-        function isEmceeInRoom() {
-          return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
-        }
-        
-        allow list, read: if isInvitedToRoom();
-        
-        allow create: if request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid;
-        
-        // Allow emcees to update participants OR allow a user to update their own document.
-        allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
 
-        // Allow a user to delete their own participant doc, or the room creator to delete any.
-        allow delete: if request.auth != null && (request.auth.uid == participantId || isRoomCreator());
+        allow list, read: if isInvited();
+        allow create: if isSelf() && isInvited();
+        allow update: if isEmcee() || isSelf();
+        
+        // Allow a user to leave the room (delete self) OR allow the creator to delete any participant doc (during room deletion).
+        allow delete: if isSelf() || isCreator();
       }
-      
+    
+      // Messages sub-collection: Handles sending and receiving messages in a room.
       match /messages/{messageId} {
-          function roomData() {
-            return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
-          }
-           function isRoomCreator() {
-            return request.auth != null && request.auth.uid == roomData().creatorUid;
-          }
-          function isInvitedToRoom() {
-              return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-                    request.auth != null &&
-                    request.auth.token.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails;
+          function isCreator() {
+            return request.auth != null && request.auth.uid == get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid;
           }
 
-          allow list, read: if isInvitedToRoom();
+          allow list, read: if isInvited();
+          allow create: if isInvited() && request.resource.data.speakerUid == request.auth.uid;
           
-          allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
-
-          // Allow the room creator to delete messages.
-          allow delete: if isRoomCreator();
+          // Allow the room creator to delete messages (during room deletion).
+          allow delete: if isCreator();
       }
     }
   }
 }
-
-    
