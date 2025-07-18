@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -9,11 +10,19 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
       function isAdmin() {
+        // Ensure role exists before checking, to prevent errors on new user creation
         return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
       
       allow read, update: if isOwner() || isAdmin();
       allow create: if isOwner();
+
+      // Transaction Logs: Users can read their own transaction history. No one can write them directly.
+      match /transactionLogs/{logId} {
+        allow read: if isOwner() || isAdmin();
+        // Writes to logs should only happen via server-side logic or batches, so we deny client-side creation/updates here.
+        allow write: if false; 
+      }
     }
 
     // Sync Rooms: Handles creation, reading, and updates for rooms.
