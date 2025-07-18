@@ -97,7 +97,11 @@ export default function GroupConverseContent() {
                 });
                 const audio = new Audio(audioDataUri);
                 await audio.play();
-                await new Promise(resolve => audio.onended = resolve);
+                // Wait for the audio to finish playing before proceeding to the next one
+                await new Promise(resolve => {
+                    audio.onended = resolve;
+                    audio.onerror = resolve; // also resolve on error to not block the loop
+                });
             }
         } else {
             const errorDetails = result.errorDetails || "No speech could be recognized.";
@@ -112,10 +116,8 @@ export default function GroupConverseContent() {
         if (recognizer) {
             recognizer.close();
         }
-        // If the component is still mounted and no other process is running, go idle.
-        if (status !== 'idle') {
-            setStatus('idle');
-        }
+        // Only set status to idle after everything is done
+        setStatus('idle');
     }
   };
 
