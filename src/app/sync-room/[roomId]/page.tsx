@@ -26,10 +26,18 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 type MicStatus = 'idle' | 'listening' | 'processing' | 'locked';
 
 const EmceeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-amber-500">
-        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v.093c-1.72.23-3.264 1.25-4.225 2.816a.75.75 0 001.21.878A4.484 4.484 0 0112 7.5h.005a4.5 4.5 0 014.495 4.5v.005c0 1.933-1.226 3.585-2.995 4.293a.75.75 0 00-.51 1.34c.813.435 1.713.662 2.65.662a5.992 5.992 0 005.99-5.99V12a5.992 5.992 0 00-5.99-5.913V6z" clipRule="evenodd" />
-        <path d="M12 7.5a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" />
-    </svg>
+    <Tooltip>
+        <TooltipTrigger asChild>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-amber-500 cursor-help">
+                <path d="M12.378 1.602a.75.75 0 00-.756 0L3.34 6.347a.75.75 0 00-.34.654v4.994c0 4.14 2.654 7.822 6.499 9.422a.75.75 0 00.518 0c3.845-1.6 6.499-5.282 6.499-9.422V7.001a.75.75 0 00-.34-.654L12.378 1.602zM12 7.5a.75.75 0 01.75.75v3.626a.75.75 0 01-1.5 0V8.25a.75.75 0 01.75-.75zM12 15a1 1 0 100-2 1 1 0 000 2z" />
+                <path d="M12 7.5a.75.75 0 01.75.75v3.626a.75.75 0 01-1.5 0V8.25a.75.75 0 01.75-.75zM11.25 12a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5z" clipRule="evenodd" transform="rotate(90 12 12.75)" />
+                <text x="50%" y="58%" dominantBaseline="middle" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">E</text>
+            </svg>
+        </TooltipTrigger>
+        <TooltipContent>
+            <p>Emcee</p>
+        </TooltipContent>
+    </Tooltip>
 );
 
 
@@ -119,7 +127,7 @@ function SyncRoomPageContent() {
         }
     }, [roomId, user, authLoading, router, toast]);
     
-    useEffect(() => {
+     useEffect(() => {
         if (!room) return; 
 
         const messagesRef = collection(db, 'syncRooms', room.id, 'messages');
@@ -127,9 +135,10 @@ function SyncRoomPageContent() {
         const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
             if (!snapshot.empty) {
                 const newMessage = snapshot.docs[0].data() as RoomMessage;
+                // Only process if the message is new
                 if (newMessage.id !== lastMessage?.id) {
-                    setLastMessage(newMessage);
-                    // Prevent self-echo
+                     setLastMessage(newMessage);
+                     // Prevent self-echo by not queueing messages from the current user.
                     if (newMessage.speakerUid !== user?.uid) {
                         audioQueue.current.push(newMessage);
                         processAudioQueue();
@@ -202,7 +211,6 @@ function SyncRoomPageContent() {
         
         try {
             await updateDoc(roomRef, { activeSpeakerUid: user.uid });
-            setMicStatus('listening');
             
             const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
             const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
@@ -231,33 +239,39 @@ function SyncRoomPageContent() {
                     await setDoc(newMessageRef, newMessage);
                     
                     await updateDoc(roomRef, { activeSpeakerUid: null });
-                    setMicStatus('idle');
                 }
             };
             
             recognizerRef.current.canceled = async (s, e) => {
-                console.error(`CANCELED: Reason=${e.reason}`);
+                // Only log and notify if it's a real error. `NoError` is a normal cancellation.
                 if (e.reason === sdk.CancellationReason.Error) {
+                    console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
                     toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
+                    await updateDoc(roomRef, { activeSpeakerUid: null });
                 }
-                await updateDoc(roomRef, { activeSpeakerUid: null });
-                setMicStatus('idle');
             };
 
             recognizerRef.current.sessionStopped = async (s, e) => {
+                // This event fires when recognition stops for any reason (e.g., success, cancellation, timeout).
+                // It's the ideal place to reset the UI state.
                 if (micStatus === 'listening') {
                     await updateDoc(roomRef, { activeSpeakerUid: null });
-                    setMicStatus('idle');
                 }
             };
 
-            recognizerRef.current.startContinuousRecognitionAsync();
+            recognizerRef.current.startContinuousRecognitionAsync(
+                () => { setMicStatus('listening'); },
+                (err) => {
+                    console.error("Error starting recognition:", err);
+                    toast({ variant: "destructive", title: "Mic Error", description: `Could not start microphone: ${err}` });
+                    updateDoc(roomRef, { activeSpeakerUid: null });
+                }
+            );
 
         } catch (error: any) {
             console.error("Error during mic tap:", error);
             toast({ variant: "destructive", title: "Error", description: `Could not start microphone: ${error.message}` });
             await updateDoc(roomRef, { activeSpeakerUid: null });
-            setMicStatus('idle');
         }
     };
     
@@ -293,9 +307,8 @@ function SyncRoomPageContent() {
                 email: user.email!,
                 uid: user.uid,
                 selectedLanguage: userLanguage,
-                isEmcee: room.creatorUid === user.uid,
             };
-            await setDoc(doc(db, `syncRooms/${roomId}/participants`, user.uid), newParticipant);
+            await setDoc(doc(db, `syncRooms/${roomId}/participants`, user.uid), newParticipant, { merge: true });
             toast({ title: 'Success', description: 'You have joined the room.' });
         } catch (error: any) {
             console.error("Error joining as registered user:", error);
@@ -463,20 +476,20 @@ function SyncRoomPageContent() {
                                 <div className="space-y-4 max-h-80 overflow-y-auto">
                                     {absentEmails.length > 0 && (
                                         <div>
-                                            <h3 className="font-semibold mb-2">Absent</h3>
+                                            <h3 className="font-semibold mb-2 text-red-600">Absent</h3>
                                             <ul className="space-y-1">
                                                 {absentEmails.map(email => (
-                                                    <li key={email} className="text-red-600">{email}</li>
+                                                    <li key={email} className="text-sm text-muted-foreground">{email}</li>
                                                 ))}
                                             </ul>
                                         </div>
                                     )}
                                     {participants.length > 0 && (
                                         <div>
-                                            <h3 className="font-semibold mb-2">Present</h3>
+                                            <h3 className="font-semibold mb-2 text-green-600">Present</h3>
                                             <ul className="space-y-1">
                                                 {participants.map(p => (
-                                                    <li key={p.uid} className="text-green-600">{p.email} ({p.name})</li>
+                                                    <li key={p.uid} className="text-sm text-muted-foreground">{p.email} ({p.name})</li>
                                                 ))}
                                             </ul>
                                         </div>
@@ -503,16 +516,7 @@ function SyncRoomPageContent() {
                             room?.activeSpeakerUid === p.uid ? 'border-primary shadow-lg' : 'border-border'
                         )}>
                             <div className="absolute top-2 right-2 flex items-center gap-1">
-                                {isEmcee && (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <span className="cursor-help"><EmceeIcon /></span>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>Emcee</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )}
+                                {isEmcee && <EmceeIcon />}
                                 {isUpdatingParticipant === p.uid && <LoaderCircle className="h-5 w-5 animate-spin" />}
                             </div>
                             <div className="flex flex-col items-center justify-center">
@@ -540,7 +544,7 @@ function SyncRoomPageContent() {
                                         Promote
                                     </Button>
                                 )}
-                                 {((isCurrentUserEmcee && isEmcee && !isOwner) || (user.uid === room?.creatorUid && isEmcee && !isCurrentUser)) && (
+                                 {(isCurrentUserEmcee && isEmcee && !isOwner && !isCurrentUser) || (isCurrentUser && isEmcee && !isOwner) && (
                                     <Button 
                                         size="sm" 
                                         variant="destructive" 
