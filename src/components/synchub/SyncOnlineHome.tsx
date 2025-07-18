@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,8 @@ export default function SyncOnlineHome() {
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
+
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
     const fetchInvitedRooms = useCallback(async () => {
         if (!user) {
@@ -164,13 +166,28 @@ export default function SyncOnlineHome() {
 
     const handleDeleteRoom = async (roomId: string) => {
         try {
-            // Future enhancement: Use a Cloud Function to delete subcollections for production apps.
-            // For now, deleting the document is sufficient for this app's scope.
-            await deleteDoc(doc(db, 'syncRooms', roomId));
-            toast({ title: "Room Deleted", description: "The sync room has been successfully deleted." });
-            fetchInvitedRooms(); // Re-fetch the list
+            const batch = writeBatch(db);
+    
+            // Delete messages subcollection
+            const messagesRef = collection(db, 'syncRooms', roomId, 'messages');
+            const messagesSnapshot = await getSubCollectionDocs(messagesRef);
+            messagesSnapshot.forEach(doc => batch.delete(doc.ref));
+
+            // Delete participants subcollection
+            const participantsRef = collection(db, 'syncRooms', roomId, 'participants');
+            const participantsSnapshot = await getSubCollectionDocs(participantsRef);
+            participantsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+            // Delete the main room doc
+            const roomRef = doc(db, 'syncRooms', roomId);
+            batch.delete(roomRef);
+
+            await batch.commit();
+            
+            toast({ title: "Room Deleted", description: "The sync room and all its data have been deleted." });
+            fetchInvitedRooms();
         } catch (error) {
-             console.error("Error deleting room:", error);
+            console.error("Error deleting room:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the room.' });
         }
     };
@@ -322,7 +339,7 @@ export default function SyncOnlineHome() {
                                                 <Link href={`/sync-room/${room.id}`}>Join Room</Link>
                                             </Button>
                                             {room.creatorUid === user.uid && (
-                                                <AlertDialog>
+                                                <AlertDialog onOpenChange={() => setDeleteConfirmation('')}>
                                                     <AlertDialogTrigger asChild>
                                                          <Button variant="destructive" size="icon">
                                                             <Trash2 className="h-4 w-4" />
@@ -330,14 +347,25 @@ export default function SyncOnlineHome() {
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the sync room and all of its data.
+                                                                This action cannot be undone. This will permanently delete the room and all of its messages and participant data.
+                                                                <br/><br/>
+                                                                Please type <strong>delete</strong> to confirm.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
+                                                        <Input 
+                                                            id="delete-confirm"
+                                                            value={deleteConfirmation}
+                                                            onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                                            className="mt-2"
+                                                        />
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteRoom(room.id)}>
+                                                            <AlertDialogAction 
+                                                                onClick={() => handleDeleteRoom(room.id)} 
+                                                                disabled={deleteConfirmation.toLowerCase() !== 'delete'}
+                                                            >
                                                                 Delete
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
