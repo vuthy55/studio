@@ -65,9 +65,11 @@ export default function LearnPageContent() {
                 setPracticeStats(JSON.parse(savedStats));
             }
             const savedTopicId = localStorage.getItem('selectedTopicId');
-            const savedTopic = phrasebook.find(t => t.id === savedTopicId);
-            if (savedTopic) {
-                setSelectedTopic(savedTopic);
+            if (savedTopicId) {
+                const savedTopic = phrasebook.find(t => t.id === savedTopicId);
+                if (savedTopic) {
+                    setSelectedTopic(savedTopic);
+                }
             }
             const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
             if (savedVoice) {
@@ -180,6 +182,11 @@ export default function LearnPageContent() {
       recognizer.sessionStarted = () => {
         setAssessingPhraseId(phraseId);
       };
+      
+      recognizer.sessionStopped = () => {
+        setAssessingPhraseId(null);
+        recognizer?.close();
+      };
 
       recognizer.recognized = async (s, e) => {
         let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
@@ -235,24 +242,19 @@ export default function LearnPageContent() {
           });
       };
 
-      recognizer.sessionStopped = () => {
-        setAssessingPhraseId(null);
-        recognizer?.close();
-      }
-
       recognizer.recognizeOnceAsync(
         () => {}, // Success callback - handled by events now
         (err) => {
            toast({ variant: 'destructive', title: 'Mic Error', description: `Could not start microphone: ${err}` });
-           setAssessingPhraseId(null);
+           // sessionStopped will handle cleanup
         }
       );
 
     } catch (error) {
       console.error("Error during assessment setup:", error);
       toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.`});
+      if (recognizer) recognizer.close(); // Failsafe cleanup
       setAssessingPhraseId(null);
-      if (recognizer) recognizer.close();
     }
   };
     
