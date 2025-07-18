@@ -81,9 +81,11 @@ function SyncRoomPageContent() {
     const handleStopMic = useCallback(() => {
         if (recognizerRef.current) {
             try {
-                recognizerRef.current.stopContinuousRecognitionAsync();
+                // This stops recognition and closes the connection.
+                recognizerRef.current.close();
+                recognizerRef.current = null;
             } catch (e) {
-                console.warn("Could not stop recognizer, it might be already stopped.", e);
+                console.warn("Could not close recognizer, it might be already closed.", e);
             }
         }
         const roomRef = doc(db, 'syncRooms', roomId);
@@ -151,11 +153,6 @@ function SyncRoomPageContent() {
     useEffect(() => {
         return () => {
             if (recognizerRef.current) {
-                // Ensure Firestore is updated on navigate away
-                if (room?.activeSpeakerUid === user?.uid) {
-                    const roomRef = doc(db, 'syncRooms', roomId);
-                    updateDoc(roomRef, { activeSpeakerUid: null });
-                }
                 recognizerRef.current.close();
                 recognizerRef.current = null;
             }
@@ -239,88 +236,69 @@ function SyncRoomPageContent() {
     }
 
     // --- Speech Recognition Logic ---
-    const setupRecognizer = () => {
-        if (!currentUserParticipant) return;
-    
-        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-    
-        if (!azureKey || !azureRegion) {
-            console.error("Azure credentials not configured.");
-            toast({ variant: "destructive", title: "Configuration Error", description: "Azure credentials are not set up." });
-            return;
-        }
-    
-        try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-            speechConfig.speechRecognitionLanguage = currentUserParticipant.selectedLanguage;
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-    
-            recognizer.recognized = async (s, e) => {
-                if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-                    setMicStatus('processing');
-    
-                    const newMessageRef = doc(collection(db, `syncRooms/${roomId}/messages`));
-                    const newMessage: RoomMessage = {
-                        id: newMessageRef.id,
-                        text: e.result.text,
-                        speakerName: currentUserParticipant.name,
-                        speakerUid: currentUserParticipant.uid,
-                        speakerLanguage: currentUserParticipant.selectedLanguage,
-                        createdAt: serverTimestamp()
-                    };
-    
-                    await setDoc(newMessageRef, newMessage);
-                    handleStopMic();
-                } else if (e.result.reason === sdk.ResultReason.NoMatch) {
-                    handleStopMic();
-                }
-            };
-    
-            recognizer.canceled = (s, e) => {
-                console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
-                if (e.reason === sdk.CancellationReason.Error) {
-                    toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
-                }
-                handleStopMic();
-            };
-    
-            recognizer.sessionStopped = (s, e) => {
-                handleStopMic();
-            };
-    
-            recognizerRef.current = recognizer;
-        } catch (error: any) {
-            console.error("Error setting up recognizer:", error);
-            toast({ variant: "destructive", title: "Mic Setup Error", description: error.message });
-        }
-    };
-
-
     const handleMicTap = async () => {
         if (!user || !room || !currentUserParticipant) return;
         
+        if (micStatus === 'listening') {
+             handleStopMic();
+             return;
+        }
+        
         if (micStatus === 'idle' || isCurrentUserEmcee) {
-            if (micStatus === 'listening') {
-                handleStopMic();
+            const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
+            const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
+        
+            if (!azureKey || !azureRegion) {
+                console.error("Azure credentials not configured.");
+                toast({ variant: "destructive", title: "Configuration Error", description: "Azure credentials are not set up." });
+                return;
             }
-
-            // Lazy initialization of the recognizer
-            if (!recognizerRef.current) {
-                setupRecognizer();
-            }
-
-            if (!recognizerRef.current) {
-                 toast({ variant: "destructive", title: "Mic Error", description: "Could not initialize microphone." });
-                 return;
-            }
-
-            const roomRef = doc(db, 'syncRooms', roomId);
+            
             try {
+                const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+                speechConfig.speechRecognitionLanguage = currentUserParticipant.selectedLanguage;
+                const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+                const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+                
+                recognizerRef.current = recognizer;
+
+                recognizer.recognized = async (s, e) => {
+                    if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
+                        setMicStatus('processing');
+        
+                        const newMessageRef = doc(collection(db, `syncRooms/${roomId}/messages`));
+                        const newMessage: RoomMessage = {
+                            id: newMessageRef.id,
+                            text: e.result.text,
+                            speakerName: currentUserParticipant.name,
+                            speakerUid: currentUserParticipant.uid,
+                            speakerLanguage: currentUserParticipant.selectedLanguage,
+                            createdAt: serverTimestamp()
+                        };
+        
+                        await setDoc(newMessageRef, newMessage);
+                        handleStopMic();
+                    } else if (e.result.reason === sdk.ResultReason.NoMatch) {
+                        handleStopMic();
+                    }
+                };
+        
+                recognizer.canceled = (s, e) => {
+                    console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
+                    if (e.reason === sdk.CancellationReason.Error) {
+                        toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
+                    }
+                    handleStopMic();
+                };
+        
+                recognizer.sessionStopped = (s, e) => {
+                    handleStopMic();
+                };
+
+                const roomRef = doc(db, 'syncRooms', roomId);
                 await updateDoc(roomRef, { activeSpeakerUid: user.uid });
                 
-                recognizerRef.current.startContinuousRecognitionAsync(
+                recognizer.startContinuousRecognitionAsync(
                     () => { setMicStatus('listening'); },
                     (err) => {
                         console.error("Error starting recognition:", err);
@@ -429,7 +407,7 @@ function SyncRoomPageContent() {
 
     const getMicButtonTooltip = () => {
          switch (micStatus) {
-            case 'listening': return 'Listening...';
+            case 'listening': return 'Listening... (Tap to Stop)';
             case 'processing': return 'Processing...';
             case 'locked': return isCurrentUserEmcee ? 'Tap to override' : 'Mic is locked by another user';
             case 'idle':
@@ -640,7 +618,7 @@ function SyncRoomPageContent() {
                                     (micStatus === 'locked' && !isCurrentUserEmcee) && 'bg-muted text-muted-foreground cursor-not-allowed'
                                 )}
                                 onClick={handleMicTap}
-                                disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing' || micStatus === 'listening'}
+                                disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing'}
                                 aria-label={getMicButtonTooltip()}
                             >
                                 {getMicButtonContent()}
