@@ -20,7 +20,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, serverTimestamp, collection, addDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -42,16 +42,26 @@ const PRACTICE_EARN_REWARD = 1;
 
 export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
-    const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const { toast } = useToast();
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
+    const [user] = useAuthState(auth);
+    
+    // State initialization with lazy loading from localStorage
+    const [selectedTopic, setSelectedTopic] = useState<Topic>(() => {
+        if (typeof window === 'undefined') return phrasebook[0];
+        const savedTopicId = localStorage.getItem('selectedTopicId');
+        return phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
+    });
+    
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>(() => {
+        if (typeof window === 'undefined') return 'default';
+        return (localStorage.getItem('selectedVoice') as VoiceSelection) || 'default';
+    });
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
-    const [user] = useAuthState(auth);
 
-     // Load state from local storage on initial mount
+     // Load progress from local storage on initial mount
     useEffect(() => {
         try {
             const savedAssessments = localStorage.getItem('phraseAssessments');
@@ -67,7 +77,7 @@ export default function LearnPageContent() {
         }
     }, []);
 
-    // Save assessments to local storage whenever they change
+    // Save progress and selections to local storage whenever they change
     useEffect(() => {
         try {
             localStorage.setItem('phraseAssessments', JSON.stringify(phraseAssessments));
@@ -76,7 +86,6 @@ export default function LearnPageContent() {
         }
     }, [phraseAssessments]);
 
-    // Save stats to local storage whenever they change
     useEffect(() => {
         try {
             localStorage.setItem('practiceStats', JSON.stringify(practiceStats));
@@ -84,6 +93,14 @@ export default function LearnPageContent() {
             console.error("Failed to save stats to local storage", error);
         }
     }, [practiceStats]);
+    
+    useEffect(() => {
+        localStorage.setItem('selectedTopicId', selectedTopic.id);
+    }, [selectedTopic]);
+
+    useEffect(() => {
+        localStorage.setItem('selectedVoice', selectedVoice);
+    }, [selectedVoice]);
 
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
