@@ -5,10 +5,10 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, updateDoc, writeBatch, addDoc, serverTimestamp, orderBy, limit, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, updateDoc, writeBatch, addDoc, serverTimestamp, orderBy, limit, arrayUnion, arrayRemove } from 'firebase/firestore';
 import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
-import { LoaderCircle, Mic, LogOut, User as UserIcon, Volume2, CheckCircle, Menu, Shield, ArrowUpCircle } from 'lucide-react';
+import { LoaderCircle, Mic, LogOut, User as UserIcon, Volume2, CheckCircle, Menu, ArrowUpCircle, Users, ArrowDownCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,8 +20,18 @@ import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 type MicStatus = 'idle' | 'listening' | 'processing' | 'locked';
+
+const EmceeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-amber-500">
+        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v.093c-1.72.23-3.264 1.25-4.225 2.816a.75.75 0 001.21.878A4.484 4.484 0 0112 7.5h.005a4.5 4.5 0 014.495 4.5v.005c0 1.933-1.226 3.585-2.995 4.293a.75.75 0 00-.51 1.34c.813.435 1.713.662 2.65.662a5.992 5.992 0 005.99-5.99V12a5.992 5.992 0 00-5.99-5.913V6z" clipRule="evenodd" />
+        <path d="M12 7.5a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" />
+    </svg>
+);
+
 
 function SyncRoomPageContent() {
     const params = useParams();
@@ -34,7 +44,6 @@ function SyncRoomPageContent() {
     const [room, setRoom] = useState<SyncRoom | null>(null);
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(true);
-    const [hasJoined, setHasJoined] = useState(false);
     
     // Join form state
     const [userLanguage, setUserLanguage] = useState<AzureLanguageCode | ''>('');
@@ -54,6 +63,11 @@ function SyncRoomPageContent() {
         if (!room || !user) return false;
         return room.emceeUids.includes(user.uid);
     }, [room, user]);
+
+    const hasJoined = useMemo(() => {
+        if (!user) return false;
+        return participants.some(p => p.uid === user.uid);
+    }, [user, participants]);
 
     // --- Data and Auth Effects ---
 
@@ -96,10 +110,6 @@ function SyncRoomPageContent() {
         const unsubscribeParticipants = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => doc.data() as Participant);
             setParticipants(parts);
-            if (user) {
-                const isParticipant = parts.some(p => p.uid === user.uid);
-                setHasJoined(isParticipant);
-            }
         });
 
         return () => {
@@ -128,7 +138,6 @@ function SyncRoomPageContent() {
             }
         }, err => {
              console.error("Message listener error:", err);
-             // This might happen due to rules, so we'll just log it client-side.
         });
 
         return () => {
@@ -156,7 +165,6 @@ function SyncRoomPageContent() {
             const listenerLangLabel = azureLanguages.find(l => l.value === currentUserParticipant.selectedLanguage)?.label || currentUserParticipant.selectedLanguage;
             let textToSpeak = messageToPlay.text;
 
-            // Translate if languages are different
             if (speakerLangLabel !== listenerLangLabel) {
                  const translationResult = await translateText({
                     text: messageToPlay.text,
@@ -166,7 +174,6 @@ function SyncRoomPageContent() {
                 textToSpeak = translationResult.translatedText;
             }
 
-            // Synthesize audio
             const { audioDataUri } = await generateSpeech({ 
                 text: textToSpeak, 
                 lang: currentUserParticipant.selectedLanguage || 'en-US'
@@ -272,7 +279,7 @@ function SyncRoomPageContent() {
         }
     };
 
-    const handleRegisteredUserJoin = async (e: React.FormEvent) => {
+    const handleJoinRoom = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !userLanguage || !room) {
              toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select your language.' });
@@ -290,7 +297,6 @@ function SyncRoomPageContent() {
             };
             await setDoc(doc(db, `syncRooms/${roomId}/participants`, user.uid), newParticipant);
             toast({ title: 'Success', description: 'You have joined the room.' });
-            setHasJoined(true);
         } catch (error: any) {
             console.error("Error joining as registered user:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room: ' + error.message });
@@ -315,19 +321,23 @@ function SyncRoomPageContent() {
             setIsUpdatingParticipant(null);
         }
     };
-    
-    const handleLanguageChange = async (participantUid: string, newLanguage: AzureLanguageCode) => {
-        if (user?.uid !== participantUid) return;
+
+    const handleDemoteEmcee = async (participantUid: string) => {
+        if (!isCurrentUserEmcee && room?.creatorUid !== user?.uid) return;
+        if (room?.creatorUid === participantUid) {
+            toast({ variant: "destructive", title: "Action Not Allowed", description: "The room owner cannot be demoted." });
+            return;
+        }
         setIsUpdatingParticipant(participantUid);
         try {
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', participantUid);
-            await updateDoc(participantRef, {
-                selectedLanguage: newLanguage
+            const roomRef = doc(db, 'syncRooms', roomId);
+            await updateDoc(roomRef, {
+                emceeUids: arrayRemove(participantUid)
             });
-            toast({ title: "Language Updated", description: "Your spoken language has been changed." });
+            toast({ title: "Success", description: "Emcee role has been removed." });
         } catch (error) {
-            console.error("Error changing language:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not update your language." });
+            console.error("Error demoting emcee:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not demote participant." });
         } finally {
             setIsUpdatingParticipant(null);
         }
@@ -352,6 +362,14 @@ function SyncRoomPageContent() {
             default: return 'Tap to talk';
         }
     }
+
+    const getPresentEmails = useMemo(() => {
+        return participants.map(p => p.email);
+    }, [participants]);
+
+    const absentEmails = useMemo(() => {
+        return room?.invitedEmails.filter(email => !getPresentEmails.includes(email)) ?? [];
+    }, [room, getPresentEmails]);
     
     // --- Render Logic ---
 
@@ -393,7 +411,7 @@ function SyncRoomPageContent() {
                         <CardDescription>Welcome, {user.displayName || user.email}! Please select your spoken language to enter the room.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                            <form onSubmit={handleRegisteredUserJoin} className="space-y-4">
+                            <form onSubmit={handleJoinRoom} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="user-language">Your Language</Label>
                                 <Select onValueChange={(v) => setUserLanguage(v as AzureLanguageCode)} value={userLanguage} required>
@@ -419,97 +437,146 @@ function SyncRoomPageContent() {
     }
 
     return (
-        <div className="p-4 md:p-6 flex flex-col h-screen">
-             <header className="flex justify-between items-start">
-                <div className="flex items-center gap-4">
-                    {isMobile && <SidebarTrigger><Menu /></SidebarTrigger>}
-                    <div>
-                        <h1 className="text-3xl font-bold font-headline">{room?.topic}</h1>
-                        <p className="text-muted-foreground">Welcome to the Sync Room!</p>
-                        {lastMessage && <p className="text-sm mt-2 italic">Last: "{lastMessage.text}" by {lastMessage.speakerName}</p>}
+        <TooltipProvider>
+            <div className="p-4 md:p-6 flex flex-col h-screen">
+                <header className="flex justify-between items-start">
+                    <div className="flex items-center gap-4">
+                        {isMobile && <SidebarTrigger><Menu /></SidebarTrigger>}
+                        <div>
+                            <h1 className="text-3xl font-bold font-headline">{room?.topic}</h1>
+                            <p className="text-muted-foreground">Welcome to the Sync Room!</p>
+                            {lastMessage && <p className="text-sm mt-2 italic">Last: "{lastMessage.text}" by {lastMessage.speakerName}</p>}
+                        </div>
                     </div>
-                </div>
-                <Button variant="ghost" onClick={handleLeaveRoom}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Leave Room
-                </Button>
-            </header>
-
-             <div className="flex-grow my-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {participants.map(p => {
-                    const isEmcee = room?.emceeUids.includes(p.uid!) ?? false;
-                    const isCurrentUser = user.uid === p.uid;
-                    return (
-                    <Card key={p.email} className={cn(
-                        "flex flex-col items-center justify-between p-4 text-center border-4 relative",
-                         room?.activeSpeakerUid === p.uid ? 'border-primary shadow-lg' : 'border-border'
-                    )}>
-                        <div className="absolute top-2 right-2 flex items-center gap-1">
-                            {isEmcee && <Shield className="h-5 w-5 text-amber-500" title="Emcee" />}
-                            {isUpdatingParticipant === p.uid && <LoaderCircle className="h-5 w-5 animate-spin" />}
-                        </div>
-                        <div className="flex flex-col items-center justify-center">
-                            <Avatar className="h-16 w-16 text-2xl mb-2">
-                                <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <Mic className={cn("h-8 w-8 my-2", room?.activeSpeakerUid === p.uid ? 'text-primary' : 'text-muted-foreground' )} />
-                            <p className="font-bold truncate w-full">{p.name}</p>
-                        </div>
-                        
-                        <div className="w-full space-y-2 mt-4">
-                            <Select 
-                                value={p.selectedLanguage}
-                                onValueChange={(lang) => handleLanguageChange(p.uid!, lang as AzureLanguageCode)}
-                                disabled={!isCurrentUser || !!isUpdatingParticipant}
-                            >
-                                <SelectTrigger className="text-xs h-8">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {azureLanguages.map(lang => (
-                                        <SelectItem key={lang.value} value={lang.value} className="text-xs">{lang.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-
-                            {isCurrentUserEmcee && !isEmcee && (
-                                <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    className="w-full text-xs h-8"
-                                    onClick={() => handlePromoteToEmcee(p.uid!)}
-                                    disabled={!!isUpdatingParticipant}
-                                >
-                                    <ArrowUpCircle className="mr-2 h-4 w-4" />
-                                    Promote
+                    <div className="flex items-center gap-2">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                    <Users className="h-4 w-4" />
                                 </Button>
-                            )}
-                        </div>
-                    </Card>
-                )})}
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Participants</DialogTitle>
+                                    <DialogDescription>List of invited users and their status.</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 max-h-80 overflow-y-auto">
+                                    {absentEmails.length > 0 && (
+                                        <div>
+                                            <h3 className="font-semibold mb-2">Absent</h3>
+                                            <ul className="space-y-1">
+                                                {absentEmails.map(email => (
+                                                    <li key={email} className="text-red-600">{email}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {participants.length > 0 && (
+                                        <div>
+                                            <h3 className="font-semibold mb-2">Present</h3>
+                                            <ul className="space-y-1">
+                                                {participants.map(p => (
+                                                    <li key={p.uid} className="text-green-600">{p.email} ({p.name})</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                        <Button variant="ghost" onClick={handleLeaveRoom}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Leave Room
+                        </Button>
+                    </div>
+                </header>
+
+                <div className="flex-grow my-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {participants.map(p => {
+                        const isEmcee = room?.emceeUids.includes(p.uid) ?? false;
+                        const isCurrentUser = user.uid === p.uid;
+                        const isOwner = room?.creatorUid === p.uid;
+
+                        return (
+                        <Card key={p.email} className={cn(
+                            "flex flex-col items-center justify-between p-4 text-center border-4 relative",
+                            room?.activeSpeakerUid === p.uid ? 'border-primary shadow-lg' : 'border-border'
+                        )}>
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                                {isEmcee && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span className="cursor-help"><EmceeIcon /></span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Emcee</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                )}
+                                {isUpdatingParticipant === p.uid && <LoaderCircle className="h-5 w-5 animate-spin" />}
+                            </div>
+                            <div className="flex flex-col items-center justify-center">
+                                <Avatar className="h-16 w-16 text-2xl mb-2">
+                                    <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <Mic className={cn("h-8 w-8 my-2", room?.activeSpeakerUid === p.uid ? 'text-primary' : 'text-muted-foreground' )} />
+                                <p className="font-bold truncate w-full">{p.name}</p>
+                            </div>
+                            
+                            <div className="w-full space-y-2 mt-4">
+                                <p className="text-xs text-muted-foreground h-8 flex items-center justify-center border rounded-md">
+                                    {azureLanguages.find(l => l.value === p.selectedLanguage)?.label ?? p.selectedLanguage}
+                                </p>
+
+                                {isCurrentUserEmcee && !isEmcee && (
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="w-full text-xs h-8"
+                                        onClick={() => handlePromoteToEmcee(p.uid)}
+                                        disabled={!!isUpdatingParticipant}
+                                    >
+                                        <ArrowUpCircle className="mr-2 h-4 w-4" />
+                                        Promote
+                                    </Button>
+                                )}
+                                 {((isCurrentUserEmcee && isEmcee && !isOwner) || (user.uid === room?.creatorUid && isEmcee && !isCurrentUser)) && (
+                                    <Button 
+                                        size="sm" 
+                                        variant="destructive" 
+                                        className="w-full text-xs h-8"
+                                        onClick={() => handleDemoteEmcee(p.uid)}
+                                        disabled={!!isUpdatingParticipant}
+                                    >
+                                        <ArrowDownCircle className="mr-2 h-4 w-4" />
+                                        Demote
+                                    </Button>
+                                )}
+                            </div>
+                        </Card>
+                    )})}
+                </div>
+                
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                    <Button 
+                        size="lg" 
+                        className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
+                            micStatus === 'listening' && 'bg-green-500 hover:bg-green-600 scale-110',
+                            micStatus === 'processing' && 'bg-blue-500 hover:bg-blue-600',
+                            (micStatus === 'locked' && !isCurrentUserEmcee) && 'bg-muted text-muted-foreground cursor-not-allowed'
+                        )}
+                        onClick={handleMicTap}
+                        disabled={(micStatus === 'locked' && !isCurrentUserEmcee) || micStatus === 'processing'}
+                    >
+                        {getMicButtonContent()}
+                    </Button>
+                    <p className="text-sm text-muted-foreground mt-4">{getMicButtonTooltip()}</p>
+                </div>
             </div>
-             
-             <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                <Button 
-                    size="lg" 
-                    className={cn("rounded-full w-32 h-32 text-lg shadow-2xl transition-all duration-200",
-                         micStatus === 'listening' && 'bg-green-500 hover:bg-green-600 scale-110 animate-pulse',
-                         micStatus === 'processing' && 'bg-blue-500 hover:bg-blue-600',
-                         (micStatus === 'locked' && !isCurrentUserEmcee) && 'bg-muted text-muted-foreground cursor-not-allowed'
-                    )}
-                    onClick={handleMicTap}
-                    disabled={micStatus === 'locked' && !isCurrentUserEmcee}
-                >
-                    {getMicButtonContent()}
-                </Button>
-                 <p className="text-sm text-muted-foreground mt-4">{getMicButtonTooltip()}</p>
-            </div>
-        </div>
+        </TooltipProvider>
     )
 }
 
 export default function SyncRoomPage() {
     return <SyncRoomPageContent />;
 }
-
-    
