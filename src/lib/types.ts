@@ -14,19 +14,20 @@ export type SyncRoom = {
 }
 
 export type Participant = {
-    uid: string | null; // Null for guests
+    uid: string;
     name: string;
     email: string;
     selectedLanguage: AzureLanguageCode | '';
-    isEmcee: boolean;
-    isMuted: boolean;
+    isEmcee: boolean; // Note: This is now derived from room.emceeUids, but kept for potential future direct use
 }
 
 export type RoomMessage = {
     id: string;
     text: string;
     speakerName: string;
-    speakerUid: string | null;
+    speakerUid: string;
     speakerLanguage: AzureLanguageCode | '';
     createdAt: FieldValue;
 }
+
+    
