@@ -56,9 +56,9 @@ function SyncRoomPageContent() {
     // --- Data and Auth Effects ---
 
     useEffect(() => {
-        if (!roomId) return;
-        const roomRef = doc(db, 'syncRooms', roomId);
+        if (!roomId || authLoading) return;
 
+        const roomRef = doc(db, 'syncRooms', roomId);
         const unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
             if (docSnap.exists()) {
                 const roomData = { id: docSnap.id, ...docSnap.data() } as SyncRoom;
@@ -66,7 +66,6 @@ function SyncRoomPageContent() {
                     setAccessDenied("You are not invited to this room.");
                 } else {
                     setRoom(roomData);
-                    // Update mic status based on room data
                     if (roomData.activeSpeakerUid) {
                         setMicStatus(roomData.activeSpeakerUid === user?.uid ? 'listening' : 'locked');
                     } else {
@@ -88,36 +87,43 @@ function SyncRoomPageContent() {
         const unsubscribeParticipants = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => doc.data() as Participant);
             setParticipants(parts);
-
             if (user) {
                 const isParticipant = parts.some(p => p.uid === user.uid);
                 setHasJoined(isParticipant);
-            }
-        });
-        
-        // Listen for new messages
-        const messagesRef = collection(db, 'syncRooms', roomId, 'messages');
-        const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
-        const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-             if (!snapshot.empty) {
-                const newMessage = snapshot.docs[0].data() as RoomMessage;
-                // Only process if it's a new message
-                if (newMessage.id !== lastMessage?.id) {
-                     setLastMessage(newMessage);
-                     audioQueue.current.push(newMessage);
-                     processAudioQueue();
-                }
             }
         });
 
         return () => {
             unsubscribeRoom();
             unsubscribeParticipants();
-            unsubscribeMessages();
             recognizerRef.current?.close();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, user, authLoading]);
+    
+    // Separate effect for messages to avoid race condition with room data
+    useEffect(() => {
+        if (!room) return; // Don't subscribe until room data is loaded
+
+        const messagesRef = collection(db, 'syncRooms', room.id, 'messages');
+        const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
+        const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                const newMessage = snapshot.docs[0].data() as RoomMessage;
+                if (newMessage.id !== lastMessage?.id) {
+                    setLastMessage(newMessage);
+                    audioQueue.current.push(newMessage);
+                    processAudioQueue();
+                }
+            }
+        });
+
+        return () => {
+            unsubscribeMessages();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [room, lastMessage]); // Depend on room so it re-subscribes if roomId changes
+
 
     // --- Audio Playback Logic ---
 
