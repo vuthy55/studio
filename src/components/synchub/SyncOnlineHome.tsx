@@ -351,7 +351,7 @@ export default function SyncOnlineHome() {
                                                                 <br/><br/>
                                                                 Please type <strong>delete</strong> to confirm.
                                                             </AlertDialogDescription>
-                                                        </Header>
+                                                        </AlertDialogHeader>
                                                         <Input 
                                                             id="delete-confirm"
                                                             value={deleteConfirmation}
@@ -383,3 +383,4 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
