@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -28,6 +31,13 @@ type AssessmentResult = {
   fluency?: number;
 };
 
+// We will use a simple in-memory cache for practice counts for now.
+// For a more robust solution, this could be moved to context or a state manager.
+const practiceCounts: Record<string, number> = {};
+const PRACTICE_TO_EARN_THRESHOLD = 3;
+const PRACTICE_EARN_REWARD = 1;
+
+
 export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
@@ -36,6 +46,7 @@ export default function LearnPageContent() {
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
+    const [user] = useAuthState(auth);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -66,6 +77,10 @@ export default function LearnPageContent() {
     lang: LanguageCode,
     phraseId: string,
   ) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
+        return;
+    }
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
 
@@ -119,11 +134,29 @@ export default function LearnPageContent() {
           if (assessment) {
             const accuracyScore = assessment.AccuracyScore;
             const fluencyScore = assessment.FluencyScore;
+            const isPass = accuracyScore > 70;
             finalResult = {
-              status: accuracyScore > 70 ? 'pass' : 'fail',
+              status: isPass ? 'pass' : 'fail',
               accuracy: accuracyScore,
               fluency: fluencyScore,
             };
+
+            if (isPass) {
+                practiceCounts[phraseId] = (practiceCounts[phraseId] || 0) + 1;
+                if (practiceCounts[phraseId] % PRACTICE_TO_EARN_THRESHOLD === 0) {
+                     await runTransaction(db, async (transaction) => {
+                        const userDocRef = doc(db, 'users', user.uid);
+                        const userDoc = await transaction.get(userDocRef);
+                        if (!userDoc.exists()) {
+                            throw "User document does not exist!";
+                        }
+                        const newBalance = (userDoc.data().tokenBalance || 0) + PRACTICE_EARN_REWARD;
+                        transaction.update(userDocRef, { tokenBalance: newBalance });
+                    });
+                    toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
+                }
+            }
+
           }
         }
       } else {
@@ -231,7 +264,7 @@ export default function LearnPageContent() {
                                         <ul className="list-disc pl-4 space-y-1 text-sm">
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation.</li>
+                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing 3 times earns you 1 token!</li>
                                         </ul>
                                     </TooltipContent>
                                 </Tooltip>

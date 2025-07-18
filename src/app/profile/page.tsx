@@ -59,7 +59,7 @@ export default function ProfilePage() {
                     country: '',
                     mobile: '',
                     role: 'user',
-                    tokenBalance: 0
+                    tokenBalance: 100 // Default for profiles created on the fly
                 });
             }
         } catch (fetchError) {

@@ -14,6 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, runTransaction } from 'firebase/firestore';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -23,6 +27,8 @@ type AssessmentResult = {
   accuracy?: number;
   fluency?: number;
 };
+
+const TRANSLATION_COST = 1;
 
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
@@ -35,6 +41,8 @@ export default function LiveTranslationContent() {
     const [isRecognizing, setIsRecognizing] = useState(false);
     const [isAssessing, setIsAssessing] = useState(false);
     const [assessmentResult, setAssessmentResult] = useState<AssessmentResult | null>(null);
+
+    const [user] = useAuthState(auth);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -71,25 +79,48 @@ export default function LiveTranslationContent() {
         }, 500);
 
         return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inputText, fromLanguage, toLanguage]);
 
 
     const handleTranslation = async () => {
-        if (!inputText) return;
+        if (!inputText || !user) {
+            if (!user) toast({ variant: 'destructive', title: 'Not Logged In', description: 'Please log in to use translation.' });
+            return;
+        }
+
         setIsTranslating(true);
         setAssessmentResult(null);
+
         try {
+            await runTransaction(db, async (transaction) => {
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await transaction.get(userDocRef);
+                if (!userDoc.exists()) {
+                    throw "User document does not exist!";
+                }
+                const currentBalance = userDoc.data().tokenBalance || 0;
+                if (currentBalance < TRANSLATION_COST) {
+                    throw "Insufficient tokens for translation.";
+                }
+                const newBalance = currentBalance - TRANSLATION_COST;
+                transaction.update(userDocRef, { tokenBalance: newBalance });
+            });
+
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
             const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
             setTranslatedText(result.translatedText);
-        } catch (error) {
+
+        } catch (error: any) {
             console.error('Translation failed', error);
+            const errorMessage = typeof error === 'string' ? error : (error.message || 'Could not translate the text.');
             toast({
                 variant: 'destructive',
                 title: 'Translation Error',
-                description: 'Could not translate the text.',
+                description: errorMessage,
             });
+            setTranslatedText(''); // Clear previous translation on error
         } finally {
             setIsTranslating(false);
         }
@@ -290,7 +321,7 @@ export default function LiveTranslationContent() {
                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
                            <Label htmlFor="to-language-live">
-                                {languages.find(l => l.value === toLanguage)?.label}
+                                {languages.find(l => l.value === toLanguage)?.label} (Cost: {TRANSLATION_COST} Token)
                            </Label>
                            <div className="flex items-center">
                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={!translatedText || isAssessing}>
