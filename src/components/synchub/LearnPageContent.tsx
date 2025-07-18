@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,14 +46,27 @@ export default function LearnPageContent() {
     const { toast } = useToast();
     const [user] = useAuthState(auth);
     
-    // Initialize state with default values to ensure server/client match
+    // State initialization for server/client match
     const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
 
-     // Load progress and selections from local storage on client-side mount
+    const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
+    
+    // Cleanup recognizer on component unmount
+    useEffect(() => {
+        return () => {
+            if (recognizerRef.current) {
+                console.log("Component unmounting, closing recognizer.");
+                recognizerRef.current.close();
+                recognizerRef.current = null;
+            }
+        }
+    }, []);
+
+    // Load progress and selections from local storage on client-side mount
     useEffect(() => {
         try {
             const savedAssessments = localStorage.getItem('phraseAssessments');
@@ -98,17 +111,11 @@ export default function LearnPageContent() {
     }, [practiceStats]);
     
     useEffect(() => {
-        // Only save if selectedTopic has been initialized from client
-        if (selectedTopic.id !== phrasebook[0].id || localStorage.getItem('selectedTopicId')) {
-            localStorage.setItem('selectedTopicId', selectedTopic.id);
-        }
+        localStorage.setItem('selectedTopicId', selectedTopic.id);
     }, [selectedTopic]);
 
     useEffect(() => {
-        // Only save if voice has been initialized from client
-        if (selectedVoice !== 'default' || localStorage.getItem('selectedVoice')) {
-            localStorage.setItem('selectedVoice', selectedVoice);
-        }
+        localStorage.setItem('selectedVoice', selectedVoice);
     }, [selectedVoice]);
 
 
@@ -141,11 +148,15 @@ export default function LearnPageContent() {
     lang: LanguageCode,
     phraseId: string,
   ) => {
+    console.log(`assessPronunciation called for phraseId: ${phraseId}`);
+    if (recognizerRef.current) {
+        console.log("Recognizer is already active. Ignoring call.");
+        return;
+    }
     if (!user) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
         return;
     }
-    if (assessingPhraseId) return;
 
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
@@ -161,9 +172,8 @@ export default function LearnPageContent() {
       return;
     }
     
-    let recognizer: sdk.SpeechRecognizer | undefined;
-    
     try {
+      console.log("Creating new SpeechRecognizer...");
       const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
       speechConfig.speechRecognitionLanguage = locale;
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -176,19 +186,28 @@ export default function LearnPageContent() {
       });
 
       const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(pronunciationConfigJson);
-      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+      const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
       pronunciationConfig.applyTo(recognizer);
 
-      recognizer.sessionStarted = () => {
+      recognizerRef.current = recognizer;
+
+      recognizer.sessionStarted = (s, e) => {
+        console.log("Recognizer session started.", e);
         setAssessingPhraseId(phraseId);
       };
       
-      recognizer.sessionStopped = () => {
+      recognizer.sessionStopped = (s, e) => {
+        console.log("Recognizer session stopped.", e);
         setAssessingPhraseId(null);
-        recognizer?.close();
+        if (recognizerRef.current) {
+            recognizerRef.current.close();
+            recognizerRef.current = null;
+            console.log("Recognizer instance closed and cleared from ref.");
+        }
       };
 
       recognizer.recognized = async (s, e) => {
+        console.log("Speech recognized event.", e);
         let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
         if (e.result && e.result.reason === sdk.ResultReason.RecognizedSpeech) {
           const jsonString = e.result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
@@ -235,6 +254,7 @@ export default function LearnPageContent() {
       };
 
       recognizer.canceled = (s, e) => {
+          console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`, e);
           toast({ variant: 'destructive', title: 'Assessment Cancelled', description: `Could not assess pronunciation. Please try again. Reason: ${e.reason}`});
           setPracticeStats(prev => {
               const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
@@ -243,17 +263,22 @@ export default function LearnPageContent() {
       };
 
       recognizer.recognizeOnceAsync(
-        () => {}, // Success callback - handled by events now
+        () => {
+            console.log("recognizeOnceAsync successful.");
+        }, 
         (err) => {
+           console.error("recognizeOnceAsync error:", err);
            toast({ variant: 'destructive', title: 'Mic Error', description: `Could not start microphone: ${err}` });
-           // sessionStopped will handle cleanup
         }
       );
 
     } catch (error) {
       console.error("Error during assessment setup:", error);
       toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.`});
-      if (recognizer) recognizer.close(); // Failsafe cleanup
+      if (recognizerRef.current) {
+        recognizerRef.current.close();
+        recognizerRef.current = null;
+      }
       setAssessingPhraseId(null);
     }
   };
@@ -452,3 +477,5 @@ export default function LearnPageContent() {
         </Card>
     );
 }
+
+    
