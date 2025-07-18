@@ -20,7 +20,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, collection, addDoc, writeBatch, getDoc } from 'firebase/firestore';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -50,6 +50,41 @@ export default function LearnPageContent() {
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
     const [user] = useAuthState(auth);
+
+     // Load state from local storage on initial mount
+    useEffect(() => {
+        try {
+            const savedAssessments = localStorage.getItem('phraseAssessments');
+            if (savedAssessments) {
+                setPhraseAssessments(JSON.parse(savedAssessments));
+            }
+            const savedStats = localStorage.getItem('practiceStats');
+            if (savedStats) {
+                setPracticeStats(JSON.parse(savedStats));
+            }
+        } catch (error) {
+            console.error("Failed to load progress from local storage", error);
+        }
+    }, []);
+
+    // Save assessments to local storage whenever they change
+    useEffect(() => {
+        try {
+            localStorage.setItem('phraseAssessments', JSON.stringify(phraseAssessments));
+        } catch (error) {
+            console.error("Failed to save assessments to local storage", error);
+        }
+    }, [phraseAssessments]);
+
+    // Save stats to local storage whenever they change
+    useEffect(() => {
+        try {
+            localStorage.setItem('practiceStats', JSON.stringify(practiceStats));
+        } catch (error) {
+            console.error("Failed to save stats to local storage", error);
+        }
+    }, [practiceStats]);
+
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -144,39 +179,42 @@ export default function LearnPageContent() {
               fluency: fluencyScore,
             };
 
-            setPracticeStats(prev => {
-                const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-                const newPassCount = currentStats.pass + (isPass ? 1 : 0);
-                const newFailCount = currentStats.fail + (isPass ? 0 : 1);
-                
-                if (isPass && newPassCount > 0 && newPassCount % PRACTICE_TO_EARN_THRESHOLD === 0) {
-                     runTransaction(db, async (transaction) => {
-                        const userDocRef = doc(db, 'users', user.uid);
-                        const userDoc = await transaction.get(userDocRef);
-                        if (!userDoc.exists()) throw "User document does not exist!";
-                        
-                        const currentBalance = userDoc.data().tokenBalance || 0;
-                        const newBalance = currentBalance + PRACTICE_EARN_REWARD;
-                        transaction.update(userDocRef, { tokenBalance: newBalance });
+            const newStats = {...(practiceStats[phraseId] || { pass: 0, fail: 0 })};
+            if(isPass) {
+                newStats.pass++;
+            } else {
+                newStats.fail++;
+            }
+            setPracticeStats(prev => ({...prev, [phraseId]: newStats}));
+            
+            if (isPass && newStats.pass > 0 && newStats.pass % PRACTICE_TO_EARN_THRESHOLD === 0) {
+                 try {
+                    const userDocRef = doc(db, 'users', user.uid);
+                    const logRef = doc(collection(db, `users/${user.uid}/transactionLogs`));
+                    const batch = writeBatch(db);
 
-                        const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                        addDoc(logRef, {
-                            actionType: 'practice_earn',
-                            tokenChange: PRACTICE_EARN_REWARD,
-                            timestamp: serverTimestamp(),
-                            description: `Earned for mastering a phrase.`
-                        });
-
-                    }).then(() => {
-                        toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
-                    }).catch(e => {
-                        console.error("Token reward transaction failed: ", e);
-                        toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
+                    const userDoc = await getDoc(userDocRef);
+                    if (!userDoc.exists()) throw "User document does not exist!";
+                    
+                    const currentBalance = userDoc.data().tokenBalance || 0;
+                    const newBalance = currentBalance + PRACTICE_EARN_REWARD;
+                    
+                    batch.update(userDocRef, { tokenBalance: newBalance });
+                    batch.set(logRef, {
+                        actionType: 'practice_earn',
+                        tokenChange: PRACTICE_EARN_REWARD,
+                        timestamp: serverTimestamp(),
+                        description: `Earned for mastering a phrase.`
                     });
-                }
 
-                return { ...prev, [phraseId]: { pass: newPassCount, fail: newFailCount }};
-            });
+                    await batch.commit();
+
+                    toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
+                } catch(e) {
+                    console.error("Token reward transaction failed: ", e);
+                    toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
+                }
+            }
           }
         }
       } else {
@@ -304,8 +342,6 @@ export default function LearnPageContent() {
                                 const topic = phrasebook.find(t => t.id === value);
                                 if (topic) {
                                     setSelectedTopic(topic);
-                                    setPhraseAssessments({});
-                                    setPracticeStats({});
                                 }
                             }}
                         >
