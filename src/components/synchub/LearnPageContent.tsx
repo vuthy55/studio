@@ -33,14 +33,40 @@ type AssessmentResult = {
   fluency?: number;
 };
 
+// Helper function to safely get initial values from localStorage
+const getInitialState = <T,>(key: string, fallback: T, validator?: (value: any) => boolean): T => {
+    if (typeof window === 'undefined') {
+        return fallback;
+    }
+    try {
+        const storedValue = localStorage.getItem(key);
+        if (storedValue) {
+            const parsed = JSON.parse(storedValue);
+            if (validator ? validator(parsed) : true) {
+                return parsed;
+            }
+        }
+    } catch (error) {
+        console.error(`Error reading from localStorage key "${key}":`, error);
+    }
+    return fallback;
+};
+
+
 export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const [user] = useAuthState(auth);
     
     // State initialization for server/client match
-    const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
+    const [selectedTopic, setSelectedTopic] = useState<Topic>(() => {
+        const savedTopicId = getInitialState<string | null>('selectedTopicId', null);
+        return phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
+    });
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>(() => 
+        getInitialState<VoiceSelection>('selectedVoice', 'default', (v) => ['default', 'male', 'female'].includes(v))
+    );
+
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceHistory, setPracticeHistory] = useState<Record<string, PracticeHistory>>({});
@@ -63,23 +89,6 @@ export default function LearnPageContent() {
             }
         }
     }, []);
-
-    // Load UI state (topic, voice) from localStorage on mount.
-    // This runs once every time the component is displayed.
-    useEffect(() => {
-        try {
-            const savedTopicId = localStorage.getItem('selectedTopicId');
-            if (savedTopicId) {
-                const savedTopic = phrasebook.find(t => t.id === savedTopicId);
-                if (savedTopic) setSelectedTopic(savedTopic);
-            }
-            const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
-            if (savedVoice) setSelectedVoice(savedVoice);
-        } catch (error) {
-             console.error("Failed to load UI state from local storage", error);
-        }
-    }, []);
-
 
     // Fetch user-specific progress (or load guest progress) when user status changes.
     useEffect(() => {
@@ -145,7 +154,7 @@ export default function LearnPageContent() {
     // Save UI state to localStorage for ALL users
     useEffect(() => {
         try {
-            localStorage.setItem('selectedTopicId', selectedTopic.id);
+            localStorage.setItem('selectedTopicId', JSON.stringify(selectedTopic.id));
         } catch (error) {
             console.error("Failed to save topic to local storage", error);
         }
@@ -153,7 +162,7 @@ export default function LearnPageContent() {
 
     useEffect(() => {
         try {
-            localStorage.setItem('selectedVoice', selectedVoice);
+            localStorage.setItem('selectedVoice', JSON.stringify(selectedVoice));
         } catch (error) {
             console.error("Failed to save voice to local storage", error);
         }
@@ -542,3 +551,5 @@ export default function LearnPageContent() {
         </Card>
     );
 }
+
+    
