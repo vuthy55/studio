@@ -45,7 +45,7 @@ export default function LearnPageContent() {
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceHistory, setPracticeHistory] = useState<Record<string, PracticeHistory>>({});
     const [settings, setSettings] = useState<AppSettings | null>(null);
-    const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+    const [isFetchingHistory, setIsFetchingHistory] = useState(true);
 
     const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
 
@@ -64,9 +64,9 @@ export default function LearnPageContent() {
         }
     }, []);
 
-    // Load progress from Firestore for logged-in users, or localStorage for guests
+    // Load progress and UI state from storage
     useEffect(() => {
-        const fetchHistory = async () => {
+        const fetchHistoryAndState = async () => {
             if (user) {
                 setIsFetchingHistory(true);
                 try {
@@ -82,7 +82,6 @@ export default function LearnPageContent() {
                             fetchedAssessments[doc.id] = {
                                 status: data.lastAccuracy > 70 ? 'pass' : 'fail',
                                 accuracy: data.lastAccuracy,
-                                // Fluency is not stored, so we omit it or set to 0.
                                 fluency: 0
                             };
                         }
@@ -98,20 +97,20 @@ export default function LearnPageContent() {
                     setIsFetchingHistory(false);
                 }
             } else {
-                // Logic for logged-out users
+                // Logic for logged-out users using localStorage
                 try {
                     const savedAssessments = localStorage.getItem('phraseAssessments');
                     if (savedAssessments) setPhraseAssessments(JSON.parse(savedAssessments));
-                    
                     const savedHistory = localStorage.getItem('practiceHistory');
                     if (savedHistory) setPracticeHistory(JSON.parse(savedHistory));
                 } catch (error) {
-                    console.error("Failed to load progress from local storage", error);
+                    console.error("Failed to load guest progress from local storage", error);
                 }
+                setIsFetchingHistory(false);
             }
         };
 
-        fetchHistory();
+        fetchHistoryAndState();
         
         // Load non-progress related UI state from localStorage regardless of auth state
         try {
@@ -133,28 +132,28 @@ export default function LearnPageContent() {
         if (!user) {
             try {
                 localStorage.setItem('phraseAssessments', JSON.stringify(phraseAssessments));
-            } catch (error) {
-                console.error("Failed to save assessments to local storage", error);
-            }
-        }
-    }, [phraseAssessments, user]);
-    
-    useEffect(() => {
-        if (!user) {
-            try {
                 localStorage.setItem('practiceHistory', JSON.stringify(practiceHistory));
             } catch (error) {
-                console.error("Failed to save practice history to local storage", error);
+                console.error("Failed to save guest progress to local storage", error);
             }
         }
-    }, [practiceHistory, user]);
+    }, [phraseAssessments, practiceHistory, user]);
 
+    // Save UI state to localStorage for ALL users
     useEffect(() => {
-        localStorage.setItem('selectedTopicId', selectedTopic.id);
+        try {
+            localStorage.setItem('selectedTopicId', selectedTopic.id);
+        } catch (error) {
+            console.error("Failed to save topic to local storage", error);
+        }
     }, [selectedTopic]);
 
     useEffect(() => {
-        localStorage.setItem('selectedVoice', selectedVoice);
+        try {
+            localStorage.setItem('selectedVoice', selectedVoice);
+        } catch (error) {
+            console.error("Failed to save voice to local storage", error);
+        }
     }, [selectedVoice]);
 
 
@@ -540,5 +539,3 @@ export default function LearnPageContent() {
         </Card>
     );
 }
-
-    
