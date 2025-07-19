@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -19,16 +20,16 @@ service cloud.firestore {
       // Allow user to create their own record during signup
       allow create: if isOwner();
 
-      // Transaction Logs: A user can read and create their own logs.
-      // Logs cannot be updated or deleted from the client for data integrity.
+      // Transaction Logs: A user can read and create their own logs. Admins can also read.
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner();
+        allow read, create: if isOwner() || isAdmin();
         allow update, delete: if false; // Protect logs from modification
       }
 
-      // Practice History: A user can read and write their own practice history.
+      // Practice History: A user can read and write their own practice history. Admins can read.
       match /practiceHistory/{historyId} {
-        allow read, write: if isOwner();
+        allow list, read: if isOwner() || isAdmin();
+        allow write: if isOwner();
       }
     }
 
