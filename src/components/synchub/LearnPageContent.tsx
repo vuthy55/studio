@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { languages, phrasebook, type LanguageCode, type Topic, type PracticeHistory as LocalPracticeHistory, type Phrase } from '@/lib/data';
+import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, onSnapshot, runTransaction } from 'firebase/firestore';
+import { doc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, runTransaction } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import type { UserProfile } from '@/app/profile/page';
@@ -38,11 +38,14 @@ type AssessmentResult = {
 // This is for guest users in local storage
 type LocalHistory = {
     assessments: Record<string, AssessmentResult>;
-    history: Record<string, LocalPracticeHistory>;
+}
+
+interface LearnPageContentProps {
+    userProfile: Partial<UserProfile>;
 }
 
 
-export default function LearnPageContent() {
+export default function LearnPageContent({ userProfile }: LearnPageContentProps) {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const [user] = useAuthState(auth);
@@ -53,25 +56,29 @@ export default function LearnPageContent() {
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
-    const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
     const [settings, setSettings] = useState<AppSettings | null>(null);
-    const [isFetchingHistory, setIsFetchingHistory] = useState(true);
+    const [isFetchingSettings, setIsFetchingSettings] = useState(true);
 
     const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
     const practicedPhrasesRef = useRef(new Set<string>());
 
     useEffect(() => {
+        setIsMounted(true);
         const savedTopicId = localStorage.getItem('selectedTopicId');
-        const savedTopic = phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
-        setSelectedTopic(savedTopic);
+        if (savedTopicId) {
+            const savedTopic = phrasebook.find(t => t.id === savedTopicId);
+            if (savedTopic) setSelectedTopic(savedTopic);
+        }
         
         const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
         if (['default', 'male', 'female'].includes(savedVoice)) {
             setSelectedVoice(savedVoice);
         }
         
-        getAppSettings().then(setSettings);
-        setIsMounted(true);
+        getAppSettings().then(s => {
+            setSettings(s)
+            setIsFetchingSettings(false);
+        });
     }, []);
     
     useEffect(() => {
@@ -84,22 +91,9 @@ export default function LearnPageContent() {
     }, []);
 
     useEffect(() => {
-        if (user) {
-            setIsFetchingHistory(true);
-            const userDocRef = doc(db, 'users', user.uid);
-            const unsubscribe = onSnapshot(userDocRef, (doc) => {
-                if (doc.exists()) {
-                    setUserProfile(doc.data());
-                }
-                setIsFetchingHistory(false);
-            }, (error) => {
-                console.error("Failed to listen to user profile:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load your profile data.' });
-                setIsFetchingHistory(false);
-            });
-            return () => unsubscribe();
-        } else {
+        if (!user && isMounted) {
             try {
+                // This logic is for guest users, saving UI state.
                 const localData = localStorage.getItem('guestPracticeHistory');
                 if (localData) {
                     const parsed: LocalHistory = JSON.parse(localData);
@@ -108,15 +102,14 @@ export default function LearnPageContent() {
             } catch (error) {
                 console.error("Failed to load guest progress from local storage", error);
             }
-            setIsFetchingHistory(false);
         }
-    }, [user, toast]);
+    }, [user, isMounted]);
     
-
     useEffect(() => {
         if (!user && isMounted) {
             try {
-                 // This logic is for guest users, saving UI state.
+                 const dataToSave: LocalHistory = { assessments: phraseAssessments };
+                 localStorage.setItem('guestPracticeHistory', JSON.stringify(dataToSave));
             } catch (error) {
                 console.error("Failed to save guest progress to local storage", error);
             }
@@ -220,7 +213,6 @@ export default function LearnPageContent() {
                     const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: assessment.FluencyScore };
                     setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
                     
-                    // --- Firestore Transaction for Stats Update ---
                     await runTransaction(db, async (transaction) => {
                         const userDocRef = doc(db, 'users', user.uid);
                         const userDoc = await transaction.get(userDocRef);
@@ -231,18 +223,14 @@ export default function LearnPageContent() {
 
                         const practicedKey = `${phraseId}-${toLanguage}`;
                         if (!practicedPhrasesRef.current.has(practicedKey)) {
-                            const fieldPath = `practiceStats.byLanguage.${toLanguage}.practiced`;
-                            transaction.set(userDocRef, { practiceStats: { byLanguage: { [toLanguage]: { practiced: increment(1) } } } }, { merge: true });
+                             transaction.set(userDocRef, { practiceStats: { byLanguage: { [toLanguage]: { practiced: increment(1) } } } }, { merge: true });
                             practicedPhrasesRef.current.add(practicedKey);
                         }
 
                         if (isPass) {
-                            const hadPassedBefore = historySnap.exists() && (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) > 0;
+                            const hadPassedBeforeForLang = historySnap.exists() && (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) > 0;
                             
-                            if (!hadPassedBefore) {
-                                // First time passing for this language
-                                const topicCorrectPath = `practiceStats.byTopic.${topicId}.${toLanguage}.correct`;
-                                const langCorrectPath = `practiceStats.byLanguage.${toLanguage}.correct`;
+                            if (!hadPassedBeforeForLang) {
                                 transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { correct: increment(1) } } }, byLanguage: { [toLanguage]: { correct: increment(1) } } } }, { merge: true });
                             }
 
@@ -257,7 +245,6 @@ export default function LearnPageContent() {
 
                             if (passCountForLang > 0 && passCountForLang % practiceThreshold === 0) {
                                 transaction.update(userDocRef, { tokenBalance: increment(practiceReward) });
-                                const topicTokensPath = `practiceStats.byTopic.${topicId}.${toLanguage}.tokensEarned`;
                                 transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { tokensEarned: increment(practiceReward) } } } } }, { merge: true });
                                 
                                 const logRef = collection(db, `users/${user.uid}/transactionLogs`);
@@ -302,9 +289,9 @@ export default function LearnPageContent() {
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
-    const topicStats = userProfile.practiceStats?.byTopic?.[selectedTopic.id]?.[toLanguage];
+    const topicStats = userProfile?.practiceStats?.byTopic?.[selectedTopic.id]?.[toLanguage];
 
-    if (!isMounted || (isFetchingHistory && user)) {
+    if (!isMounted || isFetchingSettings) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />

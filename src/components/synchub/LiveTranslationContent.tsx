@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { languages, type LanguageCode, type Phrase, type PracticeHistory as LocalPracticeHistory } from '@/lib/data';
+import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, LoaderCircle, Bookmark } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
 import { translateText } from '@/ai/flows/translate-flow';
@@ -16,7 +16,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, addDoc, collection, serverTimestamp, getDocs, query, onSnapshot } from 'firebase/firestore';
+import { doc, runTransaction, addDoc, collection, serverTimestamp, onSnapshot, query } from 'firebase/firestore';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 
@@ -38,11 +38,12 @@ type SavedPhrase = {
 }
 
 interface PracticeHistoryDoc {
-    [key: string]: any; // Allow other fields
+    [key: string]: any;
 }
+
 interface PracticeHistoryStats {
     [phraseId: string]: {
-        passCountPerLang: Record<LanguageCode, number>;
+        passCountPerLang: Record<string, number>;
     }
 }
 
@@ -103,8 +104,11 @@ export default function LiveTranslationContent() {
                 };
             });
             setPracticeHistoryStats(stats);
+        }, (error) => {
+            console.error("Error listening to practice history:", error);
         });
 
+        // Cleanup listener on component unmount
         return () => unsubscribe();
     }, [user]);
 
@@ -297,8 +301,6 @@ export default function LiveTranslationContent() {
             const isPass = accuracyScore > 70;
             finalResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
             
-            // This is a saved phrase, so we don't update topic stats here.
-            // But we do update its pass/fail history for this specific language.
             await runTransaction(db, async (transaction) => {
                  const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
                  const historySnap = await transaction.get(historyDocRef);
@@ -314,7 +316,10 @@ export default function LiveTranslationContent() {
 
                  if (isPass && passCountForLang > 0 && passCountForLang % settings.practiceThreshold === 0) {
                      const userDocRef = doc(db, 'users', user.uid);
-                     transaction.update(userDocRef, { tokenBalance: doc(db, 'users', user.uid).tokenBalance + settings.practiceReward });
+                     const userDoc = await transaction.get(userDocRef);
+                     if (userDoc.exists()) {
+                        transaction.update(userDocRef, { tokenBalance: (userDoc.data().tokenBalance || 0) + settings.practiceReward });
+                     }
 
                      const logRef = collection(db, `users/${user.uid}/transactionLogs`);
                      const newLogRef = doc(logRef);
