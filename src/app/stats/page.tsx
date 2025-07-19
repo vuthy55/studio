@@ -6,16 +6,17 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, Timestamp, doc, collectionGroup, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { BarChart, Coins, LoaderCircle, TrendingDown, TrendingUp, CheckCircle, XCircle } from 'lucide-react';
+import { BarChart, Coins, LoaderCircle, TrendingDown, TrendingUp, CheckCircle, XCircle, Languages } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import type { UserProfile } from '@/app/profile/page';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Line, LineChart, CartesianGrid, XAxis, Tooltip as ChartTooltip, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import type { TransactionLog } from '@/lib/types';
-import type { PracticeHistory } from '@/lib/data';
+import type { PracticeHistory, LanguageCode, languages as langData } from '@/lib/data';
+import type { PracticeStats, UserProfile } from '@/app/profile/page';
+import { Progress } from '@/components/ui/progress';
 
 interface TransactionLogWithId extends TransactionLog {
     id: string;
@@ -37,7 +38,7 @@ export default function StatsPage() {
     const router = useRouter();
     const { isMobile } = useSidebar();
     
-    const [profile, setProfile] = useState<Partial<UserProfile>>({});
+    const [stats, setStats] = useState<Partial<UserProfile>>({});
     const [transactions, setTransactions] = useState<TransactionLogWithId[]>([]);
     const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryWithId[]>([]);
     const [isFetching, setIsFetching] = useState(true);
@@ -56,15 +57,14 @@ export default function StatsPage() {
 
         setIsFetching(true);
         
-        // Profile snapshot listener
         const userDocRef = doc(db, 'users', user.uid);
-        const profileUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
+        const statsUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
              if (userDoc.exists()) {
-                setProfile({ ...userDoc.data() } as UserProfile);
+                const data = userDoc.data() as UserProfile;
+                setStats({ tokenBalance: data.tokenBalance, practiceStats: data.practiceStats });
              }
-        }, (err) => console.error("Error fetching profile:", err));
+        }, (err) => console.error("Error fetching stats:", err));
 
-        // Transactions snapshot listener (fetch all)
         const transRef = collection(db, 'users', user.uid, 'transactionLogs');
         const qTrans = query(transRef, orderBy('timestamp', 'asc'));
         const transactionsUnsubscribe = onSnapshot(qTrans, (snapshot) => {
@@ -76,7 +76,6 @@ export default function StatsPage() {
             setIsFetching(false);
         });
         
-        // Practice history fetch (one-time)
         const fetchPracticeHistory = async () => {
             const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
             const qHistory = query(historyRef, orderBy('lastAttempt', 'desc'));
@@ -86,9 +85,8 @@ export default function StatsPage() {
         };
         fetchPracticeHistory();
 
-        // Cleanup function to unsubscribe from listeners on component unmount
         return () => {
-            profileUnsubscribe();
+            statsUnsubscribe();
             transactionsUnsubscribe();
         };
 
@@ -114,7 +112,22 @@ export default function StatsPage() {
             case 'signup_bonus': return 'Welcome Bonus';
             default: return 'Unknown Action';
         }
-    }
+    };
+
+    const languageStats = useMemo(() => {
+        if (!stats.practiceStats?.byLanguage) return [];
+        return Object.entries(stats.practiceStats.byLanguage).map(([langCode, data]) => {
+            const langLabel = langData.find(l => l.value === langCode)?.label || langCode;
+            const correctPercentage = data.practiced > 0 ? (data.correct / data.practiced) * 100 : 0;
+            return {
+                code: langCode as LanguageCode,
+                label: langLabel,
+                practiced: data.practiced,
+                correct: data.correct,
+                percentage: correctPercentage
+            };
+        }).sort((a,b) => b.practiced - a.practiced);
+    }, [stats.practiceStats]);
 
      if (loading || isFetching) {
         return (
@@ -140,7 +153,7 @@ export default function StatsPage() {
                     <Coins className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{profile.tokenBalance ?? 0}</div>
+                    <div className="text-2xl font-bold">{stats.tokenBalance ?? 0}</div>
                     <p className="text-xs text-muted-foreground">Your current available tokens</p>
                 </CardContent>
             </Card>
@@ -173,31 +186,37 @@ export default function StatsPage() {
                     </CardContent>
                 </Card>
                 
-                <Card className="lg:col-span-3">
+                 <Card className="lg:col-span-3">
                     <CardHeader>
-                        <CardTitle>Practice Performance</CardTitle>
-                         <CardDescription>Your stats on practiced phrases.</CardDescription>
+                        <CardTitle className="flex items-center gap-2">
+                            <Languages className="h-5 w-5"/>
+                            Language Performance
+                        </CardTitle>
+                         <CardDescription>Your accuracy across all languages practiced.</CardDescription>
                     </CardHeader>
                     <CardContent className="max-h-[250px] overflow-y-auto space-y-4">
-                        {practiceHistory.length > 0 ? (
-                            practiceHistory.map(item => (
-                                <div key={item.id} className="text-sm">
-                                    <p className="font-medium truncate">{item.phraseText}</p>
-                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                        <div className="flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3 text-green-500" />
-                                            <span>Pass: {item.passCount}</span>
-                                        </div>
-                                         <div className="flex items-center gap-1">
-                                            <XCircle className="h-3 w-3 text-red-500" />
-                                            <span>Fail: {item.failCount}</span>
-                                        </div>
+                        {languageStats.length > 0 ? (
+                            languageStats.map(item => (
+                                <div key={item.code} className="text-sm">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <p className="font-medium truncate">{item.label}</p>
+                                        <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct</p>
                                     </div>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger className="w-full">
+                                                <Progress value={item.percentage} />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{item.percentage.toFixed(0)}% Correct</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </div>
                             ))
                         ) : (
                              <div className="flex items-center justify-center h-full pt-8">
-                                <p className="text-muted-foreground">No practice history yet.</p>
+                                <p className="text-muted-foreground">No language practice history yet.</p>
                             </div>
                         )}
                     </CardContent>

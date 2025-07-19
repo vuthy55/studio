@@ -19,6 +19,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { updateProfile as updateAuthProfile, updateEmail } from "firebase/auth";
 
 
+export interface PracticeStats {
+  byTopic?: {
+    [topicId: string]: {
+      correct: number;
+      tokensEarned: number;
+    };
+  };
+  byLanguage?: {
+    [languageCode: string]: {
+      practiced: number;
+      correct: number;
+    };
+  };
+}
 export interface UserProfile {
   name: string;
   email: string;
@@ -28,6 +42,7 @@ export interface UserProfile {
   tokenBalance?: number;
   searchableName?: string;
   searchableEmail?: string;
+  practiceStats?: PracticeStats;
 }
 
 export default function ProfilePage() {
@@ -131,15 +146,13 @@ export default function ProfilePage() {
             }
 
             const userDocRef = doc(db, 'users', user.uid);
-            const { name, country, mobile, role, tokenBalance } = profile;
+            const { name, country, mobile } = profile;
             const dataToSave = {
                 name: name || '',
                 country: country || '',
                 mobile: mobile || '',
                 // Always save the email from auth as the source of truth
-                email: user.email, 
-                role: role || 'user',
-                tokenBalance: tokenBalance || 0,
+                email: user.email,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
             };
