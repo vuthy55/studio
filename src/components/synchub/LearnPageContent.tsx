@@ -460,33 +460,32 @@ export default function LearnPageContent() {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <Tabs
-                            value={selectedTopic.id}
-                            onValueChange={(value) => {
-                                const topic = phrasebook.find(t => t.id === value);
-                                if (topic) {
-                                    setSelectedTopic(topic);
-                                }
-                            }}
-                            className="w-full"
-                        >
-                             <TabsList className="grid w-full grid-cols-5">
-                                {phrasebook.map(topic => (
-                                    <TooltipProvider key={topic.id} delayDuration={100}>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <TabsTrigger value={topic.id}>
-                                                    <topic.icon className="h-5 w-5" />
-                                                </TabsTrigger>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>{topic.title}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                ))}
-                            </TabsList>
-                        </Tabs>
+                        <div className="flex justify-center items-center gap-3 bg-muted p-1 rounded-md">
+                            {phrasebook.map(topic => (
+                                <TooltipProvider key={topic.id} delayDuration={100}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => setSelectedTopic(topic)}
+                                                className={cn(
+                                                    "rounded-md p-2 h-auto w-auto transition-colors duration-200",
+                                                    selectedTopic.id === topic.id
+                                                        ? 'bg-background text-foreground shadow-sm'
+                                                        : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                                                )}
+                                            >
+                                                <topic.icon className="h-6 w-6" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{topic.title}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            ))}
+                        </div>
                     </div>
                     <div>
                         <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4 mt-6">
