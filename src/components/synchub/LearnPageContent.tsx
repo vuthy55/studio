@@ -136,12 +136,12 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
             audio.play().catch(e => console.error("Audio playback failed.", e));
-        } catch (error) {
+        } catch (error: any) {
             console.error("TTS generation failed.", error);
             toast({
                 variant: 'destructive',
-                title: 'Error generating audio',
-                description: 'Could not generate audio for the selected language. Credentials might be missing.',
+                title: 'Audio Error',
+                description: error.message || 'Could not generate audio for the selected language.',
             });
         }
     };

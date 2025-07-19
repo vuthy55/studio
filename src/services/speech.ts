@@ -12,11 +12,14 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
 };
 
 function getSpeechConfig() {
+    if (typeof window === 'undefined') {
+        throw new Error("Speech recognition can only be used in the browser.");
+    }
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
 
     if (!azureKey || !azureRegion) {
-        throw new Error("Azure credentials are not configured.");
+        throw new Error("Azure credentials are not configured in your .env.local file.");
     }
     return sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
 }
@@ -101,6 +104,13 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                 pronScore: assessment.pronunciationScore,
                 isPass: accuracyScore > 70
             };
+        } else if (result.reason === sdk.ResultReason.Canceled) {
+            const cancellation = sdk.CancellationDetails.fromResult(result);
+            if (cancellation.reason === sdk.CancellationReason.Error) {
+                // This will include errors like authentication failure.
+                throw new Error(cancellation.errorDetails);
+            }
+            throw new Error("Recognition was canceled. Please try again.");
         } else {
             throw new Error(`Recognition failed: ${sdk.ResultReason[result.reason]}`);
         }
