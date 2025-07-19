@@ -14,9 +14,10 @@ import { Line, LineChart, CartesianGrid, XAxis, Tooltip as ChartTooltip, Respons
 import type { ChartConfig } from "@/components/ui/chart";
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import type { TransactionLog } from '@/lib/types';
-import type { PracticeHistory, LanguageCode, languages as langData } from '@/lib/data';
+import { type PracticeHistory, type LanguageCode, languages } from '@/lib/data';
 import type { PracticeStats, UserProfile } from '@/app/profile/page';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TransactionLogWithId extends TransactionLog {
     id: string;
@@ -40,7 +41,6 @@ export default function StatsPage() {
     
     const [stats, setStats] = useState<Partial<UserProfile>>({});
     const [transactions, setTransactions] = useState<TransactionLogWithId[]>([]);
-    const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryWithId[]>([]);
     const [isFetching, setIsFetching] = useState(true);
 
     useEffect(() => {
@@ -60,30 +60,22 @@ export default function StatsPage() {
         const userDocRef = doc(db, 'users', user.uid);
         const statsUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
              if (userDoc.exists()) {
-                const data = userDoc.data() as UserProfile;
-                setStats({ tokenBalance: data.tokenBalance, practiceStats: data.practiceStats });
+                setStats(userDoc.data());
              }
-        }, (err) => console.error("Error fetching stats:", err));
+             setIsFetching(false);
+        }, (err) => {
+            console.error("Error fetching stats:", err);
+            setIsFetching(false);
+        });
 
         const transRef = collection(db, 'users', user.uid, 'transactionLogs');
         const qTrans = query(transRef, orderBy('timestamp', 'asc'));
         const transactionsUnsubscribe = onSnapshot(qTrans, (snapshot) => {
             const transData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLogWithId));
             setTransactions(transData);
-            setIsFetching(false); 
         }, (err) => {
             console.error("Error fetching transactions: ", err);
-            setIsFetching(false);
         });
-        
-        const fetchPracticeHistory = async () => {
-            const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
-            const qHistory = query(historyRef, orderBy('lastAttempt', 'desc'));
-            const historySnapshot = await getDocs(qHistory);
-            const historyData = historySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PracticeHistoryWithId));
-            setPracticeHistory(historyData);
-        };
-        fetchPracticeHistory();
 
         return () => {
             statsUnsubscribe();
@@ -117,7 +109,7 @@ export default function StatsPage() {
     const languageStats = useMemo(() => {
         if (!stats.practiceStats?.byLanguage) return [];
         return Object.entries(stats.practiceStats.byLanguage).map(([langCode, data]) => {
-            const langLabel = langData.find(l => l.value === langCode)?.label || langCode;
+            const langLabel = languages.find(l => l.value === langCode)?.label || langCode;
             const correctPercentage = data.practiced > 0 ? (data.correct / data.practiced) * 100 : 0;
             return {
                 code: langCode as LanguageCode,
@@ -200,7 +192,7 @@ export default function StatsPage() {
                                 <div key={item.code} className="text-sm">
                                     <div className="flex justify-between items-center mb-1">
                                         <p className="font-medium truncate">{item.label}</p>
-                                        <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct</p>
+                                        <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} practiced</p>
                                     </div>
                                     <TooltipProvider>
                                         <Tooltip>
@@ -258,5 +250,3 @@ export default function StatsPage() {
         </div>
     )
 }
-
-    
