@@ -475,7 +475,7 @@ export default function LearnPageContent() {
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <TabsTrigger value={topic.id} className="w-full px-3">
+                                                <TabsTrigger value={topic.id}>
                                                     <topic.icon className="h-5 w-5" />
                                                 </TabsTrigger>
                                             </TooltipTrigger>
