@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, doc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData, where, or } from 'firebase/firestore';
+import { collection, query, getDocs, doc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData, where } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,45 +58,59 @@ function UsersTabContent() {
             setIsFetchingNext(true);
         } else {
             setIsLoading(true);
-            setUsers([]); // Clear users on new search/initial load
+            setUsers([]);
             setLastVisible(null);
         }
         
         try {
             const usersRef = collection(db, 'users');
-            let q;
+            let finalUsers: UserWithId[] = [];
+            let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+            let moreToLoad = true;
 
             if (search) {
-                // For search queries, we don't paginate for simplicity. We fetch all matches.
-                // A 'startsWith' query for 'name' and an exact match for 'email'
-                 q = query(usersRef, 
-                    or(
-                        where("name", ">=", search),
-                        where("name", "<=", search + '\uf8ff'),
-                        where("email", "==", search)
-                    ),
-                    orderBy("email")
+                // Perform two separate queries and merge the results
+                const nameQuery = query(usersRef, 
+                    where("name", ">=", search),
+                    where("name", "<=", search + '\uf8ff')
                 );
+                const emailQuery = query(usersRef, where("email", "==", search));
+
+                const [nameSnapshot, emailSnapshot] = await Promise.all([
+                    getDocs(nameQuery),
+                    getDocs(emailQuery)
+                ]);
+
+                const nameResults = nameSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+                const emailResults = emailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+
+                // Merge and deduplicate results
+                const allResults = [...nameResults, ...emailResults];
+                const uniqueUsers = new Map<string, UserWithId>();
+                allResults.forEach(user => uniqueUsers.set(user.id, user));
+                
+                finalUsers = Array.from(uniqueUsers.values());
+                moreToLoad = false; // Disable pagination for search results
             } else {
+                let q;
                 if (loadMore && lastVisible) {
                     q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
                 } else {
                     q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
                 }
+                const querySnapshot = await getDocs(q);
+                finalUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+                lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+                moreToLoad = querySnapshot.docs.length === USERS_PER_PAGE;
             }
             
-            const querySnapshot = await getDocs(q);
-            const fetchedUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
-            const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-
             setLastVisible(lastDoc || null);
-            // If searching, hasMore is false since we fetch all results at once.
-            setHasMore(search ? false : querySnapshot.docs.length === USERS_PER_PAGE);
+            setHasMore(moreToLoad);
             
             if (loadMore) {
-                setUsers(prev => [...prev, ...fetchedUsers]);
+                setUsers(prev => [...prev, ...finalUsers]);
             } else {
-                setUsers(fetchedUsers);
+                setUsers(finalUsers);
             }
 
         } catch (error: any) {
@@ -105,7 +119,7 @@ function UsersTabContent() {
                  toast({ 
                     variant: "destructive", 
                     title: "Error: Missing Index", 
-                    description: "A Firestore index is required for this query. Please check the browser console for a link to create it.",
+                    description: "A Firestore index is required. Please check the browser console for a link to create it.",
                     duration: 10000
                 });
                 console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
