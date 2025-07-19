@@ -64,7 +64,24 @@ export default function LearnPageContent() {
         }
     }, []);
 
-    // Load progress and UI state from storage
+    // Load UI state (topic, voice) from localStorage on mount.
+    // This runs once every time the component is displayed.
+    useEffect(() => {
+        try {
+            const savedTopicId = localStorage.getItem('selectedTopicId');
+            if (savedTopicId) {
+                const savedTopic = phrasebook.find(t => t.id === savedTopicId);
+                if (savedTopic) setSelectedTopic(savedTopic);
+            }
+            const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
+            if (savedVoice) setSelectedVoice(savedVoice);
+        } catch (error) {
+             console.error("Failed to load UI state from local storage", error);
+        }
+    }, []);
+
+
+    // Fetch user-specific progress (or load guest progress) when user status changes.
     useEffect(() => {
         const fetchHistoryAndState = async () => {
             if (user) {
@@ -111,20 +128,6 @@ export default function LearnPageContent() {
         };
 
         fetchHistoryAndState();
-        
-        // Load non-progress related UI state from localStorage regardless of auth state
-        try {
-            const savedTopicId = localStorage.getItem('selectedTopicId');
-            if (savedTopicId) {
-                const savedTopic = phrasebook.find(t => t.id === savedTopicId);
-                if (savedTopic) setSelectedTopic(savedTopic);
-            }
-            const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
-            if (savedVoice) setSelectedVoice(savedVoice);
-        } catch (error) {
-             console.error("Failed to load UI state from local storage", error);
-        }
-
     }, [user, toast]);
 
     // Save progress to localStorage for GUESTS ONLY
@@ -350,7 +353,7 @@ export default function LearnPageContent() {
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
-    if (!settings || isFetchingHistory) {
+    if (isFetchingHistory) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -424,7 +427,7 @@ export default function LearnPageContent() {
                                         <ul className="list-disc pl-4 space-y-1 text-sm">
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {settings.practiceThreshold} times earns you {settings.practiceReward} token!</li>
+                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {settings?.practiceThreshold ?? 3} times earns you {settings?.practiceReward ?? 1} token!</li>
                                             { !user && <li className="font-bold">Log in to save your progress permanently!</li> }
                                         </ul>
                                     </TooltipContent>
