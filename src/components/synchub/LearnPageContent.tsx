@@ -23,6 +23,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, getDocs } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -41,9 +42,7 @@ const getInitialState = <T,>(key: string, fallback: T, validator?: (value: any) 
     try {
         const storedValue = localStorage.getItem(key);
         if (storedValue !== null) {
-            // Fix: No need to parse if the stored value is just a string.
-            // For voice, it's '"female"', which needs parsing. For topic, it's 'questions', which doesn't.
-            // A try-catch block handles both cases gracefully.
+            // A try-catch block handles both raw strings and JSON strings gracefully.
             try {
                 const parsed = JSON.parse(storedValue);
                  if (validator ? validator(parsed) : true) {
@@ -52,7 +51,7 @@ const getInitialState = <T,>(key: string, fallback: T, validator?: (value: any) 
             } catch (e) {
                 // If parsing fails, it's likely a raw string. Use it directly.
                 if (validator ? validator(storedValue) : true) {
-                    return storedValue as T;
+                    return storedValue as unknown as T;
                 }
             }
         }
@@ -436,9 +435,9 @@ export default function LearnPageContent() {
             
                 <div className="space-y-4 pt-6">
                     <div className="space-y-2">
-                         <div className="flex items-center gap-2">
-                            <Label htmlFor="topic-select">Select a Topic</Label>
-                             <TooltipProvider>
+                        <div className="flex items-center gap-2">
+                            <Label>Select a Topic</Label>
+                            <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Info className="h-5 w-5 text-accent cursor-help" />
@@ -455,24 +454,33 @@ export default function LearnPageContent() {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <Select 
-                            value={selectedTopic.id} 
+                        <Tabs
+                            value={selectedTopic.id}
                             onValueChange={(value) => {
                                 const topic = phrasebook.find(t => t.id === value);
                                 if (topic) {
                                     setSelectedTopic(topic);
                                 }
                             }}
+                            className="w-full"
                         >
-                            <SelectTrigger id="topic-select">
-                                <SelectValue placeholder="Select a topic" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            <TabsList className={`grid w-full grid-cols-${phrasebook.length}`}>
                                 {phrasebook.map(topic => (
-                                    <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
+                                    <TooltipProvider key={topic.id} delayDuration={100}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <TabsTrigger value={topic.id} className="w-full">
+                                                    <topic.icon className="h-5 w-5" />
+                                                </TabsTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{topic.title}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 ))}
-                            </SelectContent>
-                        </Select>
+                            </TabsList>
+                        </Tabs>
                     </div>
                     <div>
                         <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-4 mt-6">
