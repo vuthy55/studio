@@ -40,10 +40,20 @@ const getInitialState = <T,>(key: string, fallback: T, validator?: (value: any) 
     }
     try {
         const storedValue = localStorage.getItem(key);
-        if (storedValue) {
-            const parsed = JSON.parse(storedValue);
-            if (validator ? validator(parsed) : true) {
-                return parsed;
+        if (storedValue !== null) {
+            // Fix: No need to parse if the stored value is just a string.
+            // For voice, it's '"female"', which needs parsing. For topic, it's 'questions', which doesn't.
+            // A try-catch block handles both cases gracefully.
+            try {
+                const parsed = JSON.parse(storedValue);
+                 if (validator ? validator(parsed) : true) {
+                    return parsed;
+                }
+            } catch (e) {
+                // If parsing fails, it's likely a raw string. Use it directly.
+                if (validator ? validator(storedValue) : true) {
+                    return storedValue as T;
+                }
             }
         }
     } catch (error) {
@@ -60,7 +70,7 @@ export default function LearnPageContent() {
     
     // State initialization for server/client match
     const [selectedTopic, setSelectedTopic] = useState<Topic>(() => {
-        const savedTopicId = getInitialState<string | null>('selectedTopicId', null);
+        const savedTopicId = getInitialState<string | null>('selectedTopicId', null, (v) => typeof v === 'string');
         return phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
     });
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>(() => 
@@ -154,7 +164,8 @@ export default function LearnPageContent() {
     // Save UI state to localStorage for ALL users
     useEffect(() => {
         try {
-            localStorage.setItem('selectedTopicId', JSON.stringify(selectedTopic.id));
+            // Save as a raw string, not a JSON string
+            localStorage.setItem('selectedTopicId', selectedTopic.id);
         } catch (error) {
             console.error("Failed to save topic to local storage", error);
         }
@@ -162,6 +173,7 @@ export default function LearnPageContent() {
 
     useEffect(() => {
         try {
+            // Save with JSON.stringify so it's stored as '"female"' etc.
             localStorage.setItem('selectedVoice', JSON.stringify(selectedVoice));
         } catch (error) {
             console.error("Failed to save voice to local storage", error);
@@ -551,5 +563,3 @@ export default function LearnPageContent() {
         </Card>
     );
 }
-
-    
