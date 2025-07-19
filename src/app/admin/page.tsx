@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,11 +8,16 @@ import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight } from "lucide-react";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
+
 
 interface UserWithId extends UserProfile {
     id: string;
@@ -21,21 +25,17 @@ interface UserWithId extends UserProfile {
 
 const USERS_PER_PAGE = 20;
 
-export default function AdminPage() {
-    const [user, authLoading] = useAuthState(auth);
-    const router = useRouter();
-    const { toast } = useToast();
-    const { isMobile } = useSidebar();
 
+function UsersTabContent() {
+    const router = useRouter();
     const [users, setUsers] = useState<UserWithId[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
     const [isFetchingNext, setIsFetchingNext] = useState(false);
     const [hasMore, setHasMore] = useState(true);
+    const { toast } = useToast();
 
-    const fetchUsers = useCallback(async (loadMore = false) => {
-        if (!user) return;
-        
+     const fetchUsers = useCallback(async (loadMore = false) => {
         if (loadMore) {
             setIsFetchingNext(true);
         } else {
@@ -89,23 +89,175 @@ export default function AdminPage() {
             setIsLoading(false);
             setIsFetchingNext(false);
         }
-    }, [user, lastVisible, toast]);
+    }, [lastVisible, toast]);
+
+    useEffect(() => {
+        fetchUsers(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleRowClick = (userId: string) => {
+        router.push(`/admin/${userId}`);
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Users</CardTitle>
+                <CardDescription>A list of all users in the system. Click a user to view and edit their details.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="border rounded-md">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="hidden sm:table-cell">Name</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {users.map((u) => (
+                                <TableRow key={u.id} onClick={() => handleRowClick(u.id)} className="cursor-pointer">
+                                    <TableCell className="hidden sm:table-cell font-medium">{u.name || 'N/A'}</TableCell>
+                                    <TableCell>{u.email}</TableCell>
+                                    <TableCell>
+                                        {u.role === 'admin' ? 
+                                            <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                                            <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                                        }
+                                    </TableCell>
+                                    <TableCell>
+                                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                {users.length === 0 && !isLoading && (
+                    <p className="text-center text-muted-foreground py-8">No users found.</p>
+                )}
+                 <div className="flex justify-center mt-6">
+                    {hasMore && (
+                        <Button onClick={() => fetchUsers(true)} disabled={isFetchingNext}>
+                            {isFetchingNext ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Load More
+                        </Button>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function SettingsTabContent() {
+    const { toast } = useToast();
+    const [settings, setSettings] = useState<Partial<AppSettings>>({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        getAppSettings().then(data => {
+            setSettings(data);
+            setIsLoading(false);
+        });
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const settingsToSave = {
+                signupBonus: Number(settings.signupBonus) || 0,
+                practiceReward: Number(settings.practiceReward) || 0,
+                practiceThreshold: Number(settings.practiceThreshold) || 0,
+                translationCost: Number(settings.translationCost) || 0,
+            };
+            await updateAppSettings(settingsToSave);
+            toast({ title: "Success", description: "Application settings have been updated." });
+        } catch (error: any) {
+            console.error("Error saving settings:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not save settings." });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { id, value } = e.target;
+        setSettings(prev => ({...prev, [id]: value }));
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>App Settings</CardTitle>
+                <CardDescription>Manage the token economy and other application-wide settings.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="signupBonus">Signup Bonus</Label>
+                        <Input id="signupBonus" type="number" value={settings.signupBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
+                        <p className="text-sm text-muted-foreground">Tokens a new user gets on signup.</p>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="translationCost">Translation Cost</Label>
+                        <Input id="translationCost" type="number" value={settings.translationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                        <p className="text-sm text-muted-foreground">Tokens charged for each live translation.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="practiceReward">Practice Reward</Label>
+                        <Input id="practiceReward" type="number" value={settings.practiceReward ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                        <p className="text-sm text-muted-foreground">Tokens earned for mastering a phrase.</p>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="practiceThreshold">Practice Threshold</Label>
+                        <Input id="practiceThreshold" type="number" value={settings.practiceThreshold ?? ''} onChange={handleInputChange} placeholder="e.g., 3" />
+                         <p className="text-sm text-muted-foreground">Number of successful practices to earn reward.</p>
+                    </div>
+                </div>
+                 <div className="flex justify-end">
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Settings
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+export default function AdminPage() {
+    const [user, authLoading] = useAuthState(auth);
+    const router = useRouter();
+    const { isMobile } = useSidebar();
 
     useEffect(() => {
         if (authLoading) return;
         if (!user) {
             router.push('/login');
-            return;
         }
-        fetchUsers(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading, router]);
-
-    const handleRowClick = (userId: string) => {
-        router.push(`/admin/${userId}`);
-    };
     
-    if (authLoading || isLoading) {
+    if (authLoading) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -123,55 +275,18 @@ export default function AdminPage() {
                 </div>
             </header>
             
-            <Card>
-                <CardHeader>
-                    <CardTitle>Users</CardTitle>
-                    <CardDescription>A list of all users in the system. Click a user to view and edit their details.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="border rounded-md">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="hidden sm:table-cell">Name</TableHead>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead className="w-[50px]"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {users.map((u) => (
-                                    <TableRow key={u.id} onClick={() => handleRowClick(u.id)} className="cursor-pointer">
-                                        <TableCell className="hidden sm:table-cell font-medium">{u.name || 'N/A'}</TableCell>
-                                        <TableCell>{u.email}</TableCell>
-                                        <TableCell>
-                                            {u.role === 'admin' ? 
-                                                <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                                                <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                                            }
-                                        </TableCell>
-                                        <TableCell>
-                                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    {users.length === 0 && !isLoading && (
-                        <p className="text-center text-muted-foreground py-8">No users found.</p>
-                    )}
-                </CardContent>
-            </Card>
-
-            <div className="flex justify-center">
-                {hasMore && (
-                     <Button onClick={() => fetchUsers(true)} disabled={isFetchingNext}>
-                        {isFetchingNext ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Load More
-                    </Button>
-                )}
-            </div>
+            <Tabs defaultValue="users" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="users">Users</TabsTrigger>
+                    <TabsTrigger value="settings">App Settings</TabsTrigger>
+                </TabsList>
+                <TabsContent value="users" className="mt-6">
+                    <UsersTabContent />
+                </TabsContent>
+                <TabsContent value="settings" className="mt-6">
+                    <SettingsTabContent />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

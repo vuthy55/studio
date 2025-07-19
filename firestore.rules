@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -20,16 +19,17 @@ service cloud.firestore {
       // Allow user to create their own record during signup
       allow create: if isOwner();
 
-      // Transaction Logs: A user can read and create their own logs. Admins can also read.
+      // Transaction Logs: A user can read and create their own logs. Admins can read any.
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner() || isAdmin();
+        allow create: if isOwner();
+        allow read: if isOwner() || isAdmin();
         allow update, delete: if false; // Protect logs from modification
       }
 
-      // Practice History: A user can read and write their own practice history. Admins can read.
+      // Practice History: A user can read and write their own practice history.
       match /practiceHistory/{historyId} {
-        allow list, read: if isOwner() || isAdmin();
-        allow write: if isOwner();
+        allow get, write: if isOwner();
+        allow list: if isOwner();
       }
     }
 
@@ -107,6 +107,19 @@ service cloud.firestore {
           // Allow the room creator to delete any message.
           allow delete: if isRoomCreator();
       }
+    }
+    
+    // Settings collection: Admins can manage application-wide settings.
+    // Regular users can read them.
+    match /settings/appConfig {
+        function isAdmin() {
+            return request.auth != null && 
+                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        }
+        
+        allow read: if request.auth != null; // Allow any authenticated user to read settings
+        allow write: if isAdmin(); // Only admins can change settings
     }
   }
 }

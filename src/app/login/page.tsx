@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
@@ -22,9 +21,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Chrome } from 'lucide-react';
-
-const SIGNUP_BONUS = 100;
+import { Chrome, LoaderCircle } from 'lucide-react';
+import { getAppSettings, type AppSettings } from '@/services/settings';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,6 +38,11 @@ export default function LoginPage() {
   const [signupMobile, setSignupMobile] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => {
+    getAppSettings().then(setSettings);
+  }, []);
 
   const countryOptions = Object.entries(countries).map(([code, country]) => ({
     value: code,
@@ -48,6 +51,7 @@ export default function LoginPage() {
 
   const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);
+    const signupBonus = settings?.signupBonus || 100;
     
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
@@ -57,7 +61,7 @@ export default function LoginPage() {
         ...data, 
         email: user.email!,
         role: existingData.role || 'user',
-        tokenBalance: existingData.tokenBalance ?? (isNewUser ? SIGNUP_BONUS : 0),
+        tokenBalance: existingData.tokenBalance ?? (isNewUser ? signupBonus : 0),
     };
 
     await setDoc(userDocRef, dataToSave, { merge: true });
@@ -67,7 +71,7 @@ export default function LoginPage() {
         const logRef = collection(db, 'users', user.uid, 'transactionLogs');
         await addDoc(logRef, {
             actionType: 'signup_bonus',
-            tokenChange: SIGNUP_BONUS,
+            tokenChange: signupBonus,
             timestamp: serverTimestamp(),
             description: 'Welcome bonus for signing up!'
         });
@@ -144,6 +148,14 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+  
+  if (!settings) {
+     return (
+        <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+            <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+        </div>
+    );
+  }
 
   return (
     <div className="flex justify-center items-center min-h-[calc(100vh-8rem)]">
@@ -215,6 +227,9 @@ export default function LoginPage() {
                     <Label htmlFor="signup-mobile">Mobile Number (Optional)</Label>
                     <Input id="signup-mobile" type="tel" placeholder="+1 123 456 7890" value={signupMobile} onChange={e => setSignupMobile(e.target.value)} />
                   </div>
+                  <p className="text-sm text-muted-foreground text-center pt-2">
+                    You'll receive {settings.signupBonus} tokens as a welcome bonus!
+                  </p>
                 </CardContent>
                 <CardFooter className="flex-col gap-4">
                   <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>

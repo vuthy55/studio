@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -6,7 +5,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type PracticeHist
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, Info, LoaderCircle } from 'lucide-react';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import {
   Tooltip,
@@ -22,6 +21,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
+import { getAppSettings, type AppSettings } from '@/services/settings';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -31,10 +31,6 @@ type AssessmentResult = {
   accuracy?: number;
   fluency?: number;
 };
-
-const PRACTICE_TO_EARN_THRESHOLD = 3;
-const PRACTICE_EARN_REWARD = 1;
-
 
 export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
@@ -47,8 +43,13 @@ export default function LearnPageContent() {
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceHistory, setPracticeHistory] = useState<Record<string, PracticeHistory>>({});
+    const [settings, setSettings] = useState<AppSettings | null>(null);
 
     const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
+
+    useEffect(() => {
+        getAppSettings().then(setSettings);
+    }, []);
     
     // Cleanup recognizer on component unmount
     useEffect(() => {
@@ -148,11 +149,12 @@ export default function LearnPageContent() {
         console.warn("[assessPronunciation] Recognizer is already active. Ignoring call.");
         return;
     }
-    if (!user) {
+    if (!user || !settings) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
         return;
     }
 
+    const { practiceReward, practiceThreshold } = settings;
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
 
@@ -240,7 +242,7 @@ export default function LearnPageContent() {
               
               await setDoc(historyDocRef, historyUpdate, { merge: true });
 
-              if (isPass && newPassCount > 0 && newPassCount % PRACTICE_TO_EARN_THRESHOLD === 0) {
+              if (isPass && newPassCount > 0 && newPassCount % practiceThreshold === 0) {
                  try {
                     const userDocRef = doc(db, 'users', user.uid);
                     const logRef = doc(collection(db, `users/${user.uid}/transactionLogs`));
@@ -248,16 +250,16 @@ export default function LearnPageContent() {
                     const userDoc = await getDoc(userDocRef);
                     if (!userDoc.exists()) throw "User document does not exist!";
                     const currentBalance = userDoc.data().tokenBalance || 0;
-                    const newBalance = currentBalance + PRACTICE_EARN_REWARD;
+                    const newBalance = currentBalance + practiceReward;
                     batch.update(userDocRef, { tokenBalance: newBalance });
                     batch.set(logRef, {
                         actionType: 'practice_earn',
-                        tokenChange: PRACTICE_EARN_REWARD,
+                        tokenChange: practiceReward,
                         timestamp: serverTimestamp(),
                         description: `Earned for mastering: "${referenceText}"`
                     });
                     await batch.commit();
-                    toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
+                    toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
                 } catch(err) {
                     console.error("Token reward transaction failed: ", err);
                     toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
@@ -307,6 +309,14 @@ export default function LearnPageContent() {
 
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
+
+    if (!settings) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
 
     return (
         <Card className="shadow-lg mt-6">
@@ -374,7 +384,7 @@ export default function LearnPageContent() {
                                         <ul className="list-disc pl-4 space-y-1 text-sm">
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {PRACTICE_TO_EARN_THRESHOLD} times earns you {PRACTICE_EARN_REWARD} token!</li>
+                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {settings.practiceThreshold} times earns you {settings.practiceReward} token!</li>
                                         </ul>
                                     </TooltipContent>
                                 </Tooltip>
@@ -488,5 +498,3 @@ export default function LearnPageContent() {
         </Card>
     );
 }
-
-    

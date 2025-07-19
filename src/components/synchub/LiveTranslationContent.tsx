@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -18,6 +17,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { getAppSettings, type AppSettings } from '@/services/settings';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -40,11 +40,6 @@ type PracticeStats = {
     fail: number;
 }
 
-
-const TRANSLATION_COST = 1;
-const PRACTICE_TO_EARN_THRESHOLD = 3;
-const PRACTICE_EARN_REWARD = 1;
-
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
@@ -64,6 +59,11 @@ export default function LiveTranslationContent() {
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
 
     const [user] = useAuthState(auth);
+    const [settings, setSettings] = useState<AppSettings | null>(null);
+
+     useEffect(() => {
+        getAppSettings().then(setSettings);
+    }, []);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -126,12 +126,13 @@ export default function LiveTranslationContent() {
 
 
     const handleTranslation = async () => {
-        if (!inputText || !user) {
+        if (!inputText || !user || !settings) {
             if (!user) toast({ variant: 'destructive', title: 'Not Logged In', description: 'Please log in to use translation.' });
             return;
         }
 
         setIsTranslating(true);
+        const translationCost = settings.translationCost;
 
         try {
             await runTransaction(db, async (transaction) => {
@@ -140,15 +141,15 @@ export default function LiveTranslationContent() {
                 if (!userDoc.exists()) throw "User document does not exist!";
                 
                 const currentBalance = userDoc.data().tokenBalance || 0;
-                if (currentBalance < TRANSLATION_COST) throw "Insufficient tokens for translation.";
+                if (currentBalance < translationCost) throw "Insufficient tokens for translation.";
                 
-                const newBalance = currentBalance - TRANSLATION_COST;
+                const newBalance = currentBalance - translationCost;
                 transaction.update(userDocRef, { tokenBalance: newBalance });
                 
                 const logRef = collection(db, `users/${user.uid}/transactionLogs`);
                 addDoc(logRef, {
                     actionType: 'translation_spend',
-                    tokenChange: -TRANSLATION_COST,
+                    tokenChange: -translationCost,
                     timestamp: serverTimestamp(),
                     description: `Translated: "${inputText}"`
                 });
@@ -216,7 +217,7 @@ export default function LiveTranslationContent() {
     }
 
    const assessPronunciation = async (referenceText: string, lang: LanguageCode, phraseId: string) => {
-    if (!user) {
+    if (!user || !settings) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
         return;
     }
@@ -277,26 +278,26 @@ export default function LiveTranslationContent() {
                 const newPassCount = currentStats.pass + (isPass ? 1 : 0);
                 const newFailCount = currentStats.fail + (isPass ? 0 : 1);
                 
-                if (isPass && newPassCount > 0 && newPassCount % PRACTICE_TO_EARN_THRESHOLD === 0) {
+                if (isPass && newPassCount > 0 && newPassCount % settings.practiceThreshold === 0) {
                      runTransaction(db, async (transaction) => {
                         const userDocRef = doc(db, 'users', user.uid);
                         const userDoc = await transaction.get(userDocRef);
                         if (!userDoc.exists()) throw "User document does not exist!";
                         
                         const currentBalance = userDoc.data().tokenBalance || 0;
-                        const newBalance = currentBalance + PRACTICE_EARN_REWARD;
+                        const newBalance = currentBalance + settings.practiceReward;
                         transaction.update(userDocRef, { tokenBalance: newBalance });
 
                         const logRef = collection(db, `users/${user.uid}/transactionLogs`);
                         addDoc(logRef, {
                             actionType: 'practice_earn',
-                            tokenChange: PRACTICE_EARN_REWARD,
+                            tokenChange: settings.practiceReward,
                             timestamp: serverTimestamp(),
                             description: `Earned for mastering a saved phrase.`
                         });
 
                     }).then(() => {
-                        toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token!` });
+                        toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
                     }).catch(e => console.error("Token reward transaction failed: ", e));
                 }
                 return { ...prev, [phraseId]: { pass: newPassCount, fail: newFailCount }};
@@ -420,7 +421,7 @@ export default function LiveTranslationContent() {
                         
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                            <Label htmlFor="to-language-live">{languages.find(l => l.value === toLanguage)?.label} (Cost: {TRANSLATION_COST} Token)</Label>
+                            <Label htmlFor="to-language-live">{languages.find(l => l.value === toLanguage)?.label} (Cost: {settings?.translationCost || 1} Token)</Label>
                             <div className="flex items-center">
                                     <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={!translatedText || !!assessingPhraseId}>
                                         <Volume2 className="h-5 w-5" />
