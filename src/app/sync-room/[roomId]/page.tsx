@@ -18,10 +18,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
+import { getContinuousRecognizerForRoom } from '@/services/speech';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import type * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 type MicStatus = 'idle' | 'listening' | 'processing' | 'locked';
 
@@ -83,7 +84,7 @@ function SyncRoomPageContent() {
         if (recognizerRef.current) {
             console.log("Stopping continuous recognition...");
             recognizerRef.current.stopContinuousRecognitionAsync();
-            recognizerRef.current.close();
+            // The singleton manager now handles closing, so we don't call close() here.
             recognizerRef.current = null;
         }
         setMicStatus('idle');
@@ -236,28 +237,18 @@ function SyncRoomPageContent() {
             return; // Not allowed to speak
         }
         
-        let recognizer;
         try {
-            const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-            const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-        
-            if (!azureKey || !azureRegion) {
-                throw new Error("Azure credentials are not set up.");
-            }
-            
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-            speechConfig.speechRecognitionLanguage = currentUserParticipant.selectedLanguage;
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-            recognizerRef.current = recognizer;
-
-            recognizer.recognized = async (s, e) => {
-                if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-                    setMicStatus('processing');
+             recognizerRef.current = getContinuousRecognizerForRoom(
+                currentUserParticipant.selectedLanguage,
+                // onRecognized
+                async (text) => {
+                    if (micStatus !== 'processing') {
+                         setMicStatus('processing');
+                    }
                     const newMessageRef = doc(collection(db, `syncRooms/${roomId}/messages`));
                     const newMessage: RoomMessage = {
                         id: newMessageRef.id,
-                        text: e.result.text,
+                        text: text,
                         speakerName: currentUserParticipant.name,
                         speakerUid: currentUserParticipant.uid,
                         speakerLanguage: currentUserParticipant.selectedLanguage,
@@ -265,25 +256,22 @@ function SyncRoomPageContent() {
                     };
                     await setDoc(newMessageRef, newMessage);
                     setMicStatus('listening'); // Stay listening
+                },
+                // onError
+                (errorDetails) => {
+                    toast({ variant: 'destructive', title: 'Recognition Error', description: errorDetails });
+                    stopRecognition();
+                },
+                 // onStopped
+                () => {
+                    stopRecognition();
                 }
-            };
-    
-            recognizer.canceled = (s, e) => {
-                console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
-                if (e.reason === sdk.CancellationReason.Error) {
-                    toast({ variant: 'destructive', title: 'Recognition Error', description: e.errorDetails });
-                }
-                stopRecognition();
-            };
-    
-            recognizer.sessionStopped = (s, e) => {
-                stopRecognition();
-            };
+            );
 
             const roomRef = doc(db, 'syncRooms', roomId);
             await updateDoc(roomRef, { activeSpeakerUid: user.uid });
             
-            recognizer.startContinuousRecognitionAsync(
+            recognizerRef.current.startContinuousRecognitionAsync(
                 () => { setMicStatus('listening'); },
                 (err) => { throw new Error(`Could not start microphone: ${err}`); }
             );
