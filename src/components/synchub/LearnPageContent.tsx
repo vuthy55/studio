@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type PracticeHist
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, XCircle, Info, LoaderCircle, Award, Star } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star } from 'lucide-react';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import {
   Tooltip,
@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, getDocs, onSnapshot, FieldValue } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, onSnapshot } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import type { UserProfile, PracticeStats } from '@/app/profile/page';
@@ -82,13 +82,9 @@ export default function LearnPageContent() {
     const [user] = useAuthState(auth);
     
     // State initialization for server/client match
-    const [selectedTopic, setSelectedTopic] = useState<Topic>(() => {
-        const savedTopicId = getInitialState<string | null>('selectedTopicId', null, (v) => typeof v === 'string');
-        return phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
-    });
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>(() => 
-        getInitialState<VoiceSelection>('selectedVoice', 'default', (v) => ['default', 'male', 'female'].includes(v))
-    );
+    const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
+    const [isMounted, setIsMounted] = useState(false);
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
@@ -102,7 +98,18 @@ export default function LearnPageContent() {
     // to avoid incrementing the 'practiced' stat multiple times.
     const practicedPhrasesRef = useRef(new Set<string>());
 
+    // This effect runs only on the client after mounting.
+    // It safely loads values from localStorage without causing a hydration mismatch.
     useEffect(() => {
+        setIsMounted(true);
+
+        const savedTopicId = getInitialState<string | null>('selectedTopicId', null, (v) => typeof v === 'string');
+        const savedTopic = phrasebook.find(t => t.id === savedTopicId) || phrasebook[0];
+        setSelectedTopic(savedTopic);
+        
+        const savedVoice = getInitialState<VoiceSelection>('selectedVoice', 'default', (v) => ['default', 'male', 'female'].includes(v));
+        setSelectedVoice(savedVoice);
+        
         getAppSettings().then(setSettings);
     }, []);
     
@@ -150,7 +157,7 @@ export default function LearnPageContent() {
 
     // Save progress to localStorage for GUESTS ONLY
     useEffect(() => {
-        if (!user) {
+        if (!user && isMounted) {
             try {
                 // This logic needs to be updated if guests need stats
                 // For now, it only saves assessment UI state
@@ -158,24 +165,28 @@ export default function LearnPageContent() {
                 console.error("Failed to save guest progress to local storage", error);
             }
         }
-    }, [phraseAssessments, user]);
+    }, [phraseAssessments, user, isMounted]);
 
     // Save UI state to localStorage for ALL users
     useEffect(() => {
-        try {
-            localStorage.setItem('selectedTopicId', selectedTopic.id);
-        } catch (error) {
-            console.error("Failed to save topic to local storage", error);
+        if (isMounted) {
+            try {
+                localStorage.setItem('selectedTopicId', selectedTopic.id);
+            } catch (error) {
+                console.error("Failed to save topic to local storage", error);
+            }
         }
-    }, [selectedTopic]);
+    }, [selectedTopic, isMounted]);
 
     useEffect(() => {
-        try {
-            localStorage.setItem('selectedVoice', JSON.stringify(selectedVoice));
-        } catch (error) {
-            console.error("Failed to save voice to local storage", error);
+        if (isMounted) {
+            try {
+                localStorage.setItem('selectedVoice', JSON.stringify(selectedVoice));
+            } catch (error) {
+                console.error("Failed to save voice to local storage", error);
+            }
         }
-    }, [selectedVoice]);
+    }, [selectedVoice, isMounted]);
 
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
@@ -267,25 +278,25 @@ export default function LearnPageContent() {
 
                     const practiceKey = `${phraseId}-${toLanguage}`;
                     const hasPracticedBefore = practicedPhrasesRef.current.has(practiceKey);
+                    
                     if (!hasPracticedBefore) {
                         batch.set(userDocRef, { practiceStats: { byLanguage: { [toLanguage]: { practiced: increment(1) } } } }, { merge: true });
                         practicedPhrasesRef.current.add(practiceKey);
                     }
                     
-                    const stats = userProfile.practiceStats;
-                    const hadPassedBefore = (stats?.byTopic?.[topicId]?.correct ?? 0) > 0;
-                    
-                    if (isPass && !hadPassedBefore) {
-                        batch.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { correct: increment(1) } }, byLanguage: { [toLanguage]: { correct: increment(1) } } } }, { merge: true });
-                    }
+                    const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
+                    const historySnap = await getDoc(historyDocRef);
+                    const hadPassedBefore = historySnap.exists() && historySnap.data()?.passCount > 0;
                     
                     if (isPass) {
-                        const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
-                        const historySnap = await getDoc(historyDocRef);
-                        const passCount = (historySnap.data()?.passCount || 0) + 1;
-                        batch.set(historyDocRef, { phraseText: referenceText, lang: toLanguage, passCount: increment(1), lastAttempt: serverTimestamp(), lastAccuracy: accuracyScore }, { merge: true });
+                        if (!hadPassedBefore) {
+                             batch.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { correct: increment(1) } }, byLanguage: { [toLanguage]: { correct: increment(1) } } } }, { merge: true });
+                        }
 
-                        if (passCount > 0 && passCount % practiceThreshold === 0) {
+                        const newPassCount = (historySnap.data()?.passCount || 0) + 1;
+                        batch.set(historyDocRef, { phraseText: referenceText, lang: toLanguage, passCount: increment(1), lastAttempt: serverTimestamp(), lastAccuracy: accuracyScore }, { merge: true });
+                       
+                        if (newPassCount > 0 && newPassCount % practiceThreshold === 0) {
                             batch.update(userDocRef, { tokenBalance: increment(practiceReward) });
                             batch.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { tokensEarned: increment(practiceReward) } } } }, { merge: true });
                             const logRef = collection(db, `users/${user.uid}/transactionLogs`);
@@ -331,7 +342,7 @@ export default function LearnPageContent() {
 
     const topicStats = userProfile.practiceStats?.byTopic?.[selectedTopic.id];
 
-    if (isFetchingHistory && user) {
+    if (!isMounted || (isFetchingHistory && user)) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -412,29 +423,29 @@ export default function LearnPageContent() {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <div className="flex justify-center items-center gap-3 bg-muted p-1 rounded-md">
+                         <div className="flex justify-center items-center gap-3 bg-muted p-1 rounded-md">
                             {phrasebook.map(topic => (
-                                <TooltipProvider key={topic.id} delayDuration={100}>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
+                                 <TooltipProvider key={topic.id} delayDuration={100}>
+                                     <Tooltip>
+                                         <TooltipTrigger asChild>
+                                             <Button
+                                                variant={selectedTopic.id === topic.id ? 'default' : 'ghost'}
                                                 onClick={() => setSelectedTopic(topic)}
                                                 className={cn(
-                                                    "h-auto w-auto p-2 transition-colors duration-200",
+                                                    "h-auto w-auto p-2 transition-all duration-200",
                                                     selectedTopic.id === topic.id
                                                         ? 'bg-background text-foreground shadow-sm'
                                                         : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                                 )}
-                                            >
-                                                <topic.icon className="h-12 w-12" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>{topic.title}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
+                                             >
+                                                 <topic.icon className="h-12 w-12" />
+                                             </Button>
+                                         </TooltipTrigger>
+                                         <TooltipContent>
+                                             <p>{topic.title}</p>
+                                         </TooltipContent>
+                                     </Tooltip>
+                                 </TooltipProvider>
                             ))}
                         </div>
                     </div>
