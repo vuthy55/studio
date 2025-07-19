@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star } from 'lucide-react';
-import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import {
   Tooltip,
   TooltipProvider,
@@ -15,6 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { generateSpeech } from '@/services/tts';
+import { assessPronunciationFromMic } from '@/services/speech';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
@@ -146,7 +146,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         }
     };
     
-    const assessPronunciation = async (phrase: Phrase, topicId: string) => {
+    const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
         if (assessingPhraseId) return;
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
@@ -157,104 +157,66 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
             return;
         }
 
-        const { practiceReward, practiceThreshold } = settings;
-        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-        
-        if (!azureKey || !azureRegion) {
-            toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
-            return;
-        }
-
         const referenceText = getTranslation(phrase, toLanguage);
         const phraseId = phrase.id;
-        const locale = languageToLocaleMap[toLanguage];
-        if (!locale) {
-            toast({ variant: 'destructive', title: 'Unsupported Language' });
-            return;
-        }
-    
+        
         setAssessingPhraseId(phraseId);
-        let recognizer: sdk.SpeechRecognizer | null = null;
     
         try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-            speechConfig.speechRecognitionLanguage = locale;
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(JSON.stringify({ referenceText: `${referenceText}.`, gradingSystem: "HundredMark", granularity: "Phoneme", enableMiscue: true }));
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-            pronunciationConfig.applyTo(recognizer);
+            const { practiceReward, practiceThreshold } = settings;
+            const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
+            const { isPass, accuracy, fluency } = assessment;
 
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer!.recognizeOnceAsync(resolve, reject);
+            const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
+            setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+            
+            await runTransaction(db, async (transaction) => {
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await transaction.get(userDocRef);
+                if (!userDoc.exists()) throw new Error("User document not found");
+
+                const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
+                const historySnap = await transaction.get(historyDocRef);
+
+                const practicedKey = `${phraseId}-${toLanguage}`;
+                if (!practicedPhrasesRef.current.has(practicedKey)) {
+                        transaction.set(userDocRef, { practiceStats: { byLanguage: { [toLanguage]: { practiced: increment(1) } } } }, { merge: true });
+                    practicedPhrasesRef.current.add(practicedKey);
+                }
+
+                if (isPass) {
+                    const hadPassedBeforeForLang = historySnap.exists() && (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) > 0;
+                    
+                    if (!hadPassedBeforeForLang) {
+                        transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { correct: increment(1) } } }, byLanguage: { [toLanguage]: { correct: increment(1) } } } }, { merge: true });
+                    }
+
+                    const passCountForLang = (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) + 1;
+                    const historyData = {
+                        phraseText: referenceText,
+                        [`passCountPerLang.${toLanguage}`]: passCountForLang,
+                        [`lastAttemptPerLang.${toLanguage}`]: serverTimestamp(),
+                        [`lastAccuracyPerLang.${toLanguage}`]: accuracy
+                    };
+                    transaction.set(historyDocRef, historyData, { merge: true });
+
+                    if (passCountForLang > 0 && passCountForLang % practiceThreshold === 0) {
+                        transaction.update(userDocRef, { tokenBalance: increment(practiceReward) });
+                        transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { tokensEarned: increment(practiceReward) } } } } }, { merge: true });
+                        
+                        const logRef = collection(db, `users/${user.uid}/transactionLogs`);
+                        const newLogRef = doc(logRef);
+                        transaction.set(newLogRef, { actionType: 'practice_earn', tokenChange: practiceReward, timestamp: serverTimestamp(), description: `Earned for mastering: "${referenceText}" in ${toLanguage}` });
+                        
+                        toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
+                    }
+                }
             });
 
-            if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
-                const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-                if (!jsonString) return;
-
-                const assessment = JSON.parse(jsonString).NBest?.[0]?.PronunciationAssessment;
-                if (!assessment) return;
-
-                const accuracyScore = assessment.AccuracyScore;
-                const isPass = accuracyScore > 70;
-                
-                const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: assessment.FluencyScore };
-                setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
-                
-                await runTransaction(db, async (transaction) => {
-                    const userDocRef = doc(db, 'users', user.uid);
-                    const userDoc = await transaction.get(userDocRef);
-                    if (!userDoc.exists()) throw new Error("User document not found");
-
-                    const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
-                    const historySnap = await transaction.get(historyDocRef);
-
-                    const practicedKey = `${phraseId}-${toLanguage}`;
-                    if (!practicedPhrasesRef.current.has(practicedKey)) {
-                         transaction.set(userDocRef, { practiceStats: { byLanguage: { [toLanguage]: { practiced: increment(1) } } } }, { merge: true });
-                        practicedPhrasesRef.current.add(practicedKey);
-                    }
-
-                    if (isPass) {
-                        const hadPassedBeforeForLang = historySnap.exists() && (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) > 0;
-                        
-                        if (!hadPassedBeforeForLang) {
-                            transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { correct: increment(1) } } }, byLanguage: { [toLanguage]: { correct: increment(1) } } } }, { merge: true });
-                        }
-
-                        const passCountForLang = (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) + 1;
-                        const historyData = {
-                            phraseText: referenceText,
-                            [`passCountPerLang.${toLanguage}`]: passCountForLang,
-                            [`lastAttemptPerLang.${toLanguage}`]: serverTimestamp(),
-                            [`lastAccuracyPerLang.${toLanguage}`]: accuracyScore
-                        };
-                        transaction.set(historyDocRef, historyData, { merge: true });
-
-                        if (passCountForLang > 0 && passCountForLang % practiceThreshold === 0) {
-                            transaction.update(userDocRef, { tokenBalance: increment(practiceReward) });
-                            transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { tokensEarned: increment(practiceReward) } } } } }, { merge: true });
-                            
-                            const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                            const newLogRef = doc(logRef);
-                            transaction.set(newLogRef, { actionType: 'practice_earn', tokenChange: practiceReward, timestamp: serverTimestamp(), description: `Earned for mastering: "${referenceText}" in ${toLanguage}` });
-                            
-                            toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
-                        }
-                    }
-                });
-            } else {
-                 toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}` });
-            }
-
-        } catch (error) {
+        } catch (error: any) {
             console.error("[assessPronunciation] Error:", error);
-            toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.`});
+            toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
         } finally {
-            if (recognizer) {
-                recognizer.close();
-            }
             setAssessingPhraseId(null);
         }
     };
@@ -432,7 +394,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                                     <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
-                                                <Button size="icon" variant="ghost" onClick={() => assessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>

@@ -9,14 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
+import { recognizeFromMic, assessPronunciationFromMic } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, addDoc, collection, serverTimestamp, onSnapshot, query } from 'firebase/firestore';
+import { doc, runTransaction, addDoc, collection, serverTimestamp, onSnapshot, query, setDoc } from 'firebase/firestore';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 
@@ -91,7 +91,11 @@ export default function LiveTranslationContent() {
     }, []);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setPracticeHistoryStats({});
+            return;
+        };
+
         const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
         const q = query(historyRef);
 
@@ -109,7 +113,6 @@ export default function LiveTranslationContent() {
             console.error("Error listening to practice history:", error);
         });
 
-        // Cleanup listener on component unmount
         return () => unsubscribe();
     }, [user]);
 
@@ -167,7 +170,8 @@ export default function LiveTranslationContent() {
                 transaction.update(userDocRef, { tokenBalance: newBalance });
                 
                 const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                addDoc(logRef, {
+                const newLogRef = doc(logRef); // auto-generate ID
+                transaction.set(newLogRef, {
                     actionType: 'translation_spend',
                     tokenChange: -translationCost,
                     timestamp: serverTimestamp(),
@@ -190,153 +194,69 @@ export default function LiveTranslationContent() {
         }
     };
 
-    const recognizeFromMicrophone = async () => {
+    const doRecognizeFromMicrophone = async () => {
         if (isRecognizing) return;
         
-        const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-        const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-    
-        if (!azureKey || !azureRegion) {
-            toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
-            return;
-        }
-
-        const locale = languageToLocaleMap[fromLanguage];
-        if (!locale) {
-            toast({ variant: 'destructive', title: 'Unsupported Language' });
-            return;
-        }
-
         setIsRecognizing(true);
-        let recognizer: sdk.SpeechRecognizer | null = null;
-
         try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-            speechConfig.speechRecognitionLanguage = locale;
-            const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer!.recognizeOnceAsync(resolve, reject);
-            });
-
-            if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                setInputText(result.text);
-            } else {
-                 toast({ variant: 'destructive', title: 'Recognition Failed', description: `Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}` });
-            }
-        } catch (error) {
+            const recognizedText = await recognizeFromMic(fromLanguage);
+            setInputText(recognizedText);
+        } catch (error: any) {
             console.error("Error during speech recognition:", error);
-            toast({ variant: 'destructive', title: 'Recognition Error' });
+            toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
         } finally {
-            if (recognizer) {
-                recognizer.close();
-            }
             setIsRecognizing(false);
         }
     }
 
-   const assessPronunciation = async (referenceText: string, lang: LanguageCode, phraseId: string) => {
+   const doAssessPronunciation = async (referenceText: string, lang: LanguageCode, phraseId: string) => {
     if (!user || !settings) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
         return;
     }
-    const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-    const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-
-    if (!azureKey || !azureRegion) {
-      toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
-      return;
-    }
-
-    const locale = languageToLocaleMap[lang];
-    if (!locale) {
-      toast({ variant: 'destructive', title: 'Unsupported Language' });
-      return;
-    }
     
     setAssessingPhraseId(phraseId);
-
-    let recognizer: sdk.SpeechRecognizer | undefined;
     let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
     
     try {
-      const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-      speechConfig.speechRecognitionLanguage = locale;
-      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-      
-      const pronunciationConfigJson = JSON.stringify({
-          referenceText: `${referenceText}.`,
-          gradingSystem: "HundredMark",
-          granularity: "Phoneme",
-          enableMiscue: true,
-      });
-
-      const pronunciationConfig = sdk.PronunciationAssessmentConfig.fromJSON(pronunciationConfigJson);
-      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-      pronunciationConfig.applyTo(recognizer);
-
-      const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-        recognizer!.recognizeOnceAsync(resolve, reject);
-      });
-      
-      if (result && result.reason === sdk.ResultReason.RecognizedSpeech) {
-        const jsonString = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
-        
-        if (jsonString) {
-          const parsedResult = JSON.parse(jsonString);
-          const assessment = parsedResult.NBest?.[0]?.PronunciationAssessment;
-
-          if (assessment) {
-            const accuracyScore = assessment.AccuracyScore;
-            const fluencyScore = assessment.FluencyScore;
-            const isPass = accuracyScore > 70;
-            finalResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
+        const assessment = await assessPronunciationFromMic(referenceText, lang);
+        const { isPass, accuracy, fluency } = assessment;
+        finalResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
             
-            await runTransaction(db, async (transaction) => {
-                 const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
-                 const historySnap = await transaction.get(historyDocRef);
-                 const passCountForLang = (historySnap.data()?.passCountPerLang?.[lang] || 0) + (isPass ? 1 : 0);
-                 const failCountForLang = (historySnap.data()?.failCountPerLang?.[lang] || 0) + (isPass ? 0 : 1);
+        await runTransaction(db, async (transaction) => {
+                const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
+                const historySnap = await transaction.get(historyDocRef);
+                const passCountForLang = (historySnap.data()?.passCountPerLang?.[lang] || 0) + (isPass ? 1 : 0);
+                const failCountForLang = (historySnap.data()?.failCountPerLang?.[lang] || 0) + (isPass ? 0 : 1);
 
+                const historyData = {
+                phraseText: referenceText,
+                [`passCountPerLang.${lang}`]: passCountForLang,
+                [`failCountPerLang.${lang}`]: failCountForLang,
+                [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
+                [`lastAccuracyPerLang.${lang}`]: accuracy
+                };
+                transaction.set(historyDocRef, historyData, { merge: true });
 
-                 const historyData = {
-                    phraseText: referenceText,
-                    [`passCountPerLang.${lang}`]: passCountForLang,
-                    [`failCountPerLang.${lang}`]: failCountForLang,
-                    [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
-                    [`lastAccuracyPerLang.${lang}`]: accuracyScore
-                 };
-                 transaction.set(historyDocRef, historyData, { merge: true });
-
-                 if (isPass && passCountForLang > 0 && passCountForLang % settings.practiceThreshold === 0) {
-                     const userDocRef = doc(db, 'users', user.uid);
-                     const userDoc = await transaction.get(userDocRef);
-                     if (userDoc.exists()) {
-                        transaction.update(userDocRef, { tokenBalance: (userDoc.data().tokenBalance || 0) + settings.practiceReward });
-                     }
-
-                     const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                     const newLogRef = doc(logRef);
-                     transaction.set(newLogRef, {
-                        actionType: 'practice_earn',
-                        tokenChange: settings.practiceReward,
-                        timestamp: serverTimestamp(),
-                        description: `Earned for mastering a saved phrase.`
-                    });
-                    toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
-                 }
-            });
-          }
-        }
-      } else {
-        toast({ variant: 'destructive', title: 'Assessment Failed', description: `Reason: ${sdk.ResultReason[result.reason]}` });
-      }
-    } catch (error) {
+                if (isPass && passCountForLang > 0 && passCountForLang % settings.practiceThreshold === 0) {
+                    const userDocRef = doc(db, 'users', user.uid);
+                    transaction.update(userDocRef, { tokenBalance: (userDoc.data()?.tokenBalance || 0) + settings.practiceReward });
+                    
+                    const logRef = collection(db, `users/${user.uid}/transactionLogs`);
+                    const newLogRef = doc(logRef);
+                    transaction.set(newLogRef, {
+                    actionType: 'practice_earn',
+                    tokenChange: settings.practiceReward,
+                    timestamp: serverTimestamp(),
+                    description: `Earned for mastering a saved phrase.`
+                });
+                toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
+                }
+        });
+    } catch (error: any) {
       console.error("Error during assessment:", error);
-      toast({ variant: 'destructive', title: 'Assessment Error' });
+      toast({ variant: 'destructive', title: 'Assessment Error', description: error.message });
     } finally {
-      if (recognizer) recognizer.close();
       setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
       setAssessingPhraseId(null);
     }
@@ -422,7 +342,7 @@ export default function LiveTranslationContent() {
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="from-language-live">{languages.find(l => l.value === fromLanguage)?.label}</Label>
-                                <Button size="icon" variant="ghost" onClick={recognizeFromMicrophone} disabled={isRecognizing || !!assessingPhraseId}>
+                                <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={isRecognizing || !!assessingPhraseId}>
                                     {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                     <span className="sr-only">Record from microphone</span>
                                 </Button>
@@ -496,7 +416,7 @@ export default function LiveTranslationContent() {
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                 </Button>
-                                                <Button size="icon" variant="ghost" onClick={() => assessPronunciation(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                     <span className="sr-only">Practice</span>
                                                 </Button>

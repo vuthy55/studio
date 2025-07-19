@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
+import { recognizeWithAutoDetect } from '@/services/speech';
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
@@ -42,76 +42,44 @@ export default function GroupConverseContent() {
   };
   
   const startConversation = async () => {
-    const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
-    const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
-
-    if (!azureKey || !azureRegion) {
-        toast({ variant: 'destructive', title: 'Configuration Error', description: 'Azure credentials are not configured.' });
-        setStatus('error');
-        return;
-    }
-
     setStatus('listening');
-    let recognizer: sdk.SpeechRecognizer | null = null;
     
     try {
-        const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
-        const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-        const autoDetectSourceLanguageConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(selectedLanguages);
-
-        recognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectSourceLanguageConfig, audioConfig);
+        const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
         
-        const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-          recognizer!.recognizeOnceAsync(resolve, reject);
-        });
-
-        if (result.reason === sdk.ResultReason.RecognizedSpeech) {
-            setStatus('speaking');
+        setStatus('speaking');
+        
+        const fromLangLabel = getAzureLanguageLabel(detectedLang);
+        setLastSpoken({ lang: fromLangLabel, text: originalText });
+        
+        const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
+        
+        for (const targetLangLocale of targetLanguages) {
+            const toLangLabel = getAzureLanguageLabel(targetLangLocale);
             
-            const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
-            const detectedLangLocale = autoDetectResult.language;
-            const originalText = result.text;
+            const translationResult = await translateText({
+                text: originalText,
+                fromLanguage: fromLangLabel,
+                toLanguage: toLangLabel,
+            });
+            const translatedText = translationResult.translatedText;
             
-            const fromLangLabel = getAzureLanguageLabel(detectedLangLocale);
-            setLastSpoken({ lang: fromLangLabel, text: originalText });
-            
-            const targetLanguages = selectedLanguages.filter(l => l !== detectedLangLocale);
-            
-            for (const targetLangLocale of targetLanguages) {
-                const toLangLabel = getAzureLanguageLabel(targetLangLocale);
-                
-                const translationResult = await translateText({
-                    text: originalText,
-                    fromLanguage: fromLangLabel,
-                    toLanguage: toLangLabel,
-                });
-                const translatedText = translationResult.translatedText;
-                
-                const { audioDataUri } = await generateSpeech({ 
-                  text: translatedText, 
-                  lang: targetLangLocale 
-                });
-                const audio = new Audio(audioDataUri);
-                await audio.play();
-                // Wait for the audio to finish playing before proceeding to the next one
-                await new Promise(resolve => {
-                    audio.onended = resolve;
-                    audio.onerror = resolve; // also resolve on error to not block the loop
-                });
-            }
-        } else {
-            const errorDetails = result.errorDetails || "No speech could be recognized.";
-            toast({ variant: 'destructive', title: 'Recognition Failed', description: errorDetails });
+            const { audioDataUri } = await generateSpeech({ 
+                text: translatedText, 
+                lang: targetLangLocale 
+            });
+            const audio = new Audio(audioDataUri);
+            await audio.play();
+            await new Promise(resolve => {
+                audio.onended = resolve;
+                audio.onerror = resolve; // also resolve on error to not block the loop
+            });
         }
-
     } catch (error: any) {
         console.error("Error during conversation turn:", error);
         toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
         setStatus('error');
     } finally {
-        if (recognizer) {
-            recognizer.close();
-        }
         setStatus('idle');
     }
   };
