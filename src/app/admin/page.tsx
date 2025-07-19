@@ -65,22 +65,42 @@ function UsersTabContent() {
         try {
             const usersRef = collection(db, 'users');
             
-            console.log(`[DEBUG] Executing query for searchableEmail >= "${normalizedSearch}" and <= "${normalizedSearch + '\uf8ff'}"`);
+            // Query for email
             const emailQuery = query(usersRef, 
                 where("searchableEmail", ">=", normalizedSearch),
                 where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
             );
             
-            const querySnapshot = await getDocs(emailQuery);
-            console.log(`[DEBUG] Query completed. Found ${querySnapshot.docs.length} documents.`);
+            // Query for name
+            const nameQuery = query(usersRef,
+                where("searchableName", ">=", normalizedSearch),
+                where("searchableName", "<=", normalizedSearch + '\uf8ff')
+            );
             
-            const foundUsers = querySnapshot.docs.map(doc => {
-                const userData = { id: doc.id, ...doc.data() } as UserWithId;
-                console.log("[DEBUG] User data:", userData);
-                return userData;
-            });
+            console.log(`[DEBUG] Executing queries for name and email.`);
+            const [emailSnapshot, nameSnapshot] = await Promise.all([
+                getDocs(emailQuery),
+                getDocs(nameQuery),
+            ]);
+            console.log(`[DEBUG] Email query found ${emailSnapshot.docs.length} docs. Name query found ${nameSnapshot.docs.length} docs.`);
+
+            const foundUsersMap = new Map<string, UserWithId>();
+
+            const processSnapshot = (snapshot: any) => {
+                 snapshot.docs.forEach((doc: any) => {
+                    if (!foundUsersMap.has(doc.id)) {
+                        foundUsersMap.set(doc.id, { id: doc.id, ...doc.data() } as UserWithId);
+                    }
+                });
+            }
+
+            processSnapshot(emailSnapshot);
+            processSnapshot(nameSnapshot);
             
-            setUsers(foundUsers);
+            const combinedUsers = Array.from(foundUsersMap.values());
+            console.log(`[DEBUG] Combined unique users: ${combinedUsers.length}`);
+
+            setUsers(combinedUsers);
 
         } catch (error: any) {
             console.error("[DEBUG] Error fetching users:", error);
@@ -117,11 +137,11 @@ function UsersTabContent() {
         <Card>
             <CardHeader>
                 <CardTitle>Users</CardTitle>
-                <CardDescription>Search for a user by their email address.</CardDescription>
+                <CardDescription>Search for a user by their name or email address.</CardDescription>
                  <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input
-                        placeholder="Search by email..."
+                        placeholder="Search by name or email..."
                         className="pl-10"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -165,7 +185,7 @@ function UsersTabContent() {
                              ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
-                                        {hasSearched ? 'No users found.' : 'Enter a user\'s email to begin your search.'}
+                                        {hasSearched ? 'No users found.' : 'Enter a user\'s name or email to begin your search.'}
                                     </TableCell>
                                 </TableRow>
                             )}
