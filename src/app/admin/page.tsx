@@ -50,7 +50,10 @@ function UsersTabContent() {
 
      const fetchUsers = useCallback(async (search = '') => {
         const normalizedSearch = search.toLowerCase().trim();
+        console.log(`[DEBUG] Starting fetchUsers with search term: "${search}", normalized to: "${normalizedSearch}"`);
+
         if (!normalizedSearch) {
+            console.log("[DEBUG] Search term is empty. Clearing users and returning.");
             setUsers([]);
             setHasSearched(false);
             return;
@@ -62,19 +65,25 @@ function UsersTabContent() {
         try {
             const usersRef = collection(db, 'users');
             
-            // Simplified query: Search only by email
+            console.log(`[DEBUG] Executing query for searchableEmail >= "${normalizedSearch}" and <= "${normalizedSearch + '\uf8ff'}"`);
             const emailQuery = query(usersRef, 
                 where("searchableEmail", ">=", normalizedSearch),
                 where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
             );
             
             const querySnapshot = await getDocs(emailQuery);
-            const foundUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+            console.log(`[DEBUG] Query completed. Found ${querySnapshot.docs.length} documents.`);
+            
+            const foundUsers = querySnapshot.docs.map(doc => {
+                const userData = { id: doc.id, ...doc.data() } as UserWithId;
+                console.log("[DEBUG] User data:", userData);
+                return userData;
+            });
             
             setUsers(foundUsers);
 
         } catch (error: any) {
-            console.error("Error fetching users:", error);
+            console.error("[DEBUG] Error fetching users:", error);
             if (error.code === 'failed-precondition') {
                  toast({ 
                     variant: "destructive", 
