@@ -26,6 +26,8 @@ export interface UserProfile {
   mobile?: string;
   role?: 'admin' | 'user';
   tokenBalance?: number;
+  searchableName?: string;
+  searchableEmail?: string;
 }
 
 export default function ProfilePage() {
@@ -122,6 +124,8 @@ export default function ProfilePage() {
                 email: user.email, 
                 role: role || 'user',
                 tokenBalance: tokenBalance || 0,
+                searchableName: (name || '').toLowerCase(),
+                searchableEmail: (user.email!).toLowerCase(),
             };
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });

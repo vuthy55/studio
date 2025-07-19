@@ -67,14 +67,19 @@ function UsersTabContent() {
             let finalUsers: UserWithId[] = [];
             let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
             let moreToLoad = true;
+            
+            const normalizedSearch = search.toLowerCase();
 
-            if (search) {
+            if (normalizedSearch) {
                 // Perform two separate queries and merge the results
                 const nameQuery = query(usersRef, 
-                    where("name", ">=", search),
-                    where("name", "<=", search + '\uf8ff')
+                    where("searchableName", ">=", normalizedSearch),
+                    where("searchableName", "<=", normalizedSearch + '\uf8ff')
                 );
-                const emailQuery = query(usersRef, where("email", "==", search));
+                const emailQuery = query(usersRef, 
+                    where("searchableEmail", ">=", normalizedSearch),
+                    where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
+                );
 
                 const [nameSnapshot, emailSnapshot] = await Promise.all([
                     getDocs(nameQuery),

@@ -114,7 +114,16 @@ export default function UserDetailPage() {
             const userDocRef = doc(db, 'users', userId);
             const { name, email, country, mobile, role, tokenBalance } = profile;
             
-            await setDoc(userDocRef, { name, email, country, mobile, role, tokenBalance }, { merge: true });
+            await setDoc(userDocRef, { 
+                name, 
+                email, 
+                country, 
+                mobile, 
+                role, 
+                tokenBalance,
+                searchableName: (name || '').toLowerCase(),
+                searchableEmail: (email || '').toLowerCase()
+            }, { merge: true });
             
             toast({ title: 'Success', description: 'User profile updated successfully.' });
         } catch (error: any) {

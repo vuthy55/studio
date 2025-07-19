@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -62,6 +63,8 @@ export default function LoginPage() {
         email: user.email!,
         role: existingData.role || 'user',
         tokenBalance: existingData.tokenBalance ?? (isNewUser ? signupBonus : 0),
+        searchableName: (data.name || '').toLowerCase(),
+        searchableEmail: (user.email!).toLowerCase(),
     };
 
     await setDoc(userDocRef, dataToSave, { merge: true });
@@ -88,9 +91,11 @@ export default function LoginPage() {
       const userDocRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userDocRef);
       const isNewUser = !docSnap.exists();
+      
+      const displayName = user.displayName || 'New User';
 
       await updateUserProfileInFirestore(user, {
-          name: user.displayName || 'New User',
+          name: displayName,
           country: '', 
           mobile: user.phoneNumber || '',
       }, isNewUser);
