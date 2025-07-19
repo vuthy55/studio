@@ -470,7 +470,7 @@ export default function LearnPageContent() {
                             }}
                             className="w-full"
                         >
-                            <TabsList className="grid w-full grid-cols-5">
+                            <TabsList className="grid w-full grid-cols-5 bg-transparent p-0">
                                 {phrasebook.map(topic => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                         <Tooltip>
