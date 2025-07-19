@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, where } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,10 +49,10 @@ function UsersTabContent() {
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
      const fetchUsers = useCallback(async (search = '') => {
-        if (!search) {
+        const normalizedSearch = search.toLowerCase().trim();
+        if (!normalizedSearch) {
             setUsers([]);
-            setIsLoading(false);
-            setHasSearched(true);
+            setHasSearched(false);
             return;
         }
 
@@ -61,33 +61,17 @@ function UsersTabContent() {
         
         try {
             const usersRef = collection(db, 'users');
-            const normalizedSearch = search.toLowerCase();
-
-            // Perform two separate queries and merge the results
-            const nameQuery = query(usersRef, 
-                where("searchableName", ">=", normalizedSearch),
-                where("searchableName", "<=", normalizedSearch + '\uf8ff')
-            );
+            
+            // Simplified query: Search only by email
             const emailQuery = query(usersRef, 
                 where("searchableEmail", ">=", normalizedSearch),
                 where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
             );
-
-            const [nameSnapshot, emailSnapshot] = await Promise.all([
-                getDocs(nameQuery),
-                getDocs(emailQuery)
-            ]);
-
-            const nameResults = nameSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
-            const emailResults = emailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
-
-            // Merge and deduplicate results
-            const allResults = [...nameResults, ...emailResults];
-            const uniqueUsers = new Map<string, UserWithId>();
-            allResults.forEach(user => uniqueUsers.set(user.id, user));
             
-            const finalUsers = Array.from(uniqueUsers.values());
-            setUsers(finalUsers);
+            const querySnapshot = await getDocs(emailQuery);
+            const foundUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+            
+            setUsers(foundUsers);
 
         } catch (error: any) {
             console.error("Error fetching users:", error);
@@ -112,14 +96,7 @@ function UsersTabContent() {
     }, [toast]);
     
     useEffect(() => {
-        // Only trigger search if there is a search term.
-        if (debouncedSearchTerm) {
-            fetchUsers(debouncedSearchTerm);
-        } else {
-            // Clear results if search term is cleared
-            setUsers([]);
-            setHasSearched(false);
-        }
+        fetchUsers(debouncedSearchTerm);
     }, [debouncedSearchTerm, fetchUsers]);
 
 
@@ -131,11 +108,11 @@ function UsersTabContent() {
         <Card>
             <CardHeader>
                 <CardTitle>Users</CardTitle>
-                <CardDescription>A list of all users in the system. Click a user to view and edit their details.</CardDescription>
+                <CardDescription>Search for a user by their email address.</CardDescription>
                  <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input
-                        placeholder="Search by name or email..."
+                        placeholder="Search by email..."
                         className="pl-10"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -179,7 +156,7 @@ function UsersTabContent() {
                              ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
-                                        {hasSearched ? 'No users found.' : 'Enter a name or email to begin your search.'}
+                                        {hasSearched ? 'No users found.' : 'Enter a user\'s email to begin your search.'}
                                     </TableCell>
                                 </TableRow>
                             )}
