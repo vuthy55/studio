@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -19,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, getDocs } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 
@@ -44,6 +45,7 @@ export default function LearnPageContent() {
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceHistory, setPracticeHistory] = useState<Record<string, PracticeHistory>>({});
     const [settings, setSettings] = useState<AppSettings | null>(null);
+    const [isFetchingHistory, setIsFetchingHistory] = useState(false);
 
     const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
 
@@ -62,49 +64,90 @@ export default function LearnPageContent() {
         }
     }, []);
 
-    // Load progress and selections from local storage on client-side mount
+    // Load progress from Firestore for logged-in users, or localStorage for guests
     useEffect(() => {
+        const fetchHistory = async () => {
+            if (user) {
+                setIsFetchingHistory(true);
+                try {
+                    const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
+                    const historySnapshot = await getDocs(historyRef);
+                    const fetchedHistory: Record<string, PracticeHistory> = {};
+                    const fetchedAssessments: Record<string, AssessmentResult> = {};
+
+                    historySnapshot.forEach(doc => {
+                        const data = doc.data() as PracticeHistory;
+                        fetchedHistory[doc.id] = data;
+                        if (data.lastAccuracy !== undefined) {
+                            fetchedAssessments[doc.id] = {
+                                status: data.lastAccuracy > 70 ? 'pass' : 'fail',
+                                accuracy: data.lastAccuracy,
+                                // Fluency is not stored, so we omit it or set to 0.
+                                fluency: 0
+                            };
+                        }
+                    });
+                    
+                    setPracticeHistory(fetchedHistory);
+                    setPhraseAssessments(fetchedAssessments);
+
+                } catch (error) {
+                    console.error("Failed to load practice history from Firestore:", error);
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load your practice history.' });
+                } finally {
+                    setIsFetchingHistory(false);
+                }
+            } else {
+                // Logic for logged-out users
+                try {
+                    const savedAssessments = localStorage.getItem('phraseAssessments');
+                    if (savedAssessments) setPhraseAssessments(JSON.parse(savedAssessments));
+                    
+                    const savedHistory = localStorage.getItem('practiceHistory');
+                    if (savedHistory) setPracticeHistory(JSON.parse(savedHistory));
+                } catch (error) {
+                    console.error("Failed to load progress from local storage", error);
+                }
+            }
+        };
+
+        fetchHistory();
+        
+        // Load non-progress related UI state from localStorage regardless of auth state
         try {
-            const savedAssessments = localStorage.getItem('phraseAssessments');
-            if (savedAssessments) {
-                setPhraseAssessments(JSON.parse(savedAssessments));
-            }
-            const savedHistory = localStorage.getItem('practiceHistory');
-             if (savedHistory) {
-                setPracticeHistory(JSON.parse(savedHistory));
-            }
             const savedTopicId = localStorage.getItem('selectedTopicId');
             if (savedTopicId) {
                 const savedTopic = phrasebook.find(t => t.id === savedTopicId);
-                if (savedTopic) {
-                    setSelectedTopic(savedTopic);
-                }
+                if (savedTopic) setSelectedTopic(savedTopic);
             }
             const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
-            if (savedVoice) {
-                setSelectedVoice(savedVoice);
-            }
+            if (savedVoice) setSelectedVoice(savedVoice);
         } catch (error) {
-            console.error("Failed to load progress from local storage", error);
+             console.error("Failed to load UI state from local storage", error);
         }
-    }, []);
 
-    // Save progress and selections to local storage whenever they change
+    }, [user, toast]);
+
+    // Save progress to localStorage for GUESTS ONLY
     useEffect(() => {
-        try {
-            localStorage.setItem('phraseAssessments', JSON.stringify(phraseAssessments));
-        } catch (error) {
-            console.error("Failed to save assessments to local storage", error);
+        if (!user) {
+            try {
+                localStorage.setItem('phraseAssessments', JSON.stringify(phraseAssessments));
+            } catch (error) {
+                console.error("Failed to save assessments to local storage", error);
+            }
         }
-    }, [phraseAssessments]);
+    }, [phraseAssessments, user]);
     
     useEffect(() => {
-        try {
-            localStorage.setItem('practiceHistory', JSON.stringify(practiceHistory));
-        } catch (error) {
-            console.error("Failed to save practice history to local storage", error);
+        if (!user) {
+            try {
+                localStorage.setItem('practiceHistory', JSON.stringify(practiceHistory));
+            } catch (error) {
+                console.error("Failed to save practice history to local storage", error);
+            }
         }
-    }, [practiceHistory]);
+    }, [practiceHistory, user]);
 
     useEffect(() => {
         localStorage.setItem('selectedTopicId', selectedTopic.id);
@@ -149,8 +192,8 @@ export default function LearnPageContent() {
         console.warn("[assessPronunciation] Recognizer is already active. Ignoring call.");
         return;
     }
-    if (!user || !settings) {
-        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
+    if (!settings) {
+        toast({ variant: 'destructive', title: 'Loading...', description: 'App settings are still loading. Please try again in a moment.' });
         return;
     }
 
@@ -205,7 +248,6 @@ export default function LearnPageContent() {
 
       recognizer.recognized = async (s, e) => {
         console.log("[SDK Event] Speech Recognized.", e);
-        let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
         if (e.result && e.result.reason === sdk.ResultReason.RecognizedSpeech) {
           const jsonString = e.result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
           if (jsonString) {
@@ -215,55 +257,54 @@ export default function LearnPageContent() {
               const accuracyScore = assessment.AccuracyScore;
               const fluencyScore = assessment.FluencyScore;
               const isPass = accuracyScore > 70;
-              finalResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
               
+              // Optimistic UI Update
+              const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
               const currentHistory = practiceHistory[phraseId] || { passCount: 0, failCount: 0, phraseText: referenceText, lang: toLanguage };
               const newPassCount = currentHistory.passCount + (isPass ? 1 : 0);
-
               const newHistory: PracticeHistory = {
                  ...currentHistory,
                  passCount: newPassCount,
                  failCount: currentHistory.failCount + (isPass ? 0 : 1),
                  lastAttempt: new Date().toISOString(),
+                 lastAccuracy: accuracyScore,
               };
-              
               setPracticeHistory(prev => ({...prev, [phraseId]: newHistory}));
               setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
               
-              const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
-              const historyUpdate = {
-                  phraseText: referenceText,
-                  lang: toLanguage,
-                  passCount: increment(isPass ? 1 : 0),
-                  failCount: increment(isPass ? 0 : 1),
-                  lastAttempt: serverTimestamp(),
-                  lastAccuracy: accuracyScore,
-              };
-              
-              await setDoc(historyDocRef, historyUpdate, { merge: true });
+              // Background Firestore Update (for logged-in users)
+              if (user) {
+                  const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
+                  const historyUpdate = {
+                      phraseText: referenceText,
+                      lang: toLanguage,
+                      passCount: increment(isPass ? 1 : 0),
+                      failCount: increment(isPass ? 0 : 1),
+                      lastAttempt: serverTimestamp(),
+                      lastAccuracy: accuracyScore,
+                  };
+                  await setDoc(historyDocRef, historyUpdate, { merge: true });
 
-              if (isPass && newPassCount > 0 && newPassCount % practiceThreshold === 0) {
-                 try {
-                    const userDocRef = doc(db, 'users', user.uid);
-                    const logRef = doc(collection(db, `users/${user.uid}/transactionLogs`));
-                    const batch = writeBatch(db);
-                    const userDoc = await getDoc(userDocRef);
-                    if (!userDoc.exists()) throw "User document does not exist!";
-                    const currentBalance = userDoc.data().tokenBalance || 0;
-                    const newBalance = currentBalance + practiceReward;
-                    batch.update(userDocRef, { tokenBalance: newBalance });
-                    batch.set(logRef, {
-                        actionType: 'practice_earn',
-                        tokenChange: practiceReward,
-                        timestamp: serverTimestamp(),
-                        description: `Earned for mastering: "${referenceText}"`
-                    });
-                    await batch.commit();
-                    toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
-                } catch(err) {
-                    console.error("Token reward transaction failed: ", err);
-                    toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
-                }
+                  if (isPass && newPassCount > 0 && newPassCount % practiceThreshold === 0) {
+                     try {
+                        const userDocRef = doc(db, 'users', user.uid);
+                        const logRef = doc(collection(db, `users/${user.uid}/transactionLogs`));
+                        const batch = writeBatch(db);
+                        
+                        batch.update(userDocRef, { tokenBalance: increment(practiceReward) });
+                        batch.set(logRef, {
+                            actionType: 'practice_earn',
+                            tokenChange: practiceReward,
+                            timestamp: serverTimestamp(),
+                            description: `Earned for mastering: "${referenceText}"`
+                        });
+                        await batch.commit();
+                        toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
+                    } catch(err) {
+                        console.error("Token reward transaction failed: ", err);
+                        toast({variant: 'destructive', title: 'Transaction Failed', description: 'Could not award tokens.'})
+                    }
+                  }
               }
             }
           }
@@ -310,7 +351,7 @@ export default function LearnPageContent() {
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
-    if (!settings) {
+    if (!settings || isFetchingHistory) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -374,7 +415,7 @@ export default function LearnPageContent() {
                     <div className="space-y-2">
                          <div className="flex items-center gap-2">
                             <Label htmlFor="topic-select">Select a Topic</Label>
-                            <TooltipProvider>
+                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Info className="h-5 w-5 text-accent cursor-help" />
@@ -385,6 +426,7 @@ export default function LearnPageContent() {
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
                                             <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {settings.practiceThreshold} times earns you {settings.practiceReward} token!</li>
+                                            { !user && <li className="font-bold">Log in to save your progress permanently!</li> }
                                         </ul>
                                     </TooltipContent>
                                 </Tooltip>
@@ -498,3 +540,5 @@ export default function LearnPageContent() {
         </Card>
     );
 }
+
+    
