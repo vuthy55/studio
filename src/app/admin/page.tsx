@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, doc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData, where } from 'firebase/firestore';
+import { collection, query, getDocs, where } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +24,6 @@ interface UserWithId extends UserProfile {
     id: string;
 }
 
-const USERS_PER_PAGE = 20;
-
 function useDebounce(value: string, delay: number) {
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
@@ -43,80 +41,53 @@ function useDebounce(value: string, delay: number) {
 function UsersTabContent() {
     const router = useRouter();
     const [users, setUsers] = useState<UserWithId[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-    const [isFetchingNext, setIsFetchingNext] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     
     const [searchTerm, setSearchTerm] = useState('');
+    const [hasSearched, setHasSearched] = useState(false);
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
-    const [isSearching, setIsSearching] = useState(false);
 
-     const fetchUsers = useCallback(async (loadMore = false, search = '') => {
-        if (loadMore) {
-            setIsFetchingNext(true);
-        } else {
-            setIsLoading(true);
+     const fetchUsers = useCallback(async (search = '') => {
+        if (!search) {
             setUsers([]);
-            setLastVisible(null);
+            setIsLoading(false);
+            setHasSearched(true);
+            return;
         }
+
+        setIsLoading(true);
+        setHasSearched(true);
         
         try {
             const usersRef = collection(db, 'users');
-            let finalUsers: UserWithId[] = [];
-            let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
-            let moreToLoad = true;
-            
             const normalizedSearch = search.toLowerCase();
 
-            if (normalizedSearch) {
-                // Perform two separate queries and merge the results
-                const nameQuery = query(usersRef, 
-                    where("searchableName", ">=", normalizedSearch),
-                    where("searchableName", "<=", normalizedSearch + '\uf8ff')
-                );
-                const emailQuery = query(usersRef, 
-                    where("searchableEmail", ">=", normalizedSearch),
-                    where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
-                );
+            // Perform two separate queries and merge the results
+            const nameQuery = query(usersRef, 
+                where("searchableName", ">=", normalizedSearch),
+                where("searchableName", "<=", normalizedSearch + '\uf8ff')
+            );
+            const emailQuery = query(usersRef, 
+                where("searchableEmail", ">=", normalizedSearch),
+                where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
+            );
 
-                const [nameSnapshot, emailSnapshot] = await Promise.all([
-                    getDocs(nameQuery),
-                    getDocs(emailQuery)
-                ]);
+            const [nameSnapshot, emailSnapshot] = await Promise.all([
+                getDocs(nameQuery),
+                getDocs(emailQuery)
+            ]);
 
-                const nameResults = nameSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
-                const emailResults = emailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+            const nameResults = nameSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
+            const emailResults = emailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
 
-                // Merge and deduplicate results
-                const allResults = [...nameResults, ...emailResults];
-                const uniqueUsers = new Map<string, UserWithId>();
-                allResults.forEach(user => uniqueUsers.set(user.id, user));
-                
-                finalUsers = Array.from(uniqueUsers.values());
-                moreToLoad = false; // Disable pagination for search results
-            } else {
-                let q;
-                if (loadMore && lastVisible) {
-                    q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
-                } else {
-                    q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
-                }
-                const querySnapshot = await getDocs(q);
-                finalUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
-                lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-                moreToLoad = querySnapshot.docs.length === USERS_PER_PAGE;
-            }
+            // Merge and deduplicate results
+            const allResults = [...nameResults, ...emailResults];
+            const uniqueUsers = new Map<string, UserWithId>();
+            allResults.forEach(user => uniqueUsers.set(user.id, user));
             
-            setLastVisible(lastDoc || null);
-            setHasMore(moreToLoad);
-            
-            if (loadMore) {
-                setUsers(prev => [...prev, ...finalUsers]);
-            } else {
-                setUsers(finalUsers);
-            }
+            const finalUsers = Array.from(uniqueUsers.values());
+            setUsers(finalUsers);
 
         } catch (error: any) {
             console.error("Error fetching users:", error);
@@ -137,29 +108,24 @@ function UsersTabContent() {
             }
         } finally {
             setIsLoading(false);
-            setIsFetchingNext(false);
-            setIsSearching(false);
         }
-    }, [lastVisible, toast]);
+    }, [toast]);
     
     useEffect(() => {
-        setIsSearching(true);
-        fetchUsers(false, debouncedSearchTerm);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearchTerm]);
+        // Only trigger search if there is a search term.
+        if (debouncedSearchTerm) {
+            fetchUsers(debouncedSearchTerm);
+        } else {
+            // Clear results if search term is cleared
+            setUsers([]);
+            setHasSearched(false);
+        }
+    }, [debouncedSearchTerm, fetchUsers]);
 
 
     const handleRowClick = (userId: string) => {
         router.push(`/admin/${userId}`);
     };
-
-    if (isLoading && !isSearching) {
-        return (
-            <div className="flex justify-center items-center py-10">
-                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
     
     return (
         <Card>
@@ -177,7 +143,7 @@ function UsersTabContent() {
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="border rounded-md">
+                <div className="border rounded-md min-h-[200px]">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -188,7 +154,7 @@ function UsersTabContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {(isLoading || isSearching) ? (
+                            {isLoading ? (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
                                          <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
@@ -213,20 +179,12 @@ function UsersTabContent() {
                              ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
-                                        No users found.
+                                        {hasSearched ? 'No users found.' : 'Enter a name or email to begin your search.'}
                                     </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
                     </Table>
-                </div>
-                 <div className="flex justify-center mt-6">
-                    {hasMore && !searchTerm && (
-                        <Button onClick={() => fetchUsers(true)} disabled={isFetchingNext}>
-                            {isFetchingNext ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Load More
-                        </Button>
-                    )}
                 </div>
             </CardContent>
         </Card>
@@ -363,5 +321,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
