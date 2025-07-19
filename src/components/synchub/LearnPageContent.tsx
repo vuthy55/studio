@@ -44,6 +44,12 @@ const getInitialState = <T,>(key: string, fallback: T, validator?: (value: any) 
         if (storedValue !== null) {
             // A try-catch block handles both raw strings and JSON strings gracefully.
             try {
+                 // The value for topic is a raw string, not JSON, so we shouldn't parse it.
+                if (key === 'selectedTopicId') {
+                    if (validator ? validator(storedValue) : true) {
+                        return storedValue as unknown as T;
+                    }
+                }
                 const parsed = JSON.parse(storedValue);
                  if (validator ? validator(parsed) : true) {
                     return parsed;
@@ -469,7 +475,7 @@ export default function LearnPageContent() {
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <TabsTrigger value={topic.id} className="w-full">
+                                                <TabsTrigger value={topic.id} className="w-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                                                     <topic.icon className="h-5 w-5" />
                                                 </TabsTrigger>
                                             </TooltipTrigger>
