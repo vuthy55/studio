@@ -51,10 +51,26 @@ export default function ProfilePage() {
             
             if (userDocSnap.exists()) {
                 const dbProfile = userDocSnap.data() as UserProfile;
-                // Ensure email from auth is always the source of truth
-                setProfile({ ...dbProfile, email: authEmail });
+                const profileWithAuthEmail = { ...dbProfile, email: authEmail };
+                setProfile(profileWithAuthEmail);
+
+                // **Data Migration Logic**
+                // Check if searchable fields are missing and add them if necessary.
+                if (!dbProfile.searchableName || !dbProfile.searchableEmail) {
+                    console.log(`[Data Migration] User ${uid} is missing searchable fields. Patching now.`);
+                    const dataToPatch = {
+                        searchableName: (dbProfile.name || user.displayName || '').toLowerCase(),
+                        searchableEmail: (authEmail).toLowerCase(),
+                    };
+                    await setDoc(userDocRef, dataToPatch, { merge: true });
+                    // Update local state as well to reflect the change immediately
+                    setProfile(prev => ({...prev, ...dataToPatch}));
+                    console.log(`[Data Migration] Successfully patched user ${uid}.`);
+                }
+
             } else {
                 // If no profile exists, create a basic one to be saved.
+                // This branch is mostly for edge cases, as signup flow creates the doc.
                 setProfile({
                     name: user.displayName || '',
                     email: authEmail,
