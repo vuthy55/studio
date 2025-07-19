@@ -39,6 +39,15 @@ export type Topic = {
     phrases: Phrase[];
 };
 
+export type PracticeHistory = {
+    phraseText: string;
+    lang: LanguageCode;
+    passCount: number;
+    failCount: number;
+    lastAttempt?: string; // ISO string date
+    lastAccuracy?: number;
+};
+
 export const phrasebook: Topic[] = [
     {
         id: 'questions',
@@ -238,3 +247,5 @@ export const phrasebook: Topic[] = [
         ]
     }
 ];
+
+    

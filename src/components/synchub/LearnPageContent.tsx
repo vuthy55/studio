@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { languages, phrasebook, type LanguageCode, type Topic } from '@/lib/data';
+import { languages, phrasebook, type LanguageCode, type Topic, type PracticeHistory } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -31,11 +31,6 @@ type AssessmentResult = {
   accuracy?: number;
   fluency?: number;
 };
-
-type PracticeStats = {
-    pass: number;
-    fail: number;
-}
 
 const PRACTICE_TO_EARN_THRESHOLD = 3;
 const PRACTICE_EARN_REWARD = 1;
@@ -51,7 +46,7 @@ export default function LearnPageContent() {
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
-    const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
+    const [practiceHistory, setPracticeHistory] = useState<Record<string, PracticeHistory>>({});
 
     const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
     
@@ -73,9 +68,9 @@ export default function LearnPageContent() {
             if (savedAssessments) {
                 setPhraseAssessments(JSON.parse(savedAssessments));
             }
-            const savedStats = localStorage.getItem('practiceStats');
-            if (savedStats) {
-                setPracticeStats(JSON.parse(savedStats));
+            const savedHistory = localStorage.getItem('practiceHistory');
+             if (savedHistory) {
+                setPracticeHistory(JSON.parse(savedHistory));
             }
             const savedTopicId = localStorage.getItem('selectedTopicId');
             if (savedTopicId) {
@@ -101,15 +96,15 @@ export default function LearnPageContent() {
             console.error("Failed to save assessments to local storage", error);
         }
     }, [phraseAssessments]);
-
+    
     useEffect(() => {
         try {
-            localStorage.setItem('practiceStats', JSON.stringify(practiceStats));
+            localStorage.setItem('practiceHistory', JSON.stringify(practiceHistory));
         } catch (error) {
-            console.error("Failed to save stats to local storage", error);
+            console.error("Failed to save practice history to local storage", error);
         }
-    }, [practiceStats]);
-    
+    }, [practiceHistory]);
+
     useEffect(() => {
         localStorage.setItem('selectedTopicId', selectedTopic.id);
     }, [selectedTopic]);
@@ -148,9 +143,9 @@ export default function LearnPageContent() {
     lang: LanguageCode,
     phraseId: string,
   ) => {
-    console.log(`assessPronunciation called for phraseId: ${phraseId}`);
+    console.log(`[assessPronunciation] Called for phraseId: ${phraseId}`);
     if (recognizerRef.current) {
-        console.log("Recognizer is already active. Ignoring call.");
+        console.warn("[assessPronunciation] Recognizer is already active. Ignoring call.");
         return;
     }
     if (!user) {
@@ -173,7 +168,7 @@ export default function LearnPageContent() {
     }
     
     try {
-      console.log("Creating new SpeechRecognizer...");
+      console.log("[assessPronunciation] Creating new SpeechRecognizer...");
       const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
       speechConfig.speechRecognitionLanguage = locale;
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -192,22 +187,22 @@ export default function LearnPageContent() {
       recognizerRef.current = recognizer;
 
       recognizer.sessionStarted = (s, e) => {
-        console.log("Recognizer session started.", e);
+        console.log("[SDK Event] Session Started. Setting assessingPhraseId:", phraseId);
         setAssessingPhraseId(phraseId);
       };
       
       recognizer.sessionStopped = (s, e) => {
-        console.log("Recognizer session stopped.", e);
+        console.log("[SDK Event] Session Stopped.");
         setAssessingPhraseId(null);
         if (recognizerRef.current) {
+            console.log("[SDK Event] Closing recognizer instance.");
             recognizerRef.current.close();
             recognizerRef.current = null;
-            console.log("Recognizer instance closed and cleared from ref.");
         }
       };
 
       recognizer.recognized = async (s, e) => {
-        console.log("Speech recognized event.", e);
+        console.log("[SDK Event] Speech Recognized.", e);
         let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
         if (e.result && e.result.reason === sdk.ResultReason.RecognizedSpeech) {
           const jsonString = e.result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
@@ -220,11 +215,32 @@ export default function LearnPageContent() {
               const isPass = accuracyScore > 70;
               finalResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
               
-              const newStats = {...(practiceStats[phraseId] || { pass: 0, fail: 0 })};
-              if(isPass) newStats.pass++; else newStats.fail++;
-              setPracticeStats(prev => ({...prev, [phraseId]: newStats}));
+              const currentHistory = practiceHistory[phraseId] || { passCount: 0, failCount: 0, phraseText: referenceText, lang: toLanguage };
+              const newPassCount = currentHistory.passCount + (isPass ? 1 : 0);
 
-              if (isPass && newStats.pass > 0 && newStats.pass % PRACTICE_TO_EARN_THRESHOLD === 0) {
+              const newHistory: PracticeHistory = {
+                 ...currentHistory,
+                 passCount: newPassCount,
+                 failCount: currentHistory.failCount + (isPass ? 0 : 1),
+                 lastAttempt: new Date().toISOString(),
+              };
+              
+              setPracticeHistory(prev => ({...prev, [phraseId]: newHistory}));
+              setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+              
+              const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
+              const historyUpdate = {
+                  phraseText: referenceText,
+                  lang: toLanguage,
+                  passCount: increment(isPass ? 1 : 0),
+                  failCount: increment(isPass ? 0 : 1),
+                  lastAttempt: serverTimestamp(),
+                  lastAccuracy: accuracyScore,
+              };
+              
+              await setDoc(historyDocRef, historyUpdate, { merge: true });
+
+              if (isPass && newPassCount > 0 && newPassCount % PRACTICE_TO_EARN_THRESHOLD === 0) {
                  try {
                     const userDocRef = doc(db, 'users', user.uid);
                     const logRef = doc(collection(db, `users/${user.uid}/transactionLogs`));
@@ -238,7 +254,7 @@ export default function LearnPageContent() {
                         actionType: 'practice_earn',
                         tokenChange: PRACTICE_EARN_REWARD,
                         timestamp: serverTimestamp(),
-                        description: `Earned for mastering a phrase.`
+                        description: `Earned for mastering: "${referenceText}"`
                     });
                     await batch.commit();
                     toast({ title: "Tokens Earned!", description: `You earned ${PRACTICE_EARN_REWARD} token for mastering a phrase!` });
@@ -250,30 +266,25 @@ export default function LearnPageContent() {
             }
           }
         }
-        setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
       };
 
       recognizer.canceled = (s, e) => {
-          console.error(`CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`, e);
+          console.error(`[SDK Event] CANCELED: Reason=${e.reason}, Details=${e.errorDetails}`);
           toast({ variant: 'destructive', title: 'Assessment Cancelled', description: `Could not assess pronunciation. Please try again. Reason: ${e.reason}`});
-          setPracticeStats(prev => {
-              const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-              return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
-          });
       };
 
       recognizer.recognizeOnceAsync(
         () => {
-            console.log("recognizeOnceAsync successful.");
+            console.log("[assessPronunciation] recognizeOnceAsync call successful.");
         }, 
         (err) => {
-           console.error("recognizeOnceAsync error:", err);
+           console.error("[assessPronunciation] recognizeOnceAsync call error:", err);
            toast({ variant: 'destructive', title: 'Mic Error', description: `Could not start microphone: ${err}` });
         }
       );
 
     } catch (error) {
-      console.error("Error during assessment setup:", error);
+      console.error("[assessPronunciation] Error during assessment setup:", error);
       toast({ variant: 'destructive', title: 'Assessment Error', description: `An unexpected error occurred.`});
       if (recognizerRef.current) {
         recognizerRef.current.close();
@@ -363,7 +374,7 @@ export default function LearnPageContent() {
                                         <ul className="list-disc pl-4 space-y-1 text-sm">
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing 3 times earns you 1 token!</li>
+                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {PRACTICE_TO_EARN_THRESHOLD} times earns you {PRACTICE_EARN_REWARD} token!</li>
                                         </ul>
                                     </TooltipContent>
                                 </Tooltip>
@@ -402,7 +413,7 @@ export default function LearnPageContent() {
                                 const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
 
                                 const assessment = phraseAssessments[phrase.id];
-                                const currentPracticeStats = practiceStats[phrase.id] || { pass: 0, fail: 0 };
+                                const currentPracticeHistory = practiceHistory[phrase.id] || { passCount: 0, failCount: 0 };
                                 const isAssessingCurrent = assessingPhraseId === phrase.id;
 
                                 return (
@@ -422,11 +433,11 @@ export default function LearnPageContent() {
                                                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
                                                         <div className="flex items-center gap-1">
                                                             <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                            <span className="font-bold">{currentPracticeStats.pass}</span>
+                                                            <span className="font-bold">{currentPracticeHistory.passCount}</span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                              <XCircle className="h-4 w-4 text-red-500" />
-                                                            <span className="font-bold">{currentPracticeStats.fail}</span>
+                                                            <span className="font-bold">{currentPracticeHistory.failCount}</span>
                                                         </div>
                                                         <p>| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span> | Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
                                                     </div>

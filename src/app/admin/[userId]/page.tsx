@@ -5,9 +5,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText } from "lucide-react";
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -20,6 +21,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
+import type { TransactionLog } from '@/lib/types';
+
+interface TransactionLogWithId extends TransactionLog {
+    id: string;
+}
 
 export default function UserDetailPage() {
     const params = useParams();
@@ -29,17 +35,21 @@ export default function UserDetailPage() {
     const { toast } = useToast();
 
     const [profile, setProfile] = useState<Partial<UserProfile>>({});
+    const [transactions, setTransactions] = useState<TransactionLogWithId[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
+    const [isFetchingLogs, setIsFetchingLogs] = useState(true);
 
     const countryOptions = Object.entries(countries).map(([code, country]) => ({
       value: code,
       label: country.name
     }));
 
-    const fetchProfile = useCallback(async (uid: string) => {
+    const fetchProfileAndLogs = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);
+        setIsFetchingLogs(true);
         try {
+            // Fetch Profile
             const userDocRef = doc(db, 'users', uid);
             const userDocSnap = await getDoc(userDocRef);
 
@@ -48,12 +58,23 @@ export default function UserDetailPage() {
             } else {
                 toast({ variant: "destructive", title: "Not Found", description: "This user does not exist." });
                 router.push('/admin');
+                return;
             }
+            setIsFetchingProfile(false);
+
+            // Fetch Transaction Logs
+            const transRef = collection(db, 'users', uid, 'transactionLogs');
+            const q = query(transRef, orderBy('timestamp', 'desc'));
+            const transSnapshot = await getDocs(q);
+            const transData = transSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLogWithId));
+            setTransactions(transData);
+
         } catch (fetchError) {
-            console.error("Error fetching user profile:", fetchError);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch user profile." });
+            console.error("Error fetching user data:", fetchError);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch user data." });
         } finally {
             setIsFetchingProfile(false);
+            setIsFetchingLogs(false);
         }
     }, [router, toast]);
 
@@ -64,9 +85,9 @@ export default function UserDetailPage() {
             return;
         }
         if (userId) {
-            fetchProfile(userId);
+            fetchProfileAndLogs(userId);
         }
-    }, [adminUser, adminLoading, router, userId, fetchProfile]);
+    }, [adminUser, adminLoading, router, userId, fetchProfileAndLogs]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value, type } = e.target;
@@ -107,6 +128,15 @@ export default function UserDetailPage() {
     const getInitials = (name?: string) => {
         return name ? name.charAt(0).toUpperCase() : (profile.email?.charAt(0).toUpperCase() || '?');
     };
+    
+     const getActionText = (log: TransactionLog) => {
+        switch (log.actionType) {
+            case 'translation_spend': return 'Live Translation';
+            case 'practice_earn': return 'Practice Reward';
+            case 'signup_bonus': return 'Welcome Bonus';
+            default: return 'Unknown Action';
+        }
+    }
 
     if (adminLoading || isFetchingProfile) {
         return (
@@ -127,87 +157,131 @@ export default function UserDetailPage() {
                 </Button>
             </header>
             
-            <div className="space-y-8 max-w-2xl mx-auto">
-                 <Card>
-                    <CardHeader className="items-center text-center">
-                        <Avatar className="h-24 w-24 text-4xl">
-                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                        </Avatar>
-                        <CardTitle className="text-2xl pt-2">{profile.name || 'User Name'}</CardTitle>
-                        <CardDescription>{profile.email}</CardDescription>
-                         <div className="flex items-center gap-2 text-lg font-bold text-amber-500 pt-2">
-                           <Coins className="h-6 w-6" />
-                           <span>{profile.tokenBalance ?? 0}</span>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="text-center">
-                            {profile.role === 'admin' ? 
-                            <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                            <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                        }
-                    </CardContent>
-                </Card>
-
-                <form onSubmit={handleSaveChanges}>
-                     <Card>
-                            <CardHeader>
-                            <CardTitle>Edit Profile</CardTitle>
-                            <CardDescription>Modify the user's details below.</CardDescription>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                 <div className="md:col-span-1 space-y-8">
+                    <Card>
+                        <CardHeader className="items-center text-center">
+                            <Avatar className="h-24 w-24 text-4xl">
+                                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                            </Avatar>
+                            <CardTitle className="text-2xl pt-2">{profile.name || 'User Name'}</CardTitle>
+                            <CardDescription>{profile.email}</CardDescription>
+                            <div className="flex items-center gap-2 text-lg font-bold text-amber-500 pt-2">
+                            <Coins className="h-6 w-6" />
+                            <span>{profile.tokenBalance ?? 0}</span>
+                            </div>
                         </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Name</Label>
-                                <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
-                            </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="tokenBalance">Token Balance</Label>
-                                <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="country">Country</Label>
-                                <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                                    <SelectTrigger id="country">
-                                        <SelectValue placeholder="Select user's country" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {countryOptions.map(country => (
-                                            <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="mobile">Mobile Number</Label>
-                                <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
-                            </div>
-                            <div className="flex items-center space-x-2 rounded-md border p-4">
-                                <div className="flex-1 space-y-1">
-                                    <p className="text-sm font-medium leading-none">Administrator Role</p>
-                                    <p className="text-sm text-muted-foreground">
-                                    Admins can manage users and other app settings.
-                                    </p>
-                                </div>
-                                <Switch
-                                    checked={profile.role === 'admin'}
-                                    onCheckedChange={handleRoleChange}
-                                    disabled={adminUser?.uid === userId}
-                                    aria-label="Toggle admin role"
-                                />
-                            </div>
-                                <div className="flex justify-end">
-                                <Button type="submit" disabled={isSaving}>
-                                    {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                    Save Changes
-                                </Button>
-                            </div>
+                        <CardContent className="text-center">
+                                {profile.role === 'admin' ? 
+                                <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                                <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                            }
                         </CardContent>
                     </Card>
-                </form>
+
+                    <form onSubmit={handleSaveChanges}>
+                        <Card>
+                                <CardHeader>
+                                <CardTitle>Edit Profile</CardTitle>
+                                <CardDescription>Modify the user's details below.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Name</Label>
+                                    <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email</Label>
+                                    <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="tokenBalance">Token Balance</Label>
+                                    <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="country">Country</Label>
+                                    <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                                        <SelectTrigger id="country">
+                                            <SelectValue placeholder="Select user's country" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {countryOptions.map(country => (
+                                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="mobile">Mobile Number</Label>
+                                    <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
+                                </div>
+                                <div className="flex items-center space-x-2 rounded-md border p-4">
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-medium leading-none">Administrator Role</p>
+                                        <p className="text-sm text-muted-foreground">
+                                        Admins can manage users and other app settings.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={profile.role === 'admin'}
+                                        onCheckedChange={handleRoleChange}
+                                        disabled={adminUser?.uid === userId}
+                                        aria-label="Toggle admin role"
+                                    />
+                                </div>
+                                    <div className="flex justify-end">
+                                    <Button type="submit" disabled={isSaving}>
+                                        {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                        Save Changes
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </form>
+                 </div>
+                 
+                 <div className="md:col-span-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <FileText />
+                                Transaction Logs
+                            </CardTitle>
+                            <CardDescription>A complete history of this user's token activity.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             {isFetchingLogs ? (
+                                <div className="flex justify-center items-center py-8">
+                                    <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                </div>
+                             ) : transactions.length > 0 ? (
+                                <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                                    {transactions.map(log => (
+                                        <div key={log.id} className="flex items-start">
+                                            <div className={`p-3 rounded-full ${log.tokenChange > 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                <p className={`font-bold text-sm ${log.tokenChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {log.tokenChange > 0 ? '+' : ''}{log.tokenChange}
+                                                </p>
+                                            </div>
+                                            <div className="ml-4 space-y-1">
+                                                <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
+                                                <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                             ) : (
+                                <p className="text-center text-muted-foreground py-8">No transaction logs found for this user.</p>
+                             )}
+                        </CardContent>
+                    </Card>
+                 </div>
             </div>
         </div>
     );
 }
+
+    
