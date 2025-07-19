@@ -1,5 +1,5 @@
 
-'use server';
+"use client";
 
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import type { LanguageCode } from '@/lib/data';
@@ -71,20 +71,23 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     if (!locale) throw new Error("Unsupported language for assessment.");
 
     speechConfig.speechRecognitionLanguage = locale;
-    const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     
-    const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
-      referenceText,
-      sdk.PronunciationAssessmentGradingSystem.HundredMark,
-      sdk.PronunciationAssessmentGranularity.Phoneme,
-      true
-    );
-    
-    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-    pronunciationConfig.applyTo(recognizer);
-    
+    let recognizer: sdk.SpeechRecognizer | null = null;
     try {
+        const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+        
+        const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
+          referenceText,
+          sdk.PronunciationAssessmentGradingSystem.HundredMark,
+          sdk.PronunciationAssessmentGranularity.Phoneme,
+          true
+        );
+        
+        recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+        pronunciationConfig.applyTo(recognizer);
+        
         const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
+            if (!recognizer) return reject(new Error("Recognizer not initialized"));
             recognizer.recognizeOnceAsync(resolve, reject);
         });
 
@@ -102,7 +105,9 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
             throw new Error(`Recognition failed: ${sdk.ResultReason[result.reason]}`);
         }
     } finally {
-        recognizer.close();
+        if (recognizer) {
+            recognizer.close();
+        }
     }
 }
 
