@@ -1,25 +1,28 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    function isAdmin() {
+      // Safe check for admin role
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // User Profiles: Users can manage their own profile. Admins can manage any.
     match /users/{userId} {
       function isOwner() {
         return request.auth != null && request.auth.uid == userId;
       }
-      function isAdmin() {
-        // Safe check for admin role
-        return request.auth != null && 
-               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-      }
       
       allow read, update: if isOwner() || isAdmin();
-      // Allow user to create their own record during signup
       allow create: if isOwner();
 
-      // Transaction Logs: A user can read and create their own logs. Admins can read any.
+      // Transaction Logs: A user can read and create their own logs.
+      // Admins can also read logs.
+      // Logs cannot be updated or deleted from the client for data integrity.
       match /transactionLogs/{logId} {
         allow create: if isOwner();
         allow read: if isOwner() || isAdmin();
@@ -27,10 +30,16 @@ service cloud.firestore {
       }
 
       // Practice History: A user can read and write their own practice history.
+      // An admin can also read this history.
       match /practiceHistory/{historyId} {
-        allow get, write: if isOwner();
-        allow list: if isOwner();
+        allow write: if isOwner();
+        allow read: if isOwner() || isAdmin();
       }
+    }
+
+    // App Settings: Only admins can read or write the app configuration.
+    match /settings/appConfig {
+      allow read, write: if isAdmin();
     }
 
     // Sync Rooms: Handles creation, reading, and updates for rooms.
@@ -107,19 +116,6 @@ service cloud.firestore {
           // Allow the room creator to delete any message.
           allow delete: if isRoomCreator();
       }
-    }
-    
-    // Settings collection: Admins can manage application-wide settings.
-    // Regular users can read them.
-    match /settings/appConfig {
-        function isAdmin() {
-            return request.auth != null && 
-                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-        }
-        
-        allow read: if request.auth != null; // Allow any authenticated user to read settings
-        allow write: if isAdmin(); // Only admins can change settings
     }
   }
 }

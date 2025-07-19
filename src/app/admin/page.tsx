@@ -1,16 +1,17 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, doc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, getDocs, doc, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData, where, or } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,19 @@ interface UserWithId extends UserProfile {
 
 const USERS_PER_PAGE = 20;
 
+function useDebounce(value: string, delay: number) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 
 function UsersTabContent() {
     const router = useRouter();
@@ -34,13 +48,17 @@ function UsersTabContent() {
     const [isFetchingNext, setIsFetchingNext] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const { toast } = useToast();
+    
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const [isSearching, setIsSearching] = useState(false);
 
-     const fetchUsers = useCallback(async (loadMore = false) => {
+     const fetchUsers = useCallback(async (loadMore = false, search = '') => {
         if (loadMore) {
             setIsFetchingNext(true);
         } else {
             setIsLoading(true);
-            setUsers([]);
+            setUsers([]); // Clear users on new search/initial load
             setLastVisible(null);
         }
         
@@ -48,19 +66,32 @@ function UsersTabContent() {
             const usersRef = collection(db, 'users');
             let q;
 
-            if (loadMore && lastVisible) {
-                 q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
+            if (search) {
+                // For search queries, we don't paginate for simplicity. We fetch all matches.
+                // A 'startsWith' query for 'name' and an exact match for 'email'
+                 q = query(usersRef, 
+                    or(
+                        where("name", ">=", search),
+                        where("name", "<=", search + '\uf8ff'),
+                        where("email", "==", search)
+                    ),
+                    orderBy("email")
+                );
             } else {
-                 q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
+                if (loadMore && lastVisible) {
+                    q = query(usersRef, orderBy("email"), startAfter(lastVisible), limit(USERS_PER_PAGE));
+                } else {
+                    q = query(usersRef, orderBy("email"), limit(USERS_PER_PAGE));
+                }
             }
             
             const querySnapshot = await getDocs(q);
-            
             const fetchedUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserWithId));
             const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
 
             setLastVisible(lastDoc || null);
-            setHasMore(querySnapshot.docs.length === USERS_PER_PAGE);
+            // If searching, hasMore is false since we fetch all results at once.
+            setHasMore(search ? false : querySnapshot.docs.length === USERS_PER_PAGE);
             
             if (loadMore) {
                 setUsers(prev => [...prev, ...fetchedUsers]);
@@ -88,19 +119,22 @@ function UsersTabContent() {
         } finally {
             setIsLoading(false);
             setIsFetchingNext(false);
+            setIsSearching(false);
         }
     }, [lastVisible, toast]);
-
+    
     useEffect(() => {
-        fetchUsers(false);
+        setIsSearching(true);
+        fetchUsers(false, debouncedSearchTerm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [debouncedSearchTerm]);
+
 
     const handleRowClick = (userId: string) => {
         router.push(`/admin/${userId}`);
     };
 
-    if (isLoading) {
+    if (isLoading && !isSearching) {
         return (
             <div className="flex justify-center items-center py-10">
                 <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
@@ -113,6 +147,15 @@ function UsersTabContent() {
             <CardHeader>
                 <CardTitle>Users</CardTitle>
                 <CardDescription>A list of all users in the system. Click a user to view and edit their details.</CardDescription>
+                 <div className="relative pt-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by name or email..."
+                        className="pl-10"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="border rounded-md">
@@ -126,29 +169,40 @@ function UsersTabContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map((u) => (
-                                <TableRow key={u.id} onClick={() => handleRowClick(u.id)} className="cursor-pointer">
-                                    <TableCell className="hidden sm:table-cell font-medium">{u.name || 'N/A'}</TableCell>
-                                    <TableCell>{u.email}</TableCell>
-                                    <TableCell>
-                                        {u.role === 'admin' ? 
-                                            <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                                            <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                                        }
-                                    </TableCell>
-                                    <TableCell>
-                                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            {(isLoading || isSearching) ? (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                         <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : users.length > 0 ? (
+                                users.map((u) => (
+                                    <TableRow key={u.id} onClick={() => handleRowClick(u.id)} className="cursor-pointer">
+                                        <TableCell className="hidden sm:table-cell font-medium">{u.name || 'N/A'}</TableCell>
+                                        <TableCell>{u.email}</TableCell>
+                                        <TableCell>
+                                            {u.role === 'admin' ? 
+                                                <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                                                <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                                            }
+                                        </TableCell>
+                                        <TableCell>
+                                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                             ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                        No users found.
+                                    </TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </div>
-                {users.length === 0 && !isLoading && (
-                    <p className="text-center text-muted-foreground py-8">No users found.</p>
-                )}
                  <div className="flex justify-center mt-6">
-                    {hasMore && (
+                    {hasMore && !searchTerm && (
                         <Button onClick={() => fetchUsers(true)} disabled={isFetchingNext}>
                             {isFetchingNext ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Load More
