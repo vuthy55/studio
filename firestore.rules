@@ -2,61 +2,110 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-      let userRole = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-      return userRole == 'admin';
-    }
-
+    
+    // User Profiles: Users can manage their own profile. Admins can manage any.
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      // Allow users to create their own doc on signup
-      allow create: if isOwner(userId);
-      // Admins can update any field. Users can only update their own non-critical fields.
-      allow update: if isAdmin() || 
-        (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'country', 'mobile']));
-      allow delete: if false;
-
-      // Transaction logs are append-only for the user, but readable by admin.
-      match /transactionLogs/{logId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId);
-        allow update, delete: if false;
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isAdmin() {
+        // Safe check for admin role
+        return request.auth != null && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
       
-      // Practice history can be read and written by the user, and read by admins.
-      match /practiceHistory/{phraseId} {
-         allow read, write: if isOwner(userId) || isAdmin();
+      allow read, update: if isOwner() || isAdmin();
+      // Allow user to create their own record during signup
+      allow create: if isOwner();
+
+      // Transaction Logs: A user can read and create their own logs.
+      // Logs cannot be updated or deleted from the client for data integrity.
+      match /transactionLogs/{logId} {
+        allow read, create: if isOwner();
+        allow update, delete: if false; // Protect logs from modification
+      }
+
+      // Practice History: A user can read and write their own practice history.
+      match /practiceHistory/{historyId} {
+        allow read, write: if isOwner();
       }
     }
-    
-    // Sync Rooms
+
+    // Sync Rooms: Handles creation, reading, and updates for rooms.
     match /syncRooms/{roomId} {
-        // Allow read/write if user's email is in the invitedEmails array
-        allow read, update, delete: if request.auth.token.email in resource.data.invitedEmails || get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
-        // Allow create if user is authenticated
-        allow create: if request.auth != null;
+      function isInvited() {
+        return request.auth != null && request.auth.token.email in resource.data.invitedEmails;
+      }
+      function isEmcee() {
+        return request.auth != null && request.auth.uid in resource.data.emceeUids;
+      }
+      function isCreator() {
+        return request.auth != null && request.auth.uid == resource.data.creatorUid;
+      }
+      function isOnlyChangingSpeaker() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
+      }
 
-        // Subcollections
-        match /participants/{participantId} {
-             // Allow read if user's email is in the room's invitedEmails array
-            allow read: if get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.hasAny([request.auth.token.email]);
-            // Allow write if the participantId matches the user's uid
-            allow write: if request.auth.uid == participantId;
-            // Allow delete if the participantId matches the user's uid
-            allow delete: if request.auth.uid == participantId;
+      allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
+      allow read: if isInvited();
+      allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
+      allow delete: if isCreator();
+
+      // Participants sub-collection: Rules for joining and management.
+      match /participants/{participantId} {
+        function roomData() {
+          return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
+        }
+        function roomExists() {
+          return exists(/databases/$(database)/documents/syncRooms/$(roomId));
+        }
+        function isInvitedToRoom() {
+          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
+        }
+        function isEmceeInRoom() {
+          return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
+        }
+        function isRoomCreator() {
+          return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
+        }
+        // This function checks if the user is the creator during a batch write.
+        function isCreatingOwnParticipantRecord() {
+            return request.auth != null && request.auth.uid == participantId &&
+                   request.resource.data.uid == request.auth.uid &&
+                   getAfter(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
         }
 
-        match /messages/{messageId} {
-            // Allow read if user's email is in the room's invitedEmails array
-            allow read: if get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.hasAny([request.auth.token.email]);
-            // Allow write if the user is a participant
-            allow create: if exists(/databases/$(database)/documents/syncRooms/$(roomId)/participants/$(request.auth.uid));
-            allow update, delete: if false;
-        }
+        allow list, read: if isInvitedToRoom();
+        // Allow creation if the user is invited OR if they are creating the room itself.
+        allow create: if (request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid) || isCreatingOwnParticipantRecord();
+        allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
+        // Allow the room creator OR the participant themselves to delete the record.
+        allow delete: if isRoomCreator() || (request.auth != null && request.auth.uid == participantId);
+      }
+      
+      // Messages sub-collection: Rules for sending and reading messages.
+      match /messages/{messageId} {
+          function roomData() {
+            return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
+          }
+          function roomExists() {
+            return exists(/databases/$(database)/documents/syncRooms/$(roomId));
+          }
+          function isInvitedToRoom() {
+              return roomExists() &&
+                     request.auth != null &&
+                     request.auth.token.email in roomData().invitedEmails;
+          }
+          function isRoomCreator() {
+            return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
+          }
+
+          allow list, read: if isInvitedToRoom();
+          allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
+          // Allow the room creator to delete any message.
+          allow delete: if isRoomCreator();
+      }
     }
   }
 }
