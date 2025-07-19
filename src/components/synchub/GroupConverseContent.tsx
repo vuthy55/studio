@@ -1,10 +1,9 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
-import type { LanguageCode } from '@/lib/data';
-import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
+import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,9 +24,6 @@ export default function GroupConverseContent() {
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
 
   const { toast } = useToast();
-
-  const languageToLabelMap: Record<string, string> = 
-    azureLanguages.reduce((acc, curr) => ({...acc, [curr.value]: curr.label}), {});
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
     if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
@@ -76,13 +72,13 @@ export default function GroupConverseContent() {
             const detectedLangLocale = autoDetectResult.language;
             const originalText = result.text;
             
-            const fromLangLabel = languageToLabelMap[detectedLangLocale] || 'Unknown';
+            const fromLangLabel = getAzureLanguageLabel(detectedLangLocale);
             setLastSpoken({ lang: fromLangLabel, text: originalText });
             
             const targetLanguages = selectedLanguages.filter(l => l !== detectedLangLocale);
             
             for (const targetLangLocale of targetLanguages) {
-                const toLangLabel = languageToLabelMap[targetLangLocale] || targetLangLocale;
+                const toLangLabel = getAzureLanguageLabel(targetLangLocale);
                 
                 const translationResult = await translateText({
                     text: originalText,
@@ -121,7 +117,9 @@ export default function GroupConverseContent() {
     }
   };
 
-  const allLanguageOptions = azureLanguages.filter(l => !selectedLanguages.includes(l.value));
+  const allLanguageOptions = useMemo(() => {
+    return azureLanguages.filter(l => !selectedLanguages.includes(l.value));
+  }, [selectedLanguages]);
 
   return (
     <Card className="shadow-lg mt-6 w-full max-w-2xl mx-auto">
@@ -140,7 +138,7 @@ export default function GroupConverseContent() {
             <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
                 {selectedLanguages.map(lang => (
                     <Badge key={lang} variant="secondary" className="text-base py-1 px-3">
-                        {languageToLabelMap[lang] || lang}
+                        {getAzureLanguageLabel(lang)}
                         <button onClick={() => removeLanguage(lang)} className="ml-2 rounded-full hover:bg-destructive/20 p-0.5" disabled={status !== 'idle'}>
                             <X className="h-3 w-3" />
                         </button>

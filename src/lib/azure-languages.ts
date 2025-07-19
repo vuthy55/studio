@@ -148,3 +148,14 @@ export const azureLanguages = [
 ] as const;
 
 export type AzureLanguageCode = typeof azureLanguages[number]['value'];
+
+const azureLanguageMap = new Map(azureLanguages.map(l => [l.value, l.label]));
+
+/**
+ * Gets the display label for a given Azure language code.
+ * @param code The Azure language code (e.g., 'en-US').
+ * @returns The display label (e.g., 'English (United States)') or the code itself if not found.
+ */
+export function getAzureLanguageLabel(code: AzureLanguageCode | string): string {
+  return azureLanguageMap.get(code as AzureLanguageCode) || code;
+}

@@ -33,19 +33,17 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
-                <TabsContent value={activeTab} forceMount className="mt-6">
-                    <div hidden={activeTab !== 'prep-vibe'}>
-                        <LearnPageContent />
-                    </div>
-                    <div hidden={activeTab !== 'live-translation'}>
-                        <LiveTranslationContent />
-                    </div>
-                    <div hidden={activeTab !== 'sync-live'}>
-                       <GroupConverseContent />
-                    </div>
-                    <div hidden={activeTab !== 'sync-online'}>
-                        <SyncOnlineHome />
-                    </div>
+                <TabsContent value="prep-vibe">
+                    <LearnPageContent />
+                </TabsContent>
+                <TabsContent value="live-translation">
+                   <LiveTranslationContent />
+                </TabsContent>
+                <TabsContent value="sync-live">
+                   <GroupConverseContent />
+                </TabsContent>
+                <TabsContent value="sync-online">
+                    <SyncOnlineHome />
                 </TabsContent>
             </Tabs>
         </div>
