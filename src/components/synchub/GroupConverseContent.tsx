@@ -112,7 +112,6 @@ export default function GroupConverseContent() {
         if (recognizer) {
             recognizer.close();
         }
-        // Only set status to idle after everything is done
         setStatus('idle');
     }
   };

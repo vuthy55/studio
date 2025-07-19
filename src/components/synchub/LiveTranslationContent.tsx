@@ -6,7 +6,7 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
 import { translateText } from '@/ai/flows/translate-flow';
@@ -44,6 +44,7 @@ interface PracticeHistoryDoc {
 interface PracticeHistoryStats {
     [phraseId: string]: {
         passCountPerLang: Record<string, number>;
+        failCountPerLang: Record<string, number>;
     }
 }
 
@@ -57,7 +58,6 @@ export default function LiveTranslationContent() {
     const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
-    const recognizerRef = useRef<sdk.SpeechRecognizer | null>(null);
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
@@ -101,6 +101,7 @@ export default function LiveTranslationContent() {
                 const data = doc.data() as PracticeHistoryDoc;
                 stats[doc.id] = {
                     passCountPerLang: data.passCountPerLang || {},
+                    failCountPerLang: data.failCountPerLang || {},
                 };
             });
             setPracticeHistoryStats(stats);
@@ -111,15 +112,6 @@ export default function LiveTranslationContent() {
         // Cleanup listener on component unmount
         return () => unsubscribe();
     }, [user]);
-
-    useEffect(() => {
-        return () => {
-            if (recognizerRef.current) {
-                recognizerRef.current.close();
-                recognizerRef.current = null;
-            }
-        };
-    }, []);
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
         if (!text || isRecognizing || assessingPhraseId) return;
@@ -216,15 +208,16 @@ export default function LiveTranslationContent() {
         }
 
         setIsRecognizing(true);
+        let recognizer: sdk.SpeechRecognizer | null = null;
 
         try {
             const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
             speechConfig.speechRecognitionLanguage = locale;
             const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-            recognizerRef.current = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+            recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
             const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizerRef.current!.recognizeOnceAsync(resolve, reject);
+                recognizer!.recognizeOnceAsync(resolve, reject);
             });
 
             if (result && result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
@@ -236,9 +229,8 @@ export default function LiveTranslationContent() {
             console.error("Error during speech recognition:", error);
             toast({ variant: 'destructive', title: 'Recognition Error' });
         } finally {
-            if (recognizerRef.current) {
-                recognizerRef.current.close();
-                recognizerRef.current = null;
+            if (recognizer) {
+                recognizer.close();
             }
             setIsRecognizing(false);
         }
@@ -305,10 +297,13 @@ export default function LiveTranslationContent() {
                  const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
                  const historySnap = await transaction.get(historyDocRef);
                  const passCountForLang = (historySnap.data()?.passCountPerLang?.[lang] || 0) + (isPass ? 1 : 0);
+                 const failCountForLang = (historySnap.data()?.failCountPerLang?.[lang] || 0) + (isPass ? 0 : 1);
+
 
                  const historyData = {
                     phraseText: referenceText,
                     [`passCountPerLang.${lang}`]: passCountForLang,
+                    [`failCountPerLang.${lang}`]: failCountForLang,
                     [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
                     [`lastAccuracyPerLang.${lang}`]: accuracyScore
                  };
@@ -471,6 +466,7 @@ export default function LiveTranslationContent() {
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
                             const assessment = phraseAssessments[phrase.id];
                             const passes = practiceHistoryStats[phrase.id]?.passCountPerLang?.[phrase.toLang] || 0;
+                            const fails = practiceHistoryStats[phrase.id]?.failCountPerLang?.[phrase.toLang] || 0;
                             const isAssessingCurrent = assessingPhraseId === phrase.id;
                             
                             return (
@@ -487,6 +483,10 @@ export default function LiveTranslationContent() {
                                                 <div className="flex items-center gap-1" title='Correct attempts'>
                                                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                                                     <span className="font-bold">{passes}</span>
+                                                </div>
+                                                 <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                                    <XCircle className="h-4 w-4 text-red-500" />
+                                                    <span className="font-bold">{fails}</span>
                                                 </div>
                                                 {assessment && (
                                                      <p>| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
