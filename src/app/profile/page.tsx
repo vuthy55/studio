@@ -17,13 +17,16 @@ import { useToast } from '@/hooks/use-toast';
 import { countries } from 'countries-list';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile, updateEmail } from "firebase/auth";
+import type { LanguageCode } from '@/lib/data';
 
 
 export interface PracticeStats {
   byTopic?: {
     [topicId: string]: {
-      correct: number;
-      tokensEarned: number;
+      [languageCode: string]: {
+        correct: number;
+        tokensEarned: number;
+      }
     };
   };
   byLanguage?: {

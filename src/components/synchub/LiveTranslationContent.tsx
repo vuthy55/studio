@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { languages, type LanguageCode } from '@/lib/data';
+import { languages, type LanguageCode, type Phrase, type PracticeHistory as LocalPracticeHistory } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +16,7 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, addDoc, collection, serverTimestamp, getDocs, query, onSnapshot } from 'firebase/firestore';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 
@@ -35,10 +36,16 @@ type SavedPhrase = {
     fromText: string;
     toText: string;
 }
-type PracticeStats = {
-    pass: number;
-    fail: number;
+
+interface PracticeHistoryDoc {
+    [key: string]: any; // Allow other fields
 }
+interface PracticeHistoryStats {
+    [phraseId: string]: {
+        passCountPerLang: Record<LanguageCode, number>;
+    }
+}
+
 
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
@@ -53,7 +60,7 @@ export default function LiveTranslationContent() {
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
-    const [practiceStats, setPracticeStats] = useState<Record<string, PracticeStats>>({});
+    const [practiceHistoryStats, setPracticeHistoryStats] = useState<PracticeHistoryStats>({});
     
     const [savedPhrases, setSavedPhrases] = useState<SavedPhrase[]>([]);
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
@@ -71,7 +78,6 @@ export default function LiveTranslationContent() {
         chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
     };
 
-    // Load saved phrases from localStorage on mount
     useEffect(() => {
         try {
             const items = localStorage.getItem('savedPhrases');
@@ -83,7 +89,25 @@ export default function LiveTranslationContent() {
         }
     }, []);
 
-    // Cleanup recognizer on unmount
+    useEffect(() => {
+        if (!user) return;
+        const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
+        const q = query(historyRef);
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const stats: PracticeHistoryStats = {};
+            querySnapshot.forEach((doc) => {
+                const data = doc.data() as PracticeHistoryDoc;
+                stats[doc.id] = {
+                    passCountPerLang: data.passCountPerLang || {},
+                };
+            });
+            setPracticeHistoryStats(stats);
+        });
+
+        return () => unsubscribe();
+    }, [user]);
+
     useEffect(() => {
         return () => {
             if (recognizerRef.current) {
@@ -273,50 +297,43 @@ export default function LiveTranslationContent() {
             const isPass = accuracyScore > 70;
             finalResult = { status: isPass ? 'pass' : 'fail', accuracy: accuracyScore, fluency: fluencyScore };
             
-            setPracticeStats(prev => {
-                const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-                const newPassCount = currentStats.pass + (isPass ? 1 : 0);
-                const newFailCount = currentStats.fail + (isPass ? 0 : 1);
-                
-                if (isPass && newPassCount > 0 && newPassCount % settings.practiceThreshold === 0) {
-                     runTransaction(db, async (transaction) => {
-                        const userDocRef = doc(db, 'users', user.uid);
-                        const userDoc = await transaction.get(userDocRef);
-                        if (!userDoc.exists()) throw "User document does not exist!";
-                        
-                        const currentBalance = userDoc.data().tokenBalance || 0;
-                        const newBalance = currentBalance + settings.practiceReward;
-                        transaction.update(userDocRef, { tokenBalance: newBalance });
+            // This is a saved phrase, so we don't update topic stats here.
+            // But we do update its pass/fail history for this specific language.
+            await runTransaction(db, async (transaction) => {
+                 const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
+                 const historySnap = await transaction.get(historyDocRef);
+                 const passCountForLang = (historySnap.data()?.passCountPerLang?.[lang] || 0) + (isPass ? 1 : 0);
 
-                        const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                        addDoc(logRef, {
-                            actionType: 'practice_earn',
-                            tokenChange: settings.practiceReward,
-                            timestamp: serverTimestamp(),
-                            description: `Earned for mastering a saved phrase.`
-                        });
+                 const historyData = {
+                    phraseText: referenceText,
+                    [`passCountPerLang.${lang}`]: passCountForLang,
+                    [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
+                    [`lastAccuracyPerLang.${lang}`]: accuracyScore
+                 };
+                 transaction.set(historyDocRef, historyData, { merge: true });
 
-                    }).then(() => {
-                        toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
-                    }).catch(e => console.error("Token reward transaction failed: ", e));
-                }
-                return { ...prev, [phraseId]: { pass: newPassCount, fail: newFailCount }};
+                 if (isPass && passCountForLang > 0 && passCountForLang % settings.practiceThreshold === 0) {
+                     const userDocRef = doc(db, 'users', user.uid);
+                     transaction.update(userDocRef, { tokenBalance: doc(db, 'users', user.uid).tokenBalance + settings.practiceReward });
+
+                     const logRef = collection(db, `users/${user.uid}/transactionLogs`);
+                     const newLogRef = doc(logRef);
+                     transaction.set(newLogRef, {
+                        actionType: 'practice_earn',
+                        tokenChange: settings.practiceReward,
+                        timestamp: serverTimestamp(),
+                        description: `Earned for mastering a saved phrase.`
+                    });
+                    toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
+                 }
             });
           }
         }
       } else {
         toast({ variant: 'destructive', title: 'Assessment Failed', description: `Reason: ${sdk.ResultReason[result.reason]}` });
-        setPracticeStats(prev => {
-            const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-            return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
-        });
       }
     } catch (error) {
       console.error("Error during assessment:", error);
-      setPracticeStats(prev => {
-            const currentStats = prev[phraseId] || { pass: 0, fail: 0 };
-            return { ...prev, [phraseId]: { ...currentStats, fail: currentStats.fail + 1 }};
-      });
       toast({ variant: 'destructive', title: 'Assessment Error' });
     } finally {
       if (recognizer) recognizer.close();
@@ -448,7 +465,7 @@ export default function LiveTranslationContent() {
                     <Accordion type="multiple" className="w-full">
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
                             const assessment = phraseAssessments[phrase.id];
-                            const currentPracticeStats = practiceStats[phrase.id] || { pass: 0, fail: 0 };
+                            const passes = practiceHistoryStats[phrase.id]?.passCountPerLang?.[phrase.toLang] || 0;
                             const isAssessingCurrent = assessingPhraseId === phrase.id;
                             
                             return (
@@ -461,13 +478,15 @@ export default function LiveTranslationContent() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="flex justify-between items-center w-full px-4 pb-2">
-                                            {assessment && (
-                                                <div className="text-xs text-muted-foreground flex items-center gap-4">
-                                                    <div className="flex items-center gap-1"><CheckCircle2 className="h-4 w-4 text-green-500" /><span className="font-bold">{currentPracticeStats.pass}</span></div>
-                                                    <div className="flex items-center gap-1"><XCircle className="h-4 w-4 text-red-500" /><span className="font-bold">{currentPracticeStats.fail}</span></div>
-                                                    <p>| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-4">
+                                                <div className="flex items-center gap-1" title='Correct attempts'>
+                                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                    <span className="font-bold">{passes}</span>
                                                 </div>
-                                            )}
+                                                {assessment && (
+                                                     <p>| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                )}
+                                            </div>
                                             <div className="flex items-center shrink-0 ml-auto">
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
