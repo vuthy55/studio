@@ -443,7 +443,7 @@ export default function LearnPageContent() {
                                         <Info className="h-5 w-5 text-accent cursor-help" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-xs" side="right">
-                                        <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
+                                      <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
                                         <ul className="list-disc pl-4 space-y-1 text-sm">
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
@@ -464,7 +464,7 @@ export default function LearnPageContent() {
                             }}
                             className="w-full"
                         >
-                            <TabsList className={`grid w-full grid-cols-${phrasebook.length}`}>
+                            <TabsList className="grid w-full grid-cols-5">
                                 {phrasebook.map(topic => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                         <Tooltip>
