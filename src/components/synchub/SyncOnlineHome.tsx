@@ -59,7 +59,7 @@ export default function SyncOnlineHome() {
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
-
+    
     useEffect(() => {
         console.log('[Mount] SyncOnlineHome');
         return () => console.log('[Unmount] SyncOnlineHome');
@@ -353,7 +353,7 @@ export default function SyncOnlineHome() {
                                                                 <br/><br/>
                                                                 Please type <strong>delete</strong> to confirm.
                                                             </aud:AlertDialogDescription>
-                                                        </AlertDialogHeader>
+                                                        </Header>
                                                         <Input 
                                                             id="delete-confirm"
                                                             value={deleteConfirmation}
