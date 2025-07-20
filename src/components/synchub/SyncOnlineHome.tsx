@@ -60,6 +60,11 @@ export default function SyncOnlineHome() {
 
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
+    useEffect(() => {
+        console.log('[Mount] SyncOnlineHome');
+        return () => console.log('[Unmount] SyncOnlineHome');
+    }, []);
+
     const fetchInvitedRooms = useCallback(async () => {
         if (!user) {
             setInvitedRooms([]);
@@ -380,7 +385,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
-
-    

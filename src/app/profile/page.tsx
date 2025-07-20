@@ -58,6 +58,11 @@ export default function ProfilePage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
+    useEffect(() => {
+        console.log('[Mount] ProfilePage');
+        return () => console.log('[Unmount] ProfilePage');
+    }, []);
+
     const fetchProfile = useCallback(async (uid: string) => {
         if (!user) return;
         setIsFetchingProfile(true);
@@ -267,5 +272,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
