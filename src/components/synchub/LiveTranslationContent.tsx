@@ -134,7 +134,7 @@ export default function LiveTranslationContent() {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
             audio.play().catch(e => console.error("Audio playback failed.", e));
-        } catch (error) {
+        } catch (error: any) {
             console.error("TTS generation failed.", error);
             toast({
                 variant: 'destructive',

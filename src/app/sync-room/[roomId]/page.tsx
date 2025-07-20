@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { getContinuousRecognizerForRoom } from '@/services/speech';
+import { getContinuousRecognizerForRoom, abortRecognition } from '@/services/speech';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -81,12 +81,9 @@ function SyncRoomPageContent() {
 
 
     const stopRecognition = useCallback(async () => {
-        if (recognizerRef.current) {
-            console.log("Stopping continuous recognition...");
-            recognizerRef.current.stopContinuousRecognitionAsync();
-            // The singleton manager now handles closing, so we don't call close() here.
-            recognizerRef.current = null;
-        }
+        abortRecognition(); // Use the new centralized abort function
+        recognizerRef.current = null; // Clear the ref
+        
         setMicStatus('idle');
         const roomRef = doc(db, 'syncRooms', roomId);
         await updateDoc(roomRef, { activeSpeakerUid: null }).catch(err => {
@@ -138,12 +135,11 @@ function SyncRoomPageContent() {
             setParticipants(parts);
         });
 
+        // Cleanup on unmount
         return () => {
             unsubscribeRoom();
             unsubscribeParticipants();
-            if (recognizerRef.current) {
-                stopRecognition();
-            }
+            stopRecognition(); // Abort recognition when leaving the page
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, user, authLoading, router, toast]);

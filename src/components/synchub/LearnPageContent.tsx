@@ -85,9 +85,10 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
-        // Return a cleanup function
+        // This is the cleanup function that will run when the component unmounts.
         return () => {
             // If a phrase is being assessed when the component unmounts, abort it.
+            // This is the key to preventing the memory leak.
             if (assessingPhraseId) {
                 console.log("LearnPageContent unmounting: Aborting recognition.");
                 abortRecognition();
@@ -410,7 +411,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
                                                 <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
+                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-red-500" /> : <Mic className="h-5 w-5" />}
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>
                                             </div>

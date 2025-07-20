@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
-import { recognizeWithAutoDetect } from '@/services/speech';
+import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
@@ -24,6 +24,17 @@ export default function GroupConverseContent() {
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Cleanup function to abort recognition if the component unmounts
+    // during a listening or speaking phase.
+    return () => {
+      if (status === 'listening' || status === 'speaking') {
+        abortRecognition();
+      }
+    };
+  }, [status]);
+
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
     if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
@@ -80,7 +91,10 @@ export default function GroupConverseContent() {
         toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
         setStatus('error');
     } finally {
-        setStatus('idle');
+        // Only set back to idle if we weren't unmounted mid-process
+        if (status !== 'idle') {
+            setStatus('idle');
+        }
     }
   };
 
