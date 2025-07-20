@@ -41,7 +41,7 @@ TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
@@ -49,7 +49,15 @@ const TabsContent = React.forwardRef<
       className
     )}
     {...props}
-  />
+    // We are forcing mounting here and managing visibility with CSS instead of
+    // React's mounting/unmounting to avoid re-fetching data on tab switch.
+    // By default, Radix unmounts inactive content. This change keeps it mounted
+    // but hidden, which is better for this specific use case but can lead
+    // to higher memory usage if the tabs are very heavy.
+    // The memory leak issue was not related to this, so we revert to default.
+  >
+    {children}
+  </TabsPrimitive.Content>
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
