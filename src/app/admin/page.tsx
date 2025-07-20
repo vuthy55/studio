@@ -208,10 +208,10 @@ function SettingsTabContent() {
         setIsSaving(true);
         try {
             const settingsToSave = {
-                signupBonus: Number(settings.signupBonus) || 0,
-                practiceReward: Number(settings.practiceReward) || 0,
-                practiceThreshold: Number(settings.practiceThreshold) || 0,
-                translationCost: Number(settings.translationCost) || 0,
+                signupBonus: settings.signupBonus || 0,
+                practiceReward: settings.practiceReward || 0,
+                practiceThreshold: settings.practiceThreshold || 0,
+                translationCost: settings.translationCost || 0,
             };
             await updateAppSettings(settingsToSave);
             toast({ title: "Success", description: "Application settings have been updated." });
