@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, LoaderCircle, X, Languages, Users, Volume2 } from 'lucide-react';
+import { Mic, LoaderCircle, X, Languages, Users, Volume2, StopCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
+import { getAppSettings, type AppSettings } from '@/services/settings';
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
@@ -22,18 +23,29 @@ export default function GroupConverseContent() {
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const { toast } = useToast();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Cleanup function to abort recognition if the component unmounts
-    // during a listening or speaking phase.
+    getAppSettings().then(setSettings);
+  }, []);
+
+  const clearTimeoutRef = useCallback(() => {
+    if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+    }
+  }, []);
+
+  // Cleanup function to abort recognition and timeouts if the component unmounts
+  useEffect(() => {
     return () => {
-      if (status === 'listening' || status === 'speaking') {
         abortRecognition();
-      }
+        clearTimeoutRef();
     };
-  }, [status]);
+  }, [clearTimeoutRef]);
 
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
@@ -52,51 +64,86 @@ export default function GroupConverseContent() {
     }
   };
   
-  const startConversation = async () => {
-    setStatus('listening');
+  const startConversation = useCallback(async () => {
+    if (!settings) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Settings not loaded yet. Please try again.' });
+        setStatus('idle');
+        return;
+    }
     
+    clearTimeoutRef();
+    setStatus('listening');
+    setLastSpoken(null);
+
+    // Set inactivity timeout
+    timeoutRef.current = setTimeout(() => {
+        toast({ title: 'Session Timed Out', description: 'Mic turned off due to inactivity.'});
+        abortRecognition();
+        setStatus('idle');
+    }, settings.groupConversationTimeout * 1000);
+
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
+        clearTimeoutRef(); // Speech was detected, clear the timeout
         
         setStatus('speaking');
-        
-        const fromLangLabel = getAzureLanguageLabel(detectedLang);
-        setLastSpoken({ lang: fromLangLabel, text: originalText });
+        setLastSpoken({ lang: getAzureLanguageLabel(detectedLang), text: originalText });
         
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
-        for (const targetLangLocale of targetLanguages) {
-            const toLangLabel = getAzureLanguageLabel(targetLangLocale);
-            
-            const translationResult = await translateText({
-                text: originalText,
-                fromLanguage: fromLangLabel,
-                toLanguage: toLangLabel,
-            });
-            const translatedText = translationResult.translatedText;
-            
-            const { audioDataUri } = await generateSpeech({ 
-                text: translatedText, 
-                lang: targetLangLocale 
-            });
-            const audio = new Audio(audioDataUri);
-            await audio.play();
-            await new Promise(resolve => {
-                audio.onended = resolve;
-                audio.onerror = resolve; // also resolve on error to not block the loop
-            });
-        }
+        const audioPromises = targetLanguages.map(async (targetLangLocale) => {
+            try {
+                const toLangLabel = getAzureLanguageLabel(targetLangLocale);
+                const translationResult = await translateText({
+                    text: originalText,
+                    fromLanguage: getAzureLanguageLabel(detectedLang),
+                    toLanguage: toLangLabel,
+                });
+                
+                const { audioDataUri } = await generateSpeech({ 
+                    text: translationResult.translatedText, 
+                    lang: targetLangLocale 
+                });
+
+                const audio = new Audio(audioDataUri);
+                await audio.play();
+                // Wait for this specific audio to end
+                return new Promise<void>(resolve => {
+                    audio.onended = () => resolve();
+                    audio.onerror = (e) => {
+                        console.error(`Audio playback error for ${toLangLabel}:`, e);
+                        resolve(); // Resolve anyway to not block other audios
+                    };
+                });
+            } catch (langError) {
+                console.error(`Error processing language ${targetLangLocale}:`, langError);
+                // Don't reject, just move on to the next language
+                return Promise.resolve();
+            }
+        });
+        
+        await Promise.all(audioPromises);
+        
+        // After all audio has played, loop the conversation
+        startConversation();
+
     } catch (error: any) {
-        console.error("Error during conversation turn:", error);
-        toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
-        setStatus('error');
-    } finally {
-        // Only set back to idle if we weren't unmounted mid-process
-        if (status !== 'idle') {
-            setStatus('idle');
+        clearTimeoutRef();
+        if (error.message.includes('No speech could be recognized') || error.message.includes('SPEECH_NOMATCH')) {
+           // This is expected on timeout, don't show an error toast
+        } else if (error.message !== 'Recognition was aborted.') {
+            console.error("Error during conversation turn:", error);
+            toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
         }
+        setStatus('idle');
     }
-  };
+  }, [selectedLanguages, clearTimeoutRef, toast, settings]);
+
+  const stopConversation = () => {
+    clearTimeoutRef();
+    abortRecognition();
+    setStatus('idle');
+  }
 
   const allLanguageOptions = useMemo(() => {
     return azureLanguages.filter(l => !selectedLanguages.includes(l.value));
@@ -110,7 +157,7 @@ export default function GroupConverseContent() {
                 Group Conversation
             </CardTitle>
             <CardDescription>
-                Press the microphone to speak. It will be translated and spoken aloud for the group. The mic will be available again after.
+                Press the microphone to speak. It will be translated and spoken aloud for the group, then listen for the next person.
             </CardDescription>
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
@@ -148,25 +195,25 @@ export default function GroupConverseContent() {
               "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
               status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-              (status === 'idle' || status === 'error') && 'bg-primary hover:bg-primary/90'
+              status !== 'idle' && 'bg-red-600 hover:bg-red-700',
+              status === 'idle' && 'bg-primary hover:bg-primary/90'
           )}
-          onClick={startConversation}
-          disabled={status !== 'idle'}
+          onClick={status === 'idle' ? startConversation : stopConversation}
         >
-          {status === 'idle' && <><Mic className="h-10 w-10 mr-2"/> Speak</>}
-          {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
-          {status === 'speaking' && <Volume2 className="h-12 w-12" />}
-          {status === 'error' && <><Mic className="h-10 w-10 mr-2"/> Retry</>}
+            {status === 'idle' && <><Mic className="h-10 w-10"/> </>}
+            {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
+            {status === 'speaking' && <Volume2 className="h-12 w-12" />}
+            {(status === 'listening' || status === 'speaking') && <StopCircle className="h-10 w-10" />}
         </Button>
 
         <div className="text-center h-16">
             <p className="font-semibold text-muted-foreground">
-                {status === 'idle' && "Press Speak to begin"}
+                {status === 'idle' && "Press mic to begin"}
                 {status === 'listening' && "Listening..."}
                 {status === 'speaking' && "Translating & Speaking..."}
-                {status === 'error' && "An error occurred. Press Retry."}
+                {status === 'error' && "An error occurred. Press Mic to retry."}
             </p>
-            {lastSpoken && status !== 'idle' && (
+            {lastSpoken && (
                  <p className="text-sm text-foreground mt-1 truncate max-w-md">
                      <span className="font-bold">{lastSpoken.lang}:</span> "{lastSpoken.text}"
                  </p>

@@ -212,6 +212,7 @@ function SettingsTabContent() {
                 practiceReward: Number(settings.practiceReward) || 0,
                 practiceThreshold: Number(settings.practiceThreshold) || 0,
                 translationCost: Number(settings.translationCost) || 0,
+                groupConversationTimeout: Number(settings.groupConversationTimeout) || 30,
             };
             await updateAppSettings(settingsToSave);
             toast({ title: "Success", description: "Application settings have been updated." });
@@ -263,6 +264,11 @@ function SettingsTabContent() {
                         <Label htmlFor="practiceThreshold">Practice Threshold</Label>
                         <Input id="practiceThreshold" type="number" value={settings.practiceThreshold ?? ''} onChange={handleInputChange} placeholder="e.g., 3" />
                          <p className="text-sm text-muted-foreground">Number of successful practices to earn reward.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="groupConversationTimeout">Group Conversation Timeout (seconds)</Label>
+                        <Input id="groupConversationTimeout" type="number" value={settings.groupConversationTimeout ?? ''} onChange={handleInputChange} placeholder="e.g., 30" />
+                        <p className="text-sm text-muted-foreground">Seconds of silence before a group conversation mic turns off.</p>
                     </div>
                 </div>
                  <div className="flex justify-end">

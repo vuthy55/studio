@@ -1,3 +1,4 @@
+
 'use server';
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -8,6 +9,7 @@ export interface AppSettings {
   practiceReward: number;
   practiceThreshold: number;
   translationCost: number;
+  groupConversationTimeout: number;
 }
 
 const defaultSettings: AppSettings = {
@@ -15,6 +17,7 @@ const defaultSettings: AppSettings = {
   practiceReward: 1,
   practiceThreshold: 3,
   translationCost: 1,
+  groupConversationTimeout: 30, // Default to 30 seconds
 };
 
 const settingsDocRef = doc(db, 'settings', 'appConfig');
