@@ -94,6 +94,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                     failCountPerLang: data.failCountPerLang || {},
                 };
             });
+            console.log('[DEBUG] Fetched practice history from Firestore:', stats);
             setPracticeHistoryStats(stats);
         }, (error) => {
             console.error("Error listening to practice history:", error);
@@ -162,6 +163,8 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
             setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
             
+            console.log(`[DEBUG] Assessment result for "${referenceText}": ${isPass ? 'PASS' : 'FAIL'}`);
+
             await runTransaction(db, async (transaction) => {
                 const userDocRef = doc(db, 'users', user.uid);
                 const userDoc = await transaction.get(userDocRef);
@@ -213,6 +216,9 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                     transaction.set(historyDocRef, historyData, { merge: true });
                 }
             });
+            // This is where we will see the state desync
+            console.log('[DEBUG] Local phrase assessments state:', phraseAssessments);
+            console.log('[DEBUG] Firestore-backed practice history stats:', practiceHistoryStats);
 
         } catch (error: any) {
             console.error("[assessPronunciation] Error:", error);
