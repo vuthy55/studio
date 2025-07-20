@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
+import MemoryTestCard from '@/components/admin/MemoryTestCard';
 
 
 interface UserWithId extends UserProfile {
@@ -50,10 +51,8 @@ function UsersTabContent() {
 
      const fetchUsers = useCallback(async (search = '') => {
         const normalizedSearch = search.toLowerCase().trim();
-        console.log(`[DEBUG] Starting fetchUsers with search term: "${search}", normalized to: "${normalizedSearch}"`);
 
         if (!normalizedSearch) {
-            console.log("[DEBUG] Search term is empty. Clearing users and returning.");
             setUsers([]);
             setHasSearched(false);
             return;
@@ -77,12 +76,10 @@ function UsersTabContent() {
                 where("searchableName", "<=", normalizedSearch + '\uf8ff')
             );
             
-            console.log(`[DEBUG] Executing queries for name and email.`);
             const [emailSnapshot, nameSnapshot] = await Promise.all([
                 getDocs(emailQuery),
                 getDocs(nameQuery),
             ]);
-            console.log(`[DEBUG] Email query found ${emailSnapshot.docs.length} docs. Name query found ${nameSnapshot.docs.length} docs.`);
 
             const foundUsersMap = new Map<string, UserWithId>();
 
@@ -98,12 +95,10 @@ function UsersTabContent() {
             processSnapshot(nameSnapshot);
             
             const combinedUsers = Array.from(foundUsersMap.values());
-            console.log(`[DEBUG] Combined unique users: ${combinedUsers.length}`);
 
             setUsers(combinedUsers);
 
         } catch (error: any) {
-            console.error("[DEBUG] Error fetching users:", error);
             if (error.code === 'failed-precondition') {
                  toast({ 
                     variant: "destructive", 
@@ -282,6 +277,11 @@ function SettingsTabContent() {
     )
 }
 
+function DiagnosticsTabContent() {
+    return <MemoryTestCard />;
+}
+
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -313,15 +313,19 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
+                    <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
+                </TabsContent>
+                <TabsContent value="diagnostics" className="mt-6">
+                    <DiagnosticsTabContent />
                 </TabsContent>
             </Tabs>
         </div>
