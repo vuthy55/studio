@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
   SidebarHeader, 
@@ -17,36 +17,15 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import type { UserProfile } from '@/app/profile/page';
+import { useUserData } from '@/context/UserDataContext';
 
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const [user, loading] = useAuthState(auth);
+  const { user, loading, userProfile } = useUserData();
   const { toast } = useToast();
   const { setOpenMobile } = useSidebar();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
-      const unsubscribe = onSnapshot(userDocRef, (doc) => {
-        if (doc.exists()) {
-          setUserProfile(doc.data() as UserProfile);
-        } else {
-          setUserProfile(null);
-        }
-      });
-      
-      // Cleanup the listener when the component unmounts or the user changes
-      return () => unsubscribe();
-    } else {
-      setUserProfile(null);
-    }
-  }, [user]);
-
+  
   const handleLogout = async () => {
     try {
       await auth.signOut();

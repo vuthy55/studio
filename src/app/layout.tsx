@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import ClientSidebar from '@/components/layout/client-sidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
+import { UserDataProvider } from '@/context/UserDataContext';
 
 export const metadata: Metadata = {
   title: 'VibeSync',
@@ -26,15 +27,17 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <LanguageProvider>
-          <SidebarProvider>
-            <ClientSidebar />
-            <SidebarInset>
-              <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
-            </SidebarInset>
-            <Toaster />
-          </SidebarProvider>
-        </LanguageProvider>
+        <UserDataProvider>
+          <LanguageProvider>
+            <SidebarProvider>
+              <ClientSidebar />
+              <SidebarInset>
+                <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+              </SidebarInset>
+              <Toaster />
+            </SidebarProvider>
+          </LanguageProvider>
+        </UserDataProvider>
       </body>
     </html>
   );

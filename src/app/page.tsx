@@ -1,11 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
-import type { UserProfile } from '@/app/profile/page';
+import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
@@ -17,24 +13,7 @@ import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 export default function SyncHubPage() {
     const { isMobile } = useSidebar();
     const [activeTab, setActiveTab] = useState('prep-vibe');
-    const [user] = useAuthState(auth);
-    const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
-
-    useEffect(() => {
-        if (user) {
-            const userDocRef = doc(db, 'users', user.uid);
-            const unsubscribe = onSnapshot(userDocRef, (doc) => {
-                if (doc.exists()) {
-                    setUserProfile(doc.data());
-                }
-            });
-            // Cleanup the listener when the component unmounts
-            return () => unsubscribe();
-        } else {
-            setUserProfile({}); // Reset profile if user logs out
-        }
-    }, [user]);
-
+   
     return (
         <div className="space-y-8">
              <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -55,7 +34,7 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
                 <TabsContent value="prep-vibe">
-                    <LearnPageContent userProfile={userProfile} />
+                    <LearnPageContent />
                 </TabsContent>
                 <TabsContent value="live-translation">
                    <LiveTranslationContent />

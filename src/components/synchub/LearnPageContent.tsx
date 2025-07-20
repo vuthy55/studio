@@ -18,42 +18,23 @@ import { assessPronunciationFromMic, abortRecognition } from '@/services/speech'
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, runTransaction, onSnapshot, query } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
-import type { UserProfile } from '@/app/profile/page';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { useUserData } from '@/context/UserDataContext';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail';
 type AssessmentResult = {
-  status: AssessmentStatus;
+  status: 'pass' | 'fail';
   accuracy?: number;
   fluency?: number;
 };
 
-type PracticeHistoryDoc = {
-    [key: string]: any;
-};
-
-type PracticeHistoryStats = {
-    [phraseId: string]: {
-        passCountPerLang: Record<string, number>;
-        failCountPerLang: Record<string, number>;
-    }
-}
-
-interface LearnPageContentProps {
-    userProfile: Partial<UserProfile>;
-}
-
-export default function LearnPageContent({ userProfile }: LearnPageContentProps) {
+export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const [user] = useAuthState(auth);
+    const { user, userProfile, practiceHistory, loading, recordPracticeAttempt, getTopicStats } = useUserData();
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
@@ -61,13 +42,10 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
     const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
     
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
-    const [phraseAssessments, setPhraseAssessments] = useLocalStorage<Record<string, AssessmentResult>>('guestPracticeHistory', {});
-    const [practiceHistoryStats, setPracticeHistoryStats] = useState<PracticeHistoryStats>({});
+    const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isFetchingSettings, setIsFetchingSettings] = useState(true);
-
-    const practicedPhrasesRef = useRef(new Set<string>());
 
     useEffect(() => {
         getAppSettings().then(s => {
@@ -76,40 +54,13 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         });
     }, []);
 
-    useEffect(() => {
-        if (!user) {
-            setPracticeHistoryStats({});
-            return;
-        };
-
-        const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
-        const q = query(historyRef);
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const stats: PracticeHistoryStats = {};
-            querySnapshot.forEach((doc) => {
-                const data = doc.data() as PracticeHistoryDoc;
-                stats[doc.id] = {
-                    passCountPerLang: data.passCountPerLang || {},
-                    failCountPerLang: data.failCountPerLang || {},
-                };
-            });
-            console.log('[DEBUG] Fetched practice history from Firestore:', stats);
-            setPracticeHistoryStats(stats);
-        }, (error) => {
-            console.error("Error listening to practice history:", error);
-        });
-
-        return () => unsubscribe();
-    }, [user]);
-
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
         // This is the cleanup function that will run when the component unmounts.
         return () => {
             // If a phrase is being assessed when the component unmounts, abort it.
             if (assessingPhraseId) {
-                console.log("LearnPageContent unmounting: Aborting recognition.");
+                console.log("[DEBUG] LearnPageContent unmounting: Aborting recognition.");
                 abortRecognition();
             }
         };
@@ -156,73 +107,26 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         setAssessingPhraseId(phraseId);
     
         try {
-            const { practiceReward, practiceThreshold } = settings;
             const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
             const { isPass, accuracy, fluency } = assessment;
 
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
-            setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
+            setLastAssessment({ [phraseId]: finalResult });
             
-            console.log(`[DEBUG] Assessment result for "${referenceText}": ${isPass ? 'PASS' : 'FAIL'}`);
+            console.log(`[DEBUG] Assessment for "${referenceText}": ${isPass ? 'PASS' : 'FAIL'}`);
 
-            await runTransaction(db, async (transaction) => {
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDoc = await transaction.get(userDocRef);
-                if (!userDoc.exists()) throw new Error("User document not found");
-
-                const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
-                const historySnap = await transaction.get(historyDocRef);
-
-                const practicedKey = `${phraseId}-${toLanguage}`;
-                if (!practicedPhrasesRef.current.has(practicedKey)) {
-                        transaction.set(userDocRef, { practiceStats: { byLanguage: { [toLanguage]: { practiced: increment(1) } } } }, { merge: true });
-                    practicedPhrasesRef.current.add(practicedKey);
-                }
-
-                if (isPass) {
-                    const hadPassedBeforeForLang = historySnap.exists() && (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) > 0;
-                    
-                    if (!hadPassedBeforeForLang) {
-                        transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { correct: increment(1) } } }, byLanguage: { [toLanguage]: { correct: increment(1) } } } }, { merge: true });
-                    }
-
-                    const passCountForLang = (historySnap.data()?.passCountPerLang?.[toLanguage] || 0) + 1;
-                    const historyData = {
-                        phraseText: referenceText,
-                        [`passCountPerLang.${toLanguage}`]: passCountForLang,
-                        [`lastAttemptPerLang.${toLanguage}`]: serverTimestamp(),
-                        [`lastAccuracyPerLang.${toLanguage}`]: accuracy
-                    };
-                    transaction.set(historyDocRef, historyData, { merge: true });
-
-                    if (passCountForLang > 0 && passCountForLang % practiceThreshold === 0) {
-                        transaction.update(userDocRef, { tokenBalance: increment(practiceReward) });
-                        transaction.set(userDocRef, { practiceStats: { byTopic: { [topicId]: { [toLanguage]: { tokensEarned: increment(practiceReward) } } } } }, { merge: true });
-                        
-                        const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                        const newLogRef = doc(logRef);
-                        transaction.set(newLogRef, { actionType: 'practice_earn', tokenChange: practiceReward, timestamp: serverTimestamp(), description: `Earned for mastering: "${referenceText}" in ${toLanguage}` });
-                        
-                        toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
-                    }
-                } else {
-                     const failCountForLang = (historySnap.data()?.failCountPerLang?.[toLanguage] || 0) + 1;
-                      const historyData = {
-                        phraseText: referenceText,
-                        [`failCountPerLang.${toLanguage}`]: failCountForLang,
-                        [`lastAttemptPerLang.${toLanguage}`]: serverTimestamp(),
-                        [`lastAccuracyPerLang.${toLanguage}`]: accuracy
-                    };
-                    transaction.set(historyDocRef, historyData, { merge: true });
-                }
+            recordPracticeAttempt({
+                phraseId,
+                phraseText: referenceText,
+                topicId,
+                lang: toLanguage,
+                isPass,
+                accuracy,
+                settings
             });
-            // This is where we will see the state desync
-            console.log('[DEBUG] Local phrase assessments state:', phraseAssessments);
-            console.log('[DEBUG] Firestore-backed practice history stats:', practiceHistoryStats);
 
         } catch (error: any) {
             console.error("[assessPronunciation] Error:", error);
-            // Don't show toast if the error is just an abort
             if (error.message !== "Recognition was aborted.") {
                 toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
             }
@@ -245,9 +149,9 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
     const fromLanguageDetails = languages.find(l => l.value === fromLanguage);
     const toLanguageDetails = languages.find(l => l.value === toLanguage);
 
-    const topicStats = userProfile?.practiceStats?.byTopic?.[selectedTopic.id]?.[toLanguage];
+    const topicStats = getTopicStats(selectedTopic.id, toLanguage);
 
-    if (isFetchingSettings) {
+    if (isFetchingSettings || loading) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -363,11 +267,11 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                             <div className="text-sm text-muted-foreground mb-4 flex items-center gap-4">
                                 <div className="flex items-center gap-1.5" title="Unique phrases pronounced correctly">
                                     <Star className="h-4 w-4 text-yellow-500" />
-                                    <span>Correct: <strong>{topicStats?.correct ?? 0} / {selectedTopic.phrases.length}</strong></span>
+                                    <span>Correct: <strong>{topicStats.correct} / {selectedTopic.phrases.length}</strong></span>
                                 </div>
                                 <div className="flex items-center gap-1.5" title="Tokens earned from this topic">
                                     <Award className="h-4 w-4 text-amber-500" />
-                                    <span>Tokens Earned: <strong>{topicStats?.tokensEarned ?? 0}</strong></span>
+                                    <span>Tokens Earned: <strong>{topicStats.tokensEarned}</strong></span>
                                 </div>
                             </div>
                         )}
@@ -378,11 +282,12 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                 const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
                                 const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
 
-                                const assessment = phraseAssessments[phrase.id];
+                                const assessment = lastAssessment[phrase.id];
                                 const isAssessingCurrent = assessingPhraseId === phrase.id;
                                 
-                                const passes = practiceHistoryStats[phrase.id]?.passCountPerLang?.[toLanguage] || 0;
-                                const fails = practiceHistoryStats[phrase.id]?.failCountPerLang?.[toLanguage] || 0;
+                                const history = practiceHistory[phrase.id];
+                                const passes = history?.passCountPerLang?.[toLanguage] || 0;
+                                const fails = history?.failCountPerLang?.[toLanguage] || 0;
 
                                 const getResultIcon = () => {
                                     if (!assessment) return null;
