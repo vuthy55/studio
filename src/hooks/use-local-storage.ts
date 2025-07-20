@@ -16,7 +16,14 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val
       try {
         const item = window.localStorage.getItem(key);
         if (item) {
-          setInternalValue(JSON.parse(item));
+          // Attempt to parse the item as JSON. If it fails, assume it's a raw string value.
+          try {
+            setInternalValue(JSON.parse(item));
+          } catch (e) {
+            // If parsing fails, it's likely a non-JSON string, so use it directly.
+            // This handles legacy values that were not JSON stringified.
+            setInternalValue(item as unknown as T);
+          }
         }
       } catch (error) {
         console.error(`Error reading localStorage key “${key}”:`, error);
