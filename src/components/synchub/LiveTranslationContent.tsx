@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
-import { recognizeFromMic, assessPronunciationFromMic } from '@/services/speech';
+import { recognizeFromMic, assessPronunciationFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -72,6 +72,16 @@ export default function LiveTranslationContent() {
      useEffect(() => {
         getAppSettings().then(setSettings);
     }, []);
+
+    // Effect to handle aborting recognition on component unmount
+    useEffect(() => {
+        return () => {
+            if (isRecognizing || assessingPhraseId) {
+                console.log("LiveTranslationContent unmounting: Aborting recognition.");
+                abortRecognition();
+            }
+        };
+    }, [isRecognizing, assessingPhraseId]);
 
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -203,7 +213,9 @@ export default function LiveTranslationContent() {
             setInputText(recognizedText);
         } catch (error: any) {
             console.error("Error during speech recognition:", error);
-            toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
+            if (error.message !== "Recognition was aborted.") {
+               toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
+            }
         } finally {
             setIsRecognizing(false);
         }
@@ -224,38 +236,43 @@ export default function LiveTranslationContent() {
         finalResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
             
         await runTransaction(db, async (transaction) => {
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await transaction.get(userDocRef);
+                if (!userDoc.exists()) throw "User document not found!";
+
                 const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
                 const historySnap = await transaction.get(historyDocRef);
                 const passCountForLang = (historySnap.data()?.passCountPerLang?.[lang] || 0) + (isPass ? 1 : 0);
                 const failCountForLang = (historySnap.data()?.failCountPerLang?.[lang] || 0) + (isPass ? 0 : 1);
 
                 const historyData = {
-                phraseText: referenceText,
-                [`passCountPerLang.${lang}`]: passCountForLang,
-                [`failCountPerLang.${lang}`]: failCountForLang,
-                [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
-                [`lastAccuracyPerLang.${lang}`]: accuracy
+                    phraseText: referenceText,
+                    [`passCountPerLang.${lang}`]: passCountForLang,
+                    [`failCountPerLang.${lang}`]: failCountForLang,
+                    [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
+                    [`lastAccuracyPerLang.${lang}`]: accuracy
                 };
                 transaction.set(historyDocRef, historyData, { merge: true });
 
                 if (isPass && passCountForLang > 0 && passCountForLang % settings.practiceThreshold === 0) {
-                    const userDocRef = doc(db, 'users', user.uid);
                     transaction.update(userDocRef, { tokenBalance: (userDoc.data()?.tokenBalance || 0) + settings.practiceReward });
                     
                     const logRef = collection(db, `users/${user.uid}/transactionLogs`);
                     const newLogRef = doc(logRef);
                     transaction.set(newLogRef, {
-                    actionType: 'practice_earn',
-                    tokenChange: settings.practiceReward,
-                    timestamp: serverTimestamp(),
-                    description: `Earned for mastering a saved phrase.`
-                });
-                toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
+                        actionType: 'practice_earn',
+                        tokenChange: settings.practiceReward,
+                        timestamp: serverTimestamp(),
+                        description: `Earned for mastering a saved phrase.`
+                    });
+                    toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
                 }
         });
     } catch (error: any) {
       console.error("Error during assessment:", error);
-      toast({ variant: 'destructive', title: 'Assessment Error', description: error.message });
+      if (error.message !== "Recognition was aborted.") {
+        toast({ variant: 'destructive', title: 'Assessment Error', description: error.message });
+      }
     } finally {
       setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
       setAssessingPhraseId(null);

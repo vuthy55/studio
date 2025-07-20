@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { generateSpeech } from '@/services/tts';
-import { assessPronunciationFromMic } from '@/services/speech';
+import { assessPronunciationFromMic, abortRecognition } from '@/services/speech';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
@@ -82,6 +82,18 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         });
 
     }, []);
+
+    // Effect to handle aborting recognition on component unmount
+    useEffect(() => {
+        // Return a cleanup function
+        return () => {
+            // If a phrase is being assessed when the component unmounts, abort it.
+            if (assessingPhraseId) {
+                console.log("LearnPageContent unmounting: Aborting recognition.");
+                abortRecognition();
+            }
+        };
+    }, [assessingPhraseId]); // This effect depends on the assessingPhraseId
     
     useEffect(() => {
         if (!user && isMounted) {
@@ -215,7 +227,10 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
 
         } catch (error: any) {
             console.error("[assessPronunciation] Error:", error);
-            toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+            // Don't show toast if the error is just an abort
+            if (error.message !== "Recognition was aborted.") {
+                toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+            }
         } finally {
             setAssessingPhraseId(null);
         }

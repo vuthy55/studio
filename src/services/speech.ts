@@ -15,6 +15,8 @@ class SpeechService {
     private speechConfig: sdk.SpeechConfig | null = null;
     private audioConfig: sdk.AudioConfig | null = null;
     private recognizer: sdk.SpeechRecognizer | null = null;
+    
+    private isContinuousListening: boolean = false;
 
     private getSpeechConfig(): sdk.SpeechConfig {
         if (!this.speechConfig) {
@@ -29,23 +31,26 @@ class SpeechService {
     }
 
     private getAudioConfig(): sdk.AudioConfig {
+        if (typeof window === 'undefined') {
+            throw new Error("Microphone access is only available in the browser.");
+        }
         if (!this.audioConfig) {
-             if (typeof window === 'undefined') {
-                throw new Error("Microphone access is only available in the browser.");
-            }
             this.audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
         }
         return this.audioConfig;
     }
     
     private getRecognizer(languageConfig: sdk.AutoDetectSourceLanguageConfig | string): sdk.SpeechRecognizer {
+        // If we are performing continuous recognition, we don't want to create a new recognizer
+        if (this.isContinuousListening && this.recognizer) {
+            return this.recognizer;
+        }
+
+        this.closeRecognizer(); // Close any existing recognizer before creating a new one
+
         const speechConfig = this.getSpeechConfig();
         const audioConfig = this.getAudioConfig();
         
-        if (this.recognizer) {
-            this.recognizer.close();
-        }
-
         if (typeof languageConfig === 'string') {
             speechConfig.speechRecognitionLanguage = languageConfig;
             this.recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
@@ -56,50 +61,55 @@ class SpeechService {
         return this.recognizer;
     }
 
-    public async recognizeOnce(locale: string): Promise<string> {
+    public recognizeOnce(locale: string): Promise<string> {
+        this.isContinuousListening = false;
         const recognizer = this.getRecognizer(locale);
-        try {
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer.recognizeOnceAsync(resolve, reject);
-            });
 
-            if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                return result.text;
-            } else {
-                const cancellation = sdk.CancellationDetails.fromResult(result);
-                throw new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}. Details: ${cancellation.errorDetails}`);
-            }
-        } finally {
-            // We don't close the recognizer here to allow reuse,
-            // the getRecognizer method will handle closing old ones.
-        }
+        return new Promise<string>((resolve, reject) => {
+            recognizer.recognizeOnceAsync(result => {
+                if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
+                    resolve(result.text);
+                } else {
+                    const cancellation = sdk.CancellationDetails.fromResult(result);
+                    reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}. Details: ${cancellation.errorDetails || 'No details'}`));
+                }
+                 this.closeRecognizer();
+            }, err => {
+                reject(new Error(`Recognition error: ${err}`));
+                this.closeRecognizer();
+            });
+        });
     }
 
-    public async recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
+    public recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
+        this.isContinuousListening = false;
         const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
         const recognizer = this.getRecognizer(autoDetectConfig);
-        try {
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer.recognizeOnceAsync(resolve, reject);
+        
+        return new Promise((resolve, reject) => {
+             recognizer.recognizeOnceAsync(result => {
+                if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+                    const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
+                    resolve({
+                        detectedLang: autoDetectResult.language,
+                        text: result.text
+                    });
+                } else {
+                    const cancellation = sdk.CancellationDetails.fromResult(result);
+                    reject(new Error(cancellation.errorDetails || "No speech could be recognized."));
+                }
+                this.closeRecognizer();
+            }, err => {
+                reject(new Error(`Auto-detect recognition error: ${err}`));
+                this.closeRecognizer();
             });
-
-            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
-                const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
-                return {
-                    detectedLang: autoDetectResult.language,
-                    text: result.text
-                };
-            } else {
-                const cancellation = sdk.CancellationDetails.fromResult(result);
-                throw new Error(cancellation.errorDetails || "No speech could be recognized.");
-            }
-        } finally {
-             // We don't close the recognizer here to allow reuse
-        }
+        });
     }
     
-    public async assessPronunciation(referenceText: string, locale: string): Promise<PronunciationAssessmentResult> {
+    public assessPronunciation(referenceText: string, locale: string): Promise<PronunciationAssessmentResult> {
+        this.isContinuousListening = false;
         const recognizer = this.getRecognizer(locale);
+
         const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
             referenceText,
             sdk.PronunciationAssessmentGradingSystem.HundredMark,
@@ -108,31 +118,31 @@ class SpeechService {
         );
         pronunciationConfig.applyTo(recognizer);
 
-        try {
-            const result = await new Promise<sdk.SpeechRecognitionResult>((resolve, reject) => {
-                recognizer.recognizeOnceAsync(resolve, reject);
+        return new Promise((resolve, reject) => {
+            recognizer.recognizeOnceAsync(result => {
+                if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+                    const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
+                    resolve({
+                        accuracy: assessment.accuracyScore,
+                        fluency: assessment.fluencyScore,
+                        completeness: assessment.completenessScore,
+                        pronScore: assessment.pronunciationScore,
+                        isPass: assessment.accuracyScore > 70
+                    });
+                } else {
+                     const cancellation = sdk.CancellationDetails.fromResult(result);
+                     reject(new Error(`Recognition failed: ${cancellation.errorDetails || sdk.ResultReason[result.reason]}`));
+                }
+                this.closeRecognizer();
+            }, err => {
+                 reject(new Error(`Assessment error: ${err}`));
+                 this.closeRecognizer();
             });
-
-            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
-                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
-                const accuracyScore = assessment.accuracyScore;
-                return {
-                    accuracy: accuracyScore,
-                    fluency: assessment.fluencyScore,
-                    completeness: assessment.completenessScore,
-                    pronScore: assessment.pronunciationScore,
-                    isPass: accuracyScore > 70
-                };
-            } else {
-                 const cancellation = sdk.CancellationDetails.fromResult(result);
-                 throw new Error(`Recognition failed: ${cancellation.errorDetails || sdk.ResultReason[result.reason]}`);
-            }
-        } finally {
-            // We don't close the recognizer here to allow reuse
-        }
+        });
     }
 
     public getContinuousRecognizer(language: string, recognizedCallback: (text: string) => void, errorCallback: (errorDetails: string) => void, stoppedCallback: () => void): sdk.SpeechRecognizer {
+        this.isContinuousListening = true;
         const recognizer = this.getRecognizer(language);
 
         recognizer.recognized = (s, e) => {
@@ -153,6 +163,25 @@ class SpeechService {
         };
         
         return recognizer;
+    }
+
+    public abortRecognition() {
+        if (this.recognizer) {
+            this.recognizer.stopContinuousRecognitionAsync(() => {}, (err) => {});
+            this.closeRecognizer();
+        }
+    }
+    
+    private closeRecognizer() {
+        if (this.recognizer) {
+            this.recognizer.close();
+            this.recognizer = null;
+        }
+        if (this.audioConfig) {
+            this.audioConfig.close();
+            this.audioConfig = null;
+        }
+        this.isContinuousListening = false;
     }
 }
 
@@ -191,4 +220,8 @@ export function getContinuousRecognizerForRoom(
     stoppedCallback: () => void
 ): sdk.SpeechRecognizer {
     return speechService.getContinuousRecognizer(language, recognizedCallback, errorCallback, stoppedCallback);
+}
+
+export function abortRecognition() {
+    speechService.abortRecognition();
 }
