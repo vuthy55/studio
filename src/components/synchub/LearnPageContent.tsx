@@ -64,11 +64,6 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
     const practicedPhrasesRef = useRef(new Set<string>());
 
     useEffect(() => {
-        console.log('[Mount] LearnPageContent');
-        return () => console.log('[Unmount] LearnPageContent');
-    }, []);
-
-    useEffect(() => {
         getAppSettings().then(s => {
             setSettings(s)
             setIsFetchingSettings(false);
@@ -396,3 +391,5 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         </Card>
     );
 }
+
+    

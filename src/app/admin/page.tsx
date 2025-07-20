@@ -284,8 +284,6 @@ export default function AdminPage() {
 
     useEffect(() => {
         setIsClient(true);
-        console.log('[Mount] AdminPage');
-        return () => console.log('[Unmount] AdminPage');
     }, []);
 
     useEffect(() => {
@@ -329,3 +327,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
