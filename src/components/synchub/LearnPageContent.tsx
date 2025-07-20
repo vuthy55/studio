@@ -6,7 +6,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -170,6 +170,15 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                         
                         toast({ title: "Tokens Earned!", description: `You earned ${practiceReward} token for mastering a phrase!` });
                     }
+                } else {
+                     const failCountForLang = (historySnap.data()?.failCountPerLang?.[toLanguage] || 0) + 1;
+                      const historyData = {
+                        phraseText: referenceText,
+                        [`failCountPerLang.${toLanguage}`]: failCountForLang,
+                        [`lastAttemptPerLang.${toLanguage}`]: serverTimestamp(),
+                        [`lastAccuracyPerLang.${toLanguage}`]: accuracy
+                    };
+                    transaction.set(historyDocRef, historyData, { merge: true });
                 }
             });
 
@@ -333,6 +342,13 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
 
                                 const assessment = phraseAssessments[phrase.id];
                                 const isAssessingCurrent = assessingPhraseId === phrase.id;
+                                
+                                const getResultIcon = () => {
+                                    if (!assessment) return null;
+                                    if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+                                    if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
+                                    return null;
+                                };
 
                                 return (
                                 <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
@@ -353,6 +369,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                                 )}
                                             </div>
                                             <div className="flex items-center shrink-0">
+                                                {getResultIcon()}
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play audio</span>
