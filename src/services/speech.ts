@@ -17,7 +17,6 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
 let speechConfig: sdk.SpeechConfig | null = null;
 let audioConfig: sdk.AudioConfig | null = null;
 let recognizer: sdk.SpeechRecognizer | null = null;
-let recognizerPromise: Promise<void> | null = null;
 
 function getSpeechConfig(): sdk.SpeechConfig {
     if (speechConfig) return speechConfig;
@@ -58,8 +57,10 @@ function createRecognizer(languageOrDetectConfig: string | sdk.AutoDetectSourceL
         sc.speechRecognitionLanguage = languageOrDetectConfig;
         recognizer = new sdk.SpeechRecognizer(sc, ac);
     } else {
-        // Must clear the specific language if we are using auto-detect
-        sc.speechRecognitionLanguage = '';
+        // When using AutoDetectSourceLanguageConfig, speechRecognitionLanguage must be unset.
+        // It was being set to '', which caused the crash. The SpeechConfig object is a singleton,
+        // so we must ensure it's clean before using it for auto-detection if it was previously
+        // used for single-language recognition.
         recognizer = sdk.SpeechRecognizer.FromConfig(sc, languageOrDetectConfig, ac);
     }
 
