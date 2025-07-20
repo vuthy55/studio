@@ -57,8 +57,8 @@ function createRecognizer(languageOrDetectConfig: string | sdk.AutoDetectSourceL
         sc.speechRecognitionLanguage = languageOrDetectConfig;
          recognizer = new sdk.SpeechRecognizer(sc, ac);
     } else {
-        // When using AutoDetectSourceLanguageConfig, language must not be set on SpeechConfig
-        sc.speechRecognitionLanguage = ''; 
+        // When using AutoDetectSourceLanguageConfig, language must not be set on SpeechConfig.
+        // The SDK will use the languages provided in the AutoDetectSourceLanguageConfig object.
         recognizer = sdk.SpeechRecognizer.FromConfig(sc, languageOrDetectConfig, ac);
     }
 
@@ -167,50 +167,43 @@ export async function recognizeWithAutoDetect(
     return new Promise((resolve, reject) => {
         let timeoutId: NodeJS.Timeout | null = null;
 
-        const cleanup = () => {
+        const cleanup = (stopFn: () => void) => {
             if (timeoutId) {
                 clearTimeout(timeoutId);
                 timeoutId = null;
             }
-            // The recognizer itself will be cleaned up by the caller via abortRecognition()
+            r.stopContinuousRecognitionAsync(stopFn, (err) => {
+                console.error('[Speech Service] Error stopping continuous recognition during cleanup:', err);
+                stopFn();
+            });
         };
 
         timeoutId = setTimeout(() => {
             console.warn(`[Speech Service] Inactivity timeout of ${inactivityTimeout}ms reached. Aborting.`);
-            r.stopContinuousRecognitionAsync(
-                () => reject(new Error('SPEECH_TIMEDOUT')),
-                (err) => reject(new Error(`Error stopping on timeout: ${err}`))
-            );
+            cleanup(() => reject(new Error('SPEECH_TIMEDOUT')));
         }, inactivityTimeout);
 
         r.recognized = (s, e) => {
             if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-                cleanup();
                 console.log(`[Speech Service] Auto-detect successful. Language: ${e.result.language}, Text: "${e.result.text}"`);
-                r.stopContinuousRecognitionAsync(
-                    () => resolve({ detectedLang: e.result.language!, text: e.result.text }),
-                    (err) => reject(new Error(`Error stopping after recognition: ${err}`))
-                );
+                cleanup(() => resolve({ detectedLang: e.result.language!, text: e.result.text }));
             }
         };
 
         r.canceled = (s, e) => {
-            cleanup();
+            let errorMessage = `Recognition canceled: ${sdk.CancellationReason[e.reason]}`;
             if (e.reason === sdk.CancellationReason.Error) {
-                const err = e.errorDetails;
-                console.error(`[Speech Service] Auto-detect CANCELED: ${err}`);
-                reject(new Error(err));
-            } else {
-                 reject(new Error(`Recognition canceled: ${sdk.CancellationReason[e.reason]}`));
+                errorMessage = e.errorDetails;
+                console.error(`[Speech Service] Auto-detect CANCELED: ${errorMessage}`);
             }
+            cleanup(() => reject(new Error(errorMessage)));
         };
 
         r.startContinuousRecognitionAsync(
             () => { console.log("[Speech Service] Continuous recognition started for auto-detect."); },
             (err) => {
-                cleanup();
                 console.error(`[Speech Service] Auto-detect error starting continuous recognition: ${err}`);
-                reject(new Error(`Auto-detect recognition error: ${err}`));
+                cleanup(() => reject(new Error(`Auto-detect recognition error: ${err}`)));
             }
         );
     });
