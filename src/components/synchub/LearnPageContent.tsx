@@ -20,12 +20,11 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, runTransaction, onSnapshot } from 'firebase/firestore';
+import { doc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment, runTransaction, onSnapshot, query } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import type { UserProfile } from '@/app/profile/page';
 import useLocalStorage from '@/hooks/use-local-storage';
-
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -36,15 +35,20 @@ type AssessmentResult = {
   fluency?: number;
 };
 
-// This is for guest users in local storage
-type LocalHistory = {
-    assessments: Record<string, AssessmentResult>;
+type PracticeHistoryDoc = {
+    [key: string]: any;
+};
+
+type PracticeHistoryStats = {
+    [phraseId: string]: {
+        passCountPerLang: Record<string, number>;
+        failCountPerLang: Record<string, number>;
+    }
 }
 
 interface LearnPageContentProps {
     userProfile: Partial<UserProfile>;
 }
-
 
 export default function LearnPageContent({ userProfile }: LearnPageContentProps) {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
@@ -58,6 +62,8 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
     
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [phraseAssessments, setPhraseAssessments] = useLocalStorage<Record<string, AssessmentResult>>('guestPracticeHistory', {});
+    const [practiceHistoryStats, setPracticeHistoryStats] = useState<PracticeHistoryStats>({});
+
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isFetchingSettings, setIsFetchingSettings] = useState(true);
 
@@ -69,6 +75,32 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
             setIsFetchingSettings(false);
         });
     }, []);
+
+    useEffect(() => {
+        if (!user) {
+            setPracticeHistoryStats({});
+            return;
+        };
+
+        const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
+        const q = query(historyRef);
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const stats: PracticeHistoryStats = {};
+            querySnapshot.forEach((doc) => {
+                const data = doc.data() as PracticeHistoryDoc;
+                stats[doc.id] = {
+                    passCountPerLang: data.passCountPerLang || {},
+                    failCountPerLang: data.failCountPerLang || {},
+                };
+            });
+            setPracticeHistoryStats(stats);
+        }, (error) => {
+            console.error("Error listening to practice history:", error);
+        });
+
+        return () => unsubscribe();
+    }, [user]);
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
@@ -343,6 +375,9 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                 const assessment = phraseAssessments[phrase.id];
                                 const isAssessingCurrent = assessingPhraseId === phrase.id;
                                 
+                                const passes = practiceHistoryStats[phrase.id]?.passCountPerLang?.[toLanguage] || 0;
+                                const fails = practiceHistoryStats[phrase.id]?.failCountPerLang?.[toLanguage] || 0;
+
                                 const getResultIcon = () => {
                                     if (!assessment) return null;
                                     if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
@@ -381,6 +416,18 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                             </div>
                                         </div>
                                     </div>
+                                     { user && (passes > 0 || fails > 0) &&
+                                        <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
+                                            <div className="flex items-center gap-1" title='Correct attempts'>
+                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                <span className="font-bold">{passes}</span>
+                                            </div>
+                                                <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                                <XCircle className="h-4 w-4 text-red-500" />
+                                                <span className="font-bold">{fails}</span>
+                                            </div>
+                                        </div>
+                                    }
 
                                     {phrase.answer && (
                                         <>

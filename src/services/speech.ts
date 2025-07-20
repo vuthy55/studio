@@ -84,6 +84,9 @@ export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<stri
         r.recognizeOnceAsync(result => {
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
+            } else if (result.reason === sdk.ResultReason.NoMatch) {
+                const noMatchDetails = sdk.NoMatchDetails.fromResult(result);
+                reject(new Error(`No speech could be recognized. Reason: ${sdk.NoMatchReason[noMatchDetails.reason]}`));
             } else {
                 const cancellation = sdk.CancellationDetails.fromResult(result);
                 reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}. Details: ${cancellation.errorDetails || 'No details'}`));
@@ -119,6 +122,10 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                     pronScore: assessment.pronunciationScore,
                     isPass: assessment.accuracyScore > 70
                 });
+            } else if (result.reason === sdk.ResultReason.NoMatch) {
+                const noMatchDetails = sdk.NoMatchDetails.fromResult(result);
+                const reasonText = sdk.NoMatchReason[noMatchDetails.reason];
+                reject(new Error(`No speech was detected. Please try again. (Reason: ${reasonText})`));
             } else {
                  const cancellation = sdk.CancellationDetails.fromResult(result);
                  const errorDetails = cancellation.errorDetails || `Reason: ${sdk.ResultReason[result.reason]}`;
