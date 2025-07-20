@@ -19,6 +19,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, runTransaction, addDoc, collection, serverTimestamp, onSnapshot, query, setDoc } from 'firebase/firestore';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getAppSettings, type AppSettings } from '@/services/settings';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -55,7 +56,7 @@ export default function LiveTranslationContent() {
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
+    const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
 
@@ -63,7 +64,7 @@ export default function LiveTranslationContent() {
     const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
     const [practiceHistoryStats, setPracticeHistoryStats] = useState<PracticeHistoryStats>({});
     
-    const [savedPhrases, setSavedPhrases] = useState<SavedPhrase[]>([]);
+    const [savedPhrases, setSavedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
 
     const [user] = useAuthState(auth);
@@ -88,17 +89,6 @@ export default function LiveTranslationContent() {
         malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
         chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
     };
-
-    useEffect(() => {
-        try {
-            const items = localStorage.getItem('savedPhrases');
-            if (items) {
-                setSavedPhrases(JSON.parse(items));
-            }
-        } catch (error) {
-            console.error("Failed to load saved phrases from local storage", error);
-        }
-    }, []);
 
     useEffect(() => {
         if (!user) {
@@ -296,9 +286,7 @@ export default function LiveTranslationContent() {
             return;
         }
 
-        const updatedPhrases = [newPhrase, ...savedPhrases];
-        setSavedPhrases(updatedPhrases);
-        localStorage.setItem('savedPhrases', JSON.stringify(updatedPhrases));
+        setSavedPhrases([newPhrase, ...savedPhrases]);
         toast({ title: "Phrase Saved", description: "Added to your practice list below." });
     };
 

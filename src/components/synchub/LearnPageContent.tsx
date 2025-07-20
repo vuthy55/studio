@@ -24,6 +24,7 @@ import { doc, writeBatch, serverTimestamp, collection, addDoc, setDoc, increment
 import { cn } from '@/lib/utils';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import type { UserProfile } from '@/app/profile/page';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -50,37 +51,23 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
     const { toast } = useToast();
     const [user] = useAuthState(auth);
     
-    const [selectedTopic, setSelectedTopic] = useState<Topic>(phrasebook[0]);
-    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
+    const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
+    const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
+
+    const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
     
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
-    const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
+    const [phraseAssessments, setPhraseAssessments] = useLocalStorage<Record<string, AssessmentResult>>('guestPracticeHistory', {});
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isFetchingSettings, setIsFetchingSettings] = useState(true);
 
     const practicedPhrasesRef = useRef(new Set<string>());
 
-    // This state is set on mount to avoid hydration errors
-    const [isMounted, setIsMounted] = useState(false);
-
     useEffect(() => {
-        setIsMounted(true);
-        // Only run on client
-        const savedTopicId = localStorage.getItem('selectedTopicId');
-        if (savedTopicId) {
-            const savedTopic = phrasebook.find(t => t.id === savedTopicId);
-            if (savedTopic) setSelectedTopic(savedTopic);
-        }
-        const savedVoice = localStorage.getItem('selectedVoice') as VoiceSelection;
-        if (['default', 'male', 'female'].includes(savedVoice)) {
-            setSelectedVoice(savedVoice);
-        }
-        
         getAppSettings().then(s => {
             setSettings(s)
             setIsFetchingSettings(false);
         });
-
     }, []);
 
     // Effect to handle aborting recognition on component unmount
@@ -88,7 +75,6 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         // This is the cleanup function that will run when the component unmounts.
         return () => {
             // If a phrase is being assessed when the component unmounts, abort it.
-            // This is the key to preventing the memory leak.
             if (assessingPhraseId) {
                 console.log("LearnPageContent unmounting: Aborting recognition.");
                 abortRecognition();
@@ -96,45 +82,6 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
         };
     }, [assessingPhraseId]); // This effect depends on the assessingPhraseId
     
-    useEffect(() => {
-        if (!user && isMounted) {
-            try {
-                // This logic is for guest users, saving UI state.
-                const localData = localStorage.getItem('guestPracticeHistory');
-                if (localData) {
-                    const parsed: LocalHistory = JSON.parse(localData);
-                    setPhraseAssessments(parsed.assessments);
-                }
-            } catch (error) {
-                console.error("Failed to load guest progress from local storage", error);
-            }
-        }
-    }, [user, isMounted]);
-    
-    useEffect(() => {
-        if (!user && isMounted) {
-            try {
-                 const dataToSave: LocalHistory = { assessments: phraseAssessments };
-                 localStorage.setItem('guestPracticeHistory', JSON.stringify(dataToSave));
-            } catch (error) {
-                console.error("Failed to save guest progress to local storage", error);
-            }
-        }
-    }, [phraseAssessments, user, isMounted]);
-
-    useEffect(() => {
-        if (isMounted) {
-            localStorage.setItem('selectedTopicId', selectedTopic.id);
-        }
-    }, [selectedTopic, isMounted]);
-
-    useEffect(() => {
-        if (isMounted) {
-            localStorage.setItem('selectedVoice', selectedVoice);
-        }
-    }, [selectedVoice, isMounted]);
-
-
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
         malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
@@ -253,7 +200,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
 
     const topicStats = userProfile?.practiceStats?.byTopic?.[selectedTopic.id]?.[toLanguage];
 
-    if (!isMounted || isFetchingSettings) {
+    if (isFetchingSettings) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -341,7 +288,7 @@ export default function LearnPageContent({ userProfile }: LearnPageContentProps)
                                     <TooltipTrigger asChild>
                                     <Button
                                         variant="ghost"
-                                        onClick={() => setSelectedTopic(topic)}
+                                        onClick={() => setSelectedTopicId(topic.id)}
                                         className={cn(
                                         'h-auto w-auto p-2 transition-all duration-200',
                                         selectedTopic.id === topic.id
