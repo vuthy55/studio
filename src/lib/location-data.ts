@@ -85,7 +85,7 @@ export const lightweightCountries: LightweightCountry[] = [
   { name: 'Gambia', code: 'GM', phone: '220' },
   { name: 'Georgia', code: 'GE', phone: '995' },
   { name: 'Germany', code: 'DE', phone: '49' },
-  { name:: 'Ghana', code: 'GH', phone: '233' },
+  { name: 'Ghana', code: 'GH', phone: '233' },
   { name: 'Gibraltar', code: 'GI', phone: '350' },
   { name: 'Greece', code: 'GR', phone: '30' },
   { name: 'Greenland', code: 'GL', phone: '299' },
