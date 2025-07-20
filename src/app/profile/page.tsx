@@ -4,7 +4,7 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
@@ -58,10 +58,10 @@ export default function ProfilePage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
-    useEffect(() => {
-        console.log('[Mount] ProfilePage');
-        return () => console.log('[Unmount] ProfilePage');
-    }, []);
+    const countryOptions = useMemo(() => Object.entries(countries).map(([code, country]) => ({
+      value: code,
+      label: country.name
+    })), []);
 
     const fetchProfile = useCallback(async (uid: string) => {
         if (!user) return;
@@ -177,11 +177,6 @@ export default function ProfilePage() {
     const getInitials = (name?: string) => {
         return name ? name.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || '?');
     };
-
-    const countryOptions = Object.entries(countries).map(([code, country]) => ({
-      value: code,
-      label: country.name
-    }));
 
     if (loading || isFetchingProfile) {
         return (

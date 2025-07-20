@@ -21,11 +21,6 @@ export default function SyncHubPage() {
     const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
 
     useEffect(() => {
-        console.log('[Mount] SyncHubPage (Container)');
-        return () => console.log('[Unmount] SyncHubPage (Container)');
-    }, []);
-
-    useEffect(() => {
         if (user) {
             const userDocRef = doc(db, 'users', user.uid);
             const unsubscribe = onSnapshot(userDocRef, (doc) => {

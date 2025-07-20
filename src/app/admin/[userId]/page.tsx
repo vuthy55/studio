@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -40,10 +40,10 @@ export default function UserDetailPage() {
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
     const [isFetchingLogs, setIsFetchingLogs] = useState(true);
 
-    const countryOptions = Object.entries(countries).map(([code, country]) => ({
+    const countryOptions = useMemo(() => Object.entries(countries).map(([code, country]) => ({
       value: code,
       label: country.name
-    }));
+    })), []);
 
     const fetchProfileAndLogs = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);

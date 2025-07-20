@@ -26,11 +26,6 @@ export default function GroupConverseContent() {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('[Mount] GroupConverseContent');
-    return () => console.log('[Unmount] GroupConverseContent');
-  }, []);
-
-  useEffect(() => {
     // Cleanup function to abort recognition if the component unmounts
     // during a listening or speaking phase.
     return () => {

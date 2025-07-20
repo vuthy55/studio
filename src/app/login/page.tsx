@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
@@ -45,10 +45,10 @@ export default function LoginPage() {
     getAppSettings().then(setSettings);
   }, []);
 
-  const countryOptions = Object.entries(countries).map(([code, country]) => ({
+  const countryOptions = useMemo(() => Object.entries(countries).map(([code, country]) => ({
     value: code,
     label: country.name
-  }));
+  })), []);
 
   const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);

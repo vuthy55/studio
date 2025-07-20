@@ -44,11 +44,6 @@ export default function StatsPage() {
     const [isFetching, setIsFetching] = useState(true);
 
     useEffect(() => {
-        console.log('[Mount] StatsPage');
-        return () => console.log('[Unmount] StatsPage');
-    }, []);
-
-    useEffect(() => {
         if (loading) return;
         if (error) {
             console.error("Auth error:", error);

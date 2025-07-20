@@ -48,11 +48,6 @@ function UsersTabContent() {
     const [hasSearched, setHasSearched] = useState(false);
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    useEffect(() => {
-        console.log('[Mount] UsersTabContent');
-        return () => console.log('[Unmount] UsersTabContent');
-    }, []);
-
      const fetchUsers = useCallback(async (search = '') => {
         const normalizedSearch = search.toLowerCase().trim();
 
@@ -203,11 +198,6 @@ function SettingsTabContent() {
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
-        console.log('[Mount] SettingsTabContent');
-        return () => console.log('[Unmount] SettingsTabContent');
-    }, []);
-
-    useEffect(() => {
         getAppSettings().then(data => {
             setSettings(data);
             setIsLoading(false);
@@ -291,11 +281,6 @@ export default function AdminPage() {
     const router = useRouter();
     const { isMobile } = useSidebar();
     const [isClient, setIsClient] = useState(false);
-
-    useEffect(() => {
-        console.log('[Mount] AdminPage');
-        return () => console.log('[Unmount] AdminPage');
-    }, []);
 
     useEffect(() => {
         setIsClient(true);

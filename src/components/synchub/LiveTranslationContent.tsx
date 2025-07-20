@@ -70,11 +70,6 @@ export default function LiveTranslationContent() {
     const [user] = useAuthState(auth);
     const [settings, setSettings] = useState<AppSettings | null>(null);
 
-    useEffect(() => {
-        console.log('[Mount] LiveTranslationContent');
-        return () => console.log('[Unmount] LiveTranslationContent');
-    }, []);
-
      useEffect(() => {
         getAppSettings().then(setSettings);
     }, []);
