@@ -57,10 +57,6 @@ function createRecognizer(languageOrDetectConfig: string | sdk.AutoDetectSourceL
         sc.speechRecognitionLanguage = languageOrDetectConfig;
         recognizer = new sdk.SpeechRecognizer(sc, ac);
     } else {
-        // When using AutoDetectSourceLanguageConfig, speechRecognitionLanguage must be unset.
-        // It was being set to '', which caused the crash. The SpeechConfig object is a singleton,
-        // so we must ensure it's clean before using it for auto-detection if it was previously
-        // used for single-language recognition.
         recognizer = sdk.SpeechRecognizer.FromConfig(sc, languageOrDetectConfig, ac);
     }
 
@@ -164,29 +160,49 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
     console.log(`[Speech Service] Starting auto-detect recognition for [${languages.join(', ')}]...`);
     
     return new Promise((resolve, reject) => {
-         r.recognizeOnceAsync(result => {
-            if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
-                const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
-                console.log(`[Speech Service] Auto-detect successful. Language: ${autoDetectResult.language}, Text: "${result.text}"`);
-                resolve({
-                    detectedLang: autoDetectResult.language,
-                    text: result.text
-                });
-            } else {
-                const cancellation = sdk.CancellationDetails.fromResult(result);
-                const reason = sdk.ResultReason[result.reason];
-                const err = cancellation.errorDetails || `Reason: ${reason}`;
-                console.error(`[Speech Service] Auto-detect failed: ${err}`);
+        // Use continuous recognition to get intermediate results and stop when we have one.
+        r.recognized = (s, e) => {
+            if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
+                // Once we have a final recognized result, stop the recognition.
+                console.log(`[Speech Service] Auto-detect successful. Language: ${e.result.language}, Text: "${e.result.text}"`);
+                
+                // IMPORTANT: Stop continuous recognition now that we have a result.
+                r.stopContinuousRecognitionAsync(
+                    () => {
+                        resolve({
+                            detectedLang: e.result.language!,
+                            text: e.result.text,
+                        });
+                         // The abortRecognition() will be called by the component that initiated this.
+                    },
+                    (err) => {
+                        console.error("[Speech Service] Error stopping continuous recognition:", err);
+                        reject(new Error("Failed to stop recognition."));
+                    }
+                );
+            }
+        };
+
+        r.canceled = (s, e) => {
+            if (e.reason === sdk.CancellationReason.Error) {
+                const err = e.errorDetails;
+                console.error(`[Speech Service] Auto-detect CANCELED: ${err}`);
                 reject(new Error(err));
             }
-             abortRecognition();
-        }, err => {
-            console.error(`[Speech Service] Auto-detect error callback: ${err}`);
-            reject(new Error(`Auto-detect recognition error: ${err}`));
-             abortRecognition();
-        });
+            // Let the caller handle aborting on cancellation
+        };
+
+        // Start the continuous recognition.
+        r.startContinuousRecognitionAsync(
+            () => { console.log("[Speech Service] Continuous recognition started."); },
+            (err) => {
+                console.error(`[Speech Service] Auto-detect error starting continuous recognition: ${err}`);
+                reject(new Error(`Auto-detect recognition error: ${err}`));
+            }
+        );
     });
 }
+
 
 export function getContinuousRecognizerForRoom(
     language: string,
