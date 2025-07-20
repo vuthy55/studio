@@ -47,7 +47,6 @@ export default function SyncOnlineHome() {
     const [user, loading] = useAuthState(auth);
     const router = useRouter();
     const { toast } = useToast();
-    const [isMounted, setIsMounted] = useState(false);
 
     const [isCreating, setIsCreating] = useState(false);
     const [roomTopic, setRoomTopic] = useState('');
@@ -61,7 +60,7 @@ export default function SyncOnlineHome() {
 
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
-     useEffect(() => {
+    useEffect(() => {
         console.log('[Mount] SyncOnlineHome');
         return () => console.log('[Unmount] SyncOnlineHome');
     }, []);
@@ -98,17 +97,13 @@ export default function SyncOnlineHome() {
     }, [user, toast]);
 
     useEffect(() => {
-        setIsMounted(true);
-    }, []);
-
-    useEffect(() => {
-        if (isMounted && user) {
+        if (user) {
             fetchInvitedRooms();
         } else if (!loading) {
              setIsFetchingRooms(false);
              setInvitedRooms([]);
         }
-    }, [user, isMounted, loading, fetchInvitedRooms]);
+    }, [user, loading, fetchInvitedRooms]);
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -196,8 +191,10 @@ export default function SyncOnlineHome() {
     };
     
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(createdRoomLink);
-        toast({ title: 'Copied!', description: 'Room link copied to clipboard.' });
+        if (typeof window !== 'undefined') {
+            navigator.clipboard.writeText(createdRoomLink);
+            toast({ title: 'Copied!', description: 'Room link copied to clipboard.' });
+        }
     };
     
     const resetAndClose = () => {
@@ -207,7 +204,7 @@ export default function SyncOnlineHome() {
         setCreatedRoomLink('');
     };
 
-    if (!isMounted || loading) {
+    if (loading) {
         return (
              <Card>
                 <CardHeader>
