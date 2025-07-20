@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { countries } from 'countries-list';
+import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile, updateEmail } from "firebase/auth";
 import type { LanguageCode } from '@/lib/data';
@@ -58,10 +58,7 @@ export default function ProfilePage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
-    const countryOptions = useMemo(() => Object.entries(countries).map(([code, country]) => ({
-      value: code,
-      label: country.name
-    })), []);
+    const countryOptions = useMemo(() => lightweightCountries, []);
 
     const fetchProfile = useCallback(async (uid: string) => {
         if (!user) return;
@@ -246,7 +243,7 @@ export default function ProfilePage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {countryOptions.map(country => (
-                                        <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

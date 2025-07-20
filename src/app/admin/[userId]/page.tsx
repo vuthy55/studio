@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { countries } from 'countries-list';
+import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
@@ -40,10 +40,7 @@ export default function UserDetailPage() {
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
     const [isFetchingLogs, setIsFetchingLogs] = useState(true);
 
-    const countryOptions = useMemo(() => Object.entries(countries).map(([code, country]) => ({
-      value: code,
-      label: country.name
-    })), []);
+    const countryOptions = useMemo(() => lightweightCountries, []);
 
     const fetchProfileAndLogs = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);
@@ -215,7 +212,7 @@ export default function UserDetailPage() {
                                         </SelectTrigger>
                                         <SelectContent>
                                             {countryOptions.map(country => (
-                                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                                <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -292,5 +289,3 @@ export default function UserDetailPage() {
         </div>
     );
 }
-
-    

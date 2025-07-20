@@ -13,7 +13,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { countries } from 'countries-list';
+import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,7 @@ export default function LoginPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupCountry, setSignupCountry] = useState('');
   const [signupMobile, setSignupMobile] = useState('');
+  const [phonePrefix, setPhonePrefix] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -45,10 +46,33 @@ export default function LoginPage() {
     getAppSettings().then(setSettings);
   }, []);
 
-  const countryOptions = useMemo(() => Object.entries(countries).map(([code, country]) => ({
-    value: code,
-    label: country.name
-  })), []);
+  const countryOptions = useMemo(() => lightweightCountries, []);
+
+  const handleCountryChange = (countryCode: string) => {
+    const selected = countryOptions.find(c => c.code === countryCode);
+    if (selected) {
+      setSignupCountry(countryCode);
+      const newPrefix = `+${selected.phone}`;
+      setPhonePrefix(newPrefix);
+      // Keep existing number if user changes country after typing
+      if (signupMobile && !signupMobile.startsWith(newPrefix)) {
+          const numberWithoutOldPrefix = signupMobile.replace(/^\+\d+\s*/, '');
+          setSignupMobile(`${newPrefix} ${numberWithoutOldPrefix}`);
+      } else if (!signupMobile) {
+          setSignupMobile(`${newPrefix} `);
+      }
+    }
+  };
+
+  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Ensure prefix stays, but allow user to delete number part
+    if (phonePrefix && !value.startsWith(phonePrefix)) {
+        // If they deleted part of the prefix, restore it.
+        value = `${phonePrefix} `;
+    }
+    setSignupMobile(value);
+  }
 
   const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);
@@ -126,7 +150,7 @@ export default function LoginPage() {
       await updateUserProfileInFirestore(user, {
           name: signupName,
           country: signupCountry,
-          mobile: signupMobile,
+          mobile: signupMobile.replace(phonePrefix, '').trim(), // Store number without prefix
       }, true); // This is a new user
 
       toast({ title: "Success", description: "Account created successfully." });
@@ -217,20 +241,20 @@ export default function LoginPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-country">Country</Label>
-                     <Select onValueChange={setSignupCountry} value={signupCountry} required>
+                     <Select onValueChange={handleCountryChange} value={signupCountry} required>
                         <SelectTrigger id="signup-country">
                             <SelectValue placeholder="Select your country" />
                         </SelectTrigger>
                         <SelectContent>
                             {countryOptions.map(country => (
-                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                   </div>
                    <div className="space-y-2">
                     <Label htmlFor="signup-mobile">Mobile Number (Optional)</Label>
-                    <Input id="signup-mobile" type="tel" placeholder="+1 123 456 7890" value={signupMobile} onChange={e => setSignupMobile(e.target.value)} />
+                    <Input id="signup-mobile" type="tel" placeholder="Your phone number" value={signupMobile} onChange={handleMobileChange} />
                   </div>
                   <p className="text-sm text-muted-foreground text-center pt-2">
                     You'll receive {settings.signupBonus} tokens as a welcome bonus!
