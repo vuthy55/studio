@@ -122,8 +122,12 @@ export default function ProfilePage() {
         setProfile(prev => ({ ...prev, [id]: value }));
     };
 
-    const handleCountryChange = (value: string) => {
-        setProfile(prev => ({ ...prev, country: value }));
+    const handleCountryChange = (countryCode: string) => {
+        setProfile(prev => ({ ...prev, country: countryCode }));
+        const selected = countryOptions.find(c => c.code === countryCode);
+        if (selected && (!profile.mobile || !profile.mobile.startsWith('+'))) {
+            setProfile(prev => ({ ...prev, mobile: `+${selected.phone} ` }));
+        }
     };
 
     const handleSaveProfile = async (e: React.FormEvent) => {

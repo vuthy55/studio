@@ -24,10 +24,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
 import { getAppSettings, type AppSettings } from '@/services/settings';
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { isMobile } = useSidebar();
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -37,8 +39,7 @@ export default function LoginPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupCountry, setSignupCountry] = useState('');
   const [signupMobile, setSignupMobile] = useState('');
-  const [phonePrefix, setPhonePrefix] = useState('');
-
+  
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
@@ -51,28 +52,12 @@ export default function LoginPage() {
   const handleCountryChange = (countryCode: string) => {
     const selected = countryOptions.find(c => c.code === countryCode);
     if (selected) {
-      setSignupCountry(countryCode);
-      const newPrefix = `+${selected.phone}`;
-      setPhonePrefix(newPrefix);
-      // Keep existing number if user changes country after typing
-      if (signupMobile && !signupMobile.startsWith(newPrefix)) {
-          const numberWithoutOldPrefix = signupMobile.replace(/^\+\d+\s*/, '');
-          setSignupMobile(`${newPrefix} ${numberWithoutOldPrefix}`);
-      } else if (!signupMobile) {
-          setSignupMobile(`${newPrefix} `);
-      }
+        setSignupCountry(countryCode);
+        if (!signupMobile.startsWith('+')) {
+            setSignupMobile(`+${selected.phone} `);
+        }
     }
   };
-
-  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-    // Ensure prefix stays, but allow user to delete number part
-    if (phonePrefix && !value.startsWith(phonePrefix)) {
-        // If they deleted part of the prefix, restore it.
-        value = `${phonePrefix} `;
-    }
-    setSignupMobile(value);
-  }
 
   const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);
@@ -150,7 +135,7 @@ export default function LoginPage() {
       await updateUserProfileInFirestore(user, {
           name: signupName,
           country: signupCountry,
-          mobile: signupMobile.replace(phonePrefix, '').trim(), // Store number without prefix
+          mobile: signupMobile,
       }, true); // This is a new user
 
       toast({ title: "Success", description: "Account created successfully." });
@@ -187,89 +172,95 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex justify-center items-center min-h-[calc(100vh-8rem)]">
-      <Tabs defaultValue="login" className="w-full max-w-md">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="signup">Sign Up</TabsTrigger>
-        </TabsList>
-        <TabsContent value="login">
-          <Card>
-            <CardHeader>
-              <CardTitle>Login</CardTitle>
-              <CardDescription>Access your account to see your progress.</CardDescription>
-            </CardHeader>
-            <form onSubmit={handleEmailLogin}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input id="login-email" type="email" placeholder="m@example.com" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input id="login-password" type="password" required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-                </div>
-              </CardContent>
-              <CardFooter className="flex-col gap-4">
-                <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
-                <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                  <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-        <TabsContent value="signup">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sign Up</CardTitle>
-              <CardDescription>Create a new account to start your journey.</CardDescription>
-            </CardHeader>
-             <form onSubmit={handleEmailSignUp}>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Name</Label>
-                    <Input id="signup-name" placeholder="Your Name" required value={signupName} onChange={e => setSignupName(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" placeholder="m@example.com" required value={signupEmail} onChange={e => setSignupEmail(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" required minLength={6} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-country">Country</Label>
-                     <Select onValueChange={handleCountryChange} value={signupCountry} required>
-                        <SelectTrigger id="signup-country">
-                            <SelectValue placeholder="Select your country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {countryOptions.map(country => (
-                                <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="signup-mobile">Mobile Number (Optional)</Label>
-                    <Input id="signup-mobile" type="tel" placeholder="Your phone number" value={signupMobile} onChange={handleMobileChange} />
-                  </div>
-                  <p className="text-sm text-muted-foreground text-center pt-2">
-                    You'll receive {settings.signupBonus} tokens as a welcome bonus!
-                  </p>
-                </CardContent>
-                <CardFooter className="flex-col gap-4">
-                  <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
-                   <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                      <Chrome className="mr-2 h-4 w-4" /> Sign up with Google
-                  </Button>
-                </CardFooter>
-            </form>
-          </Card>
-        </TabsContent>
-      </Tabs>
+    <div className="space-y-8">
+        <header className="flex items-center gap-4">
+             {isMobile && <SidebarTrigger />}
+        </header>
+
+        <div className="flex justify-center items-center">
+            <Tabs defaultValue="login" className="w-full max-w-md">
+                <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                </TabsList>
+                <TabsContent value="login">
+                <Card>
+                    <CardHeader>
+                    <CardTitle>Login</CardTitle>
+                    <CardDescription>Access your account to see your progress.</CardDescription>
+                    </CardHeader>
+                    <form onSubmit={handleEmailLogin}>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="login-email">Email</Label>
+                        <Input id="login-email" type="email" placeholder="m@example.com" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="login-password">Password</Label>
+                        <Input id="login-password" type="password" required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
+                        </div>
+                    </CardContent>
+                    <CardFooter className="flex-col gap-4">
+                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                        <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
+                        </Button>
+                    </CardFooter>
+                    </form>
+                </Card>
+                </TabsContent>
+                <TabsContent value="signup">
+                <Card>
+                    <CardHeader>
+                    <CardTitle>Sign Up</CardTitle>
+                    <CardDescription>Create a new account to start your journey.</CardDescription>
+                    </CardHeader>
+                    <form onSubmit={handleEmailSignUp}>
+                        <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-name">Name</Label>
+                            <Input id="signup-name" placeholder="Your Name" required value={signupName} onChange={e => setSignupName(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-email">Email</Label>
+                            <Input id="signup-email" type="email" placeholder="m@example.com" required value={signupEmail} onChange={e => setSignupEmail(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-password">Password</Label>
+                            <Input id="signup-password" type="password" required minLength={6} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-country">Country</Label>
+                            <Select onValueChange={handleCountryChange} value={signupCountry} required>
+                                <SelectTrigger id="signup-country">
+                                    <SelectValue placeholder="Select your country" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {countryOptions.map(country => (
+                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-mobile">Mobile Number (Optional)</Label>
+                            <Input id="signup-mobile" type="tel" placeholder="Your phone number" value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} />
+                        </div>
+                        <p className="text-sm text-muted-foreground text-center pt-2">
+                            You'll receive {settings.signupBonus} tokens as a welcome bonus!
+                        </p>
+                        </CardContent>
+                        <CardFooter className="flex-col gap-4">
+                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                            <Chrome className="mr-2 h-4 w-4" /> Sign up with Google
+                        </Button>
+                        </CardFooter>
+                    </form>
+                </Card>
+                </TabsContent>
+            </Tabs>
+        </div>
     </div>
   );
 }
