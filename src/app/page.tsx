@@ -12,6 +12,7 @@ import LearnPageContent from '@/components/synchub/LearnPageContent';
 import GroupConverseContent from '@/components/synchub/GroupConverseContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
+import { abortRecognition } from '@/services/speech';
 
 
 export default function SyncHubPage() {
@@ -34,6 +35,24 @@ export default function SyncHubPage() {
             setUserProfile({}); // Reset profile if user logs out
         }
     }, [user]);
+
+    // This effect handles cleaning up the speech recognizer
+    // when the user navigates away from the "Sync Live" tab.
+    useEffect(() => {
+        // If the active tab is NOT 'sync-live', it means we've navigated away
+        // or are on a different tab. In either case, we ensure any active
+        // recognition is stopped to prevent resource leaks.
+        if (activeTab !== 'sync-live') {
+            abortRecognition();
+        }
+        
+        // The cleanup function for this effect will also abort recognition
+        // when the entire SyncHubPage component unmounts.
+        return () => {
+            abortRecognition();
+        }
+    }, [activeTab]);
+
 
     return (
         <div className="space-y-8">

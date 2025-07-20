@@ -65,6 +65,7 @@ export default function GroupConverseContent() {
   };
   
   const startConversation = useCallback(async () => {
+    if (status !== 'idle' && status !== 'error') return; // Don't start if already running
     if (!settings) {
         toast({ variant: 'destructive', title: 'Error', description: 'Settings not loaded yet. Please try again.' });
         setStatus('idle');
@@ -78,9 +79,8 @@ export default function GroupConverseContent() {
     // Set inactivity timeout
     timeoutRef.current = setTimeout(() => {
         toast({ title: 'Session Timed Out', description: 'Mic turned off due to inactivity.'});
-        abortRecognition();
-        setStatus('idle');
-    }, settings.groupConversationTimeout * 1000);
+        stopConversation();
+    }, (settings.groupConversationTimeout || 30) * 1000);
 
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
@@ -106,38 +106,43 @@ export default function GroupConverseContent() {
                 });
 
                 const audio = new Audio(audioDataUri);
-                await audio.play();
                 // Wait for this specific audio to end
-                return new Promise<void>(resolve => {
+                await new Promise<void>((resolve, reject) => {
                     audio.onended = () => resolve();
                     audio.onerror = (e) => {
                         console.error(`Audio playback error for ${toLangLabel}:`, e);
-                        resolve(); // Resolve anyway to not block other audios
+                        reject(new Error(`Failed to play audio for ${toLangLabel}`));
                     };
+                    audio.play().catch(e => {
+                         console.error(`Audio play() promise rejected for ${toLangLabel}:`, e);
+                         reject(e);
+                    });
                 });
             } catch (langError) {
                 console.error(`Error processing language ${targetLangLocale}:`, langError);
-                // Don't reject, just move on to the next language
+                // Don't reject the whole batch, just move on to the next language
                 return Promise.resolve();
             }
         });
         
-        await Promise.all(audioPromises);
+        await Promise.allSettled(audioPromises);
         
-        // After all audio has played, loop the conversation
+        // After all audio has played, loop the conversation by re-listening
         startConversation();
 
     } catch (error: any) {
         clearTimeoutRef();
-        if (error.message.includes('No speech could be recognized') || error.message.includes('SPEECH_NOMATCH')) {
-           // This is expected on timeout, don't show an error toast
-        } else if (error.message !== 'Recognition was aborted.') {
+        // Don't show toast for expected cancellations/timeouts
+        if (error.message && !error.message.includes('SPEECH_NOMATCH') && !error.message.includes('aborted')) {
             console.error("Error during conversation turn:", error);
-            toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
+            toast({ variant: "destructive", title: "Recognition Error", description: error.message });
+            setStatus('error');
+        } else {
+            // This is a normal stop (timeout or user clicked stop)
+             setStatus('idle');
         }
-        setStatus('idle');
     }
-  }, [selectedLanguages, clearTimeoutRef, toast, settings]);
+  }, [selectedLanguages, clearTimeoutRef, toast, settings, status]);
 
   const stopConversation = () => {
     clearTimeoutRef();
@@ -192,15 +197,17 @@ export default function GroupConverseContent() {
         <Button
           size="lg"
           className={cn(
-              "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
+              "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out shadow-lg",
               status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-              status !== 'idle' && 'bg-red-600 hover:bg-red-700',
-              status === 'idle' && 'bg-primary hover:bg-primary/90'
+              status === 'idle' && 'bg-primary hover:bg-primary/90',
+              status === 'error' && 'bg-destructive hover:bg-destructive/90',
+              (status === 'listening' || status === 'speaking') && 'bg-red-600 hover:bg-red-700'
           )}
-          onClick={status === 'idle' ? startConversation : stopConversation}
+          onClick={status === 'idle' || status === 'error' ? startConversation : stopConversation}
         >
-            {status === 'idle' && <><Mic className="h-10 w-10"/> </>}
+            {status === 'idle' && <Mic className="h-10 w-10"/>}
+            {status === 'error' && <Mic className="h-10 w-10"/>}
             {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
             {status === 'speaking' && <Volume2 className="h-12 w-12" />}
             {(status === 'listening' || status === 'speaking') && <StopCircle className="h-10 w-10" />}

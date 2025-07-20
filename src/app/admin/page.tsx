@@ -207,7 +207,8 @@ function SettingsTabContent() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const settingsToSave = {
+            // Ensure all values are numbers before saving
+            const settingsToSave: AppSettings = {
                 signupBonus: Number(settings.signupBonus) || 0,
                 practiceReward: Number(settings.practiceReward) || 0,
                 practiceThreshold: Number(settings.practiceThreshold) || 0,
@@ -225,8 +226,10 @@ function SettingsTabContent() {
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { id, value } = e.target;
-        setSettings(prev => ({...prev, [id]: value }));
+        const { id, value, type } = e.target;
+        // Treat all number inputs as numbers in the state
+        const processedValue = type === 'number' ? (value === '' ? '' : Number(value)) : value;
+        setSettings(prev => ({...prev, [id]: processedValue }));
     };
 
     if (isLoading) {
