@@ -207,7 +207,7 @@ function SettingsTabContent() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const settingsToSave = {
+            const settingsToSave: AppSettings = {
                 signupBonus: settings.signupBonus || 0,
                 practiceReward: settings.practiceReward || 0,
                 practiceThreshold: settings.practiceThreshold || 0,
@@ -225,7 +225,7 @@ function SettingsTabContent() {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
-        setSettings(prev => ({...prev, [id]: value }));
+        setSettings(prev => ({...prev, [id]: Number(value) }));
     };
 
     if (isLoading) {
