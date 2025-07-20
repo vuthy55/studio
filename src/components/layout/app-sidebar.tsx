@@ -39,6 +39,8 @@ export function AppSidebar() {
           setUserProfile(null);
         }
       });
+      
+      // Cleanup the listener when the component unmounts or the user changes
       return () => unsubscribe();
     } else {
       setUserProfile(null);
