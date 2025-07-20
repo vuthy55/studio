@@ -18,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
-import MemoryTestCard from '@/components/admin/MemoryTestCard';
 
 
 interface UserWithId extends UserProfile {
@@ -277,11 +276,6 @@ function SettingsTabContent() {
     )
 }
 
-function DiagnosticsTabContent() {
-    return <MemoryTestCard />;
-}
-
-
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -290,6 +284,8 @@ export default function AdminPage() {
 
     useEffect(() => {
         setIsClient(true);
+        console.log('[Mount] AdminPage');
+        return () => console.log('[Unmount] AdminPage');
     }, []);
 
     useEffect(() => {
@@ -330,10 +326,6 @@ export default function AdminPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* Render the Diagnostics card outside of the tabs for persistence */}
-            <div className="mt-6">
-                <DiagnosticsTabContent />
-            </div>
         </div>
     );
 }

@@ -20,6 +20,11 @@ export default function SyncHubPage() {
     const [user] = useAuthState(auth);
     const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
 
+     useEffect(() => {
+        console.log('[Mount] SyncHubPage');
+        return () => console.log('[Unmount] SyncHubPage');
+    }, []);
+
     useEffect(() => {
         if (user) {
             const userDocRef = doc(db, 'users', user.uid);

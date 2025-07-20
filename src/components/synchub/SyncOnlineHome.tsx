@@ -61,6 +61,11 @@ export default function SyncOnlineHome() {
 
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
+     useEffect(() => {
+        console.log('[Mount] SyncOnlineHome');
+        return () => console.log('[Unmount] SyncOnlineHome');
+    }, []);
+
     const fetchInvitedRooms = useCallback(async () => {
         if (!user) {
             setInvitedRooms([]);
@@ -350,7 +355,7 @@ export default function SyncOnlineHome() {
                                                                 This action cannot be undone. This will permanently delete the room and all of its messages and participant data.
                                                                 <br/><br/>
                                                                 Please type <strong>delete</strong> to confirm.
-                                                            </AlertDialogDescription>
+                                                            </aud:AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <Input 
                                                             id="delete-confirm"
@@ -383,4 +388,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
