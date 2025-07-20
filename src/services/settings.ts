@@ -3,6 +3,7 @@
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { adminDb, getCurrentUser } from '@/lib/firebase-admin';
 
 export interface AppSettings {
   signupBonus: number;
@@ -21,20 +22,19 @@ const defaultSettings: AppSettings = {
 };
 
 const settingsDocRef = doc(db, 'settings', 'appConfig');
+const adminSettingsDocRef = doc(adminDb, 'settings', 'appConfig');
 
 /**
  * Fetches the application settings from Firestore.
- * If no settings document exists, it returns and creates the default settings.
+ * This function is safe for client-side use.
  * @returns {Promise<AppSettings>} The application settings.
  */
 export async function getAppSettings(): Promise<AppSettings> {
   try {
     const docSnap = await getDoc(settingsDocRef);
     if (docSnap.exists()) {
-      // Merge with defaults to ensure all keys are present
       return { ...defaultSettings, ...docSnap.data() } as AppSettings;
     } else {
-      // If the document doesn't exist, create it with default values
       await setDoc(settingsDocRef, defaultSettings);
       return defaultSettings;
     }
@@ -46,9 +46,22 @@ export async function getAppSettings(): Promise<AppSettings> {
 
 /**
  * Updates the application settings in Firestore.
+ * This is a server action that requires admin privileges.
  * @param {Partial<AppSettings>} newSettings The settings to update.
  * @returns {Promise<void>}
  */
 export async function updateAppSettings(newSettings: Partial<AppSettings>): Promise<void> {
-  await setDoc(settingsDocRef, newSettings, { merge: true });
+  const user = await getCurrentUser();
+  
+  if (!user) {
+    throw new Error("PERMISSION_DENIED: You must be logged in.");
+  }
+
+  const userDocSnap = await adminDb.collection('users').doc(user.uid).get();
+  
+  if (!userDocSnap.exists || userDocSnap.data()?.role !== 'admin') {
+      throw new Error("PERMISSION_DENIED: You must be an admin to perform this action.");
+  }
+  
+  await setDoc(adminSettingsDocRef, newSettings, { merge: true });
 }
