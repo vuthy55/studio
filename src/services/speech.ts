@@ -55,8 +55,10 @@ function createRecognizer(languageOrDetectConfig: string | sdk.AutoDetectSourceL
     
     if (typeof languageOrDetectConfig === 'string') {
         sc.speechRecognitionLanguage = languageOrDetectConfig;
-        recognizer = new sdk.SpeechRecognizer(sc, ac);
+         recognizer = new sdk.SpeechRecognizer(sc, ac);
     } else {
+        // When using AutoDetectSourceLanguageConfig, language must not be set on SpeechConfig
+        sc.speechRecognitionLanguage = ''; 
         recognizer = sdk.SpeechRecognizer.FromConfig(sc, languageOrDetectConfig, ac);
     }
 
@@ -154,48 +156,59 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     });
 }
 
-export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
+export async function recognizeWithAutoDetect(
+    languages: AzureLanguageCode[],
+    inactivityTimeout: number
+): Promise<{ detectedLang: string, text: string }> {
     const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
     const r = createRecognizer(autoDetectConfig);
-    console.log(`[Speech Service] Starting auto-detect recognition for [${languages.join(', ')}]...`);
+    console.log(`[Speech Service] Starting auto-detect recognition for [${languages.join(', ')}] with ${inactivityTimeout}ms timeout.`);
     
     return new Promise((resolve, reject) => {
-        // Use continuous recognition to get intermediate results and stop when we have one.
+        let timeoutId: NodeJS.Timeout | null = null;
+
+        const cleanup = () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            // The recognizer itself will be cleaned up by the caller via abortRecognition()
+        };
+
+        timeoutId = setTimeout(() => {
+            console.warn(`[Speech Service] Inactivity timeout of ${inactivityTimeout}ms reached. Aborting.`);
+            r.stopContinuousRecognitionAsync(
+                () => reject(new Error('SPEECH_TIMEDOUT')),
+                (err) => reject(new Error(`Error stopping on timeout: ${err}`))
+            );
+        }, inactivityTimeout);
+
         r.recognized = (s, e) => {
             if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-                // Once we have a final recognized result, stop the recognition.
+                cleanup();
                 console.log(`[Speech Service] Auto-detect successful. Language: ${e.result.language}, Text: "${e.result.text}"`);
-                
-                // IMPORTANT: Stop continuous recognition now that we have a result.
                 r.stopContinuousRecognitionAsync(
-                    () => {
-                        resolve({
-                            detectedLang: e.result.language!,
-                            text: e.result.text,
-                        });
-                         // The abortRecognition() will be called by the component that initiated this.
-                    },
-                    (err) => {
-                        console.error("[Speech Service] Error stopping continuous recognition:", err);
-                        reject(new Error("Failed to stop recognition."));
-                    }
+                    () => resolve({ detectedLang: e.result.language!, text: e.result.text }),
+                    (err) => reject(new Error(`Error stopping after recognition: ${err}`))
                 );
             }
         };
 
         r.canceled = (s, e) => {
+            cleanup();
             if (e.reason === sdk.CancellationReason.Error) {
                 const err = e.errorDetails;
                 console.error(`[Speech Service] Auto-detect CANCELED: ${err}`);
                 reject(new Error(err));
+            } else {
+                 reject(new Error(`Recognition canceled: ${sdk.CancellationReason[e.reason]}`));
             }
-            // Let the caller handle aborting on cancellation
         };
 
-        // Start the continuous recognition.
         r.startContinuousRecognitionAsync(
-            () => { console.log("[Speech Service] Continuous recognition started."); },
+            () => { console.log("[Speech Service] Continuous recognition started for auto-detect."); },
             (err) => {
+                cleanup();
                 console.error(`[Speech Service] Auto-detect error starting continuous recognition: ${err}`);
                 reject(new Error(`Auto-detect recognition error: ${err}`));
             }

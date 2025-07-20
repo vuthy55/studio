@@ -26,26 +26,21 @@ export default function GroupConverseContent() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const { toast } = useToast();
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     getAppSettings().then(setSettings);
   }, []);
-
-  const clearTimeoutRef = useCallback(() => {
-    if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-    }
-  }, []);
-
-  // Cleanup function to abort recognition and timeouts if the component unmounts
+  
+  // Cleanup function to abort recognition if the component unmounts
   useEffect(() => {
     return () => {
-        abortRecognition();
-        clearTimeoutRef();
+        // This will run when the component unmounts, e.g., navigating to another page
+        if (status !== 'idle') {
+           console.log("[GroupConverse] Component unmounting, ensuring recognition is aborted.");
+           abortRecognition();
+        }
     };
-  }, [clearTimeoutRef]);
+  }, [status]);
 
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
@@ -65,26 +60,21 @@ export default function GroupConverseContent() {
   };
   
   const startConversation = useCallback(async () => {
-    if (status !== 'idle' && status !== 'error') return; // Don't start if already running
+    if (status !== 'idle' && status !== 'error') return;
     if (!settings) {
         toast({ variant: 'destructive', title: 'Error', description: 'Settings not loaded yet. Please try again.' });
         setStatus('idle');
         return;
     }
     
-    clearTimeoutRef();
     setStatus('listening');
     setLastSpoken(null);
 
-    // Set inactivity timeout
-    timeoutRef.current = setTimeout(() => {
-        toast({ title: 'Session Timed Out', description: 'Mic turned off due to inactivity.'});
-        stopConversation();
-    }, (settings.groupConversationTimeout || 30) * 1000);
-
     try {
-        const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
-        clearTimeoutRef(); // Speech was detected, clear the timeout
+        const { detectedLang, text: originalText } = await recognizeWithAutoDetect(
+            selectedLanguages, 
+            (settings.groupConversationTimeout || 30) * 1000
+        );
         
         setStatus('speaking');
         setLastSpoken({ lang: getAzureLanguageLabel(detectedLang), text: originalText });
@@ -106,46 +96,45 @@ export default function GroupConverseContent() {
                 });
 
                 const audio = new Audio(audioDataUri);
-                // Wait for this specific audio to end
                 await new Promise<void>((resolve, reject) => {
                     audio.onended = () => resolve();
                     audio.onerror = (e) => {
                         console.error(`Audio playback error for ${toLangLabel}:`, e);
-                        reject(new Error(`Failed to play audio for ${toLangLabel}`));
+                        // Resolve even on error to not block the whole conversation
+                        resolve();
                     };
                     audio.play().catch(e => {
                          console.error(`Audio play() promise rejected for ${toLangLabel}:`, e);
-                         reject(e);
+                         resolve(); // Resolve on play error as well
                     });
                 });
             } catch (langError) {
                 console.error(`Error processing language ${targetLangLocale}:`, langError);
-                // Don't reject the whole batch, just move on to the next language
-                return Promise.resolve();
             }
         });
         
-        await Promise.allSettled(audioPromises);
+        await Promise.all(audioPromises);
         
         // After all audio has played, loop the conversation by re-listening
         startConversation();
 
     } catch (error: any) {
-        clearTimeoutRef();
-        // Don't show toast for expected cancellations/timeouts
-        if (error.message && !error.message.includes('SPEECH_NOMATCH') && !error.message.includes('aborted')) {
+        if (error.message && error.message.includes('SPEECH_TIMEDOUT')) {
+            toast({ title: 'Session Timed Out', description: 'Mic turned off due to inactivity.'});
+        } else if (error.message && !error.message.includes('aborted') && !error.message.includes('canceled')) {
+            // Don't show toast for expected cancellations/aborts
             console.error("Error during conversation turn:", error);
             toast({ variant: "destructive", title: "Recognition Error", description: error.message });
             setStatus('error');
         } else {
-            // This is a normal stop (timeout or user clicked stop)
-             setStatus('idle');
+            console.log("[GroupConverse] Recognition was gracefully stopped or canceled by user.");
         }
+        // Whether error or timeout, reset to idle
+        setStatus('idle');
     }
-  }, [selectedLanguages, clearTimeoutRef, toast, settings, status]);
+  }, [selectedLanguages, toast, settings, status]);
 
   const stopConversation = () => {
-    clearTimeoutRef();
     abortRecognition();
     setStatus('idle');
   }
@@ -202,7 +191,6 @@ export default function GroupConverseContent() {
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
               status === 'idle' && 'bg-primary hover:bg-primary/90',
               status === 'error' && 'bg-destructive hover:bg-destructive/90',
-              (status === 'listening' || status === 'speaking') && 'bg-red-600 hover:bg-red-700'
           )}
           onClick={status === 'idle' || status === 'error' ? startConversation : stopConversation}
         >
@@ -216,9 +204,9 @@ export default function GroupConverseContent() {
         <div className="text-center h-16">
             <p className="font-semibold text-muted-foreground">
                 {status === 'idle' && "Press mic to begin"}
+                {status === 'error' && "An error occurred. Press Mic to retry."}
                 {status === 'listening' && "Listening..."}
                 {status === 'speaking' && "Translating & Speaking..."}
-                {status === 'error' && "An error occurred. Press Mic to retry."}
             </p>
             {lastSpoken && (
                  <p className="text-sm text-foreground mt-1 truncate max-w-md">
