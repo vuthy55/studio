@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,7 +31,7 @@ type AssessmentResult = {
   fluency?: number;
 };
 
-export default function LearnPageContent() {
+function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, userProfile, practiceHistory, loading, recordPracticeAttempt, getTopicStats } = useUserData();
@@ -321,7 +321,7 @@ export default function LearnPageContent() {
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
                                                 <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-red-500" /> : <Mic className="h-5 w-5" />}
+                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500 animate-pulse")} />
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>
                                             </div>
@@ -366,3 +366,5 @@ export default function LearnPageContent() {
         </Card>
     );
 }
+
+export default memo(LearnPageContent);
