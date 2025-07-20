@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Play, Vials } from 'lucide-react';
+import { LoaderCircle, Play, Beaker } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -76,7 +76,7 @@ export default function MemoryTestCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-            <Vials />
+            <Beaker />
             Memory Diagnostics
         </CardTitle>
         <CardDescription>

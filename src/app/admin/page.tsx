@@ -286,6 +286,11 @@ export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
     const { isMobile } = useSidebar();
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     useEffect(() => {
         if (authLoading) return;
@@ -294,7 +299,7 @@ export default function AdminPage() {
         }
     }, [user, authLoading, router]);
     
-    if (authLoading) {
+    if (authLoading || !isClient) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -313,10 +318,9 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
-                    <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
@@ -324,10 +328,12 @@ export default function AdminPage() {
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
                 </TabsContent>
-                <TabsContent value="diagnostics" className="mt-6">
-                    <DiagnosticsTabContent />
-                </TabsContent>
             </Tabs>
+
+            {/* Render the Diagnostics card outside of the tabs for persistence */}
+            <div className="mt-6">
+                <DiagnosticsTabContent />
+            </div>
         </div>
     );
 }
