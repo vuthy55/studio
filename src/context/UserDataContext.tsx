@@ -66,7 +66,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const fetchUserProfile = useCallback(async () => {
         if (!user) return;
-        setLoading(true);
         try {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
@@ -75,8 +74,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         } catch (error) {
             console.error("Error fetching user profile:", error);
-        } finally {
-            setLoading(false);
         }
     }, [user, setUserProfile]);
 
@@ -96,13 +93,18 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, [user, setPracticeHistory]);
 
     useEffect(() => {
-        if (user && !authLoading) {
-            Promise.all([fetchUserProfile(), fetchPracticeHistory()]).finally(() => setLoading(false));
-        } else if (!user && !authLoading) {
-            setUserProfile({});
-            setPracticeHistory({});
-            setLoading(false);
+        const fetchAllData = async () => {
+            if (user && !authLoading) {
+                setLoading(true);
+                await Promise.all([fetchUserProfile(), fetchPracticeHistory()]);
+                setLoading(false);
+            } else if (!user && !authLoading) {
+                setUserProfile({});
+                setPracticeHistory({});
+                setLoading(false);
+            }
         }
+        fetchAllData();
     }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory]);
 
 
