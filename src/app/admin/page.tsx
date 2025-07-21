@@ -328,9 +328,6 @@ function FinancialTabContent() {
     const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
     const [detailsDialogContent, setDetailsDialogContent] = useState<{ title: string; data: FinancialLedgerEntry[] }>({ title: '', data: [] });
 
-    const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] = useState(false);
-    const [descriptionDialogContent, setDescriptionDialogContent] = useState('');
-    
     const [formState, setFormState] = useState({
         description: '',
         amount: '' as number | '',
@@ -358,11 +355,6 @@ function FinancialTabContent() {
         const title = type === 'revenue' ? 'Revenue Details' : 'Expense Details';
         setDetailsDialogContent({ title, data });
         setIsDetailsDialogOpen(true);
-    };
-
-    const openDescriptionDialog = (description: string) => {
-        setDescriptionDialogContent(description);
-        setIsDescriptionDialogOpen(true);
     };
 
     const fetchData = useCallback(async () => {
@@ -653,8 +645,8 @@ function FinancialTabContent() {
             </CardContent>
 
              {/* Details Dialog */}
-             <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-                <DialogContent className="max-w-2xl">
+            <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+                <DialogContent className="max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>{detailsDialogContent.title}</DialogTitle>
                         <DialogDescription>A detailed list of all transactions for this category.</DialogDescription>
@@ -666,35 +658,36 @@ function FinancialTabContent() {
                                     <TableHead>#</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead>Type / Method</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead>By</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {detailsDialogContent.data.map((item, index) => (
                                     <TableRow key={item.id}>
-                                         <TableCell>
-                                            <Button variant="link" className="p-0 h-auto" onClick={() => openDescriptionDialog(item.description)}>
-                                                {String(detailsDialogContent.data.length - index).padStart(5, '0')}
-                                            </Button>
+                                         <TableCell className="font-mono text-xs text-muted-foreground">
+                                           {String(detailsDialogContent.data.length - index).padStart(5, '0')}
                                         </TableCell>
                                         <TableCell>{format(item.timestamp, 'd MMM, yyyy')}</TableCell>
                                         <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                              {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                         </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {item.type}
+                                                </Badge>
+                                                <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{item.source === 'paypal' ? `Token Purchase: ${item.orderId}` : item.description}</TableCell>
+                                        <TableCell>{item.userId ? userMap[item.userId] || 'User' : 'System'}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
                         </Table>
                     </div>
-                </DialogContent>
-            </Dialog>
-
-             {/* Description Dialog */}
-             <Dialog open={isDescriptionDialogOpen} onOpenChange={setIsDescriptionDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Transaction Description</DialogTitle>
-                    </DialogHeader>
-                    <p className="py-4">{descriptionDialogContent}</p>
                 </DialogContent>
             </Dialog>
 
@@ -836,5 +829,7 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
 
     
