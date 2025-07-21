@@ -527,28 +527,28 @@ function FinancialTabContent() {
                     <CardContent className="p-4">
                         <div className="grid grid-cols-1 md:grid-cols-3">
                             {/* Total Revenue */}
-                            <div className="flex flex-col items-center justify-center p-2">
+                            <div className="flex flex-col items-center justify-center p-2 space-y-1 md:space-y-0 md:flex-row md:gap-4">
                                  <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
-                                    Total Revenue
+                                    Total Revenue:
                                  </div>
                                  <div className="text-2xl font-bold text-green-600">${analytics.revenue.toFixed(2)}</div>
                             </div>
                             
                             {/* Total Expenses */}
-                            <div className="flex flex-col items-center justify-center p-2 border-y md:border-y-0 md:border-x">
+                            <div className="flex flex-col items-center justify-center p-2 border-y md:border-y-0 md:border-x space-y-1 md:space-y-0 md:flex-row md:gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
-                                    Total Expenses
+                                    Total Expenses:
                                 </div>
                                 <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
                             </div>
 
                             {/* Net Profit */}
-                            <div className="flex flex-col items-center justify-center p-2">
+                            <div className="flex flex-col items-center justify-center p-2 space-y-1 md:space-y-0 md:flex-row md:gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <DollarSign className="h-4 w-4 mr-1" />
-                                    Net Profit
+                                    Net Profit:
                                 </div>
                                 <div className={`text-2xl font-bold ${analytics.net >= 0 ? 'text-foreground' : 'text-red-600'}`}>${analytics.net.toFixed(2)}</div>
                             </div>
@@ -589,7 +589,15 @@ function FinancialTabContent() {
                                                 {item.source === 'paypal' ? `Token Purchase: ${item.orderId}` : item.description}
                                             </TableCell>
                                             <TableCell>
-                                                {item.userId ? (userMap[item.userId] || item.userId) : 'System'}
+                                                {item.userId ? (
+                                                    item.link ? (
+                                                        <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
+                                                            {userMap[item.userId] || item.userId}
+                                                        </a>
+                                                    ) : (
+                                                        userMap[item.userId] || item.userId
+                                                    )
+                                                ) : 'System'}
                                             </TableCell>
                                         </TableRow>
                                     )
@@ -741,3 +749,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
