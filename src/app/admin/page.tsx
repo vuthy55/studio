@@ -19,7 +19,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
 import { Separator } from '@/components/ui/separator';
-import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics } from '@/services/ledger';
+import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail } from '@/services/ledger';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -313,17 +313,38 @@ function SettingsTabContent() {
 }
 
 function FinancialTabContent() {
+    const [currentUser] = useAuthState(auth);
     const { toast } = useToast();
     const [ledger, setLedger] = useState<FinancialLedgerEntry[]>([]);
     const [analytics, setAnalytics] = useState({ revenue: 0, expenses: 0, net: 0 });
     const [userMap, setUserMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
 
-    const [expenseDescription, setExpenseDescription] = useState('');
-    const [expenseAmount, setExpenseAmount] = useState<number | ''>('');
-    const [isAddingExpense, setIsAddingExpense] = useState(false);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
+    const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
     
+    // State for both forms
+    const [formState, setFormState] = useState({
+        description: '',
+        amount: '' as number | '',
+        userEmail: '',
+    });
+
+    const resetForm = () => {
+        setFormState({ description: '', amount: '', userEmail: currentUser?.email || '' });
+    };
+
+    const handleOpenRevenueDialog = () => {
+        resetForm();
+        setIsRevenueDialogOpen(true);
+    };
+
+    const handleOpenExpenseDialog = () => {
+        resetForm();
+        setIsExpenseDialogOpen(true);
+    };
+
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -334,10 +355,7 @@ function FinancialTabContent() {
             setLedger(ledgerData);
             setAnalytics(analyticsData);
 
-            // Extract unique user IDs from ledger data
             const userIds = [...new Set(ledgerData.map(item => item.userId).filter(Boolean))] as string[];
-
-            // Fetch user data for these IDs if any exist
             if (userIds.length > 0) {
                 const usersRef = collection(db, 'users');
                 const q = query(usersRef, where(documentId(), 'in', userIds));
@@ -348,7 +366,6 @@ function FinancialTabContent() {
                 });
                 setUserMap(fetchedUserMap);
             }
-
         } catch (error) {
             console.error("Error fetching financial data:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch financial data.' });
@@ -361,33 +378,52 @@ function FinancialTabContent() {
         fetchData();
     }, [fetchData]);
 
-    const handleAddExpense = async (e: React.FormEvent) => {
+    const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
         e.preventDefault();
-        if (!expenseDescription || expenseAmount <= 0) {
+        const { description, amount, userEmail } = formState;
+
+        if (!description || !amount || amount <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid description and amount.' });
             return;
         }
-        setIsAddingExpense(true);
+
+        setIsSubmitting(true);
         try {
+            let userId: string | undefined = undefined;
+            if (userEmail) {
+                const foundUser = await findUserByEmail(userEmail);
+                if (foundUser) {
+                    userId = foundUser.id;
+                } else {
+                    toast({ variant: "destructive", title: "User Not Found", description: `No user found with email: ${userEmail}`});
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+            
             await addLedgerEntry({
-                type: 'expense',
-                description: expenseDescription,
-                amount: Number(expenseAmount),
-                timestamp: new Date()
+                type,
+                description,
+                amount: Number(amount),
+                timestamp: new Date(),
+                source: 'manual',
+                userId: userId,
             });
-            toast({ title: 'Success', description: 'Expense added to the ledger.' });
-            setExpenseDescription('');
-            setExpenseAmount('');
-            setIsDialogOpen(false);
+
+            toast({ title: 'Success', description: `${type.charAt(0).toUpperCase() + type.slice(1)} added to the ledger.` });
+            
+            setIsExpenseDialogOpen(false);
+            setIsRevenueDialogOpen(false);
             await fetchData(); // Refresh data
+
         } catch (error) {
-            console.error("Error adding expense:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not add expense.' });
+            console.error(`Error adding ${type}:`, error);
+            toast({ variant: 'destructive', title: 'Error', description: `Could not add ${type}.` });
         } finally {
-            setIsAddingExpense(false);
+            setIsSubmitting(false);
         }
     };
-
+    
     if (isLoading) {
         return (
             <div className="flex justify-center items-center py-10">
@@ -404,36 +440,79 @@ function FinancialTabContent() {
                         <CardTitle>Financial Ledger</CardTitle>
                         <CardDescription>A record of all revenue and expenses.</CardDescription>
                     </div>
-                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button><PlusCircle className="mr-2"/> Add Expense</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Add New Expense</DialogTitle>
-                                <DialogDescription>Record a new outgoing transaction.</DialogDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleAddExpense}>
-                                <div className="py-4 space-y-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="expense-amount">Amount (USD)</Label>
-                                        <Input id="expense-amount" type="number" value={expenseAmount} onChange={(e) => setExpenseAmount(Number(e.target.value))} placeholder="e.g., 50.00" required min="0.01" step="0.01" />
+                     <div className="flex gap-2">
+                        {/* Add Revenue Dialog */}
+                        <Dialog open={isRevenueDialogOpen} onOpenChange={setIsRevenueDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={handleOpenRevenueDialog} variant="outline"><PlusCircle className="mr-2"/> Add Revenue</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add New Revenue</DialogTitle>
+                                    <DialogDescription>Record a new incoming transaction.</DialogDescription>
+                                </DialogHeader>
+                                <form onSubmit={(e) => handleManualEntry(e, 'revenue')}>
+                                    <div className="py-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-amount">Amount (USD)</Label>
+                                            <Input id="revenue-amount" type="number" value={formState.amount} onChange={(e) => setFormState(prev => ({...prev, amount: Number(e.target.value)}))} placeholder="e.g., 100.00" required min="0.01" step="0.01" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-description">Description</Label>
+                                            <Textarea id="revenue-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Angel investment" required />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="revenue-user-email">User Email (Optional)</Label>
+                                            <Input id="revenue-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="expense-description">Description</Label>
-                                        <Textarea id="expense-description" value={expenseDescription} onChange={(e) => setExpenseDescription(e.target.value)} placeholder="e.g., Monthly server costs" required />
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                        <Button type="submit" disabled={isSubmitting}>
+                                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                            Add Revenue
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* Add Expense Dialog */}
+                        <Dialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={handleOpenExpenseDialog}><PlusCircle className="mr-2"/> Add Expense</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add New Expense</DialogTitle>
+                                    <DialogDescription>Record a new outgoing transaction.</DialogDescription>
+                                </DialogHeader>
+                                <form onSubmit={(e) => handleManualEntry(e, 'expense')}>
+                                    <div className="py-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="expense-amount">Amount (USD)</Label>
+                                            <Input id="expense-amount" type="number" value={formState.amount} onChange={(e) => setFormState(prev => ({...prev, amount: Number(e.target.value)}))} placeholder="e.g., 50.00" required min="0.01" step="0.01" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="expense-description">Description</Label>
+                                            <Textarea id="expense-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Monthly server costs" required />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="expense-user-email">User Email (Optional)</Label>
+                                            <Input id="expense-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
+                                        </div>
                                     </div>
-                                </div>
-                                <DialogFooter>
-                                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                                    <Button type="submit" disabled={isAddingExpense}>
-                                        {isAddingExpense && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                                        Add Expense
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                        <Button type="submit" disabled={isSubmitting}>
+                                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                            Add Expense
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                     </div>
                 </div>
                 
                  <div className="grid gap-4 md:grid-cols-3 pt-4">
@@ -489,12 +568,10 @@ function FinancialTabContent() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            {item.userId && item.source === 'paypal' 
-                                                ? 'Token Purchase'
-                                                : item.description}
+                                            {item.source === 'paypal' ? 'Token Purchase' : item.description}
                                         </TableCell>
                                         <TableCell>
-                                            {item.userId ? (userMap[item.userId] || 'Unknown User') : 'System'}
+                                            {item.userId ? (userMap[item.userId] || item.userId) : 'System'}
                                         </TableCell>
                                         <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                             {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}

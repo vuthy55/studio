@@ -1,7 +1,7 @@
 
-"use client";
+'use client';
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 
 export interface FinancialLedgerEntry {
@@ -67,6 +67,22 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
     const ledgerCol = collection(db, 'financialLedger');
     await addDoc(ledgerCol, { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) });
+}
+
+/**
+ * Finds a user by their email address.
+ * @returns {Promise<{id: string, email: string} | null>} The user object or null if not found.
+ */
+export async function findUserByEmail(email: string): Promise<{id: string, email: string} | null> {
+    if (!email) return null;
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', email.toLowerCase()), limit(1));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+        return null;
+    }
+    const userDoc = snapshot.docs[0];
+    return { id: userDoc.id, email: userDoc.data().email };
 }
 
 /**
