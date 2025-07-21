@@ -13,6 +13,7 @@ export interface FinancialLedgerEntry {
   source?: 'paypal' | 'manual';
   orderId?: string;
   userId?: string;
+  link?: string;
 }
 
 export interface TokenAnalytics {

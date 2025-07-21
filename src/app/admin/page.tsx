@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -324,15 +324,15 @@ function FinancialTabContent() {
     const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
     const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
     
-    // State for both forms
     const [formState, setFormState] = useState({
         description: '',
         amount: '' as number | '',
         userEmail: '',
+        link: '',
     });
 
     const resetForm = () => {
-        setFormState({ description: '', amount: '', userEmail: currentUser?.email || '' });
+        setFormState({ description: '', amount: '', userEmail: currentUser?.email || '', link: '' });
     };
 
     const handleOpenRevenueDialog = () => {
@@ -380,7 +380,7 @@ function FinancialTabContent() {
 
     const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
         e.preventDefault();
-        const { description, amount, userEmail } = formState;
+        const { description, amount, userEmail, link } = formState;
 
         if (!description || !amount || amount <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid description and amount.' });
@@ -408,13 +408,14 @@ function FinancialTabContent() {
                 timestamp: new Date(),
                 source: 'manual',
                 userId: userId,
+                link: link || undefined,
             });
 
             toast({ title: 'Success', description: `${type.charAt(0).toUpperCase() + type.slice(1)} added to the ledger.` });
             
             setIsExpenseDialogOpen(false);
             setIsRevenueDialogOpen(false);
-            await fetchData(); // Refresh data
+            await fetchData();
 
         } catch (error) {
             console.error(`Error adding ${type}:`, error);
@@ -431,6 +432,14 @@ function FinancialTabContent() {
             </div>
         );
     }
+
+    const getTransactionLink = (item: FinancialLedgerEntry) => {
+        if (item.source === 'paypal' && item.orderId) {
+            // Assuming sandbox for admin view. Change to www.paypal.com for production.
+            return `https://www.sandbox.paypal.com/activity/payment/${item.orderId}`;
+        }
+        return item.link;
+    };
     
     return (
         <Card>
@@ -441,7 +450,6 @@ function FinancialTabContent() {
                         <CardDescription>A record of all revenue and expenses.</CardDescription>
                     </div>
                      <div className="flex gap-2">
-                        {/* Add Revenue Dialog */}
                         <Dialog open={isRevenueDialogOpen} onOpenChange={setIsRevenueDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button onClick={handleOpenRevenueDialog} variant="outline"><PlusCircle className="mr-2"/> Add Revenue</Button>
@@ -465,6 +473,10 @@ function FinancialTabContent() {
                                             <Label htmlFor="revenue-user-email">User Email (Optional)</Label>
                                             <Input id="revenue-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
                                         </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-link">Link (Optional)</Label>
+                                            <Input id="revenue-link" type="url" value={formState.link} onChange={(e) => setFormState(prev => ({...prev, link: e.target.value}))} placeholder="https://example.com/transaction/123" />
+                                        </div>
                                     </div>
                                     <DialogFooter>
                                         <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
@@ -477,7 +489,6 @@ function FinancialTabContent() {
                             </DialogContent>
                         </Dialog>
 
-                        {/* Add Expense Dialog */}
                         <Dialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button onClick={handleOpenExpenseDialog}><PlusCircle className="mr-2"/> Add Expense</Button>
@@ -500,6 +511,10 @@ function FinancialTabContent() {
                                          <div className="space-y-2">
                                             <Label htmlFor="expense-user-email">User Email (Optional)</Label>
                                             <Input id="expense-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="expense-link">Link (Optional)</Label>
+                                            <Input id="expense-link" type="url" value={formState.link} onChange={(e) => setFormState(prev => ({...prev, link: e.target.value}))} placeholder="https://example.com/invoice/456" />
                                         </div>
                                     </div>
                                     <DialogFooter>
@@ -559,28 +574,37 @@ function FinancialTabContent() {
                         </TableHeader>
                         <TableBody>
                             {ledger.length > 0 ? (
-                                ledger.map(item => (
-                                    <TableRow key={item.id}>
-                                        <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
-                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
-                                            {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                    {item.type}
-                                                </Badge>
-                                                <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.source === 'paypal' ? `Token Purchase` : item.description}
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.userId ? (userMap[item.userId] || item.userId) : 'System'}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                ledger.map(item => {
+                                    const link = getTransactionLink(item);
+                                    return (
+                                        <TableRow key={item.id}>
+                                            <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
+                                            <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        {item.type}
+                                                    </Badge>
+                                                    {link ? (
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground capitalize underline hover:text-primary flex items-center gap-1">
+                                                            {item.source} <LinkIcon className="h-3 w-3" />
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.source === 'paypal' ? `Token Purchase` : item.description}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.userId ? (userMap[item.userId] || item.userId) : 'System'}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })
                             ) : (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-24 text-center">No financial records found.</TableCell>
