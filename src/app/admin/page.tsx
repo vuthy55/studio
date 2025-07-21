@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Share2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
 import { Separator } from '@/components/ui/separator';
-import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry } from '@/services/ledger';
+import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry, getReferralHistory, type ReferralEntry } from '@/services/ledger';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -818,6 +819,102 @@ function TokensTabContent() {
     )
 }
 
+function ReferralsTabContent() {
+    const { toast } = useToast();
+    const [referrals, setReferrals] = useState<ReferralEntry[]>([]);
+    const [settings, setSettings] = useState<AppSettings | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [referralData, appSettings] = await Promise.all([
+                    getReferralHistory(),
+                    getAppSettings()
+                ]);
+                setReferrals(referralData);
+                setSettings(appSettings);
+            } catch (err: any) {
+                console.error("Error fetching referral data:", err);
+                toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch referral data.' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, [toast]);
+    
+     if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Referral History</CardTitle>
+                <CardDescription>A log of all successful user referrals.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <div className="border rounded-md min-h-[200px]">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>#</TableHead>
+                                <TableHead>Referrer</TableHead>
+                                <TableHead>Referred</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">Tokens Awarded</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                         <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : referrals.length > 0 ? (
+                                referrals.map((item, index) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell className="font-mono text-muted-foreground">{String(referrals.length - index).padStart(4, '0')}</TableCell>
+                                        <TableCell>
+                                            <Link href={`/admin/${item.referrerUid}`} className="text-primary underline hover:text-primary/80">
+                                                {item.referrerName}
+                                            </Link>
+                                            <div className="text-xs text-muted-foreground">{item.referrerEmail}</div>
+                                        </TableCell>
+                                        <TableCell>
+                                             <Link href={`/admin/${item.referredUid}`} className="text-primary underline hover:text-primary/80">
+                                                {item.referredName}
+                                            </Link>
+                                            <div className="text-xs text-muted-foreground">{item.referredEmail}</div>
+                                        </TableCell>
+                                        <TableCell>{format(item.createdAt, 'd MMM, yyyy')}</TableCell>
+                                        <TableCell className="text-right">
+                                            <div>To Referrer: <span className="font-bold text-green-600">+{item.bonusAwarded}</span></div>
+                                            <div className="text-xs text-muted-foreground">To Referred: +{settings?.signupBonus || 0} (Signup)</div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                             ) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">No referral history found.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -854,11 +951,12 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="users">Users</TabsTrigger>
-                    <TabsTrigger value="settings">App Settings</TabsTrigger>
-                    <TabsTrigger value="financial">Financial</TabsTrigger>
-                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="users"><Users className="mr-2"/>Users</TabsTrigger>
+                    <TabsTrigger value="settings"><Award className="mr-2"/>App Settings</TabsTrigger>
+                    <TabsTrigger value="financial"><DollarSign className="mr-2"/>Financial</TabsTrigger>
+                    <TabsTrigger value="tokens"><Banknote className="mr-2"/>Tokens</TabsTrigger>
+                    <TabsTrigger value="referrals"><Share2 className="mr-2"/>Referrals</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
@@ -872,6 +970,9 @@ export default function AdminPage() {
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
                 </TabsContent>
+                <TabsContent value="referrals" className="mt-6">
+                    <ReferralsTabContent />
+                </TabsContent>
             </Tabs>
 
         </div>
@@ -881,4 +982,3 @@ export default function AdminPage() {
     
 
     
-

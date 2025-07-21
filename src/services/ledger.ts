@@ -1,9 +1,11 @@
 
+
 'use client';
 
 import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 import type { TransactionLog } from '@/lib/types';
+import type { AppSettings } from './settings';
 
 
 export interface FinancialLedgerEntry {
@@ -33,6 +35,19 @@ export interface TokenLedgerEntry extends TransactionLog {
   userId: string;
   userEmail: string;
   timestamp: Date;
+}
+
+export interface ReferralEntry {
+    id: string;
+    referrerUid: string;
+    referredUid: string;
+    status: 'completed' | 'pending';
+    bonusAwarded: number;
+    createdAt: Date;
+    referrerName?: string;
+    referrerEmail?: string;
+    referredName?: string;
+    referredEmail?: string;
 }
 
 
@@ -195,4 +210,51 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
     // Re-throw the error to be caught by the calling component
     throw error;
   }
+}
+
+/**
+ * Fetches all referral records and enriches them with user data.
+ */
+export async function getReferralHistory(): Promise<ReferralEntry[]> {
+  const referralsRef = collection(db, 'referrals');
+  const q = query(referralsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+
+  const referralData = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    createdAt: (doc.data().createdAt as Timestamp).toDate(),
+  })) as ReferralEntry[];
+
+  // Get all unique user IDs
+  const userIds = [
+    ...new Set(referralData.map(r => r.referrerUid).concat(referralData.map(r => r.referredUid))),
+  ];
+
+  if (userIds.length === 0) return [];
+
+  // Fetch all user documents in a single query if possible
+  const userDocs = new Map<string, {name: string, email: string}>();
+  // Firestore 'in' query supports up to 30 items
+  for (let i = 0; i < userIds.length; i += 30) {
+      const chunk = userIds.slice(i, i + 30);
+      const userQuery = query(collection(db, 'users'), where(document.id, 'in', chunk));
+      const userSnapshot = await getDocs(userQuery);
+      userSnapshot.forEach(doc => {
+        userDocs.set(doc.id, { name: doc.data().name, email: doc.data().email });
+      });
+  }
+
+  // Enrich referral data
+  return referralData.map(referral => {
+    const referrer = userDocs.get(referral.referrerUid);
+    const referred = userDocs.get(referral.referredUid);
+    return {
+      ...referral,
+      referrerName: referrer?.name || 'Unknown',
+      referrerEmail: referrer?.email || 'Unknown',
+      referredName: referred?.name || 'Unknown',
+      referredEmail: referred?.email || 'Unknown',
+    };
+  });
 }
