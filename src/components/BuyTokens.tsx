@@ -70,22 +70,27 @@ export default function BuyTokens() {
         });
         const result = await response.json();
 
+        if (result.error) {
+            throw new Error(result.error);
+        }
+
         if (result.success) {
             toast({ title: 'Success!', description: `${tokenAmount} tokens have been added to your account.` });
             setDialogOpen(false); // Close dialog on success
         } else {
-            throw new Error(result.error || 'Payment capture failed.');
+            throw new Error('An unknown error occurred during payment capture.');
         }
     } catch (err: any) {
-        toast({ variant: 'destructive', title: 'Error', description: `Payment failed: ${err.message}` });
+        console.error("onApprove error:", err);
+        toast({ variant: 'destructive', title: 'Payment Failed', description: err.message });
     } finally {
         setIsProcessing(false);
     }
   };
 
   const onError = (err: any) => {
-    toast({ variant: 'destructive', title: 'PayPal Error', description: 'An error occurred with the PayPal transaction.' });
-    console.error("PayPal Error:", err);
+    toast({ variant: 'destructive', title: 'PayPal Error', description: 'An error occurred with the PayPal transaction. Check console for details.' });
+    console.error("PayPal Button onError:", err);
     setIsProcessing(false);
   }
 

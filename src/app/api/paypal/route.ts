@@ -6,9 +6,18 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 // --- PayPal Client Setup ---
 function getPayPalClient() {
-    const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!;
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET!;
-    const environment = new paypal.core.SandboxEnvironment(clientId, clientSecret);
+    const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+        throw new Error("PayPal client ID or secret is not configured in .env.local");
+    }
+
+    // Use LiveEnvironment for production, Sandbox for anything else
+    const environment = process.env.NODE_ENV === 'production'
+        ? new paypal.core.LiveEnvironment(clientId, clientSecret)
+        : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+        
     return new paypal.core.PayPalHttpClient(environment);
 }
 
@@ -43,8 +52,10 @@ export async function POST(req: NextRequest) {
         const order = await getPayPalClient().execute(request);
         return NextResponse.json({ orderID: order.result.id });
     } catch (err: any) {
+        // More detailed server-side logging
         console.error("Error creating PayPal order:", err.message);
-        return NextResponse.json({ error: 'Failed to create PayPal order' }, { status: 500 });
+        const errorDetails = err.data ? JSON.stringify(err.data) : err.message;
+        return NextResponse.json({ error: `Failed to create PayPal order: ${errorDetails}` }, { status: 500 });
     }
 }
 
@@ -119,10 +130,12 @@ export async function PUT(req: NextRequest) {
 
             return NextResponse.json({ success: true, message: 'Payment completed and tokens added.' });
         } else {
-            return NextResponse.json({ error: 'Payment not completed' }, { status: 400 });
+            return NextResponse.json({ error: `Payment not completed. Status: ${captureResult.status}` }, { status: 400 });
         }
     } catch (err: any) {
-        console.error("Error capturing PayPal order:", err.message);
-        return NextResponse.json({ error: 'Failed to capture PayPal order' }, { status: 500 });
+        // More detailed server-side logging and pass the error message to the client
+        console.error("Error capturing PayPal order:", err);
+        const errorDetails = err.data ? JSON.stringify(err.data) : err.message;
+        return NextResponse.json({ error: `Failed to capture PayPal order: ${errorDetails}` }, { status: 500 });
     }
 }
