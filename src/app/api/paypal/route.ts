@@ -67,7 +67,7 @@ export async function PUT(req: NextRequest) {
         if (captureResult.status === 'COMPLETED') {
             const purchaseUnit = captureResult.purchase_units[0];
             const { userId, tokenAmount } = JSON.parse(purchaseUnit.custom_id);
-            const amount = purchaseUnit.amount.value;
+            const amount = parseFloat(purchaseUnit.amount.value);
             const currency = purchaseUnit.amount.currency_code;
             
             // Use a Firestore transaction to ensure atomicity
@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest) {
                 const paymentLogRef = userRef.collection('paymentHistory').doc(orderID);
                 transaction.set(paymentLogRef, {
                     orderId: orderID,
-                    amount: parseFloat(amount),
+                    amount: amount,
                     currency: currency,
                     status: 'COMPLETED',
                     tokensPurchased: tokenAmount,
@@ -102,6 +102,18 @@ export async function PUT(req: NextRequest) {
                     tokenChange: tokenAmount,
                     timestamp: FieldValue.serverTimestamp(),
                     description: `Purchased ${tokenAmount} tokens`
+                });
+
+                // 4. Create financial ledger entry for revenue
+                const ledgerRef = db.collection('financialLedger').doc();
+                transaction.set(ledgerRef, {
+                    type: 'revenue',
+                    description: `Token Purchase by ${userDoc.data()?.email || userId}`,
+                    amount: amount,
+                    timestamp: FieldValue.serverTimestamp(),
+                    source: 'paypal',
+                    orderId: orderID,
+                    userId: userId,
                 });
             });
 

@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,10 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
 import { Separator } from '@/components/ui/separator';
+import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics } from '@/services/ledger';
+import { format }s from 'date-fns';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 
 interface UserWithId extends UserProfile {
@@ -308,6 +312,258 @@ function SettingsTabContent() {
     )
 }
 
+function FinancialTabContent() {
+    const { toast } = useToast();
+    const [ledger, setLedger] = useState<FinancialLedgerEntry[]>([]);
+    const [analytics, setAnalytics] = useState({ revenue: 0, expenses: 0, net: 0 });
+    const [isLoading, setIsLoading] = useState(true);
+
+    const [expenseDescription, setExpenseDescription] = useState('');
+    const [expenseAmount, setExpenseAmount] = useState<number | ''>('');
+    const [isAddingExpense, setIsAddingExpense] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [ledgerData, analyticsData] = await Promise.all([
+                getFinancialLedger(),
+                getLedgerAnalytics()
+            ]);
+            setLedger(ledgerData);
+            setAnalytics(analyticsData);
+        } catch (error) {
+            console.error("Error fetching financial data:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch financial data.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleAddExpense = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!expenseDescription || expenseAmount <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid description and amount.' });
+            return;
+        }
+        setIsAddingExpense(true);
+        try {
+            await addLedgerEntry({
+                type: 'expense',
+                description: expenseDescription,
+                amount: Number(expenseAmount),
+                timestamp: new Date()
+            });
+            toast({ title: 'Success', description: 'Expense added to the ledger.' });
+            setExpenseDescription('');
+            setExpenseAmount('');
+            setIsDialogOpen(false);
+            await fetchData(); // Refresh data
+        } catch (error) {
+            console.error("Error adding expense:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not add expense.' });
+        } finally {
+            setIsAddingExpense(false);
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle>Financial Ledger</CardTitle>
+                        <CardDescription>A record of all revenue and expenses.</CardDescription>
+                    </div>
+                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button><PlusCircle className="mr-2"/> Add Expense</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Add New Expense</DialogTitle>
+                                <DialogDescription>Record a new outgoing transaction.</DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleAddExpense}>
+                                <div className="py-4 space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="expense-amount">Amount (USD)</Label>
+                                        <Input id="expense-amount" type="number" value={expenseAmount} onChange={(e) => setExpenseAmount(Number(e.target.value))} placeholder="e.g., 50.00" required min="0.01" step="0.01" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="expense-description">Description</Label>
+                                        <Textarea id="expense-description" value={expenseDescription} onChange={(e) => setExpenseDescription(e.target.value)} placeholder="e.g., Monthly server costs" required />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                    <Button type="submit" disabled={isAddingExpense}>
+                                        {isAddingExpense && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                        Add Expense
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                
+                 <div className="grid gap-4 md:grid-cols-3 pt-4">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                            <PlusCircle className="h-4 w-4 text-green-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-green-600">${analytics.revenue.toFixed(2)}</div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                            <MinusCircle className="h-4 w-4 text-red-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className={`text-2xl font-bold ${analytics.net >= 0 ? 'text-foreground' : 'text-red-600'}`}>${analytics.net.toFixed(2)}</div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </CardHeader>
+            <CardContent>
+                 <div className="border rounded-md min-h-[200px]">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {ledger.length > 0 ? (
+                                ledger.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                                {item.type}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>{item.description}</TableCell>
+                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
+                                            {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">No financial records found.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function TokensTabContent() {
+    const { toast } = useToast();
+    const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getTokenAnalytics()
+            .then(setAnalytics)
+            .catch(err => {
+                console.error("Error fetching token analytics:", err);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch token analytics.' });
+            })
+            .finally(() => setIsLoading(false));
+    }, [toast]);
+    
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!analytics) {
+        return <p>No token data available.</p>;
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Token Economy</CardTitle>
+                <CardDescription>An overview of token distribution and acquisition.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
+                             <Separator />
+                            <div className="flex justify-between font-bold text-lg"><span>Total In:</span> <span>{analytics.purchased.toLocaleString()}</span></div>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><MinusCircle className="text-red-500" /> Tokens Distributed</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex justify-between"><span>Signup Bonuses:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>Referral Bonuses:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>Practice Rewards:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
+                            <Separator />
+                            <div className="flex justify-between font-bold text-lg"><span>Total Out (Free):</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
+                        </CardContent>
+                    </Card>
+                </div>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Banknote /> Net Token Flow</CardTitle>
+                        <CardDescription>This shows the balance of tokens purchased versus tokens given away for free.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <div className="flex justify-between text-xl font-bold">
+                            <span>Net Flow:</span>
+                            <span>{analytics.netFlow.toLocaleString()}</span>
+                         </div>
+                    </CardContent>
+                </Card>
+            </CardContent>
+        </Card>
+    )
+}
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -344,9 +600,11 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
+                    <TabsTrigger value="financial">Financial</TabsTrigger>
+                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
@@ -354,10 +612,14 @@ export default function AdminPage() {
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
                 </TabsContent>
+                 <TabsContent value="financial" className="mt-6">
+                    <FinancialTabContent />
+                </TabsContent>
+                <TabsContent value="tokens" className="mt-6">
+                    <TokensTabContent />
+                </TabsContent>
             </Tabs>
 
         </div>
     );
 }
-
-    
