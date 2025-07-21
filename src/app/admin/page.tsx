@@ -722,9 +722,9 @@ function TokensTabContent() {
                 ]);
                 setAnalytics(analyticsData);
                 setLedger(ledgerData);
-            } catch (err) {
+            } catch (err: any) {
                  console.error("Error fetching token data:", err);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch token data.' });
+                toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
             } finally {
                 setIsLoading(false);
             }
@@ -789,7 +789,7 @@ function TokensTabContent() {
                             <TableRow>
                                 <TableHead>#</TableHead>
                                 <TableHead>Date</TableHead>
-                                <TableHead>To</TableHead>
+                                <TableHead>To/From</TableHead>
                                 <TableHead className="text-right">QTY</TableHead>
                                 <TableHead>Reason</TableHead>
                             </TableRow>
@@ -881,3 +881,4 @@ export default function AdminPage() {
     
 
     
+
