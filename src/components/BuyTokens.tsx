@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -18,7 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, Wallet } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { PayPalScriptProvider, PayPalButtons, OnApproveData } from "@paypal/react-paypal-js";
+import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
+
 
 export default function BuyTokens() {
   const [user] = useAuthState(auth);
@@ -45,14 +46,8 @@ export default function BuyTokens() {
     }
     setIsProcessing(true);
     try {
-        const response = await fetch('/api/paypal', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.uid, tokenAmount }),
-        });
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-        return data.orderID;
+        const { orderID } = await createPayPalOrder(user.uid, tokenAmount);
+        return orderID;
     } catch (err: any) {
         toast({ variant: 'destructive', title: 'Error', description: `Could not create PayPal order: ${err.message}` });
         setIsProcessing(false);
@@ -60,25 +55,16 @@ export default function BuyTokens() {
     }
   };
 
-  const onApprove = async (data: any) => {
+  const onApprove = async (data: OnApproveData) => {
     setIsProcessing(true);
     try {
-        const response = await fetch('/api/paypal', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderID: data.orderID }),
-        });
-        const result = await response.json();
-
-        if (result.error) {
-            throw new Error(result.error);
-        }
+        const result = await capturePayPalOrder(data.orderID);
 
         if (result.success) {
-            toast({ title: 'Success!', description: `${tokenAmount} tokens have been added to your account.` });
+            toast({ title: 'Success (Test Mode)!', description: `PayPal payment captured. Token grant is disabled for this test.` });
             setDialogOpen(false); // Close dialog on success
         } else {
-            throw new Error('An unknown error occurred during payment capture.');
+            throw new Error(result.message || 'An unknown error occurred during payment capture.');
         }
     } catch (err: any) {
         console.error("onApprove error:", err);
