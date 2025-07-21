@@ -1,8 +1,8 @@
 
 "use server";
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; // Use client SDK
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; 
 
 export interface FinancialLedgerEntry {
   id?: string;
@@ -85,37 +85,31 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         netFlow: 0
     };
 
-    // Get all users first (which admins can do)
-    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const logsQuery = query(collectionGroup(db, 'transactionLogs'));
+    const logsSnapshot = await getDocs(logsQuery);
     
-    // Iterate over each user and get their transaction logs
-    for (const userDoc of usersSnapshot.docs) {
-        const logsRef = collection(db, 'users', userDoc.id, 'transactionLogs');
-        const logsSnapshot = await getDocs(logsRef);
-        
-        logsSnapshot.forEach(logDoc => {
-            const log = logDoc.data();
-            const change = Math.abs(log.tokenChange);
+    logsSnapshot.forEach(logDoc => {
+        const log = logDoc.data();
+        const change = Math.abs(log.tokenChange);
 
-            switch (log.actionType) {
-                case 'purchase':
-                    analytics.purchased += change;
-                    break;
-                case 'signup_bonus':
-                    analytics.signupBonus += change;
-                    break;
-                case 'referral_bonus':
-                    analytics.referralBonus += change;
-                    break;
-                case 'practice_earn':
-                    analytics.practiceEarn += change;
-                    break;
-                case 'translation_spend':
-                    analytics.translationSpend += change;
-                    break;
-            }
-        });
-    }
+        switch (log.actionType) {
+            case 'purchase':
+                analytics.purchased += change;
+                break;
+            case 'signup_bonus':
+                analytics.signupBonus += change;
+                break;
+            case 'referral_bonus':
+                analytics.referralBonus += change;
+                break;
+            case 'practice_earn':
+                analytics.practiceEarn += change;
+                break;
+            case 'translation_spend':
+                analytics.translationSpend += change;
+                break;
+        }
+    });
 
     analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn;
     analytics.netFlow = analytics.purchased - analytics.totalAwarded;
