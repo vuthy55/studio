@@ -3,61 +3,46 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- Global Helper Functions ---
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
     
     function isAdmin() {
-      // Safe check for admin role
+      // Safe check for admin role, callable from any rule.
       return request.auth != null && 
               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // --- Collection Rules ---
-
     // User Profiles: Users can manage their own profile. Admins can manage any.
     match /users/{userId} {
-      // Admins need list for search. All users can read profiles for now.
-      allow list, read: if request.auth != null; 
-      allow update: if isOwner(userId) || isAdmin();
-      // Allow user to create their own record during signup
-      allow create: if isOwner(userId);
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Admin needs 'list' to search users. Users can only 'read' their own doc.
+      allow list: if isAdmin();
+      allow read, update: if isOwner() || isAdmin();
+      allow create: if isOwner(); // Allow user to create their own record during signup
 
       // Transaction Logs: A user can read and create their own logs.
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner(userId);
+        allow read, create: if isOwner();
         allow update, delete: if false; // Protect logs from modification
       }
 
-      // Payment History: A user can read their own logs.
+      // Payment History: A user can read their own logs. Created by server.
       match /paymentHistory/{paymentId} {
-        allow read: if isOwner(userId);
-        allow create, update, delete: if false; // Immutable logs, created by server.
+        allow read: if isOwner();
+        allow create, update, delete: if false; // Immutable logs
       }
 
       // Practice History: A user can read and write their own practice history.
       match /practiceHistory/{historyId} {
-        allow list, read: if isOwner(userId) || isAdmin();
-        allow write: if isOwner(userId);
+        allow list, read, write: if isOwner();
       }
     }
 
     // App Settings: Only admins can read and write application-wide settings.
     match /settings/{settingId} {
       allow read, write: if isAdmin();
-    }
-    
-    // Financial Ledger: No client access allowed. Data is fetched via Admin SDK.
-    match /financialLedger/{docId} {
-        allow read, write, create, delete, list: if false;
-    }
-    
-    // PayPal Orders (Temporary): No client access. Created/deleted via Admin SDK.
-    match /paypalOrders/{docId} {
-        allow read, write, create, delete, list: if false;
     }
 
     // Sync Rooms: Handles creation, reading, and updates for rooms.
@@ -80,24 +65,12 @@ service cloud.firestore {
       allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
       allow delete: if isCreator();
 
-      // Participants sub-collection: Rules for joining and management.
       match /participants/{participantId} {
-        function roomData() {
-          return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
-        }
-        function roomExists() {
-          return exists(/databases/$(database)/documents/syncRooms/$(roomId));
-        }
-        function isInvitedToRoom() {
-          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
-        }
-        function isEmceeInRoom() {
-          return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
-        }
-        function isRoomCreator() {
-          return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
-        }
-        // This function checks if the user is the creator during a batch write.
+        function roomData() { return get(/databases/$(database)/documents/syncRooms/$(roomId)).data; }
+        function roomExists() { return exists(/databases/$(database)/documents/syncRooms/$(roomId)); }
+        function isInvitedToRoom() { return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails; }
+        function isEmceeInRoom() { return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids; }
+        function isRoomCreator() { return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid; }
         function isCreatingOwnParticipantRecord() {
             return request.auth != null && request.auth.uid == participantId &&
                    request.resource.data.uid == request.auth.uid &&
@@ -105,35 +78,30 @@ service cloud.firestore {
         }
 
         allow list, read: if isInvitedToRoom();
-        // Allow creation if the user is invited OR if they are creating the room itself.
         allow create: if (request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid) || isCreatingOwnParticipantRecord();
         allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
-        // Allow the room creator OR the participant themselves to delete the record.
         allow delete: if isRoomCreator() || (request.auth != null && request.auth.uid == participantId);
       }
       
-      // Messages sub-collection: Rules for sending and reading messages.
       match /messages/{messageId} {
-          function roomData() {
-            return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
-          }
-          function roomExists() {
-            return exists(/databases/$(database)/documents/syncRooms/$(roomId));
-          }
-          function isInvitedToRoom() {
-              return roomExists() &&
-                     request.auth != null &&
-                     request.auth.token.email in roomData().invitedEmails;
-          }
-          function isRoomCreator() {
-            return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
-          }
+          function roomData() { return get(/databases/$(database)/documents/syncRooms/$(roomId)).data; }
+          function roomExists() { return exists(/databases/$(database)/documents/syncRooms/$(roomId)); }
+          function isInvitedToRoom() { return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails; }
+          function isRoomCreator() { return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid; }
 
           allow list, read: if isInvitedToRoom();
           allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
-          // Allow the room creator to delete any message.
           allow delete: if isRoomCreator();
       }
+    }
+    
+    // Server-side admin access is used for financial and aggregated token logs,
+    // so no client-side rules are needed here, enhancing security.
+    match /financialLedger/{ledgerId} {
+      allow read, write: if false;
+    }
+    match /paypalOrders/{orderId} {
+      allow read, write: if false;
     }
   }
 }
