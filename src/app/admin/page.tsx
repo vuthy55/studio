@@ -330,10 +330,11 @@ function FinancialTabContent() {
         amount: '' as number | '',
         userEmail: '',
         link: '',
+        source: 'manual'
     });
 
     const resetForm = () => {
-        setFormState({ description: '', amount: '', userEmail: currentUser?.email || '', link: '' });
+        setFormState({ description: '', amount: '', userEmail: currentUser?.email || '', link: '', source: 'manual' });
     };
 
     const handleOpenRevenueDialog = () => {
@@ -381,7 +382,7 @@ function FinancialTabContent() {
 
     const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
         e.preventDefault();
-        const { description, amount, userEmail, link } = formState;
+        const { description, amount, userEmail, link, source } = formState;
 
         if (!description || !amount || amount <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid description and amount.' });
@@ -407,7 +408,7 @@ function FinancialTabContent() {
                 description,
                 amount: Number(amount),
                 timestamp: new Date(),
-                source: 'manual',
+                source: source || 'manual',
                 userId: userId,
                 link: link || undefined,
             });
@@ -462,6 +463,10 @@ function FinancialTabContent() {
                                             <Label htmlFor="revenue-description">Description</Label>
                                             <Textarea id="revenue-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Angel investment" required />
                                         </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-source">Method</Label>
+                                            <Input id="revenue-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
+                                        </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="revenue-user-email">User Email (Optional)</Label>
                                             <Input id="revenue-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
@@ -500,6 +505,10 @@ function FinancialTabContent() {
                                         <div className="space-y-2">
                                             <Label htmlFor="expense-description">Description</Label>
                                             <Textarea id="expense-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Monthly server costs" required />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="expense-source">Method</Label>
+                                            <Input id="expense-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="expense-user-email">User Email (Optional)</Label>
