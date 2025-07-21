@@ -474,6 +474,7 @@ function FinancialTabContent() {
                                 <TableHead>Date</TableHead>
                                 <TableHead>Type</TableHead>
                                 <TableHead>Description</TableHead>
+                                <TableHead>By</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -489,8 +490,11 @@ function FinancialTabContent() {
                                         </TableCell>
                                         <TableCell>
                                             {item.userId && item.source === 'paypal' 
-                                                ? `Token Purchase by ${userMap[item.userId] || item.userId}` 
+                                                ? 'Token Purchase'
                                                 : item.description}
+                                        </TableCell>
+                                        <TableCell>
+                                            {item.userId ? (userMap[item.userId] || 'Unknown User') : 'System'}
                                         </TableCell>
                                         <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                             {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
@@ -499,7 +503,7 @@ function FinancialTabContent() {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">No financial records found.</TableCell>
+                                    <TableCell colSpan={5} className="h-24 text-center">No financial records found.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
