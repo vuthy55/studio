@@ -590,7 +590,7 @@ function FinancialTabContent() {
                                     return (
                                         <TableRow key={item.id}>
                                             <TableCell className="font-mono text-muted-foreground">{runningNumber}</TableCell>
-                                            <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
+                                            <TableCell>{format(item.timestamp, 'd MMM, yyyy')}</TableCell>
                                             <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                                 {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                             </TableCell>
