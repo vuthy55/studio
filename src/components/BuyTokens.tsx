@@ -62,10 +62,27 @@ export default function BuyTokens() {
     const result = await capturePayPalOrder(data.orderID);
 
     if (result.success) {
-        toast({ title: 'Success (Test Mode)!', description: result.message });
+        toast({ title: 'Success!', description: result.message });
         setDialogOpen(false);
     } else {
-        toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
+        // Updated error handling to be more descriptive
+        let description = 'An unknown error occurred.';
+        try {
+            // Check if the message contains a JSON object
+            const jsonString = result.message.substring(result.message.indexOf('{'));
+            const errorObj = JSON.parse(jsonString);
+            description = `Error: ${errorObj.message || 'See console for full details.'}\nDetails: ${jsonString}`;
+        } catch (e) {
+            description = result.message; // Fallback if parsing fails
+        }
+        
+        toast({ 
+            variant: 'destructive', 
+            title: 'Payment Capture Failed', 
+            description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{description}</code></pre>,
+            duration: 10000,
+        });
+        console.error("Full server error details:", result.message);
     }
 
     setIsProcessing(false);

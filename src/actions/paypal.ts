@@ -1,6 +1,9 @@
 'use server';
 
 import paypal from '@paypal/checkout-server-sdk';
+import { db } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+
 
 // --- PayPal Client Setup ---
 function getPayPalClient() {
@@ -51,8 +54,9 @@ export async function createPayPalOrder(userId: string, tokenAmount: number): Pr
     return { orderID: order.result.id };
   } catch (err: any) {
     console.error('Error creating PayPal order:', err);
-    const errorMessage = err.message || "An unknown error occurred while creating the order.";
-    return { error: `Failed to create PayPal order: ${errorMessage}` };
+    // Use a safe way to get the error message
+    const errorDetails = err?.message || 'An unknown error occurred';
+    return { error: `Failed to create PayPal order: ${errorDetails}` };
   }
 }
 
@@ -69,32 +73,70 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
     const capture = await getPayPalClient().execute(request);
     const captureResult = capture.result;
 
-    console.log('PayPal capture successful:', JSON.stringify(captureResult, null, 2));
-
-    if (captureResult.status === 'COMPLETED') {
-      const purchaseUnit = captureResult.purchase_units[0];
-      const { userId, tokenAmount } = JSON.parse(purchaseUnit.custom_id);
-      const amount = parseFloat(purchaseUnit.amount.value);
-      const currency = purchaseUnit.amount.currency_code;
-
-      // TODO: In the next step, re-enable Firebase logic here.
-      // For now, we just confirm the PayPal part works.
-      
-      console.log(`SUCCESS: Payment for ${tokenAmount} tokens by user ${userId} captured. Amount: ${amount} ${currency}.`);
-
-      return { success: true, message: 'DEBUG: Payment completed with PayPal. Token grant is disabled for this test.' };
-    } else {
-      return { success: false, message: `Payment not completed. Status: ${captureResult.status}` };
+    if (captureResult.status !== 'COMPLETED') {
+       return { success: false, message: `Payment not completed. Status: ${captureResult.status}` };
     }
+
+    // --- At this point, PayPal payment is confirmed. Now, grant tokens. ---
+    const purchaseUnit = captureResult.purchase_units[0];
+    const { userId, tokenAmount } = JSON.parse(purchaseUnit.custom_id);
+    const amount = parseFloat(purchaseUnit.amount.value);
+    const currency = purchaseUnit.amount.currency_code;
+    
+    // Use a Firestore transaction to ensure atomicity
+    const userRef = db.collection('users').doc(userId);
+    
+    await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+            throw new Error(`User with ID ${userId} not found in Firestore.`);
+        }
+        
+        // 1. Update user's token balance
+        transaction.update(userRef, {
+            tokenBalance: FieldValue.increment(tokenAmount)
+        });
+
+        // 2. Create payment history log for user
+        const paymentLogRef = userRef.collection('paymentHistory').doc(orderID);
+        transaction.set(paymentLogRef, {
+            orderId: orderID,
+            amount: amount,
+            currency: currency,
+            status: 'COMPLETED',
+            tokensPurchased: tokenAmount,
+            createdAt: FieldValue.serverTimestamp()
+        });
+
+        // 3. Create general transaction log for user
+         const transactionLogRef = userRef.collection('transactionLogs').doc(); // Auto-generate ID
+         transaction.set(transactionLogRef, {
+            actionType: 'purchase',
+            tokenChange: tokenAmount,
+            timestamp: FieldValue.serverTimestamp(),
+            description: `Purchased ${tokenAmount} tokens via PayPal`
+        });
+
+        // 4. Create master financial ledger entry
+        const financialLedgerRef = db.collection('financialLedger').doc(`paypal-${orderID}`);
+        transaction.set(financialLedgerRef, {
+          type: 'revenue',
+          description: `Token Purchase by User ID: ${userId}`,
+          amount: amount,
+          timestamp: FieldValue.serverTimestamp(),
+          source: 'paypal',
+          orderId: orderID,
+          userId: userId
+        });
+    });
+
+    return { success: true, message: 'Payment successful and tokens have been added to your account!' };
+
   } catch (err: any) {
-     console.error("Error capturing PayPal order or writing to Firestore:", err);
-     // This part is changed to safely handle various error shapes from the PayPal SDK
-     let errorDetails = "An unknown server error occurred.";
-     if (err.message) {
-        errorDetails = err.message;
-     } else if (err.data) {
-        errorDetails = JSON.stringify(err.data);
-     }
-     return { success: false, message: `Failed to capture PayPal order: ${errorDetails}`};
+     // This is the robust error handling part.
+     // It stringifies the entire error object to ensure we get all details.
+     console.error("Error during PayPal capture or Firestore update:", err);
+     const errorDetails = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
+     return { success: false, message: `An unexpected server error occurred. Details: ${errorDetails}`};
   }
 }
