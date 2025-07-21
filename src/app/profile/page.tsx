@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile, updateEmail } from "firebase/auth";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { TransactionLog, PaymentLog } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
@@ -45,65 +45,55 @@ export interface UserProfile {
 
 function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getInitials, countryOptions, handleCountryChange }: any) {
     return (
-        <AccordionItem value="profile">
-            <AccordionTrigger>
-                <div className="flex items-center gap-3">
-                    <UserIcon />
-                    <span className="font-semibold text-lg">My Profile</span>
+        <Card>
+            <CardHeader>
+                <div className="flex items-center gap-4">
+                    <Avatar className="h-20 w-20 text-3xl">
+                        <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
+                        <CardDescription>{profile.email}</CardDescription>
+                    </div>
                 </div>
-            </AccordionTrigger>
-            <AccordionContent>
-                 <Card>
-                    <CardHeader>
-                        <div className="flex items-center gap-4">
-                            <Avatar className="h-20 w-20 text-3xl">
-                                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
-                                <CardDescription>{profile.email}</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleSaveProfile} className="space-y-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Name</Label>
-                                <Input id="name" value={profile.name || ''} onChange={(e) => setProfile((p: any) => ({...p, name: e.target.value}))} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input id="email" type="email" value={profile.email || ''} disabled />
-                                <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="country">Country</Label>
-                                <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                                    <SelectTrigger id="country">
-                                        <SelectValue placeholder="Select your country" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {countryOptions.map((country: any) => (
-                                            <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="mobile">Mobile Number</Label>
-                                <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
-                            </div>
-                            <div className="flex justify-end">
-                                <Button type="submit" disabled={isSaving}>
-                                    {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                    Save Changes
-                                </Button>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
-            </AccordionContent>
-        </AccordionItem>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSaveProfile} className="space-y-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input id="name" value={profile.name || ''} onChange={(e) => setProfile((p: any) => ({...p, name: e.target.value}))} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input id="email" type="email" value={profile.email || ''} disabled />
+                        <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="country">Country</Label>
+                        <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                            <SelectTrigger id="country">
+                                <SelectValue placeholder="Select your country" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {countryOptions.map((country: any) => (
+                                    <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="mobile">Mobile Number</Label>
+                        <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
+                    </div>
+                    <div className="flex justify-end">
+                        <Button type="submit" disabled={isSaving}>
+                            {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Save Changes
+                        </Button>
+                    </div>
+                </form>
+            </CardContent>
+        </Card>
     )
 }
 
@@ -128,30 +118,20 @@ function ReferralSection() {
     if (!user) return null;
 
     return (
-        <AccordionItem value="referral">
-            <AccordionTrigger>
-                <div className="flex items-center gap-3">
-                    <Share2 />
-                    <span className="font-semibold text-lg">Refer a Friend</span>
+        <Card>
+            <CardHeader>
+                <CardTitle>Your Referral Link</CardTitle>
+                <CardDescription>Share this link with your friends. When they sign up, you'll both get a token bonus!</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                    <Input value={referralLink} readOnly />
+                    <Button type="button" size="icon" onClick={copyToClipboard} disabled={!referralLink}>
+                        <Copy className="h-4 w-4" />
+                    </Button>
                 </div>
-            </AccordionTrigger>
-            <AccordionContent>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Your Referral Link</CardTitle>
-                        <CardDescription>Share this link with your friends. When they sign up, you'll both get a token bonus!</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Input value={referralLink} readOnly />
-                            <Button type="button" size="icon" onClick={copyToClipboard} disabled={!referralLink}>
-                                <Copy className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            </AccordionContent>
-        </AccordionItem>
+            </CardContent>
+        </Card>
     )
 }
 
@@ -168,47 +148,40 @@ function PaymentHistorySection() {
             const data = snapshot.docs.map(doc => doc.data() as PaymentLog);
             setPayments(data);
             setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching payment history:", error);
+            setIsLoading(false);
         });
         return () => unsubscribe();
     }, [user]);
 
     return (
-         <AccordionItem value="payment">
-            <AccordionTrigger>
-                 <div className="flex items-center gap-3">
-                    <Landmark />
-                    <span className="font-semibold text-lg">Payment History</span>
-                </div>
-            </AccordionTrigger>
-            <AccordionContent>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Your Payments</CardTitle>
-                        <CardDescription>A record of all your token purchases.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <LoaderCircle className="animate-spin" /> : payments.length > 0 ? (
-                            <ul className="space-y-4">
-                                {payments.map(p => (
-                                    <li key={p.orderId} className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium">Purchased {p.tokensPurchased} Tokens</p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {p.createdAt ? formatDistanceToNow(p.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold">${p.amount.toFixed(2)} {p.currency}</p>
-                                            <p className="text-xs text-muted-foreground">Order ID: {p.orderId}</p>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : <p className="text-muted-foreground">No payment history found.</p>}
-                    </CardContent>
-                </Card>
-            </AccordionContent>
-        </AccordionItem>
+        <Card>
+            <CardHeader>
+                <CardTitle>Your Payments</CardTitle>
+                <CardDescription>A record of all your token purchases.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? <LoaderCircle className="animate-spin" /> : payments.length > 0 ? (
+                    <ul className="space-y-4">
+                        {payments.map(p => (
+                            <li key={p.orderId} className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-medium">Purchased {p.tokensPurchased} Tokens</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {p.createdAt ? formatDistanceToNow(p.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold">${p.amount.toFixed(2)} {p.currency}</p>
+                                    <p className="text-xs text-muted-foreground">Order ID: {p.orderId}</p>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                ) : <p className="text-muted-foreground">No payment history found.</p>}
+            </CardContent>
+        </Card>
     )
 }
 
@@ -236,49 +209,42 @@ function TokenHistorySection() {
             const data = snapshot.docs.map(doc => doc.data() as TransactionLog);
             setTransactions(data);
             setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching token history:", error);
+            setIsLoading(false);
         });
         return () => unsubscribe();
     }, [user]);
 
     return (
-        <AccordionItem value="tokens">
-            <AccordionTrigger>
-                 <div className="flex items-center gap-3">
-                    <FileText />
-                    <span className="font-semibold text-lg">Token History</span>
-                </div>
-            </AccordionTrigger>
-            <AccordionContent>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Token Ledger</CardTitle>
-                        <CardDescription>A complete log of your token earnings and spending.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <LoaderCircle className="animate-spin" /> : transactions.length > 0 ? (
-                             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                                {transactions.map((log, index) => (
-                                    <div key={index} className="flex items-center">
-                                        <div className="p-3 rounded-full bg-secondary">
-                                            <div className={`font-bold text-sm ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange}
-                                            </div>
-                                        </div>
-                                        <div className="ml-4 flex-grow">
-                                            <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
-                                            <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground ml-auto">
-                                            {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
-                                        </p>
+        <Card>
+            <CardHeader>
+                <CardTitle>Token Ledger</CardTitle>
+                <CardDescription>A complete log of your token earnings and spending.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? <LoaderCircle className="animate-spin" /> : transactions.length > 0 ? (
+                     <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                        {transactions.map((log, index) => (
+                            <div key={index} className="flex items-center">
+                                <div className="p-3 rounded-full bg-secondary">
+                                    <div className={`font-bold text-sm ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange}
                                     </div>
-                                ))}
+                                </div>
+                                <div className="ml-4 flex-grow">
+                                    <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
+                                    <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground ml-auto">
+                                    {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                </p>
                             </div>
-                        ) : <p className="text-muted-foreground">No token history found.</p>}
-                    </CardContent>
-                </Card>
-            </AccordionContent>
-        </AccordionItem>
+                        ))}
+                    </div>
+                ) : <p className="text-muted-foreground">No token history found.</p>}
+            </CardContent>
+        </Card>
     )
 }
 
@@ -379,20 +345,34 @@ export default function ProfilePage() {
                  </div>
             </header>
             
-            <Accordion type="multiple" className="w-full space-y-4" defaultValue={['profile']}>
-                 <ProfileSection 
-                    profile={profile} 
-                    setProfile={setProfile} 
-                    isSaving={isSaving}
-                    handleSaveProfile={handleSaveProfile}
-                    getInitials={getInitials}
-                    countryOptions={countryOptions}
-                    handleCountryChange={handleCountryChange}
-                />
-                <ReferralSection />
-                <PaymentHistorySection />
-                <TokenHistorySection />
-            </Accordion>
+            <Tabs defaultValue="profile" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="profile">Profile</TabsTrigger>
+                    <TabsTrigger value="referrals">Referrals</TabsTrigger>
+                    <TabsTrigger value="payments">Payments</TabsTrigger>
+                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                </TabsList>
+                <TabsContent value="profile" className="mt-6">
+                    <ProfileSection 
+                        profile={profile} 
+                        setProfile={setProfile} 
+                        isSaving={isSaving}
+                        handleSaveProfile={handleSaveProfile}
+                        getInitials={getInitials}
+                        countryOptions={countryOptions}
+                        handleCountryChange={handleCountryChange}
+                    />
+                </TabsContent>
+                <TabsContent value="referrals" className="mt-6">
+                   <ReferralSection />
+                </TabsContent>
+                <TabsContent value="payments" className="mt-6">
+                    <PaymentHistorySection />
+                </TabsContent>
+                <TabsContent value="tokens" className="mt-6">
+                    <TokenHistorySection />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
