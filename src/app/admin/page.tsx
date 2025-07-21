@@ -433,13 +433,6 @@ function FinancialTabContent() {
             </div>
         );
     }
-
-    const getTransactionLink = (item: FinancialLedgerEntry) => {
-        if (item.source === 'paypal' && item.userId) {
-            return `/admin/${item.userId}`;
-        }
-        return item.link;
-    };
     
     return (
         <Card>
@@ -530,35 +523,38 @@ function FinancialTabContent() {
                      </div>
                 </div>
                 
-                 <div className="grid gap-4 md:grid-cols-3 pt-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                            <PlusCircle className="h-4 w-4 text-green-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">${analytics.revenue.toFixed(2)}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-                            <MinusCircle className="h-4 w-4 text-red-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className={`text-2xl font-bold ${analytics.net >= 0 ? 'text-foreground' : 'text-red-600'}`}>${analytics.net.toFixed(2)}</div>
-                        </CardContent>
-                    </Card>
-                </div>
+                 <Card className="mt-4">
+                    <CardContent className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3">
+                            {/* Total Revenue */}
+                            <div className="flex flex-col items-center justify-center p-2">
+                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                    <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
+                                    Total Revenue
+                                 </div>
+                                 <div className="text-2xl font-bold text-green-600">${analytics.revenue.toFixed(2)}</div>
+                            </div>
+                            
+                            {/* Total Expenses */}
+                            <div className="flex flex-col items-center justify-center p-2 border-y md:border-y-0 md:border-x">
+                                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                    <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
+                                    Total Expenses
+                                </div>
+                                <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
+                            </div>
+
+                            {/* Net Profit */}
+                            <div className="flex flex-col items-center justify-center p-2">
+                                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                    <DollarSign className="h-4 w-4 mr-1" />
+                                    Net Profit
+                                </div>
+                                <div className={`text-2xl font-bold ${analytics.net >= 0 ? 'text-foreground' : 'text-red-600'}`}>${analytics.net.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </CardHeader>
             <CardContent>
                  <div className="border rounded-md min-h-[200px]">
@@ -586,7 +582,7 @@ function FinancialTabContent() {
                                                     <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                         {item.type}
                                                     </Badge>
-                                                    <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                                     <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
