@@ -62,6 +62,15 @@ function createRecognizer(languageOrDetectConfig: string | sdk.AutoDetectSourceL
         recognizer = sdk.SpeechRecognizer.FromConfig(sc, languageOrDetectConfig, ac);
     }
 
+    // Attach session event listeners for debugging the handshake
+    recognizer.sessionStarted = (s, e) => {
+        console.log(`[DEBUG] Azure Speech session started. SessionId: ${e.sessionId}`);
+    };
+
+    recognizer.sessionStopped = (s, e) => {
+        console.log(`[DEBUG] Azure Speech session stopped. SessionId: ${e.sessionId}`);
+    };
+
     return recognizer;
 }
 
