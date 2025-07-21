@@ -1,8 +1,6 @@
 'use server';
 
 import paypal from '@paypal/checkout-server-sdk';
-import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 
 // --- PayPal Client Setup ---
 function getPayPalClient() {
@@ -23,12 +21,12 @@ function getPayPalClient() {
 }
 
 // --- Server Action: Create an order ---
-export async function createPayPalOrder(userId: string, tokenAmount: number) {
+export async function createPayPalOrder(userId: string, tokenAmount: number): Promise<{orderID?: string, error?: string}> {
   if (!userId || !tokenAmount) {
-    throw new Error('User ID and token amount are required');
+    return { error: 'User ID and token amount are required' };
   }
   if (tokenAmount <= 0) {
-    throw new Error('Token amount must be positive');
+    return { error: 'Token amount must be positive' };
   }
 
   const value = (tokenAmount * 0.01).toFixed(2); // 1 token = $0.01 USD
@@ -53,14 +51,15 @@ export async function createPayPalOrder(userId: string, tokenAmount: number) {
     return { orderID: order.result.id };
   } catch (err: any) {
     console.error('Error creating PayPal order:', err);
-    throw new Error('Failed to create PayPal order.');
+    const errorMessage = err.message || "An unknown error occurred while creating the order.";
+    return { error: `Failed to create PayPal order: ${errorMessage}` };
   }
 }
 
 // --- Server Action: Capture an order ---
-export async function capturePayPalOrder(orderID: string) {
+export async function capturePayPalOrder(orderID: string): Promise<{success: boolean, message: string}> {
   if (!orderID) {
-    throw new Error('Order ID is required');
+    return { success: false, message: 'Order ID is required' };
   }
 
   const request = new paypal.orders.OrdersCaptureRequest(orderID);
@@ -85,11 +84,17 @@ export async function capturePayPalOrder(orderID: string) {
 
       return { success: true, message: 'DEBUG: Payment completed with PayPal. Token grant is disabled for this test.' };
     } else {
-      throw new Error(`Payment not completed. Status: ${captureResult.status}`);
+      return { success: false, message: `Payment not completed. Status: ${captureResult.status}` };
     }
   } catch (err: any) {
      console.error("Error capturing PayPal order or writing to Firestore:", err);
-     const errorDetails = err.data ? JSON.stringify(err.data) : (err.message || "An unknown server error occurred.");
-     throw new Error(`Failed to capture PayPal order: ${errorDetails}`);
+     // This part is changed to safely handle various error shapes from the PayPal SDK
+     let errorDetails = "An unknown server error occurred.";
+     if (err.message) {
+        errorDetails = err.message;
+     } else if (err.data) {
+        errorDetails = JSON.stringify(err.data);
+     }
+     return { success: false, message: `Failed to capture PayPal order: ${errorDetails}`};
   }
 }
