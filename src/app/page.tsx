@@ -16,6 +16,11 @@ const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedGroupConverse = memo(GroupConverseContent);
 const MemoizedSyncOnline = memo(SyncOnlineHome);
 
+// Define components outside the render function to ensure they are stable
+const learnPage = <MemoizedLearnPage />;
+const liveTranslationPage = <MemoizedLiveTranslation />;
+const groupConversePage = <MemoizedGroupConverse />;
+const syncOnlinePage = <MemoizedSyncOnline />;
 
 export default function SyncHubPage() {
     const { isMobile } = useSidebar();
@@ -41,16 +46,16 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
                 <TabsContent value="prep-vibe" className="mt-6" forceMount>
-                    <MemoizedLearnPage />
+                    {learnPage}
                 </TabsContent>
                 <TabsContent value="live-translation" className="mt-6" forceMount>
-                   <MemoizedLiveTranslation />
+                   {liveTranslationPage}
                 </TabsContent>
                 <TabsContent value="sync-live" className="mt-6" forceMount>
-                   <MemoizedGroupConverse />
+                   {groupConversePage}
                 </TabsContent>
                 <TabsContent value="sync-online" className="mt-6" forceMount>
-                    <MemoizedSyncOnline />
+                    {syncOnlinePage}
                 </TabsContent>
             </Tabs>
         </div>
