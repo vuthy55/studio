@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ orderID: order.result.id });
     } catch (err: any) {
         // More detailed server-side logging
-        console.error("Error creating PayPal order:", err.message);
-        const errorDetails = err.data ? JSON.stringify(err.data) : err.message;
+        console.error("Error creating PayPal order:", err);
+        const errorDetails = err.data ? JSON.stringify(err.data) : err.message || "An unknown error occurred.";
         return NextResponse.json({ error: `Failed to create PayPal order: ${errorDetails}` }, { status: 500 });
     }
 }
@@ -74,6 +74,10 @@ export async function PUT(req: NextRequest) {
     try {
         const capture = await getPayPalClient().execute(request);
         const captureResult = capture.result;
+        
+        // Log the successful capture from PayPal before attempting database operations
+        console.log("PayPal capture successful:", JSON.stringify(captureResult, null, 2));
+
 
         if (captureResult.status === 'COMPLETED') {
             const purchaseUnit = captureResult.purchase_units[0];
@@ -134,8 +138,9 @@ export async function PUT(req: NextRequest) {
         }
     } catch (err: any) {
         // More detailed server-side logging and pass the error message to the client
-        console.error("Error capturing PayPal order:", err);
-        const errorDetails = err.data ? JSON.stringify(err.data) : err.message;
+        console.error("Error capturing PayPal order or writing to Firestore:", err);
+        // Ensure a valid string is always sent back
+        const errorDetails = err.data ? JSON.stringify(err.data) : (err.message || "An unknown server error occurred.");
         return NextResponse.json({ error: `Failed to capture PayPal order: ${errorDetails}` }, { status: 500 });
     }
 }
