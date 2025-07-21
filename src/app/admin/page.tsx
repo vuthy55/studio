@@ -403,15 +403,20 @@ function FinancialTabContent() {
                 }
             }
             
-            await addLedgerEntry({
+            const newEntry: Omit<FinancialLedgerEntry, 'id'> = {
                 type,
                 description,
                 amount: Number(amount),
                 timestamp: new Date(),
                 source: source || 'manual',
                 userId: userId,
-                link: link || undefined,
-            });
+            };
+
+            if (link) {
+                newEntry.link = link;
+            }
+
+            await addLedgerEntry(newEntry);
 
             toast({ title: 'Success', description: `${type.charAt(0).toUpperCase() + type.slice(1)} added to the ledger.` });
             
