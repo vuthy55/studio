@@ -152,15 +152,10 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
  * Fetches all token transaction logs across all users.
  */
 export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
+  // WORKAROUND for index issue: Query all logs and sort, then filter in code.
+  // This avoids the complex composite index requirement.
   const logsQuery = query(
     collectionGroup(db, 'transactionLogs'),
-    where('actionType', 'in', [
-      'purchase',
-      'signup_bonus',
-      'referral_bonus',
-      'practice_earn',
-      'translation_spend',
-    ]),
     orderBy('timestamp', 'desc')
   );
 
@@ -168,9 +163,22 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
     const logsSnapshot = await getDocs(logsQuery);
     const ledgerEntries: TokenLedgerEntry[] = [];
     const userCache: Record<string, string> = {};
+    const validActionTypes = new Set([
+      'purchase',
+      'signup_bonus',
+      'referral_bonus',
+      'practice_earn',
+      'translation_spend',
+    ]);
 
     for (const logDoc of logsSnapshot.docs) {
       const logData = logDoc.data() as TransactionLog;
+      
+      // Filter in code instead of in the query
+      if (!validActionTypes.has(logData.actionType)) {
+          continue;
+      }
+      
       const userRef = logDoc.ref.parent.parent;
 
       if (userRef && userRef.path.startsWith('users/')) {
