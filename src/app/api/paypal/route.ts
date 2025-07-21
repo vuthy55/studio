@@ -85,54 +85,56 @@ export async function PUT(req: NextRequest) {
             const amount = parseFloat(purchaseUnit.amount.value);
             const currency = purchaseUnit.amount.currency_code;
             
-            // Use a Firestore transaction to ensure atomicity
-            const userRef = db.collection('users').doc(userId);
+            // --- FIREBASE CODE TEMPORARILY DISABLED FOR DEBUGGING ---
+            // This section will be re-enabled and moved to a separate API route once the root cause is fixed.
             
-            await db.runTransaction(async (transaction) => {
-                const userDoc = await transaction.get(userRef);
-                if (!userDoc.exists) {
-                    throw new Error("User not found!");
-                }
+            // const userRef = db.collection('users').doc(userId);
+            
+            // await db.runTransaction(async (transaction) => {
+            //     const userDoc = await transaction.get(userRef);
+            //     if (!userDoc.exists) {
+            //         throw new Error("User not found!");
+            //     }
                 
-                // 1. Update user's token balance
-                transaction.update(userRef, {
-                    tokenBalance: FieldValue.increment(tokenAmount)
-                });
+            //     // 1. Update user's token balance
+            //     transaction.update(userRef, {
+            //         tokenBalance: FieldValue.increment(tokenAmount)
+            //     });
 
-                // 2. Create payment history log
-                const paymentLogRef = userRef.collection('paymentHistory').doc(orderID);
-                transaction.set(paymentLogRef, {
-                    orderId: orderID,
-                    amount: amount,
-                    currency: currency,
-                    status: 'COMPLETED',
-                    tokensPurchased: tokenAmount,
-                    createdAt: FieldValue.serverTimestamp()
-                });
+            //     // 2. Create payment history log
+            //     const paymentLogRef = userRef.collection('paymentHistory').doc(orderID);
+            //     transaction.set(paymentLogRef, {
+            //         orderId: orderID,
+            //         amount: amount,
+            //         currency: currency,
+            //         status: 'COMPLETED',
+            //         tokensPurchased: tokenAmount,
+            //         createdAt: FieldValue.serverTimestamp()
+            //     });
 
-                // 3. Create general transaction log
-                 const transactionLogRef = userRef.collection('transactionLogs').doc();
-                 transaction.set(transactionLogRef, {
-                    actionType: 'purchase',
-                    tokenChange: tokenAmount,
-                    timestamp: FieldValue.serverTimestamp(),
-                    description: `Purchased ${tokenAmount} tokens`
-                });
+            //     // 3. Create general transaction log
+            //      const transactionLogRef = userRef.collection('transactionLogs').doc();
+            //      transaction.set(transactionLogRef, {
+            //         actionType: 'purchase',
+            //         tokenChange: tokenAmount,
+            //         timestamp: FieldValue.serverTimestamp(),
+            //         description: `Purchased ${tokenAmount} tokens`
+            //     });
 
-                // 4. Create financial ledger entry for revenue
-                const ledgerRef = db.collection('financialLedger').doc();
-                transaction.set(ledgerRef, {
-                    type: 'revenue',
-                    description: `Token Purchase by ${userDoc.data()?.email || userId}`,
-                    amount: amount,
-                    timestamp: FieldValue.serverTimestamp(),
-                    source: 'paypal',
-                    orderId: orderID,
-                    userId: userId,
-                });
-            });
+            //     // 4. Create financial ledger entry for revenue
+            //     const ledgerRef = db.collection('financialLedger').doc();
+            //     transaction.set(ledgerRef, {
+            //         type: 'revenue',
+            //         description: `Token Purchase by ${userDoc.data()?.email || userId}`,
+            //         amount: amount,
+            //         timestamp: FieldValue.serverTimestamp(),
+            //         source: 'paypal',
+            //         orderId: orderID,
+            //         userId: userId,
+            //     });
+            // });
 
-            return NextResponse.json({ success: true, message: 'Payment completed and tokens added.' });
+            return NextResponse.json({ success: true, message: 'DEBUG: Payment completed with PayPal. Firebase update is currently disabled.' });
         } else {
             return NextResponse.json({ error: `Payment not completed. Status: ${captureResult.status}` }, { status: 400 });
         }
