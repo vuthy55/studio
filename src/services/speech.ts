@@ -12,9 +12,15 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
 };
 
 // --- Singleton Manager for the active recognizer ---
+// We manage these at the module level to ensure only one recognition process can happen at a time.
 let activeRecognizer: sdk.SpeechRecognizer | null = null;
-let activePushStream: sdk.PushAudioInputStream | null = null;
-let recognitionPromise: Promise<PronunciationAssessmentResult> | null = null;
+let recognitionPromise: {
+    promise: Promise<PronunciationAssessmentResult>;
+    resolve: (value: PronunciationAssessmentResult) => void;
+    reject: (reason?: any) => void;
+} | null = null;
+let safetyTimeout: NodeJS.Timeout | null = null;
+
 
 function getSpeechConfig(): sdk.SpeechConfig {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
@@ -35,11 +41,35 @@ export type PronunciationAssessmentResult = {
   isPass: boolean;
 };
 
+/**
+ * Aborts any ongoing recognition. This is a crucial cleanup function.
+ */
+export function abortRecognition() {
+    console.log('[DEBUG] Aborting recognition explicitly.');
+    if (safetyTimeout) {
+        clearTimeout(safetyTimeout);
+        safetyTimeout = null;
+    }
+    if (activeRecognizer) {
+        try {
+            // This attempts to stop the recognizer and rejects the ongoing promise.
+            activeRecognizer.stopContinuousRecognitionAsync();
+            activeRecognizer.close();
+            recognitionPromise?.reject(new Error("Recognition was aborted."));
+        } catch (e) {
+            console.error("[DEBUG] Error during abort: ", e);
+        } finally {
+            activeRecognizer = null;
+            recognitionPromise = null;
+        }
+    }
+}
+
 
 export async function startPronunciationAssessment(referenceText: string, lang: LanguageCode): Promise<void> {
     if (activeRecognizer) {
-        console.warn("[DEBUG] An active recognition is already in progress. Aborting it first.");
-        await stopPronunciationAssessment().catch(() => {});
+        console.warn("[DEBUG] An active recognition is already in progress. Aborting previous one.");
+        abortRecognition();
     }
 
     const locale = languageToLocaleMap[lang];
@@ -47,10 +77,9 @@ export async function startPronunciationAssessment(referenceText: string, lang: 
 
     const speechConfig = getSpeechConfig();
     speechConfig.speechRecognitionLanguage = locale;
-
+    
     console.log("[DEBUG] Audio resource CREATING...");
-    activePushStream = sdk.AudioInputStream.createPushStream();
-    const audioConfig = sdk.AudioConfig.fromStreamInput(activePushStream);
+    const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     console.log("[DEBUG] Audio resource CREATED.");
 
     activeRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
@@ -62,92 +91,96 @@ export async function startPronunciationAssessment(referenceText: string, lang: 
         true
     );
     pronunciationConfig.applyTo(activeRecognizer);
-
-    recognitionPromise = new Promise((resolve, reject) => {
-        activeRecognizer!.recognizeOnceAsync(result => {
-            console.log(`[DEBUG] recognizeOnceAsync result received: ${sdk.ResultReason[result.reason]}`);
-            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
-                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
-                resolve({
-                    accuracy: assessment.accuracyScore,
-                    fluency: assessment.fluencyScore,
-                    completeness: assessment.completenessScore,
-                    pronScore: assessment.pronunciationScore,
-                    isPass: assessment.accuracyScore > 70
-                });
-            } else {
-                const reason = sdk.ResultReason[result.reason];
-                const errorDetails = result.errorDetails || 'No details.';
-                console.error(`[DEBUG] Recognition failed. Reason: ${reason}. Details: ${errorDetails}`);
-                reject(new Error(`Could not recognize speech. Reason: ${reason}.`));
-            }
-        }, err => {
-            console.error(`[DEBUG] recognizeOnceAsync error callback: ${err}`);
-            reject(new Error(`Recognition error: ${err}`));
-        });
+    
+    // Set up a deferred promise that we can resolve/reject later
+    let resolver: (value: PronunciationAssessmentResult) => void;
+    let rejecter: (reason?: any) => void;
+    const promise = new Promise<PronunciationAssessmentResult>((resolve, reject) => {
+        resolver = resolve;
+        rejecter = reject;
     });
+    recognitionPromise = { promise, resolve: resolver!, reject: rejecter! };
+    
+    // This is our safety net. If stop isn't called, abort after 10s.
+    safetyTimeout = setTimeout(() => {
+        console.log('[DEBUG] 10-second safety timeout reached. Aborting recognition.');
+        abortRecognition();
+    }, 10000);
 
-    console.log('[DEBUG] startContinuousRecognitionAsync called to begin capturing audio.');
-    activeRecognizer.startContinuousRecognitionAsync(
-        () => {}, // Do nothing on start
-        err => {
-            console.error(`[DEBUG] startContinuousRecognitionAsync error: ${err}`);
+    activeRecognizer.recognized = (s, e) => {
+        // This event fires when speech is recognized.
+        if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
+            console.log('[DEBUG] Speech recognized. Processing assessment.');
+            const assessment = sdk.PronunciationAssessmentResult.fromResult(e.result);
+            recognitionPromise?.resolve({
+                accuracy: assessment.accuracyScore,
+                fluency: assessment.fluencyScore,
+                completeness: assessment.completenessScore,
+                pronScore: assessment.pronunciationScore,
+                isPass: assessment.accuracyScore > 70
+            });
         }
-    );
+    };
+    
+    activeRecognizer.canceled = (s, e) => {
+        console.log(`[DEBUG] Recognition canceled. Reason: ${sdk.CancellationReason[e.reason]}`);
+        if (e.reason === sdk.CancellationReason.Error) {
+            recognitionPromise?.reject(new Error(e.errorDetails));
+        }
+    };
+
+    activeRecognizer.sessionStopped = (s, e) => {
+        console.log('[DEBUG] Session stopped.');
+        // This is often where we know the process is over.
+        // We can reject here if the promise is still pending, means no result was found.
+        recognitionPromise?.reject(new Error("Recognition session ended without a result."));
+    };
+
+    console.log('[DEBUG] Starting continuous recognition...');
+    activeRecognizer.startContinuousRecognitionAsync();
 }
 
 export async function stopPronunciationAssessment(): Promise<PronunciationAssessmentResult> {
     console.log("[DEBUG] stopPronunciationAssessment called.");
+    
     if (!activeRecognizer || !recognitionPromise) {
-        throw new Error("Recognition not started.");
+        throw new Error("Recognition not started or already stopped.");
     }
     
-    // Stop the recognizer from listening for more audio
-    console.log('[DEBUG] stopContinuousRecognitionAsync called to end capturing audio.');
-    activeRecognizer.stopContinuousRecognitionAsync();
-    
-    // Signal that the audio stream is complete
-    activePushStream?.close();
+    // Clear the safety timeout since we are stopping manually.
+    if (safetyTimeout) {
+        clearTimeout(safetyTimeout);
+        safetyTimeout = null;
+    }
 
     try {
-        const result = await recognitionPromise;
+        console.log('[DEBUG] Calling stopContinuousRecognitionAsync...');
+        activeRecognizer.stopContinuousRecognitionAsync();
+        
+        // Now, we wait for the promise that was set up in the 'start' function.
+        // The .recognized event handler will resolve it.
+        const result = await recognitionPromise.promise;
         return result;
+
+    } catch (error) {
+        console.error("[DEBUG] Error while stopping or awaiting recognition promise:", error);
+        throw error; // Re-throw the error to be caught by the calling component
     } finally {
         // --- Guaranteed Cleanup ---
-        console.log("[DEBUG] Audio resource DESTROYING...");
+        console.log("[DEBUG] Cleaning up resources.");
         activeRecognizer.close();
-        console.log("[DEBUG] Audio resource DESTROYED.");
         activeRecognizer = null;
         recognitionPromise = null;
-        activePushStream = null;
     }
 }
 
 
-// --- Legacy Functions - To be removed or refactored ---
+// --- Legacy & Other Functions ---
 
-// This function is known to have issues and should be replaced by the start/stop pattern.
+// DEPRECATED - This function will not work correctly with the new start/stop model.
 export async function assessPronunciationFromMic(referenceText: string, lang: LanguageCode): Promise<PronunciationAssessmentResult> {
     console.warn("DEPRECATED: assessPronunciationFromMic is called. Use start/stop pattern instead.");
-    await startPronunciationAssessment(referenceText, lang);
-    // This will likely fail without manual stop, but we keep it for now.
-    return stopPronunciationAssessment();
-}
-
-export function abortRecognition() {
-    if (activeRecognizer) {
-        console.log('[DEBUG] Aborting recognition explicitly.');
-        try {
-            activeRecognizer.stopContinuousRecognitionAsync();
-            activeRecognizer.close();
-        } catch (e) {
-            console.error("[DEBUG] Error during abort: ", e);
-        } finally {
-            activeRecognizer = null;
-            recognitionPromise = null;
-            activePushStream = null;
-        }
-    }
+    throw new Error("assessPronunciationFromMic is deprecated. Please use the start/stop pattern.");
 }
 
 
@@ -206,6 +239,8 @@ export function getContinuousRecognizerForRoom(
     errorCallback: (errorDetails: string) => void,
     stoppedCallback: () => void
 ): sdk.SpeechRecognizer {
+    abortRecognition(); // Ensure no other recognizer is active
+    
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     speechConfig.speechRecognitionLanguage = language;
