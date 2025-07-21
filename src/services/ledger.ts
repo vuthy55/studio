@@ -77,10 +77,9 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
     const ledgerCol = collection(db, 'financialLedger');
     const entryData: any = { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) };
-
-    // Ensure link is not undefined
-    if (entry.link === undefined) {
-        delete entryData.link;
+    
+    if (entry.link) {
+        entryData.link = entry.link;
     }
     
     await addDoc(ledgerCol, entryData);
@@ -121,22 +120,24 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
 
     logsSnapshot.forEach(doc => {
         const log = doc.data();
-        switch(log.actionType) {
-            case 'purchase':
-                analytics.purchased += log.tokenChange;
-                break;
-            case 'signup_bonus':
-                analytics.signupBonus += log.tokenChange;
-                break;
-            case 'referral_bonus':
-                analytics.referralBonus += log.tokenChange;
-                break;
-            case 'practice_earn':
-                analytics.practiceEarn += log.tokenChange;
-                break;
-            case 'translation_spend':
-                analytics.translationSpend += Math.abs(log.tokenChange);
-                break;
+        if (log.actionType) { // Ensure log has an actionType before processing
+            switch(log.actionType) {
+                case 'purchase':
+                    analytics.purchased += log.tokenChange;
+                    break;
+                case 'signup_bonus':
+                    analytics.signupBonus += log.tokenChange;
+                    break;
+                case 'referral_bonus':
+                    analytics.referralBonus += log.tokenChange;
+                    break;
+                case 'practice_earn':
+                    analytics.practiceEarn += log.tokenChange;
+                    break;
+                case 'translation_spend':
+                    analytics.translationSpend += Math.abs(log.tokenChange);
+                    break;
+            }
         }
     });
 
@@ -151,8 +152,12 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
  * Fetches all token transaction logs across all users.
  */
 export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
+    // This query now explicitly targets logs within the 'users' collection,
+    // which prevents system-level logs from being included.
     const logsQuery = collectionGroup(db, 'transactionLogs');
-    const orderedQuery = query(logsQuery, orderBy('timestamp', 'desc'));
+    const userLogsQuery = query(logsQuery, where('actionType', 'in', ['purchase', 'signup_bonus', 'referral_bonus', 'practice_earn', 'translation_spend']));
+    const orderedQuery = query(userLogsQuery, orderBy('timestamp', 'desc'));
+
     const logsSnapshot = await getDocs(orderedQuery);
 
     const ledgerEntries: TokenLedgerEntry[] = [];
@@ -160,9 +165,9 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
 
     for (const logDoc of logsSnapshot.docs) {
         const logData = logDoc.data() as TransactionLog;
-        const userRef = logDoc.ref.parent.parent; // Gets the user document reference
+        const userRef = logDoc.ref.parent.parent; 
         
-        if (userRef) {
+        if (userRef && userRef.parent.path === 'users') { // Ensure we are processing a log under a user
             let userEmail = userCache[userRef.id];
             if (!userEmail) {
                 const userDoc = await getDoc(userRef);
