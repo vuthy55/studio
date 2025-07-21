@@ -152,42 +152,60 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
  * Fetches all token transaction logs across all users.
  */
 export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
-    // This query now explicitly targets logs within the 'users' collection,
-    // which prevents system-level logs from being included.
-    const logsQuery = collectionGroup(db, 'transactionLogs');
-    const userLogsQuery = query(logsQuery, where('actionType', 'in', ['purchase', 'signup_bonus', 'referral_bonus', 'practice_earn', 'translation_spend']));
-    const orderedQuery = query(userLogsQuery, orderBy('timestamp', 'desc'));
+  const logsQuery = query(
+    collectionGroup(db, 'transactionLogs'),
+    where('actionType', 'in', [
+      'purchase',
+      'signup_bonus',
+      'referral_bonus',
+      'practice_earn',
+      'translation_spend',
+    ]),
+    orderBy('timestamp', 'desc')
+  );
 
-    const logsSnapshot = await getDocs(orderedQuery);
-
+  try {
+    const logsSnapshot = await getDocs(logsQuery);
     const ledgerEntries: TokenLedgerEntry[] = [];
     const userCache: Record<string, string> = {};
 
     for (const logDoc of logsSnapshot.docs) {
-        const logData = logDoc.data() as TransactionLog;
-        const userRef = logDoc.ref.parent.parent; 
-        
-        if (userRef && userRef.parent.path === 'users') { // Ensure we are processing a log under a user
-            let userEmail = userCache[userRef.id];
-            if (!userEmail) {
-                const userDoc = await getDoc(userRef);
-                if (userDoc.exists()) {
-                    userEmail = userDoc.data().email || 'Unknown';
-                    userCache[userRef.id] = userEmail;
-                } else {
-                    userEmail = 'Deleted User';
-                }
+      const logData = logDoc.data() as TransactionLog;
+      const userRef = logDoc.ref.parent.parent;
+
+      if (userRef && userRef.path.startsWith('users/')) {
+        let userEmail = userCache[userRef.id];
+        if (!userEmail) {
+          try {
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+              userEmail = userDoc.data().email || 'Unknown';
+              userCache[userRef.id] = userEmail;
+            } else {
+              userEmail = 'Deleted User';
             }
-
-            ledgerEntries.push({
-                ...logData,
-                id: logDoc.id,
-                userId: userRef.id,
-                userEmail: userEmail,
-                timestamp: (logData.timestamp as Timestamp).toDate(),
-            });
+          } catch (userError) {
+            console.error(`Failed to fetch user doc ${userRef.id}`, userError);
+            userEmail = 'Error Fetching User';
+          }
         }
-    }
 
+        ledgerEntries.push({
+          ...logData,
+          id: logDoc.id,
+          userId: userRef.id,
+          userEmail: userEmail,
+          timestamp: (logData.timestamp as Timestamp).toDate(),
+        });
+      }
+    }
     return ledgerEntries;
+  } catch (error) {
+    console.error(
+      'FULL FIREBASE ERROR in getTokenLedger. The query failed. This is likely an index issue. The error object is:',
+      error
+    );
+    // Re-throw the error to be caught by the calling component
+    throw error;
+  }
 }
