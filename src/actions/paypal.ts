@@ -44,14 +44,25 @@ export async function createPayPalOrder(userId: string, tokenAmount: number): Pr
           currency_code: 'USD',
           value: value,
         },
-        custom_id: JSON.stringify({ userId, tokenAmount }), // Store our metadata
+        // We will no longer use custom_id as it's unreliable.
+        // We will store metadata in Firestore instead.
       },
     ],
   });
 
   try {
     const order = await getPayPalClient().execute(request);
-    return { orderID: order.result.id };
+    const orderID = order.result.id;
+
+    // --- Create a temporary order document in Firestore ---
+    const tempOrderRef = db.collection('paypalOrders').doc(orderID);
+    await tempOrderRef.set({
+      userId,
+      tokenAmount,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    
+    return { orderID };
   } catch (err: any) {
     console.error('Error creating PayPal order:', err);
     const errorDetails = err?.message || 'An unknown error occurred';
@@ -77,14 +88,18 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
     }
 
     // --- At this point, PayPal payment is confirmed. Now, grant tokens. ---
-    const purchaseUnit = captureResult.purchase_units[0];
     
-    // Defensive check to ensure custom_id exists
-    if (!purchaseUnit.custom_id) {
-      throw new Error("Critical: custom_id not found in PayPal purchase unit. Cannot grant tokens.");
+    // --- Retrieve order metadata from our temporary Firestore doc ---
+    const tempOrderRef = db.collection('paypalOrders').doc(orderID);
+    const tempOrderDoc = await tempOrderRef.get();
+
+    if (!tempOrderDoc.exists) {
+        throw new Error(`Critical: Could not find order metadata for orderID ${orderID}. Cannot grant tokens.`);
     }
-    
-    const { userId, tokenAmount } = JSON.parse(purchaseUnit.custom_id);
+    const { userId, tokenAmount } = tempOrderDoc.data()!;
+
+
+    const purchaseUnit = captureResult.purchase_units[0];
     const amount = parseFloat(purchaseUnit.payments.captures[0].amount.value);
     const currency = purchaseUnit.payments.captures[0].amount.currency_code;
     
@@ -133,13 +148,14 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
           orderId: orderID,
           userId: userId
         });
+
+        // 5. Delete the temporary order doc
+        transaction.delete(tempOrderRef);
     });
 
     return { success: true, message: 'Payment successful and tokens have been added to your account!' };
 
   } catch (err: any) {
-     // This is the robust error handling part.
-     // It stringifies the entire error object to ensure we get all details.
      console.error("Error during PayPal capture or Firestore update:", err);
      const errorDetails = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
      return { success: false, message: `An unexpected server error occurred. Details: ${errorDetails}`};
