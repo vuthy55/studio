@@ -551,10 +551,10 @@ function FinancialTabContent() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Date</TableHead>
-                                <TableHead>Type</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead>Type / Method</TableHead>
                                 <TableHead>Description</TableHead>
                                 <TableHead>By</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -562,19 +562,22 @@ function FinancialTabContent() {
                                 ledger.map(item => (
                                     <TableRow key={item.id}>
                                         <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                                                {item.type}
-                                            </Badge>
+                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
+                                            {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                         </TableCell>
                                         <TableCell>
-                                            {item.source === 'paypal' ? 'Token Purchase' : item.description}
+                                            <div className="flex flex-col">
+                                                <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {item.type}
+                                                </Badge>
+                                                <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {item.source === 'paypal' ? `Token Purchase` : item.description}
                                         </TableCell>
                                         <TableCell>
                                             {item.userId ? (userMap[item.userId] || item.userId) : 'System'}
-                                        </TableCell>
-                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
-                                            {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                         </TableCell>
                                     </TableRow>
                                 ))
