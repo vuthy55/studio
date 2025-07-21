@@ -602,7 +602,7 @@ function FinancialTabContent() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                {item.source === 'paypal' ? `Token Purchase` : item.description}
+                                                {item.source === 'paypal' ? `Token Purchase: ${item.orderId}` : item.description}
                                             </TableCell>
                                             <TableCell>
                                                 {item.userId ? (userMap[item.userId] || item.userId) : 'System'}
@@ -757,3 +757,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
