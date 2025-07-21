@@ -53,6 +53,26 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {process.env.NODE_ENV === 'development' && (
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/test'}>
+                  <Link href="/test" onClick={() => setOpenMobile(false)}>
+                    <TestTube />
+                    AI Test Page
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/test-speech'}>
+                  <Link href="/test-speech" onClick={() => setOpenMobile(false)}>
+                    <Mic />
+                    Speech Test Page
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
+          )}
            {loading ? (
              <SidebarMenuItem>
                 <SidebarMenuButton disabled>
