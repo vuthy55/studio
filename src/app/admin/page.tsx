@@ -599,8 +599,15 @@ function FinancialTabContent() {
                                                     <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                         {item.type}
                                                     </Badge>
-                                                    <span className="text-xs text-muted-foreground capitalize">
-                                                        {item.source}
+                                                    
+                                                     <span className="text-xs text-muted-foreground capitalize">
+                                                        {item.link ? (
+                                                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 flex items-center gap-1">
+                                                                {item.source} <LinkIcon className="h-3 w-3" />
+                                                            </a>
+                                                        ) : (
+                                                            item.source
+                                                        )}
                                                     </span>
                                                 </div>
                                             </TableCell>
@@ -609,15 +616,9 @@ function FinancialTabContent() {
                                             </TableCell>
                                             <TableCell>
                                                 {item.userId ? (
-                                                     item.link ? (
-                                                        <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 flex items-center gap-1">
-                                                            {userMap[item.userId] || item.userId} <LinkIcon className="h-3 w-3" />
-                                                        </a>
-                                                    ) : (
-                                                         <Link href={`/admin/${item.userId}`} className="text-primary underline hover:text-primary/80">
-                                                            {userMap[item.userId] || item.userId}
-                                                        </Link>
-                                                    )
+                                                     <Link href={`/admin/${item.userId}`} className="text-primary underline hover:text-primary/80">
+                                                        {userMap[item.userId] || item.userId}
+                                                    </Link>
                                                 ) : 'System'}
                                             </TableCell>
                                         </TableRow>
