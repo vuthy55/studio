@@ -1,13 +1,20 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import GroupConverseContent from '@/components/synchub/GroupConverseContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
+
+// Memoize the components to prevent unnecessary re-renders when the tab changes.
+// This is crucial for preventing the microphone loop bug.
+const MemoizedLearnPage = memo(LearnPageContent);
+const MemoizedLiveTranslation = memo(LiveTranslationContent);
+const MemoizedGroupConverse = memo(GroupConverseContent);
+const MemoizedSyncOnline = memo(SyncOnlineHome);
 
 
 export default function SyncHubPage() {
@@ -34,16 +41,16 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
                 <TabsContent value="prep-vibe" className="mt-6" forceMount>
-                    <LearnPageContent />
+                    <MemoizedLearnPage />
                 </TabsContent>
                 <TabsContent value="live-translation" className="mt-6" forceMount>
-                   <LiveTranslationContent />
+                   <MemoizedLiveTranslation />
                 </TabsContent>
                 <TabsContent value="sync-live" className="mt-6" forceMount>
-                   <GroupConverseContent />
+                   <MemoizedGroupConverse />
                 </TabsContent>
                 <TabsContent value="sync-online" className="mt-6" forceMount>
-                    <SyncOnlineHome />
+                    <MemoizedSyncOnline />
                 </TabsContent>
             </Tabs>
         </div>

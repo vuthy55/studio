@@ -119,7 +119,7 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     );
     pronunciationConfig.applyTo(r);
 
-    return new Promise((resolve, reject) => {
+    const recognitionPromise = new Promise<PronunciationAssessmentResult>((resolve, reject) => {
         console.log('[DEBUG] assessPronunciation recognizeOnceAsync started.');
         r.recognizeOnceAsync(result => {
             console.log(`[DEBUG] assessPronunciation result received: ${sdk.ResultReason[result.reason]}`);
@@ -150,7 +150,18 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
              recognizer = null;
         });
     });
+
+    const timeoutPromise = new Promise<PronunciationAssessmentResult>((_, reject) =>
+        setTimeout(() => {
+            console.log('[DEBUG] 5-second timeout reached. Aborting recognition.');
+            abortRecognition();
+            reject(new Error('Assessment timed out after 5 seconds.'));
+        }, 5000)
+    );
+
+    return Promise.race([recognitionPromise, timeoutPromise]);
 }
+
 
 export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
     const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
