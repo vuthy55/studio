@@ -883,16 +883,16 @@ function ReferralsTabContent() {
                                     <TableRow key={item.id}>
                                         <TableCell className="font-mono text-muted-foreground">{String(referrals.length - index).padStart(4, '0')}</TableCell>
                                         <TableCell>
-                                            <Link href={`/admin/${item.referrerUid}`} className="text-primary underline hover:text-primary/80">
-                                                {item.referrerName}
+                                            <div>{item.referrerName}</div>
+                                            <Link href={`/admin/${item.referrerUid}`} className="text-xs text-primary underline hover:text-primary/80">
+                                                {item.referrerEmail}
                                             </Link>
-                                            <div className="text-xs text-muted-foreground">{item.referrerEmail}</div>
                                         </TableCell>
                                         <TableCell>
-                                             <Link href={`/admin/${item.referredUid}`} className="text-primary underline hover:text-primary/80">
-                                                {item.referredName}
+                                            <div>{item.referredName}</div>
+                                            <Link href={`/admin/${item.referredUid}`} className="text-xs text-primary underline hover:text-primary/80">
+                                                {item.referredEmail}
                                             </Link>
-                                            <div className="text-xs text-muted-foreground">{item.referredEmail}</div>
                                         </TableCell>
                                         <TableCell>{format(item.createdAt, 'd MMM, yyyy')}</TableCell>
                                         <TableCell className="text-right">
@@ -982,3 +982,4 @@ export default function AdminPage() {
     
 
     
+
