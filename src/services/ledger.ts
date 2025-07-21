@@ -1,5 +1,5 @@
 
-"use server";
+"use client";
 
 import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
@@ -62,7 +62,7 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
 
 
 /**
- * Adds a new entry to the financial ledger.
+ * Adds a new entry to the financial ledger. This should only be called from a secure environment.
  */
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
     const ledgerCol = collection(db, 'financialLedger');

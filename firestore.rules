@@ -1,11 +1,12 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
-      // Safe check for admin role, reusable across all rules.
-      return request.auth != null && 
+      // Safe check for admin role, reusable by all rules.
+      return request.auth != null &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
@@ -16,16 +17,19 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
       
-      allow list, read, update: if isOwner() || isAdmin();
-      allow create: if isOwner(); // Allow user to create their own record during signup
+      // Allow admins to list all users for searching
+      allow list: if isAdmin();
+      allow read, update: if isOwner() || isAdmin();
+      // Allow user to create their own record during signup
+      allow create: if isOwner();
 
       // Transaction Logs: A user can read and create their own logs.
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner();
+        allow read, create: if isOwner() || isAdmin();
         allow update, delete: if false; // Protect logs from modification
       }
 
-      // Payment History: A user can read their own logs. Admins can read.
+      // Payment History: A user can read their own logs. Admins can also read.
       match /paymentHistory/{paymentId} {
         allow read: if isOwner() || isAdmin();
         allow create, update, delete: if false; // Immutable logs, created by server.
@@ -38,21 +42,20 @@ service cloud.firestore {
       }
     }
     
-    // --- ADMIN-SPECIFIC RULES ---
+    // --- NEW RULES FOR ADMIN DASHBOARD ---
     
-    // Financial Ledger: Allow admins to read all financial records.
+    // Financial Ledger: Only admins can read the ledger.
     match /financialLedger/{ledgerId} {
-      allow read: if isAdmin();
-      allow write: if false; // Should only be written by trusted server environments.
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
     }
-
-    // Transaction Logs Collection Group: Allow admins to query across all transaction logs for analytics.
+    
+    // Transaction Logs Collection Group: Allow admins to query across all users' logs.
     match /{path=**}/transactionLogs/{logId} {
       allow read: if isAdmin();
     }
     
-    // --- END ADMIN-SPECIFIC RULES ---
-
+    // --- END NEW RULES ---
 
     // App Settings: Only admins can read and write application-wide settings.
     match /settings/{settingId} {
@@ -110,25 +113,26 @@ service cloud.firestore {
       
       // Messages sub-collection: Rules for sending and reading messages.
       match /messages/{messageId} {
-          function roomData() {
-            return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
-          }
-          function roomExists() {
-            return exists(/databases/$(database)/documents/syncRooms/$(roomId));
-          }
           function isInvitedToRoom() {
-              return roomExists() &&
+              return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
                      request.auth != null &&
-                     request.auth.token.email in roomData().invitedEmails;
+                     get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.hasAny([request.auth.token.email]);
           }
           function isRoomCreator() {
-            return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
+            return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+                   request.auth != null &&
+                   get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
           }
 
           allow list, read: if isInvitedToRoom();
           allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
           allow delete: if isRoomCreator();
       }
+    }
+    
+    // PayPal temporary orders: Only allow creation from server-side action
+    match /paypalOrders/{orderId} {
+        allow read, write: if false; // Client should not access this at all
     }
   }
 }
