@@ -1,84 +1,148 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if a user is an admin
-    function isAdmin(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role == 'admin';
+    // User Profiles: Users can manage their own profile. Admins can manage any.
+    match /users/{userId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isAdmin() {
+        // Safe check for admin role
+        return request.auth != null && 
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+      
+      // Admins can list all users for the dashboard.
+      allow list: if isAdmin();
+      allow read, update: if isOwner() || isAdmin();
+      // Allow user to create their own record during signup
+      allow create: if isOwner();
+
+      // Transaction Logs: A user can read and create their own logs. Admins can also read.
+      match /transactionLogs/{logId} {
+        // Admins need list access for analytics.
+        allow list, read, create: if isOwner() || isAdmin();
+        allow update, delete: if false; // Protect logs from modification
+      }
+
+      // Payment History: A user can read their own logs. Admins can also read.
+      match /paymentHistory/{paymentId} {
+        allow read: if isOwner() || isAdmin();
+        allow create, update, delete: if false; // Immutable logs, created by server.
+      }
+
+      // Practice History: A user can read and write their own practice history. Admins can read.
+      match /practiceHistory/{historyId} {
+        allow list, read: if isOwner() || isAdmin();
+        allow write: if isOwner();
+      }
     }
 
-    // Default: Deny all reads and writes
-    match /{document=**} {
+    // Financial Ledger: Only admins can read this collection for financial reporting.
+    match /financialLedger/{ledgerId} {
+       function isAdmin() {
+        return request.auth != null &&
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+      allow read: if isAdmin();
+      // Only server can write to the ledger.
+      allow write: if false;
+    }
+    
+    // Temporary PayPal orders, should only be accessed by the server.
+    match /paypalOrders/{orderId} {
       allow read, write: if false;
     }
 
-    // Users collection
-    match /users/{userId} {
-      // Users can read/write their own profile
-      allow read, update, delete: if request.auth.uid == userId;
-      // Users can create their own profile document
-      allow create: if request.auth.uid == userId;
-      // Admins can read/write any user's profile
-      allow read, write: if request.auth.uid != null && isAdmin(request.auth.uid);
-    }
-    
-    // User Subcollections (transactionLogs, paymentHistory, practiceHistory)
-    match /users/{userId}/{subcollection}/{docId} {
-        // Users can read/write their own subcollections
-        allow read, write: if request.auth.uid == userId;
-        // Admins can read any user's subcollections
-        allow read: if request.auth.uid != null && isAdmin(request.auth.uid);
-    }
-    
-    // Allow admins to list all users
-    match /users/{userId} {
-       allow list: if request.auth.uid != null && isAdmin(request.auth.uid);
-    }
-    
-    // Settings collection
-    match /settings/appConfig {
-        // All authenticated users can read settings
-        allow get: if request.auth.uid != null;
-        // Only admins can write settings
-        allow write: if request.auth.uid != null && isAdmin(request.auth.uid);
+    // App Settings: Only admins can read and write application-wide settings.
+    match /settings/{settingId} {
+       function isAdmin() {
+        return request.auth != null &&
+               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+
+      allow read, write: if isAdmin();
     }
 
-    // Financial Ledger collection
-    match /financialLedger/{docId} {
-        // Only admins can read/write the financial ledger
-        allow read, write: if request.auth.uid != null && isAdmin(request.auth.uid);
-    }
-    
-    // PayPal temporary orders collection
-    match /paypalOrders/{orderId} {
-        // Only authenticated users can create their own temp order doc
-        allow create: if request.auth.uid != null;
-        // Only the server (via admin SDK) should be able to read/delete these.
-        // We will leave this locked down as the server actions use the admin SDK.
-        allow read, write: if false;
-    }
-    
-    // Referrals collection
-    match /referrals/{referralId} {
-        // Any authenticated user can create a referral record
-        allow create: if request.auth.uid != null;
-    }
-    
-    // Sync Rooms
+    // Sync Rooms: Handles creation, reading, and updates for rooms.
     match /syncRooms/{roomId} {
-      // Allow read/write if the user's email is in the invited list
-      allow read, write: if request.auth.uid != null && get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.has(request.auth.token.email);
-      // Allow create only if the creator is the current user
-      allow create: if request.auth.uid != null && request.resource.data.creatorUid == request.auth.uid;
-      // Allow delete only if the user is the creator
-      allow delete: if request.auth.uid != null && get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
-    }
+      function isInvited() {
+        return request.auth != null && request.auth.token.email in resource.data.invitedEmails;
+      }
+      function isEmcee() {
+        return request.auth != null && request.auth.uid in resource.data.emceeUids;
+      }
+      function isCreator() {
+        return request.auth != null && request.auth.uid == resource.data.creatorUid;
+      }
+      function isOnlyChangingSpeaker() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
+      }
 
-    match /syncRooms/{roomId}/{subcollection}/{docId} {
-      // Allow participants to read/write to subcollections of rooms they are invited to
-      allow read, write: if request.auth.uid != null && get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.has(request.auth.token.email);
+      allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
+      allow read: if isInvited();
+      allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
+      allow delete: if isCreator();
+
+      // Participants sub-collection: Rules for joining and management.
+      match /participants/{participantId} {
+        function roomData() {
+          return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
+        }
+        function roomExists() {
+          return exists(/databases/$(database)/documents/syncRooms/$(roomId));
+        }
+        function isInvitedToRoom() {
+          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
+        }
+        function isEmceeInRoom() {
+          return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
+        }
+        function isRoomCreator() {
+          return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
+        }
+        // This function checks if the user is the creator during a batch write.
+        function isCreatingOwnParticipantRecord() {
+            return request.auth != null && request.auth.uid == participantId &&
+                   request.resource.data.uid == request.auth.uid &&
+                   getAfter(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
+        }
+
+        allow list, read: if isInvitedToRoom();
+        // Allow creation if the user is invited OR if they are creating the room itself.
+        allow create: if (request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid) || isCreatingOwnParticipantRecord();
+        allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
+        // Allow the room creator OR the participant themselves to delete the record.
+        allow delete: if isRoomCreator() || (request.auth != null && request.auth.uid == participantId);
+      }
+      
+      // Messages sub-collection: Rules for sending and reading messages.
+      match /messages/{messageId} {
+          function roomData() {
+            return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
+          }
+          function roomExists() {
+            return exists(/databases/$(database)/documents/syncRooms/$(roomId));
+          }
+          function isInvitedToRoom() {
+              return roomExists() &&
+                     request.auth != null &&
+                     request.auth.token.email in roomData().invitedEmails;
+          }
+          function isRoomCreator() {
+            return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
+          }
+
+          allow list, read: if isInvitedToRoom();
+          allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
+          // Allow the room creator to delete any message.
+          allow delete: if isRoomCreator();
+      }
     }
   }
 }
