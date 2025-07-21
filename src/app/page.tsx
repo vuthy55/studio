@@ -10,7 +10,6 @@ import LiveTranslationContent from '@/components/synchub/LiveTranslationContent'
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 
 // Memoize the components to prevent unnecessary re-renders when the tab changes.
-// This is crucial for preventing the microphone loop bug.
 const MemoizedLearnPage = memo(LearnPageContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedGroupConverse = memo(GroupConverseContent);
@@ -45,16 +44,16 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
-                <TabsContent value="prep-vibe" className="mt-6" forceMount>
+                <TabsContent value="prep-vibe" className="mt-6">
                     {learnPage}
                 </TabsContent>
-                <TabsContent value="live-translation" className="mt-6" forceMount>
+                <TabsContent value="live-translation" className="mt-6">
                    {liveTranslationPage}
                 </TabsContent>
-                <TabsContent value="sync-live" className="mt-6" forceMount>
+                <TabsContent value="sync-live" className="mt-6">
                    {groupConversePage}
                 </TabsContent>
-                <TabsContent value="sync-online" className="mt-6" forceMount>
+                <TabsContent value="sync-online" className="mt-6">
                     {syncOnlinePage}
                 </TabsContent>
             </Tabs>
