@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Landmark, CreditCard, Shield, User as UserIcon, Share2, Copy } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Landmark, CreditCard, Shield, User as UserIcon, Share2, Copy, Heart } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -159,7 +159,7 @@ function PaymentHistorySection() {
         <Card>
             <CardHeader>
                 <CardTitle>Your Payments</CardTitle>
-                <CardDescription>A record of all your token purchases.</CardDescription>
+                <CardDescription>A record of all your token purchases and donations.</CardDescription>
             </CardHeader>
             <CardContent>
                 {isLoading ? <LoaderCircle className="animate-spin" /> : payments.length > 0 ? (
@@ -167,7 +167,16 @@ function PaymentHistorySection() {
                         {payments.map(p => (
                             <li key={p.orderId} className="flex justify-between items-center">
                                 <div>
-                                    <p className="font-medium">Purchased {p.tokensPurchased} Tokens</p>
+                                    <p className="font-medium flex items-center gap-2">
+                                        {p.tokensPurchased > 0 ? (
+                                            `Purchased ${p.tokensPurchased} Tokens`
+                                        ) : (
+                                            <>
+                                            <Heart className="h-4 w-4 text-red-500"/>
+                                            Donation
+                                            </>
+                                        )}
+                                    </p>
                                     <p className="text-sm text-muted-foreground">
                                         {p.createdAt ? formatDistanceToNow(p.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
                                     </p>
@@ -376,3 +385,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
