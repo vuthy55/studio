@@ -575,8 +575,6 @@ function FinancialTabContent() {
                         <TableBody>
                             {ledger.length > 0 ? (
                                 ledger.map(item => {
-                                    const link = getTransactionLink(item);
-                                    const isInternalLink = link && link.startsWith('/');
                                     return (
                                         <TableRow key={item.id}>
                                             <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
@@ -588,17 +586,7 @@ function FinancialTabContent() {
                                                     <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                         {item.type}
                                                     </Badge>
-                                                    {link && isInternalLink ? (
-                                                        <Link href={link} className="text-xs text-muted-foreground capitalize underline hover:text-primary flex items-center gap-1">
-                                                            {item.source} <LinkIcon className="h-3 w-3" />
-                                                        </Link>
-                                                    ) : link ? (
-                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground capitalize underline hover:text-primary flex items-center gap-1">
-                                                            {item.source} <LinkIcon className="h-3 w-3" />
-                                                        </a>
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
-                                                    )}
+                                                    <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -757,5 +745,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
