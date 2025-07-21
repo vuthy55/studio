@@ -30,8 +30,17 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
+}
+
+export type PaymentLog = {
+    orderId: string;
+    amount: number;
+    currency: string;
+    status: string;
+    tokensPurchased: number;
+    createdAt: FieldValue;
 }

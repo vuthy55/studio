@@ -23,6 +23,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+import { getAppSettings, type AppSettings } from '@/services/settings';
 
 type MicStatus = 'idle' | 'listening' | 'processing' | 'locked';
 
@@ -49,7 +50,8 @@ function SyncRoomPageContent() {
     const { toast } = useToast();
     const router = useRouter();
     const { isMobile } = useSidebar();
-
+    
+    const [settings, setSettings] = useState<AppSettings | null>(null);
     const [room, setRoom] = useState<SyncRoom | null>(null);
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(true);
@@ -91,6 +93,9 @@ function SyncRoomPageContent() {
         });
     }, [roomId]);
 
+    useEffect(() => {
+        getAppSettings().then(setSettings);
+    }, []);
 
     // --- Data and Auth Effects ---
 
@@ -302,6 +307,11 @@ function SyncRoomPageContent() {
             return;
         }
 
+        if (settings && participants.length >= settings.maxUsersPerRoom) {
+            toast({ variant: 'destructive', title: 'Room Full', description: 'This room has reached its maximum capacity.' });
+            return;
+        }
+
         setIsJoining(true);
         try {
             const newParticipant: Participant = {
@@ -387,7 +397,7 @@ function SyncRoomPageContent() {
     
     // --- Render Logic ---
 
-    if (loading || authLoading) {
+    if (loading || authLoading || !settings) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -423,6 +433,7 @@ function SyncRoomPageContent() {
                         </Avatar>
                         <CardTitle>Join "{room?.topic || 'Room'}"</CardTitle>
                         <CardDescription>Welcome, {user.displayName || user.email}! Please select your spoken language to enter the room.</CardDescription>
+                        <CardDescription className="font-bold pt-2">Users: {participants.length} / {settings.maxUsersPerRoom}</CardDescription>
                     </CardHeader>
                     <CardContent>
                             <form onSubmit={handleJoinRoom} className="space-y-4">
@@ -439,9 +450,9 @@ function SyncRoomPageContent() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <Button type="submit" className="w-full" disabled={isJoining}>
+                            <Button type="submit" className="w-full" disabled={isJoining || participants.length >= settings.maxUsersPerRoom}>
                                 {isJoining ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Join Room
+                                {participants.length >= settings.maxUsersPerRoom ? 'Room is Full' : 'Join Room'}
                             </Button>
                         </form>
                     </CardContent>
@@ -471,7 +482,7 @@ function SyncRoomPageContent() {
                             </DialogTrigger>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Participants</DialogTitle>
+                                    <DialogTitle>Participants ({participants.length}/{settings.maxUsersPerRoom})</DialogTitle>
                                     <DialogDescription>List of invited users and their status.</DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 max-h-80 overflow-y-auto">

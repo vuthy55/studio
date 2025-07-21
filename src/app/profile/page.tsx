@@ -5,8 +5,8 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { LoaderCircle, Save, Coins, FileText, Landmark, CreditCard, Shield, User as UserIcon } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -17,18 +17,13 @@ import { useToast } from '@/hooks/use-toast';
 import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile, updateEmail } from "firebase/auth";
-import type { LanguageCode } from '@/lib/data';
-
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import type { TransactionLog, PaymentLog } from '@/lib/types';
+import { formatDistanceToNow } from 'date-fns';
+import { useUserData } from '@/context/UserDataContext';
+import BuyTokens from '@/components/BuyTokens';
 
 export interface PracticeStats {
-  byTopic?: {
-    [topicId: string]: {
-      [languageCode: string]: {
-        correct: number;
-        tokensEarned: number;
-      }
-    };
-  };
   byLanguage?: {
     [languageCode: string]: {
       practiced: number;
@@ -48,79 +43,224 @@ export interface UserProfile {
   practiceStats?: PracticeStats;
 }
 
+function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getInitials, countryOptions, handleCountryChange }: any) {
+    return (
+        <AccordionItem value="profile">
+            <AccordionTrigger>
+                <div className="flex items-center gap-3">
+                    <UserIcon />
+                    <span className="font-semibold text-lg">My Profile</span>
+                </div>
+            </AccordionTrigger>
+            <AccordionContent>
+                 <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-20 w-20 text-3xl">
+                                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
+                                <CardDescription>{profile.email}</CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleSaveProfile} className="space-y-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name</Label>
+                                <Input id="name" value={profile.name || ''} onChange={(e) => setProfile((p: any) => ({...p, name: e.target.value}))} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input id="email" type="email" value={profile.email || ''} disabled />
+                                <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="country">Country</Label>
+                                <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                                    <SelectTrigger id="country">
+                                        <SelectValue placeholder="Select your country" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {countryOptions.map((country: any) => (
+                                            <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="mobile">Mobile Number</Label>
+                                <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
+                            </div>
+                            <div className="flex justify-end">
+                                <Button type="submit" disabled={isSaving}>
+                                    {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Save Changes
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </AccordionContent>
+        </AccordionItem>
+    )
+}
+
+function PaymentHistorySection() {
+    const [user] = useAuthState(auth);
+    const [payments, setPayments] = useState<PaymentLog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) return;
+        const paymentsRef = collection(db, 'users', user.uid, 'paymentHistory');
+        const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => doc.data() as PaymentLog);
+            setPayments(data);
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [user]);
+
+    return (
+         <AccordionItem value="payment">
+            <AccordionTrigger>
+                 <div className="flex items-center gap-3">
+                    <Landmark />
+                    <span className="font-semibold text-lg">Payment History</span>
+                </div>
+            </AccordionTrigger>
+            <AccordionContent>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Your Payments</CardTitle>
+                        <CardDescription>A record of all your token purchases.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : payments.length > 0 ? (
+                            <ul className="space-y-4">
+                                {payments.map(p => (
+                                    <li key={p.orderId} className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">Purchased {p.tokensPurchased} Tokens</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {p.createdAt ? formatDistanceToNow(p.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold">${p.amount.toFixed(2)} {p.currency}</p>
+                                            <p className="text-xs text-muted-foreground">Order ID: {p.orderId}</p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : <p className="text-muted-foreground">No payment history found.</p>}
+                    </CardContent>
+                </Card>
+            </AccordionContent>
+        </AccordionItem>
+    )
+}
+
+function TokenHistorySection() {
+    const [user] = useAuthState(auth);
+    const [transactions, setTransactions] = useState<TransactionLog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+     const getActionText = (log: TransactionLog) => {
+        switch (log.actionType) {
+            case 'translation_spend': return 'Live Translation';
+            case 'practice_earn': return 'Practice Reward';
+            case 'signup_bonus': return 'Welcome Bonus';
+            case 'purchase': return 'Token Purchase';
+            default: return 'Unknown Action';
+        }
+    }
+
+     useEffect(() => {
+        if (!user) return;
+        const transRef = collection(db, 'users', user.uid, 'transactionLogs');
+        const q = query(transRef, orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => doc.data() as TransactionLog);
+            setTransactions(data);
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [user]);
+
+    return (
+        <AccordionItem value="tokens">
+            <AccordionTrigger>
+                 <div className="flex items-center gap-3">
+                    <FileText />
+                    <span className="font-semibold text-lg">Token History</span>
+                </div>
+            </AccordionTrigger>
+            <AccordionContent>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Token Ledger</CardTitle>
+                        <CardDescription>A complete log of your token earnings and spending.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : transactions.length > 0 ? (
+                             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                                {transactions.map((log, index) => (
+                                    <div key={index} className="flex items-center">
+                                        <div className="p-3 rounded-full bg-secondary">
+                                            <div className={`font-bold text-sm ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange}
+                                            </div>
+                                        </div>
+                                        <div className="ml-4 flex-grow">
+                                            <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
+                                            <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground ml-auto">
+                                            {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <p className="text-muted-foreground">No token history found.</p>}
+                    </CardContent>
+                </Card>
+            </AccordionContent>
+        </AccordionItem>
+    )
+}
+
 export default function ProfilePage() {
-    const [user, loading, error] = useAuthState(auth);
+    const { user, loading: authLoading, userProfile, fetchUserProfile } = useUserData();
     const router = useRouter();
     const { isMobile } = useSidebar();
     const { toast } = useToast();
     
-    const [profile, setProfile] = useState<Partial<UserProfile>>({ name: '', email: '', country: '', mobile: '', role: 'user', tokenBalance: 0 });
+    const [profile, setProfile] = useState<Partial<UserProfile>>({});
     const [isSaving, setIsSaving] = useState(false);
-    const [isFetchingProfile, setIsFetchingProfile] = useState(true);
 
     const countryOptions = useMemo(() => lightweightCountries, []);
 
-    const fetchProfile = useCallback(async (uid: string) => {
-        if (!user) return;
-        setIsFetchingProfile(true);
-        try {
-            const userDocRef = doc(db, 'users', uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            const authEmail = user.email || '';
-            
-            if (userDocSnap.exists()) {
-                const dbProfile = userDocSnap.data() as UserProfile;
-                const profileWithAuthEmail = { ...dbProfile, email: authEmail };
-                setProfile(profileWithAuthEmail);
-
-                // **Data Migration Logic**
-                // Check if searchable fields are missing and add them if necessary.
-                if (!dbProfile.searchableName || !dbProfile.searchableEmail) {
-                    console.log(`[Data Migration] User ${uid} is missing searchable fields. Patching now.`);
-                    const dataToPatch = {
-                        searchableName: (dbProfile.name || user.displayName || '').toLowerCase(),
-                        searchableEmail: (authEmail).toLowerCase(),
-                    };
-                    await setDoc(userDocRef, dataToPatch, { merge: true });
-                    // Update local state as well to reflect the change immediately
-                    setProfile(prev => ({...prev, ...dataToPatch}));
-                    console.log(`[Data Migration] Successfully patched user ${uid}.`);
-                }
-
-            } else {
-                // If no profile exists, create a basic one to be saved.
-                // This branch is mostly for edge cases, as signup flow creates the doc.
-                setProfile({
-                    name: user.displayName || '',
-                    email: authEmail,
-                    country: '',
-                    mobile: '',
-                    role: 'user',
-                    tokenBalance: 100 // Default for profiles created on the fly
-                });
-            }
-        } catch (fetchError) {
-            console.error("Error fetching user profile:", fetchError);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch your profile." });
-        } finally {
-            setIsFetchingProfile(false);
+     useEffect(() => {
+        if (!authLoading && user) {
+            fetchUserProfile();
         }
-    }, [user, toast]);
+    }, [user, authLoading, fetchUserProfile]);
 
     useEffect(() => {
-        if (loading) return;
-        if (!user) {
-            router.push('/login');
-            return;
+        if(userProfile) {
+            setProfile(userProfile);
         }
-        fetchProfile(user.uid);
-    }, [user, loading, router, fetchProfile]);
+    }, [userProfile]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { id, value } = e.target;
-        setProfile(prev => ({ ...prev, [id]: value }));
-    };
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
 
     const handleCountryChange = (countryCode: string) => {
         setProfile(prev => ({ ...prev, country: countryCode }));
@@ -135,32 +275,16 @@ export default function ProfilePage() {
         if (!user) return;
         setIsSaving(true);
         try {
-            // Update Firebase Auth display name
             if (profile.name && profile.name !== user.displayName) {
                 await updateAuthProfile(user, { displayName: profile.name });
             }
             
-            // This logic is now disabled in the UI but kept here for reference.
-            // If the email field were enabled, this is how it would work.
-            if (profile.email && profile.email !== user.email) {
-                 try {
-                    await updateEmail(user, profile.email);
-                } catch (error: any) {
-                    if (error.code === 'auth/requires-recent-login') {
-                        toast({ variant: 'destructive', title: 'Action Required', description: 'Changing your email requires you to log in again. Please log out and log back in to complete this change.', duration: 8000 });
-                    } else {
-                        throw error; // Rethrow other errors
-                    }
-                }
-            }
-
             const userDocRef = doc(db, 'users', user.uid);
             const { name, country, mobile } = profile;
             const dataToSave = {
                 name: name || '',
                 country: country || '',
                 mobile: mobile || '',
-                // Always save the email from auth as the source of truth
                 email: user.email,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
@@ -179,92 +303,46 @@ export default function ProfilePage() {
         return name ? name.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || '?');
     };
 
-    if (loading || isFetchingProfile) {
+    if (authLoading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
             </div>
         );
     }
-    
-    if (error) {
-        return <p>Error: {error.message}</p>;
-    }
-    
-    if (!user) {
-        return (
-             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
-                 <p className="ml-4">Redirecting...</p>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-8">
-            <header className="flex items-center gap-4">
-                {isMobile && <SidebarTrigger />}
-                <div>
-                    <h1 className="text-3xl font-bold font-headline">Profile</h1>
-                    <p className="text-muted-foreground">Manage your account settings and track your progress.</p>
-                </div>
+            <header className="flex justify-between items-start">
+                 <div className="flex items-center gap-4">
+                    {isMobile && <SidebarTrigger />}
+                    <div>
+                        <h1 className="text-3xl font-bold font-headline">My Account</h1>
+                        <p className="text-muted-foreground">Manage settings and track your history.</p>
+                    </div>
+                 </div>
+                 <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2 text-lg font-bold text-amber-500">
+                        <Coins className="h-6 w-6" />
+                        <span>{profile.tokenBalance ?? 0}</span>
+                    </div>
+                    <BuyTokens />
+                 </div>
             </header>
             
-            <Card className="max-w-2xl mx-auto">
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Avatar className="h-20 w-20 text-3xl">
-                                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
-                                <CardDescription>{profile.email}</CardDescription>
-                            </div>
-                        </div>
-                         <div className="flex items-center gap-2 text-lg font-bold text-amber-500">
-                           <Coins className="h-6 w-6" />
-                           <span>{profile.tokenBalance ?? 0}</span>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSaveProfile} className="space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Name</Label>
-                            <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} disabled />
-                             <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="country">Country</Label>
-                            <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                                <SelectTrigger id="country">
-                                    <SelectValue placeholder="Select your country" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {countryOptions.map(country => (
-                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="mobile">Mobile Number</Label>
-                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} placeholder="e.g., +1 123 456 7890" />
-                        </div>
-                        <div className="flex justify-end">
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                Save Changes
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+            <Accordion type="multiple" className="w-full space-y-4">
+                 <ProfileSection 
+                    profile={profile} 
+                    setProfile={setProfile} 
+                    isSaving={isSaving}
+                    handleSaveProfile={handleSaveProfile}
+                    getInitials={getInitials}
+                    countryOptions={countryOptions}
+                    handleCountryChange={handleCountryChange}
+                />
+                <PaymentHistorySection />
+                <TokenHistorySection />
+            </Accordion>
         </div>
     );
 }

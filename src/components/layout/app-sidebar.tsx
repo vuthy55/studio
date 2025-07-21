@@ -2,8 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart, Mic } from 'lucide-react';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart, Mic, Wallet } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -81,7 +80,7 @@ export function AppSidebar() {
             <>
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/admin'}>
+                  <SidebarMenuButton asChild isActive={pathname === '/admin' || pathname?.startsWith('/admin/')}>
                     <Link href="/admin" onClick={() => setOpenMobile(false)}>
                       <Shield />
                       Admin
@@ -101,7 +100,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
                   <Link href="/profile" onClick={() => setOpenMobile(false)}>
                     <User />
-                    Profile
+                    My Account
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -133,9 +132,9 @@ export function AppSidebar() {
            </div>
         )}
         <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-          <Link href="#">
+          <a href="https://paypal.me/your-username" target="_blank" rel="noopener noreferrer">
             <Heart className="mr-2 h-4 w-4" /> Donate
-          </Link>
+          </a>
         </Button>
       </SidebarFooter>
     </Sidebar>

@@ -207,13 +207,7 @@ function SettingsTabContent() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const settingsToSave: AppSettings = {
-                signupBonus: settings.signupBonus || 0,
-                practiceReward: settings.practiceReward || 0,
-                practiceThreshold: settings.practiceThreshold || 0,
-                translationCost: settings.translationCost || 0,
-            };
-            await updateAppSettings(settingsToSave);
+            await updateAppSettings(settings);
             toast({ title: "Success", description: "Application settings have been updated." });
         } catch (error: any) {
             console.error("Error saving settings:", error);
@@ -243,7 +237,7 @@ function SettingsTabContent() {
                 <CardDescription>Manage the token economy and other application-wide settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className="space-y-2">
                         <Label htmlFor="signupBonus">Signup Bonus</Label>
                         <Input id="signupBonus" type="number" value={settings.signupBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
@@ -262,7 +256,27 @@ function SettingsTabContent() {
                      <div className="space-y-2">
                         <Label htmlFor="practiceThreshold">Practice Threshold</Label>
                         <Input id="practiceThreshold" type="number" value={settings.practiceThreshold ?? ''} onChange={handleInputChange} placeholder="e.g., 3" />
-                         <p className="text-sm text-muted-foreground">Number of successful practices to earn reward.</p>
+                         <p className="text-sm text-muted-foreground">Successful practices to earn reward.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="costPerSyncMinute">Sync Room Cost (per minute)</Label>
+                        <Input id="costPerSyncMinute" type="number" value={settings.costPerSyncMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                        <p className="text-sm text-muted-foreground">Tokens per minute for Sync Online/Live.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="freeSyncLiveMinutes">Free Sync Live Minutes</Label>
+                        <Input id="freeSyncLiveMinutes" type="number" value={settings.freeSyncLiveMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                        <p className="text-sm text-muted-foreground">Free monthly minutes for Sync Live.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="freeSyncOnlineMinutes">Free Sync Online Minutes</Label>
+                        <Input id="freeSyncOnlineMinutes" type="number" value={settings.freeSyncOnlineMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                        <p className="text-sm text-muted-foreground">Free monthly minutes for Sync Online.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="maxUsersPerRoom">Max Users per Sync Room</Label>
+                        <Input id="maxUsersPerRoom" type="number" value={settings.maxUsersPerRoom ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
+                        <p className="text-sm text-muted-foreground">Max users in a Sync Online room.</p>
                     </div>
                 </div>
                  <div className="flex justify-end">

@@ -37,6 +37,7 @@ interface UserDataContextType {
     loading: boolean;
     userProfile: Partial<UserProfile>;
     practiceHistory: PracticeHistoryState;
+    fetchUserProfile: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => void;
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
 }
@@ -56,8 +57,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [loading, setLoading] = useState(true);
-
-    const dataFetchedRef = useRef(false);
     
     // --- Data Fetching ---
 
@@ -65,51 +64,47 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         getAppSettings().then(setSettings);
     }, []);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            if (user && !dataFetchedRef.current) {
-                setLoading(true);
-                dataFetchedRef.current = true; // Mark as fetched
-
-                try {
-                    const userDocRef = doc(db, 'users', user.uid);
-                    const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
-
-                    const [userDocSnap, historySnapshot] = await Promise.all([
-                        getDoc(userDocRef),
-                        getDocs(historyCollectionRef)
-                    ]);
-
-                    // Load Profile
-                    if (userDocSnap.exists()) {
-                        setUserProfile(userDocSnap.data()); // This updates state AND localStorage
-                    }
-
-                    // Load History
-                    const historyData: PracticeHistoryState = {};
-                    historySnapshot.forEach(doc => {
-                        historyData[doc.id] = doc.data();
-                    });
-                    setPracticeHistory(historyData); // This updates state AND localStorage
-
-                } catch (error) {
-                    console.error("Error fetching user data:", error);
-                } finally {
-                    setLoading(false);
-                }
-            } else if (!user) {
-                // Reset state and cache on logout
-                if (dataFetchedRef.current) {
-                    setUserProfile({});
-                    setPracticeHistory({});
-                    dataFetchedRef.current = false;
-                }
-                setLoading(authLoading);
+    const fetchUserProfile = useCallback(async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+                setUserProfile(userDocSnap.data());
             }
-        };
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [user, setUserProfile]);
 
-        fetchData();
-    }, [user, authLoading, setUserProfile, setPracticeHistory]);
+    const fetchPracticeHistory = useCallback(async () => {
+        if (!user) return;
+        try {
+            const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
+            const historySnapshot = await getDocs(historyCollectionRef);
+            const historyData: PracticeHistoryState = {};
+            historySnapshot.forEach(doc => {
+                historyData[doc.id] = doc.data();
+            });
+            setPracticeHistory(historyData);
+        } catch (error) {
+            console.error("Error fetching practice history:", error);
+        }
+    }, [user, setPracticeHistory]);
+
+    useEffect(() => {
+        if (user && !authLoading) {
+            Promise.all([fetchUserProfile(), fetchPracticeHistory()]).finally(() => setLoading(false));
+        } else if (!user && !authLoading) {
+            setUserProfile({});
+            setPracticeHistory({});
+            setLoading(false);
+        }
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory]);
+
 
     // --- Client-Side Actions ---
 
@@ -117,8 +112,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (!user || !settings) return;
         const { phraseId, phraseText, lang, isPass, accuracy } = args;
 
-        // 1. Update Practice History State LOCALLY for instant UI feedback
-        // This is crucial. It gives the user immediate feedback without waiting for the backend.
         setPracticeHistory(currentHistory => {
             const newHistory = { ...currentHistory };
             const phraseHistory = newHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
@@ -143,12 +136,10 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newHistory;
         });
 
-        // 2. Queue the backend update. This will be debounced.
         debouncedSync.current(args);
 
     }, [user, settings, setPracticeHistory, setUserProfile]);
 
-    // This ref will hold our debounced function.
     const debouncedSync = useRef(
         debounce((args: RecordPracticeAttemptArgs) => {
             if (!auth.currentUser || !settings) return;
@@ -217,6 +208,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         loading: loading || authLoading,
         userProfile,
         practiceHistory,
+        fetchUserProfile,
         recordPracticeAttempt,
         getTopicStats
     };
