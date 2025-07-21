@@ -7,8 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
+import BuyTokens from '@/components/BuyTokens';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
 
 export default function TestPage() {
+  const [user] = useAuthState(auth);
   const [name, setName] = useState('programmers');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,6 +74,22 @@ export default function TestPage() {
               <p>{error}</p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+            <CardTitle>PayPal Sandbox Test</CardTitle>
+            <CardDescription>
+                Click the button below to test the PayPal checkout flow. Ensure you have set your sandbox credentials in the <code>.env.local</code> file.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {user ? (
+                <BuyTokens />
+            ) : (
+                <p className="text-muted-foreground">Please log in to test token purchases.</p>
+            )}
         </CardContent>
       </Card>
 
