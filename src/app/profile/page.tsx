@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Landmark, CreditCard, Shield, User as UserIcon, Share2, Copy, Heart } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -16,12 +16,13 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { updateProfile as updateAuthProfile, updateEmail } from "firebase/auth";
+import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { TransactionLog, PaymentLog } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
+import ReferralLink from '@/components/ReferralLink';
 
 export interface PracticeStats {
   byLanguage?: {
@@ -92,44 +93,6 @@ function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getI
                         </Button>
                     </div>
                 </form>
-            </CardContent>
-        </Card>
-    )
-}
-
-function ReferralSection() {
-    const { user } = useUserData();
-    const { toast } = useToast();
-    const [referralLink, setReferralLink] = useState('');
-
-    useEffect(() => {
-        if (user && typeof window !== 'undefined') {
-            setReferralLink(`${window.location.origin}/login?ref=${user.uid}`);
-        }
-    }, [user]);
-
-    const copyToClipboard = () => {
-        if (referralLink) {
-            navigator.clipboard.writeText(referralLink);
-            toast({ title: "Copied!", description: "Referral link copied to clipboard." });
-        }
-    };
-
-    if (!user) return null;
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Your Referral Link</CardTitle>
-                <CardDescription>Share this link with your friends. When they sign up, you'll both get a token bonus!</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                    <Input value={referralLink} readOnly />
-                    <Button type="button" size="icon" onClick={copyToClipboard} disabled={!referralLink}>
-                        <Copy className="h-4 w-4" />
-                    </Button>
-                </div>
             </CardContent>
         </Card>
     )
@@ -373,7 +336,7 @@ export default function ProfilePage() {
                     />
                 </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
-                   <ReferralSection />
+                   <ReferralLink />
                 </TabsContent>
                 <TabsContent value="payments" className="mt-6">
                     <PaymentHistorySection />
@@ -385,5 +348,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    

@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserData } from '@/context/UserDataContext';
 import DonateButton from '../DonateButton';
 import BuyTokens from '../BuyTokens';
+import ReferralLink from '../ReferralLink';
 
 
 export function AppSidebar() {
@@ -110,13 +111,16 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="flex-col items-stretch gap-y-2">
-        {user && userProfile && (
-           <div className="flex items-center justify-center gap-2 text-sm font-bold text-amber-500 border rounded-full p-2">
-             <Coins className="h-5 w-5" />
-             <span>{userProfile.tokenBalance ?? 0}</span>
-           </div>
+        {user && (
+          <>
+            <ReferralLink variant="sidebar" />
+            <div className="flex items-center justify-center gap-2 text-sm font-bold text-amber-500 border rounded-full p-2">
+              <Coins className="h-5 w-5" />
+              <span>{userProfile?.tokenBalance ?? 0}</span>
+            </div>
+            <BuyTokens />
+          </>
         )}
-        {user && <BuyTokens />}
         <DonateButton />
       </SidebarFooter>
     </Sidebar>
