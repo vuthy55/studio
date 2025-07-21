@@ -1,8 +1,10 @@
 
 'use client';
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
+import type { TransactionLog } from '@/lib/types';
+
 
 export interface FinancialLedgerEntry {
   id?: string;
@@ -23,7 +25,14 @@ export interface TokenAnalytics {
     practiceEarn: number;
     translationSpend: number;
     totalAwarded: number;
-    netFlow: number;
+    totalTokensInSystem: number;
+}
+
+export interface TokenLedgerEntry extends TransactionLog {
+  id: string;
+  userId: string;
+  userEmail: string;
+  timestamp: Date;
 }
 
 
@@ -104,7 +113,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         practiceEarn: 0,
         translationSpend: 0,
         totalAwarded: 0,
-        netFlow: 0
+        totalTokensInSystem: 0,
     };
     
     const logsQuery = collectionGroup(db, 'transactionLogs');
@@ -132,7 +141,48 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
     });
 
     analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn;
-    analytics.netFlow = analytics.purchased - analytics.totalAwarded;
+    analytics.totalTokensInSystem = analytics.purchased + analytics.totalAwarded;
 
     return analytics;
+}
+
+
+/**
+ * Fetches all token transaction logs across all users.
+ */
+export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
+    const logsQuery = collectionGroup(db, 'transactionLogs');
+    const orderedQuery = query(logsQuery, orderBy('timestamp', 'desc'));
+    const logsSnapshot = await getDocs(orderedQuery);
+
+    const ledgerEntries: TokenLedgerEntry[] = [];
+    const userCache: Record<string, string> = {};
+
+    for (const logDoc of logsSnapshot.docs) {
+        const logData = logDoc.data() as TransactionLog;
+        const userRef = logDoc.ref.parent.parent; // Gets the user document reference
+        
+        if (userRef) {
+            let userEmail = userCache[userRef.id];
+            if (!userEmail) {
+                const userDoc = await getDoc(userRef);
+                if (userDoc.exists()) {
+                    userEmail = userDoc.data().email || 'Unknown';
+                    userCache[userRef.id] = userEmail;
+                } else {
+                    userEmail = 'Deleted User';
+                }
+            }
+
+            ledgerEntries.push({
+                ...logData,
+                id: logDoc.id,
+                userId: userRef.id,
+                userEmail: userEmail,
+                timestamp: (logData.timestamp as Timestamp).toDate(),
+            });
+        }
+    }
+
+    return ledgerEntries;
 }

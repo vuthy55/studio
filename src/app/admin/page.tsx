@@ -19,7 +19,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
 import { Separator } from '@/components/ui/separator';
-import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail } from '@/services/ledger';
+import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry } from '@/services/ledger';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -698,16 +698,38 @@ function FinancialTabContent() {
 function TokensTabContent() {
     const { toast } = useToast();
     const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
+    const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    const getReasonText = (log: TokenLedgerEntry) => {
+        switch (log.actionType) {
+            case 'purchase': return 'Token Purchase';
+            case 'signup_bonus': return 'Signup Bonus';
+            case 'referral_bonus': return 'Referral Bonus';
+            case 'practice_earn': return 'Practice Reward';
+            case 'translation_spend': return 'Live Translation';
+            default: return 'Unknown Action';
+        }
+    };
+
     useEffect(() => {
-        getTokenAnalytics()
-            .then(setAnalytics)
-            .catch(err => {
-                console.error("Error fetching token analytics:", err);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch token analytics.' });
-            })
-            .finally(() => setIsLoading(false));
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [analyticsData, ledgerData] = await Promise.all([
+                    getTokenAnalytics(),
+                    getTokenLedger()
+                ]);
+                setAnalytics(analyticsData);
+                setLedger(ledgerData);
+            } catch (err) {
+                 console.error("Error fetching token data:", err);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch token data.' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
     }, [toast]);
     
     if (isLoading) {
@@ -729,7 +751,15 @@ function TokensTabContent() {
                 <CardDescription>An overview of token distribution and acquisition.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
+                 <div className="grid gap-4 md:grid-cols-3">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Banknote/> Total Tokens</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
+                        </CardContent>
+                    </Card>
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
@@ -753,18 +783,36 @@ function TokensTabContent() {
                         </CardContent>
                     </Card>
                 </div>
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Banknote /> Net Token Flow</CardTitle>
-                        <CardDescription>This shows the balance of tokens purchased versus tokens given away for free.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         <div className="flex justify-between text-xl font-bold">
-                            <span>Net Flow:</span>
-                            <span>{analytics.netFlow.toLocaleString()}</span>
-                         </div>
-                    </CardContent>
-                </Card>
+                 <div className="border rounded-md min-h-[200px]">
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>#</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>To</TableHead>
+                                <TableHead className="text-right">QTY</TableHead>
+                                <TableHead>Reason</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {ledger.map((log, index) => (
+                                <TableRow key={log.id}>
+                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.length - index).padStart(5, '0')}</TableCell>
+                                    <TableCell>{format(log.timestamp, 'd MMM, yyyy')}</TableCell>
+                                    <TableCell>
+                                        <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
+                                            {log.userEmail}
+                                        </Link>
+                                    </TableCell>
+                                    <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                    </TableCell>
+                                    <TableCell>{getReasonText(log)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     )
