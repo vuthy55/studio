@@ -59,6 +59,11 @@ export default function SyncOnlineHome() {
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     const fetchInvitedRooms = useCallback(async () => {
         if (!user) {
@@ -199,7 +204,7 @@ export default function SyncOnlineHome() {
         setCreatedRoomLink('');
     };
 
-    if (loading) {
+    if (loading || !isClient) {
         return (
              <Card>
                 <CardHeader>
@@ -309,7 +314,7 @@ export default function SyncOnlineHome() {
                 </CardContent>
             </Card>
 
-            {user && (
+            {user && isClient && (
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><List /> Your Invited Rooms</CardTitle>
