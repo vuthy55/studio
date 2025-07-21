@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, documentId } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -316,6 +316,7 @@ function FinancialTabContent() {
     const { toast } = useToast();
     const [ledger, setLedger] = useState<FinancialLedgerEntry[]>([]);
     const [analytics, setAnalytics] = useState({ revenue: 0, expenses: 0, net: 0 });
+    const [userMap, setUserMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
 
     const [expenseDescription, setExpenseDescription] = useState('');
@@ -332,6 +333,22 @@ function FinancialTabContent() {
             ]);
             setLedger(ledgerData);
             setAnalytics(analyticsData);
+
+            // Extract unique user IDs from ledger data
+            const userIds = [...new Set(ledgerData.map(item => item.userId).filter(Boolean))] as string[];
+
+            // Fetch user data for these IDs if any exist
+            if (userIds.length > 0) {
+                const usersRef = collection(db, 'users');
+                const q = query(usersRef, where(documentId(), 'in', userIds));
+                const userSnapshot = await getDocs(q);
+                const fetchedUserMap: Record<string, string> = {};
+                userSnapshot.forEach(doc => {
+                    fetchedUserMap[doc.id] = doc.data().email || 'Unknown User';
+                });
+                setUserMap(fetchedUserMap);
+            }
+
         } catch (error) {
             console.error("Error fetching financial data:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch financial data.' });
@@ -470,7 +487,11 @@ function FinancialTabContent() {
                                                 {item.type}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>{item.description}</TableCell>
+                                        <TableCell>
+                                            {item.userId && item.source === 'paypal' 
+                                                ? `Token Purchase by ${userMap[item.userId] || item.userId}` 
+                                                : item.description}
+                                        </TableCell>
                                         <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                             {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                         </TableCell>
@@ -623,3 +644,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
