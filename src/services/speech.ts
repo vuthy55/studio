@@ -100,9 +100,9 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
         safetyTimeout = setTimeout(() => {
             // If this fires, it means nothing else has resolved or rejected the promise.
             // It's a true timeout.
-            reject(new Error("Assessment timed out after 10 seconds."));
+            reject(new Error("Assessment timed out after 5 seconds."));
             cleanup();
-        }, 10000); // Increased timeout to 10 seconds for more leeway
+        }, 5000);
 
         recognizer.recognized = (s, e) => {
             if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
