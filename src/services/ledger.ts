@@ -1,9 +1,9 @@
 
 "use server";
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp } from 'firebase/firestore';
-// Use the CLIENT-SIDE SDK and rely on Firestore rules.
-import { db } from '@/lib/firebase'; 
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup } from 'firebase/firestore';
+// Use the ADMIN SDK for server-side operations with full privileges
+import { db } from '@/lib/firebase-admin'; 
 
 export interface FinancialLedgerEntry {
   id?: string;
@@ -29,9 +29,13 @@ export interface TokenAnalytics {
 
 /**
  * Fetches all entries from the financial ledger, ordered by date.
- * Relies on Firestore rules to allow admins to read this collection.
+ * Relies on the Admin SDK to bypass security rules.
  */
 export async function getFinancialLedger(): Promise<FinancialLedgerEntry[]> {
+    if (!db) {
+        console.error("getFinancialLedger: Firestore admin instance is not available.");
+        return [];
+    }
     const ledgerCol = collection(db, 'financialLedger');
     const q = query(ledgerCol, orderBy('timestamp', 'desc'));
     const snapshot = await getDocs(q);
@@ -68,13 +72,16 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
  * This is intended for admin use (e.g., adding an expense).
  */
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
+    if (!db) {
+        throw new Error("addLedgerEntry: Firestore admin instance is not available.");
+    }
     const ledgerCol = collection(db, 'financialLedger');
     await addDoc(ledgerCol, { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) });
 }
 
 /**
- * Temporarily returns zeroed data to prevent permission errors.
- * Fetching all transaction logs from the client is complex and requires further setup.
+ * Fetches and calculates token analytics using a collectionGroup query.
+ * Requires Admin SDK to bypass security rules.
  */
 export async function getTokenAnalytics(): Promise<TokenAnalytics> {
     const analytics: TokenAnalytics = {
@@ -86,10 +93,38 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         totalAwarded: 0,
         netFlow: 0
     };
+    
+    if (!db) {
+        console.error("getTokenAnalytics: Firestore admin instance is not available.");
+        return analytics;
+    }
 
-    // The query to get all transaction logs across all users is being blocked by security rules.
-    // Returning zeroed data for now to prevent the app from crashing.
-    console.warn("getTokenAnalytics is returning mock data to avoid permission errors.");
+    const logsQuery = collectionGroup(db, 'transactionLogs');
+    const logsSnapshot = await getDocs(logsQuery);
+
+    logsSnapshot.forEach(doc => {
+        const log = doc.data();
+        switch(log.actionType) {
+            case 'purchase':
+                analytics.purchased += log.tokenChange;
+                break;
+            case 'signup_bonus':
+                analytics.signupBonus += log.tokenChange;
+                break;
+            case 'referral_bonus':
+                analytics.referralBonus += log.tokenChange;
+                break;
+            case 'practice_earn':
+                analytics.practiceEarn += log.tokenChange;
+                break;
+            case 'translation_spend':
+                analytics.translationSpend += Math.abs(log.tokenChange); // Spends are negative
+                break;
+        }
+    });
+
+    analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn;
+    analytics.netFlow = analytics.purchased - analytics.totalAwarded;
 
     return analytics;
 }
