@@ -525,9 +525,9 @@ function FinancialTabContent() {
                 
                  <Card className="mt-4">
                     <CardContent className="p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3">
+                         <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x">
                             {/* Total Revenue */}
-                            <div className="flex flex-col items-center justify-center p-2 space-y-1 md:space-y-0 md:flex-row md:gap-4">
+                            <div className="flex flex-row items-center justify-center p-2 gap-4">
                                  <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
                                     Total Revenue:
@@ -536,7 +536,7 @@ function FinancialTabContent() {
                             </div>
                             
                             {/* Total Expenses */}
-                            <div className="flex flex-col items-center justify-center p-2 border-y md:border-y-0 md:border-x space-y-1 md:space-y-0 md:flex-row md:gap-4">
+                            <div className="flex flex-row items-center justify-center p-2 gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
                                     Total Expenses:
@@ -545,7 +545,7 @@ function FinancialTabContent() {
                             </div>
 
                             {/* Net Profit */}
-                            <div className="flex flex-col items-center justify-center p-2 space-y-1 md:space-y-0 md:flex-row md:gap-4">
+                            <div className="flex flex-row items-center justify-center p-2 gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <DollarSign className="h-4 w-4 mr-1" />
                                     Net Profit:
@@ -582,7 +582,7 @@ function FinancialTabContent() {
                                                     <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                         {item.type}
                                                     </Badge>
-                                                     <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                                    <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -590,12 +590,14 @@ function FinancialTabContent() {
                                             </TableCell>
                                             <TableCell>
                                                 {item.userId ? (
-                                                    item.link ? (
-                                                        <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">
-                                                            {userMap[item.userId] || item.userId}
+                                                     item.link ? (
+                                                        <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 flex items-center gap-1">
+                                                            {userMap[item.userId] || item.userId} <LinkIcon className="h-3 w-3" />
                                                         </a>
                                                     ) : (
-                                                        userMap[item.userId] || item.userId
+                                                         <Link href={`/admin/${item.userId}`} className="text-primary underline hover:text-primary/80">
+                                                            {userMap[item.userId] || item.userId}
+                                                        </Link>
                                                     )
                                                 ) : 'System'}
                                             </TableCell>
