@@ -90,7 +90,7 @@ function LearnPageContent() {
     };
     
     const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
-        if (assessingPhraseId) return;
+        if (assessingPhraseId) return; // Prevent multiple assessments at once
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
             return;
@@ -125,8 +125,8 @@ function LearnPageContent() {
 
         } catch (error: any) {
             console.error("[assessPronunciation] Error:", error);
-            // Don't toast on abort, it's expected if user navigates away
-            if (error.message !== "Recognition was aborted.") {
+            // Don't toast on abort, it's expected if user navigates away or starts new assessment
+            if (error.message && !error.message.includes("aborted") && !error.message.includes("canceled")) {
                 toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
             }
         } finally {
