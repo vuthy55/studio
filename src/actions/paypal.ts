@@ -119,6 +119,8 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
     const userRef = db.collection('users').doc(userId);
     
     await db.runTransaction(async (transaction) => {
+        const paymentLogRef = userRef.collection('paymentHistory').doc(orderID);
+
         if (orderType === 'tokens') {
             const userDoc = await transaction.get(userRef);
             if (!userDoc.exists) throw new Error(`User with ID ${userId} not found in Firestore.`);
@@ -127,7 +129,6 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
             transaction.update(userRef, { tokenBalance: FieldValue.increment(tokenAmount) });
 
             // 2. Create payment history log for user
-            const paymentLogRef = userRef.collection('paymentHistory').doc(orderID);
             transaction.set(paymentLogRef, {
                 orderId: orderID, amount, currency, status: 'COMPLETED', tokensPurchased: tokenAmount,
                 createdAt: FieldValue.serverTimestamp()
@@ -138,6 +139,12 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
             transaction.set(transactionLogRef, {
                 actionType: 'purchase', tokenChange: tokenAmount, timestamp: FieldValue.serverTimestamp(),
                 description: `Purchased ${tokenAmount} tokens via PayPal`
+            });
+        } else if (orderType === 'donation') {
+            // Create payment history log for user for donation
+            transaction.set(paymentLogRef, {
+                orderId: orderID, amount, currency, status: 'COMPLETED', tokensPurchased: 0, // No tokens for donations
+                createdAt: FieldValue.serverTimestamp()
             });
         }
         
