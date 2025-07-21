@@ -149,70 +149,49 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
 
 
 /**
- * Fetches all token transaction logs across all users.
+ * Fetches all token transaction logs across all users by iterating through users.
+ * This avoids a complex collectionGroup query that requires a custom index.
  */
 export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
-  // WORKAROUND for index issue: Query all logs and sort, then filter in code.
-  // This avoids the complex composite index requirement.
-  const logsQuery = query(
-    collectionGroup(db, 'transactionLogs'),
-    orderBy('timestamp', 'desc')
-  );
-
   try {
-    const logsSnapshot = await getDocs(logsQuery);
-    const ledgerEntries: TokenLedgerEntry[] = [];
-    const userCache: Record<string, string> = {};
-    const validActionTypes = new Set([
-      'purchase',
-      'signup_bonus',
-      'referral_bonus',
-      'practice_earn',
-      'translation_spend',
-    ]);
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersRef);
+    let allLogs: TokenLedgerEntry[] = [];
 
-    for (const logDoc of logsSnapshot.docs) {
-      const logData = logDoc.data() as TransactionLog;
+    // Create an array of promises to fetch logs for all users in parallel
+    const logFetchPromises = usersSnapshot.docs.map(async (userDoc) => {
+      const userId = userDoc.id;
+      const userEmail = userDoc.data().email || 'Unknown';
+      const logsRef = collection(db, 'users', userId, 'transactionLogs');
+      const logsSnapshot = await getDocs(logsRef);
       
-      // Filter in code instead of in the query
-      if (!validActionTypes.has(logData.actionType)) {
-          continue;
-      }
-      
-      const userRef = logDoc.ref.parent.parent;
-
-      if (userRef && userRef.path.startsWith('users/')) {
-        let userEmail = userCache[userRef.id];
-        if (!userEmail) {
-          try {
-            const userDoc = await getDoc(userRef);
-            if (userDoc.exists()) {
-              userEmail = userDoc.data().email || 'Unknown';
-              userCache[userRef.id] = userEmail;
-            } else {
-              userEmail = 'Deleted User';
-            }
-          } catch (userError) {
-            console.error(`Failed to fetch user doc ${userRef.id}`, userError);
-            userEmail = 'Error Fetching User';
-          }
-        }
-
-        ledgerEntries.push({
+      const userLogs: TokenLedgerEntry[] = [];
+      logsSnapshot.forEach((logDoc) => {
+        const logData = logDoc.data() as TransactionLog;
+        userLogs.push({
           ...logData,
           id: logDoc.id,
-          userId: userRef.id,
+          userId: userId,
           userEmail: userEmail,
           timestamp: (logData.timestamp as Timestamp).toDate(),
         });
-      }
-    }
-    return ledgerEntries;
+      });
+      return userLogs;
+    });
+
+    // Wait for all log fetching promises to resolve
+    const userLogArrays = await Promise.all(logFetchPromises);
+    
+    // Flatten the array of arrays into a single array
+    allLogs = userLogArrays.flat();
+    
+    // Sort the combined logs by timestamp in descending order
+    allLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+    return allLogs;
+
   } catch (error) {
-    console.error(
-      'FULL FIREBASE ERROR in getTokenLedger. The query failed. This is likely an index issue. The error object is:',
-      error
-    );
+    console.error('Error fetching token ledger:', error);
     // Re-throw the error to be caught by the calling component
     throw error;
   }
