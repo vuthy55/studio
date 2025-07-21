@@ -2,7 +2,7 @@
 
 'use client';
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 import type { TransactionLog } from '@/lib/types';
 import type { AppSettings } from './settings';
@@ -238,7 +238,7 @@ export async function getReferralHistory(): Promise<ReferralEntry[]> {
   // Firestore 'in' query supports up to 30 items
   for (let i = 0; i < userIds.length; i += 30) {
       const chunk = userIds.slice(i, i + 30);
-      const userQuery = query(collection(db, 'users'), where(document.id, 'in', chunk));
+      const userQuery = query(collection(db, 'users'), where(documentId(), 'in', chunk));
       const userSnapshot = await getDocs(userQuery);
       userSnapshot.forEach(doc => {
         userDocs.set(doc.id, { name: doc.data().name, email: doc.data().email });
