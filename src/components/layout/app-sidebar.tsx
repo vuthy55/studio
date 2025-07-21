@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useUserData } from '@/context/UserDataContext';
 import DonateButton from '../DonateButton';
+import BuyTokens from '../BuyTokens';
 
 
 export function AppSidebar() {
@@ -51,25 +52,6 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
-              <Link href="/synchub" onClick={() => setOpenMobile(false)}>
-                <Share2 />
-                SyncHub
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/test-speech'}>
-              <Link href="/test-speech" onClick={() => setOpenMobile(false)}>
-                <Mic />
-                Speech Test Page
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          
            {loading ? (
              <SidebarMenuItem>
                 <SidebarMenuButton disabled>
@@ -127,13 +109,14 @@ export function AppSidebar() {
 
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="flex-col items-stretch gap-y-4">
+      <SidebarFooter className="flex-col items-stretch gap-y-2">
         {user && userProfile && (
            <div className="flex items-center justify-center gap-2 text-sm font-bold text-amber-500 border rounded-full p-2">
              <Coins className="h-5 w-5" />
              <span>{userProfile.tokenBalance ?? 0}</span>
            </div>
         )}
+        {user && <BuyTokens />}
         <DonateButton />
       </SidebarFooter>
     </Sidebar>
