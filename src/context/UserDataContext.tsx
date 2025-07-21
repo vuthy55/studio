@@ -5,14 +5,15 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
-import type { UserProfile, PracticeStats } from '@/app/profile/page';
+import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import { debounce } from 'lodash';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 // --- Types ---
 
-type PracticeHistoryDoc = {
+export type PracticeHistoryDoc = {
     phraseText?: string;
     passCountPerLang?: Record<string, number>;
     failCountPerLang?: Record<string, number>;
@@ -48,11 +49,13 @@ const UserDataContext = createContext<UserDataContextType | undefined>(undefined
 
 export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [user, authLoading] = useAuthState(auth);
-    const [loading, setLoading] = useState(true);
+    
+    // Use local storage for caching
+    const [userProfile, setUserProfile] = useLocalStorage<Partial<UserProfile>>('userProfile', {});
+    const [practiceHistory, setPracticeHistory] = useLocalStorage<PracticeHistoryState>('practiceHistory', {});
 
-    const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
-    const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
     const [settings, setSettings] = useState<AppSettings | null>(null);
+    const [loading, setLoading] = useState(true);
 
     const dataFetchedRef = useRef(false);
     
@@ -66,7 +69,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const fetchData = async () => {
             if (user && !dataFetchedRef.current) {
                 setLoading(true);
-                dataFetchedRef.current = true; // Mark as fetched to prevent re-fetching on re-renders
+                dataFetchedRef.current = true; // Mark as fetched
 
                 try {
                     const userDocRef = doc(db, 'users', user.uid);
@@ -79,7 +82,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
                     // Load Profile
                     if (userDocSnap.exists()) {
-                        setUserProfile(userDocSnap.data());
+                        setUserProfile(userDocSnap.data()); // This updates state AND localStorage
                     }
 
                     // Load History
@@ -87,7 +90,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     historySnapshot.forEach(doc => {
                         historyData[doc.id] = doc.data();
                     });
-                    setPracticeHistory(historyData);
+                    setPracticeHistory(historyData); // This updates state AND localStorage
 
                 } catch (error) {
                     console.error("Error fetching user data:", error);
@@ -95,22 +98,24 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setLoading(false);
                 }
             } else if (!user) {
-                // Reset state on logout
-                dataFetchedRef.current = false;
-                setUserProfile({});
-                setPracticeHistory({});
+                // Reset state and cache on logout
+                if (dataFetchedRef.current) {
+                    setUserProfile({});
+                    setPracticeHistory({});
+                    dataFetchedRef.current = false;
+                }
                 setLoading(authLoading);
             }
         };
 
         fetchData();
-    }, [user, authLoading]);
+    }, [user, authLoading, setUserProfile, setPracticeHistory]);
 
     // --- Client-Side Actions ---
 
     const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs) => {
         if (!user || !settings) return;
-        const { phraseId, phraseText, topicId, lang, isPass, accuracy } = args;
+        const { phraseId, phraseText, lang, isPass, accuracy } = args;
 
         // 1. Update Practice History State LOCALLY for instant UI feedback
         // This is crucial. It gives the user immediate feedback without waiting for the backend.
@@ -122,7 +127,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 const newPassCount = (phraseHistory.passCountPerLang?.[lang] || 0) + 1;
                 phraseHistory.passCountPerLang = { ...phraseHistory.passCountPerLang, [lang]: newPassCount };
 
-                // Only update the profile state when tokens are actually earned
                 if (newPassCount > 0 && newPassCount % settings.practiceThreshold === 0) {
                      setUserProfile(currentProfile => ({
                         ...currentProfile,
@@ -142,10 +146,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         // 2. Queue the backend update. This will be debounced.
         debouncedSync.current(args);
 
-    }, [user, settings]);
+    }, [user, settings, setPracticeHistory, setUserProfile]);
 
     // This ref will hold our debounced function.
-    // It's created once and persists across renders.
     const debouncedSync = useRef(
         debounce((args: RecordPracticeAttemptArgs) => {
             if (!auth.currentUser || !settings) return;
@@ -155,7 +158,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             const historyDocRef = doc(db, 'users', auth.currentUser.uid, 'practiceHistory', phraseId);
 
-            // We update Firestore using increments for safety
             const passIncrement = isPass ? 1 : 0;
             const failIncrement = isPass ? 0 : 1;
 
@@ -169,10 +171,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             batch.set(historyDocRef, historyUpdateData, { merge: true });
 
-            // To check if a token should be awarded, we must get the LATEST pass count from the database
             getDoc(historyDocRef).then(historySnap => {
                 const currentPasses = historySnap.data()?.passCountPerLang?.[lang] || 0;
-                // If this successful attempt will cross a threshold, award a token.
                 if (isPass && (currentPasses + 1) % settings.practiceThreshold === 0) {
                     batch.update(userDocRef, { tokenBalance: increment(settings.practiceReward) });
                      const logRef = doc(collection(db, `users/${auth.currentUser!.uid}/transactionLogs`));
@@ -184,7 +184,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     });
                 }
                 
-                // Commit all changes
                 batch.commit().catch(error => {
                     console.error("Error syncing debounced data to Firestore:", error);
                 });
@@ -197,7 +196,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         let correct = 0;
         let tokensEarned = 0;
 
-        if (!settings) return { correct, tokensEarned }; // Safety check for server render
+        if (!settings) return { correct, tokensEarned };
 
         const topicPhrases = phrasebook.find(t => t.id === topicId)?.phrases.map(p => p.id) || [];
         
