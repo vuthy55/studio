@@ -1,9 +1,14 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     // --- Global Helper Functions ---
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     function isAdmin() {
       // Safe check for admin role
       return request.auth != null && 
@@ -11,51 +16,44 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // --- Collections ---
-
     // User Profiles: Users can manage their own profile. Admins can manage any.
     match /users/{userId} {
-      function isOwner() {
-        return request.auth != null && request.auth.uid == userId;
-      }
-      
-      allow list, read, update: if isOwner() || isAdmin();
+      // Admins can list all users for the admin panel search.
+      allow list: if isAdmin();
+      allow read, update: if isOwner(userId) || isAdmin();
       // Allow user to create their own record during signup
-      allow create: if isOwner();
+      allow create: if isOwner(userId);
 
-      // Transaction Logs: A user can read and create their own logs.
+      // Sub-collections are only accessible by the owner or an admin.
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner(); // Admins can read via collection group query
+        allow read, create: if isOwner(userId) || isAdmin();
         allow update, delete: if false; // Protect logs from modification
       }
 
-      // Payment History: A user can read their own logs. Admins can also read.
       match /paymentHistory/{paymentId} {
-        allow read: if isOwner() || isAdmin();
+        allow read: if isOwner(userId) || isAdmin();
         allow create, update, delete: if false; // Immutable logs, created by server.
       }
 
-      // Practice History: A user can read and write their own practice history. Admins can read.
       match /practiceHistory/{historyId} {
-        allow list, read: if isOwner() || isAdmin();
-        allow write: if isOwner();
+        allow list, read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId);
       }
     }
     
-    // Financial Ledger: Only admins can read this collection for analytics.
+    // Admin-only Collections. Accessed via server-side Admin SDK.
+    // No client-side access is needed or permitted.
     match /financialLedger/{ledgerId} {
-      allow read: if isAdmin();
-      allow write: if false; // Created by server actions only.
+      allow read, write: if false; 
     }
+    match /paypalOrders/{orderId} {
+      allow read, write: if false;
+    }
+
 
     // App Settings: Only admins can read and write application-wide settings.
     match /settings/{settingId} {
       allow read, write: if isAdmin();
-    }
-
-    // PayPal Orders: Created and deleted by server actions. No client access needed.
-    match /paypalOrders/{orderId} {
-      allow read, write: if false;
     }
 
     // Sync Rooms: Handles creation, reading, and updates for rooms.
@@ -132,11 +130,6 @@ service cloud.firestore {
           // Allow the room creator to delete any message.
           allow delete: if isRoomCreator();
       }
-    }
-    
-    // Collection Group Queries: For admin analytics
-    match /{path=**}/transactionLogs/{logId} {
-      allow read: if isAdmin();
     }
   }
 }

@@ -2,7 +2,8 @@
 "use server";
 
 import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; 
+// Use the Firebase Admin SDK for admin-level data access
+import { db } from '@/lib/firebase-admin'; 
 
 export interface FinancialLedgerEntry {
   id?: string;
