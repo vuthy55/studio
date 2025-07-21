@@ -60,11 +60,10 @@ function LearnPageContent() {
         return () => {
             // If a phrase is being assessed when the component unmounts, abort it.
             if (assessingPhraseId) {
-                console.log("[DEBUG] LearnPageContent unmounting: Aborting recognition.");
                 abortRecognition();
             }
         };
-    }, [assessingPhraseId]); // This effect depends on the assessingPhraseId
+    }, [assessingPhraseId]);
     
     const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
         english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
@@ -105,6 +104,7 @@ function LearnPageContent() {
         const phraseId = phrase.id;
         
         setAssessingPhraseId(phraseId);
+        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result
     
         try {
             const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
@@ -113,8 +113,6 @@ function LearnPageContent() {
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
             setLastAssessment({ [phraseId]: finalResult });
             
-            console.log(`[DEBUG] Assessment for "${referenceText}": ${isPass ? 'PASS' : 'FAIL'}`);
-
             recordPracticeAttempt({
                 phraseId,
                 phraseText: referenceText,
@@ -127,6 +125,7 @@ function LearnPageContent() {
 
         } catch (error: any) {
             console.error("[assessPronunciation] Error:", error);
+            // Don't toast on abort, it's expected if user navigates away
             if (error.message !== "Recognition was aborted.") {
                 toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
             }
@@ -225,8 +224,8 @@ function LearnPageContent() {
                                         <ul className="list-disc pl-4 space-y-1 text-sm">
                                             <li>Select a topic to learn relevant phrases.</li>
                                             <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. Passing {settings?.practiceThreshold ?? 3} times earns you {settings?.practiceReward ?? 1} token!</li>
-                                            { !user && <li className="font-bold">Log in to save your progress permanently!</li> }
+                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. The mic will stop automatically when you pause.</li>
+                                            { !user && <li className="font-bold">Log in to save your progress!</li> }
                                         </ul>
                                     </TooltipContent>
                                 </Tooltip>
@@ -290,6 +289,7 @@ function LearnPageContent() {
                                 const fails = history?.failCountPerLang?.[toLanguage] || 0;
 
                                 const getResultIcon = () => {
+                                    if (isAssessingCurrent) return <LoaderCircle className="h-5 w-5 animate-spin" />;
                                     if (!assessment) return null;
                                     if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
                                     if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
@@ -321,7 +321,7 @@ function LearnPageContent() {
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
                                                 <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500 animate-pulse")} />
+                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>
                                             </div>
