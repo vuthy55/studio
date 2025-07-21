@@ -1,7 +1,7 @@
 
 "use server";
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 
 export interface FinancialLedgerEntry {
@@ -73,6 +73,7 @@ export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
 
 /**
  * Performs a collection group query to analyze token distribution.
+ * This requires a specific collection group index and security rule.
  */
 export async function getTokenAnalytics(): Promise<TokenAnalytics> {
     const analytics: TokenAnalytics = {
