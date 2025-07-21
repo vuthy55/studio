@@ -81,8 +81,8 @@ export function AppSidebar() {
             <>
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')} disabled>
-                    <Link href="/admin" onClick={(e) => {e.preventDefault(); setOpenMobile(false); toast({title: 'Page Disabled', description: 'The admin page is temporarily disabled.'})}}>
+                  <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
+                    <Link href="/admin" onClick={() => setOpenMobile(false)}>
                       <Shield />
                       Admin
                     </Link>
