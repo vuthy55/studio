@@ -536,7 +536,7 @@ function FinancialTabContent() {
                     <CardContent className="p-4">
                          <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x">
                             {/* Total Revenue */}
-                            <div className="flex flex-row items-center justify-center p-2 gap-4">
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
                                  <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
                                     Total Revenue:
@@ -545,7 +545,7 @@ function FinancialTabContent() {
                             </div>
                             
                             {/* Total Expenses */}
-                            <div className="flex flex-row items-center justify-center p-2 gap-4">
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
                                     Total Expenses:
@@ -554,7 +554,7 @@ function FinancialTabContent() {
                             </div>
 
                             {/* Net Profit */}
-                            <div className="flex flex-row items-center justify-center p-2 gap-4">
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <DollarSign className="h-4 w-4 mr-1" />
                                     Net Profit:
@@ -570,6 +570,7 @@ function FinancialTabContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead>#</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                                 <TableHead>Type / Method</TableHead>
@@ -579,9 +580,11 @@ function FinancialTabContent() {
                         </TableHeader>
                         <TableBody>
                             {ledger.length > 0 ? (
-                                ledger.map(item => {
+                                ledger.map((item, index) => {
+                                    const runningNumber = String(ledger.length - index).padStart(5, '0');
                                     return (
                                         <TableRow key={item.id}>
+                                            <TableCell className="font-mono text-muted-foreground">{runningNumber}</TableCell>
                                             <TableCell>{format(item.timestamp, 'MMM d, yyyy')}</TableCell>
                                             <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                                 {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
@@ -591,7 +594,9 @@ function FinancialTabContent() {
                                                     <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                         {item.type}
                                                     </Badge>
-                                                    <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                                    <span className="text-xs text-muted-foreground capitalize">
+                                                        {item.source}
+                                                    </span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -615,7 +620,7 @@ function FinancialTabContent() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">No financial records found.</TableCell>
+                                    <TableCell colSpan={6} className="h-24 text-center">No financial records found.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
