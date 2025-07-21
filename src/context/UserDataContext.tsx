@@ -75,7 +75,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
-    }, [user, setUserProfile]);
+    }, [user]);
 
     const fetchPracticeHistory = useCallback(async () => {
         if (!user) return;
@@ -90,7 +90,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching practice history:", error);
         }
-    }, [user, setPracticeHistory]);
+    }, [user]);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -105,7 +105,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         }
         fetchAllData();
-    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory]);
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory]);
 
 
     // --- Client-Side Actions ---

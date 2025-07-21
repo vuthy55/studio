@@ -8,28 +8,25 @@ import { useState, useEffect, useCallback } from 'react';
 function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   // We need to use a function for the initial state to avoid hydration mismatches.
   // This function is only executed on the client-side.
-  const [internalValue, setInternalValue] = useState<T>(initialValue);
-
-  // On the client, after the initial render, we get the value from localStorage.
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const item = window.localStorage.getItem(key);
-        if (item) {
-          // Attempt to parse the item as JSON. If it fails, assume it's a raw string value.
-          try {
-            setInternalValue(JSON.parse(item));
-          } catch (e) {
-            // If parsing fails, it's likely a non-JSON string, so use it directly.
-            // This handles legacy values that were not JSON stringified.
-            setInternalValue(item as unknown as T);
-          }
-        }
-      } catch (error) {
-        console.error(`Error reading localStorage key “${key}”:`, error);
-      }
+  const [internalValue, setInternalValue] = useState<T>(() => {
+    // This function is only executed on the client-side for the initial state.
+    if (typeof window === 'undefined') {
+      return initialValue;
     }
-  }, [key]);
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        try {
+          return JSON.parse(item);
+        } catch (e) {
+          return item as unknown as T;
+        }
+      }
+    } catch (error) {
+      console.error(`Error reading localStorage key “${key}”:`, error);
+    }
+    return initialValue;
+  });
 
   const setValue = useCallback((value: T | ((val: T) => T)) => {
     if (typeof window === 'undefined') {
@@ -38,8 +35,11 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val
     }
 
     try {
+      // Allow value to be a function so we have the same API as useState
       const valueToStore = value instanceof Function ? value(internalValue) : value;
+      // Save state
       setInternalValue(valueToStore);
+      // Save to local storage
       window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       console.error(`Error setting localStorage key “${key}”:`, error);
