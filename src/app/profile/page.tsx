@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Landmark, CreditCard, Shield, User as UserIcon } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Landmark, CreditCard, Shield, User as UserIcon, Share2, Copy } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -107,6 +107,54 @@ function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getI
     )
 }
 
+function ReferralSection() {
+    const { user } = useUserData();
+    const { toast } = useToast();
+    const [referralLink, setReferralLink] = useState('');
+
+    useEffect(() => {
+        if (user && typeof window !== 'undefined') {
+            setReferralLink(`${window.location.origin}/login?ref=${user.uid}`);
+        }
+    }, [user]);
+
+    const copyToClipboard = () => {
+        if (referralLink) {
+            navigator.clipboard.writeText(referralLink);
+            toast({ title: "Copied!", description: "Referral link copied to clipboard." });
+        }
+    };
+
+    if (!user) return null;
+
+    return (
+        <AccordionItem value="referral">
+            <AccordionTrigger>
+                <div className="flex items-center gap-3">
+                    <Share2 />
+                    <span className="font-semibold text-lg">Refer a Friend</span>
+                </div>
+            </AccordionTrigger>
+            <AccordionContent>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Your Referral Link</CardTitle>
+                        <CardDescription>Share this link with your friends. When they sign up, you'll both get a token bonus!</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Input value={referralLink} readOnly />
+                            <Button type="button" size="icon" onClick={copyToClipboard} disabled={!referralLink}>
+                                <Copy className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </AccordionContent>
+        </AccordionItem>
+    )
+}
+
 function PaymentHistorySection() {
     const [user] = useAuthState(auth);
     const [payments, setPayments] = useState<PaymentLog[]>([]);
@@ -175,6 +223,7 @@ function TokenHistorySection() {
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
+            case 'referral_bonus': return 'Referral Bonus';
             default: return 'Unknown Action';
         }
     }
@@ -330,7 +379,7 @@ export default function ProfilePage() {
                  </div>
             </header>
             
-            <Accordion type="multiple" className="w-full space-y-4">
+            <Accordion type="multiple" className="w-full space-y-4" defaultValue={['profile']}>
                  <ProfileSection 
                     profile={profile} 
                     setProfile={setProfile} 
@@ -340,6 +389,7 @@ export default function ProfilePage() {
                     countryOptions={countryOptions}
                     handleCountryChange={handleCountryChange}
                 />
+                <ReferralSection />
                 <PaymentHistorySection />
                 <TokenHistorySection />
             </Accordion>

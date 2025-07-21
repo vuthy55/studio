@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 
 export interface AppSettings {
   signupBonus: number;
+  referralBonus: number;
   practiceReward: number;
   practiceThreshold: number;
   translationCost: number;
@@ -15,6 +16,7 @@ export interface AppSettings {
 
 const defaultSettings: AppSettings = {
   signupBonus: 100,
+  referralBonus: 150,
   practiceReward: 1,
   practiceThreshold: 3,
   translationCost: 1,

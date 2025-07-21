@@ -249,6 +249,11 @@ function SettingsTabContent() {
                             <p className="text-sm text-muted-foreground">Tokens a new user gets on signup.</p>
                         </div>
                         <div className="space-y-2">
+                            <Label htmlFor="referralBonus">Referral Bonus</Label>
+                            <Input id="referralBonus" type="number" value={settings.referralBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 150" />
+                            <p className="text-sm text-muted-foreground">Tokens a user gets for a successful referral.</p>
+                        </div>
+                        <div className="space-y-2">
                             <Label htmlFor="practiceReward">Practice Reward</Label>
                             <Input id="practiceReward" type="number" value={settings.practiceReward ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
                             <p className="text-sm text-muted-foreground">Tokens earned for mastering a phrase.</p>

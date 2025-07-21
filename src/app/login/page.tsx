@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -28,6 +28,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { isMobile } = useSidebar();
 
@@ -42,6 +43,8 @@ export default function LoginPage() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
 
   useEffect(() => {
     getAppSettings().then(setSettings);
@@ -58,6 +61,21 @@ export default function LoginPage() {
         }
     }
   };
+
+  const createReferralRecord = async (referrerUid: string, newUserId: string) => {
+    try {
+        const referralRef = doc(collection(db, 'referrals'));
+        await setDoc(referralRef, {
+            referrerUid,
+            referredUid: newUserId,
+            status: 'pending', // To be processed by a Cloud Function
+            createdAt: serverTimestamp(),
+        });
+    } catch (error) {
+        console.error("Error creating referral record:", error);
+        // This is a non-critical error, so we don't need to show it to the user
+    }
+  }
 
   const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);
@@ -109,6 +127,10 @@ export default function LoginPage() {
           mobile: user.phoneNumber || '',
       }, isNewUser);
 
+      if (isNewUser && referralId) {
+        await createReferralRecord(referralId, user.uid);
+      }
+
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -137,6 +159,10 @@ export default function LoginPage() {
           country: signupCountry,
           mobile: signupMobile,
       }, true); // This is a new user
+
+      if (referralId) {
+        await createReferralRecord(referralId, user.uid);
+      }
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');

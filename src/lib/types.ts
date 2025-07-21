@@ -30,7 +30,7 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
