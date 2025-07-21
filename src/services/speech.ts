@@ -143,16 +143,6 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 }
 
 
-export async function startPronunciationAssessment(referenceText: string, lang: LanguageCode): Promise<void> {
-    console.error("startPronunciationAssessment is DEPRECATED");
-}
-
-export async function stopPronunciationAssessment(): Promise<PronunciationAssessmentResult> {
-     console.error("stopPronunciationAssessment is DEPRECATED");
-     throw new Error("stopPronunciationAssessment is DEPRECATED");
-}
-
-
 export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<string> {
     const locale = languageToLocaleMap[fromLanguage];
     if (!locale) throw new Error("Unsupported language for recognition.");
