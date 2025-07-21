@@ -162,10 +162,10 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 
     const timeoutPromise = new Promise<PronunciationAssessmentResult>((_, reject) =>
         setTimeout(() => {
-            console.log('[DEBUG] 5-second timeout reached. Aborting recognition.');
+            console.log('[DEBUG] 10-second timeout reached. Aborting recognition.');
             abortRecognition();
-            reject(new Error('Assessment timed out after 5 seconds.'));
-        }, 5000)
+            reject(new Error('Assessment timed out after 10 seconds.'));
+        }, 10000)
     );
 
     return Promise.race([recognitionPromise, timeoutPromise]);

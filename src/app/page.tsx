@@ -10,16 +10,12 @@ import LiveTranslationContent from '@/components/synchub/LiveTranslationContent'
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 
 // Memoize the components to prevent unnecessary re-renders when the tab changes.
+// By defining them here as stable constants, we ensure React doesn't unmount them.
 const MemoizedLearnPage = memo(LearnPageContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedGroupConverse = memo(GroupConverseContent);
 const MemoizedSyncOnline = memo(SyncOnlineHome);
 
-// Define components outside the render function to ensure they are stable
-const learnPage = <MemoizedLearnPage />;
-const liveTranslationPage = <MemoizedLiveTranslation />;
-const groupConversePage = <MemoizedGroupConverse />;
-const syncOnlinePage = <MemoizedSyncOnline />;
 
 export default function SyncHubPage() {
     const { isMobile } = useSidebar();
@@ -45,16 +41,16 @@ export default function SyncHubPage() {
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
                 <TabsContent value="prep-vibe" className="mt-6">
-                    {learnPage}
+                    <MemoizedLearnPage />
                 </TabsContent>
                 <TabsContent value="live-translation" className="mt-6">
-                   {liveTranslationPage}
+                   <MemoizedLiveTranslation />
                 </TabsContent>
                 <TabsContent value="sync-live" className="mt-6">
-                   {groupConversePage}
+                   <MemoizedGroupConverse />
                 </TabsContent>
                 <TabsContent value="sync-online" className="mt-6">
-                    {syncOnlinePage}
+                    <MemoizedSyncOnline />
                 </TabsContent>
             </Tabs>
         </div>
