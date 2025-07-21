@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart, Mic } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { 
@@ -57,6 +57,15 @@ export function AppSidebar() {
               <Link href="/test" onClick={() => setOpenMobile(false)}>
                 <TestTube />
                 AI Test Page
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+           <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/test-speech'}>
+              <Link href="/test-speech" onClick={() => setOpenMobile(false)}>
+                <Mic />
+                Speech Test Page
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
