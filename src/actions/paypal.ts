@@ -54,7 +54,6 @@ export async function createPayPalOrder(userId: string, tokenAmount: number): Pr
     return { orderID: order.result.id };
   } catch (err: any) {
     console.error('Error creating PayPal order:', err);
-    // Use a safe way to get the error message
     const errorDetails = err?.message || 'An unknown error occurred';
     return { error: `Failed to create PayPal order: ${errorDetails}` };
   }
@@ -79,9 +78,15 @@ export async function capturePayPalOrder(orderID: string): Promise<{success: boo
 
     // --- At this point, PayPal payment is confirmed. Now, grant tokens. ---
     const purchaseUnit = captureResult.purchase_units[0];
+    
+    // Defensive check to ensure custom_id exists
+    if (!purchaseUnit.custom_id) {
+      throw new Error("Critical: custom_id not found in PayPal purchase unit. Cannot grant tokens.");
+    }
+    
     const { userId, tokenAmount } = JSON.parse(purchaseUnit.custom_id);
-    const amount = parseFloat(purchaseUnit.amount.value);
-    const currency = purchaseUnit.amount.currency_code;
+    const amount = parseFloat(purchaseUnit.payments.captures[0].amount.value);
+    const currency = purchaseUnit.payments.captures[0].amount.currency_code;
     
     // Use a Firestore transaction to ensure atomicity
     const userRef = db.collection('users').doc(userId);
