@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -324,6 +324,12 @@ function FinancialTabContent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
     const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
+
+    const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+    const [detailsDialogContent, setDetailsDialogContent] = useState<{ title: string; data: FinancialLedgerEntry[] }>({ title: '', data: [] });
+
+    const [isDescriptionDialogOpen, setIsDescriptionDialogOpen] = useState(false);
+    const [descriptionDialogContent, setDescriptionDialogContent] = useState('');
     
     const [formState, setFormState] = useState({
         description: '',
@@ -345,6 +351,18 @@ function FinancialTabContent() {
     const handleOpenExpenseDialog = () => {
         resetForm();
         setIsExpenseDialogOpen(true);
+    };
+
+    const openDetailsDialog = (type: 'revenue' | 'expense') => {
+        const data = ledger.filter(item => item.type === type);
+        const title = type === 'revenue' ? 'Revenue Details' : 'Expense Details';
+        setDetailsDialogContent({ title, data });
+        setIsDetailsDialogOpen(true);
+    };
+
+    const openDescriptionDialog = (description: string) => {
+        setDescriptionDialogContent(description);
+        setIsDescriptionDialogOpen(true);
     };
 
     const fetchData = useCallback(async () => {
@@ -468,7 +486,7 @@ function FinancialTabContent() {
                                             <Label htmlFor="revenue-description">Description</Label>
                                             <Textarea id="revenue-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Angel investment" required />
                                         </div>
-                                        <div className="space-y-2">
+                                         <div className="space-y-2">
                                             <Label htmlFor="revenue-source">Method</Label>
                                             <Input id="revenue-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
                                         </div>
@@ -511,7 +529,7 @@ function FinancialTabContent() {
                                             <Label htmlFor="expense-description">Description</Label>
                                             <Textarea id="expense-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Monthly server costs" required />
                                         </div>
-                                        <div className="space-y-2">
+                                         <div className="space-y-2">
                                             <Label htmlFor="expense-source">Method</Label>
                                             <Input id="expense-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
                                         </div>
@@ -541,7 +559,7 @@ function FinancialTabContent() {
                     <CardContent className="p-4">
                          <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x">
                             {/* Total Revenue */}
-                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
+                             <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4 hover:bg-muted rounded-lg cursor-pointer" onClick={() => openDetailsDialog('revenue')}>
                                  <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
                                     Total Revenue:
@@ -550,7 +568,7 @@ function FinancialTabContent() {
                             </div>
                             
                             {/* Total Expenses */}
-                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4 hover:bg-muted rounded-lg cursor-pointer" onClick={() => openDetailsDialog('expense')}>
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
                                     Total Expenses:
@@ -601,9 +619,9 @@ function FinancialTabContent() {
                                                     </Badge>
                                                     
                                                      <span className="text-xs text-muted-foreground capitalize">
-                                                        {item.link ? (
+                                                        {item.source === 'manual' && item.link ? (
                                                             <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 flex items-center gap-1">
-                                                                {item.source} <LinkIcon className="h-3 w-3" />
+                                                                {item.source} <ExternalLink className="h-3 w-3" />
                                                             </a>
                                                         ) : (
                                                             item.source
@@ -633,6 +651,53 @@ function FinancialTabContent() {
                     </Table>
                 </div>
             </CardContent>
+
+             {/* Details Dialog */}
+             <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>{detailsDialogContent.title}</DialogTitle>
+                        <DialogDescription>A detailed list of all transactions for this category.</DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-[60vh] overflow-y-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>#</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {detailsDialogContent.data.map((item, index) => (
+                                    <TableRow key={item.id}>
+                                         <TableCell>
+                                            <Button variant="link" className="p-0 h-auto" onClick={() => openDescriptionDialog(item.description)}>
+                                                {String(detailsDialogContent.data.length - index).padStart(5, '0')}
+                                            </Button>
+                                        </TableCell>
+                                        <TableCell>{format(item.timestamp, 'd MMM, yyyy')}</TableCell>
+                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
+                                             {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+             {/* Description Dialog */}
+             <Dialog open={isDescriptionDialogOpen} onOpenChange={setIsDescriptionDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Transaction Description</DialogTitle>
+                    </DialogHeader>
+                    <p className="py-4">{descriptionDialogContent}</p>
+                </DialogContent>
+            </Dialog>
+
         </Card>
     )
 }

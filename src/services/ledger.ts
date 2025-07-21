@@ -67,7 +67,14 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
  */
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
     const ledgerCol = collection(db, 'financialLedger');
-    await addDoc(ledgerCol, { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) });
+    const entryData: any = { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) };
+
+    // Ensure link is not undefined
+    if (entry.link === undefined) {
+        delete entryData.link;
+    }
+    
+    await addDoc(ledgerCol, entryData);
 }
 
 /**
