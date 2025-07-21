@@ -1,9 +1,8 @@
 
 "use server";
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup } from 'firebase/firestore';
-// Use the ADMIN SDK for server-side operations with full privileges
-import { db } from '@/lib/firebase-admin'; 
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; 
 
 export interface FinancialLedgerEntry {
   id?: string;
@@ -29,13 +28,8 @@ export interface TokenAnalytics {
 
 /**
  * Fetches all entries from the financial ledger, ordered by date.
- * Relies on the Admin SDK to bypass security rules.
  */
 export async function getFinancialLedger(): Promise<FinancialLedgerEntry[]> {
-    if (!db) {
-        console.error("getFinancialLedger: Firestore admin instance is not available.");
-        return [];
-    }
     const ledgerCol = collection(db, 'financialLedger');
     const q = query(ledgerCol, orderBy('timestamp', 'desc'));
     const snapshot = await getDocs(q);
@@ -43,7 +37,7 @@ export async function getFinancialLedger(): Promise<FinancialLedgerEntry[]> {
     return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        timestamp: (doc.data().timestamp as Timestamp).toDate() // Convert Firestore Timestamp to JS Date
+        timestamp: (doc.data().timestamp as Timestamp).toDate()
     })) as FinancialLedgerEntry[];
 }
 
@@ -69,19 +63,14 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
 
 /**
  * Adds a new entry to the financial ledger.
- * This is intended for admin use (e.g., adding an expense).
  */
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
-    if (!db) {
-        throw new Error("addLedgerEntry: Firestore admin instance is not available.");
-    }
     const ledgerCol = collection(db, 'financialLedger');
     await addDoc(ledgerCol, { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) });
 }
 
 /**
  * Fetches and calculates token analytics using a collectionGroup query.
- * Requires Admin SDK to bypass security rules.
  */
 export async function getTokenAnalytics(): Promise<TokenAnalytics> {
     const analytics: TokenAnalytics = {
@@ -94,11 +83,6 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         netFlow: 0
     };
     
-    if (!db) {
-        console.error("getTokenAnalytics: Firestore admin instance is not available.");
-        return analytics;
-    }
-
     const logsQuery = collectionGroup(db, 'transactionLogs');
     const logsSnapshot = await getDocs(logsQuery);
 
@@ -118,7 +102,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                 analytics.practiceEarn += log.tokenChange;
                 break;
             case 'translation_spend':
-                analytics.translationSpend += Math.abs(log.tokenChange); // Spends are negative
+                analytics.translationSpend += Math.abs(log.tokenChange);
                 break;
         }
     });
