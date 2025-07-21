@@ -15,42 +15,50 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Wallet } from 'lucide-react';
+import { LoaderCircle, Heart } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { PayPalScriptProvider, PayPalButtons, OnApproveData, CreateOrderActions } from "@paypal/react-paypal-js";
 import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
+import { cn } from '@/lib/utils';
 
 
-export default function BuyTokens() {
+export default function DonateButton() {
   const [user] = useAuthState(auth);
   const { toast } = useToast();
-  const [tokenAmount, setTokenAmount] = useState(500); // Default to 500 tokens ($5.00)
+  const [amount, setAmount] = useState(10.00);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+  const presetAmounts = [5, 10, 15];
 
   if (!paypalClientId) {
     console.error("PayPal Client ID is not configured.");
-    return null; // Don't render if PayPal is not set up
+    // Render a disabled button or a simple link as a fallback
+    return (
+       <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled>
+          <a href="#" rel="noopener noreferrer">
+            <Heart className="mr-2 h-4 w-4" /> Donate (Unavailable)
+          </a>
+        </Button>
+    );
   }
 
   const createOrder = async (data: Record<string, unknown>, actions: CreateOrderActions) => {
     if (!user) {
-        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to buy tokens.' });
+        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to make a donation.' });
         return '';
     }
-    if (tokenAmount <= 0) {
-        toast({ variant: 'destructive', title: 'Invalid Amount', description: 'Please enter a positive number of tokens.' });
+    if (amount <= 0) {
+        toast({ variant: 'destructive', title: 'Invalid Amount', description: 'Please enter a positive donation amount.' });
         return '';
     }
     
-    // Note: We don't set isProcessing here because the PayPal button has its own loading state.
     const res = await createPayPalOrder({ 
         userId: user.uid, 
-        orderType: 'tokens',
-        value: tokenAmount 
+        orderType: 'donation', 
+        value: amount 
     });
 
     if (res.orderID) {
@@ -67,27 +75,14 @@ export default function BuyTokens() {
     const result = await capturePayPalOrder(data.orderID);
 
     if (result.success) {
-        toast({ title: 'Success!', description: result.message });
+        toast({ title: 'Thank You!', description: result.message });
         setDialogOpen(false);
     } else {
-        // Updated error handling to be more descriptive
-        let description = 'An unknown error occurred.';
-        try {
-            // Check if the message contains a JSON object
-            const jsonString = result.message.substring(result.message.indexOf('{'));
-            const errorObj = JSON.parse(jsonString);
-            description = `Error: ${errorObj.message || 'See console for full details.'}\nDetails: ${jsonString}`;
-        } catch (e) {
-            description = result.message; // Fallback if parsing fails
-        }
-        
         toast({ 
             variant: 'destructive', 
             title: 'Payment Capture Failed', 
-            description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{description}</code></pre>,
-            duration: 10000,
+            description: result.message || 'An unknown error occurred.',
         });
-        console.error("Full server error details:", result.message);
     }
 
     setIsProcessing(false);
@@ -102,52 +97,64 @@ export default function BuyTokens() {
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogTrigger asChild>
-            <Button>
-                <Wallet className="mr-2 h-4 w-4" />
-                Buy Tokens
+            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                <Heart className="mr-2 h-4 w-4" /> Donate
             </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-md">
             <DialogHeader>
-                <DialogTitle>Buy More Tokens</DialogTitle>
+                <DialogTitle>Make a Donation</DialogTitle>
                 <DialogDescription>
-                    1 Token = $0.01 USD. Select an amount and complete your purchase with PayPal.
+                    Thank you for considering a donation! Your support helps keep this platform running.
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
+                 <div className="grid grid-cols-3 gap-2">
+                    {presetAmounts.map(preset => (
+                        <Button 
+                            key={preset}
+                            variant="outline"
+                            className={cn(amount === preset && 'border-primary ring-2 ring-primary')}
+                            onClick={() => setAmount(preset)}
+                        >
+                            ${preset}
+                        </Button>
+                    ))}
+                </div>
                 <div className="space-y-2">
-                    <Label htmlFor="token-amount">Number of Tokens</Label>
+                    <Label htmlFor="donation-amount">Custom Amount (USD)</Label>
                     <Input 
-                        id="token-amount" 
+                        id="donation-amount" 
                         type="number" 
-                        value={tokenAmount} 
-                        onChange={(e) => setTokenAmount(Number(e.target.value))} 
+                        value={amount} 
+                        onChange={(e) => setAmount(Number(e.target.value))} 
                         min="1"
-                        step="100"
+                        step="1"
                     />
                 </div>
                 <div className="text-center font-bold text-lg">
-                    Total: ${(tokenAmount * 0.01).toFixed(2)} USD
+                    Total: ${amount.toFixed(2)} USD
                 </div>
                 
                 {isProcessing && (
                      <div className="flex justify-center items-center h-24">
                         <LoaderCircle className="h-8 w-8 animate-spin" />
-                        <p className="ml-2">Processing your order...</p>
+                        <p className="ml-2">Processing your donation...</p>
                     </div>
                 )}
                 
                 <div style={{ display: isProcessing ? 'none' : 'block' }}>
                     <PayPalScriptProvider options={{ "clientId": paypalClientId, currency: "USD", intent: "capture" }}>
                         <PayPalButtons 
-                            style={{ layout: "vertical", color: "blue", shape: "rect", label: "pay" }}
+                            style={{ layout: "vertical", color: "blue", shape: "rect", label: "donate" }}
                             createOrder={createOrder}
                             onApprove={onApprove}
                             onError={onError}
-                            disabled={isProcessing}
+                            disabled={isProcessing || !user}
                         />
                     </PayPalScriptProvider>
                 </div>
+                 {!user && <p className="text-center text-sm text-destructive">Please log in to make a donation.</p>}
             </div>
         </DialogContent>
     </Dialog>

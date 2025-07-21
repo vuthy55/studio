@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useUserData } from '@/context/UserDataContext';
+import DonateButton from '../DonateButton';
 
 
 export function AppSidebar() {
@@ -52,10 +53,10 @@ export function AppSidebar() {
           </SidebarMenuItem>
 
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/test'}>
-              <Link href="/test" onClick={() => setOpenMobile(false)}>
-                <TestTube />
-                AI Test Page
+            <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
+              <Link href="/synchub" onClick={() => setOpenMobile(false)}>
+                <Share2 />
+                SyncHub
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -80,8 +81,8 @@ export function AppSidebar() {
             <>
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/admin' || pathname?.startsWith('/admin/')}>
-                    <Link href="/admin" onClick={() => setOpenMobile(false)}>
+                  <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')} disabled>
+                    <Link href="/admin" onClick={(e) => {e.preventDefault(); setOpenMobile(false); toast({title: 'Page Disabled', description: 'The admin page is temporarily disabled.'})}}>
                       <Shield />
                       Admin
                     </Link>
@@ -112,14 +113,16 @@ export function AppSidebar() {
               </SidebarMenuItem>
             </>
           ) : (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/login'}>
-                <Link href="/login" onClick={() => setOpenMobile(false)}>
-                  <LogIn />
-                  Login
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+             <>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/login'}>
+                  <Link href="/login" onClick={() => setOpenMobile(false)}>
+                    <LogIn />
+                    Login
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+             </>
           )}
 
         </SidebarMenu>
@@ -131,11 +134,7 @@ export function AppSidebar() {
              <span>{userProfile.tokenBalance ?? 0}</span>
            </div>
         )}
-        <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-          <a href="https://paypal.me/your-username" target="_blank" rel="noopener noreferrer">
-            <Heart className="mr-2 h-4 w-4" /> Donate
-          </a>
-        </Button>
+        <DonateButton />
       </SidebarFooter>
     </Sidebar>
   );
