@@ -726,6 +726,7 @@ function TokensTabContent() {
             case 'referral_bonus': return 'Referral Bonus';
             case 'practice_earn': return 'Practice Reward';
             case 'translation_spend': return 'Live Translation';
+            case 'live_sync_spend': return 'Live Sync';
             default: return 'Unknown Action';
         }
     };
@@ -817,6 +818,7 @@ function TokensTabContent() {
                                 <TableHead>To/From</TableHead>
                                 <TableHead className="text-right">QTY</TableHead>
                                 <TableHead>Reason</TableHead>
+                                <TableHead>Description</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -833,6 +835,7 @@ function TokensTabContent() {
                                         {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
                                     </TableCell>
                                     <TableCell>{getReasonText(log)}</TableCell>
+                                    <TableCell>{log.description}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -902,7 +905,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
-
-    

@@ -90,6 +90,7 @@ export default function LoginPage() {
         email: user.email!,
         role: existingData.role || 'user',
         tokenBalance: existingData.tokenBalance ?? (isNewUser ? signupBonus : 0),
+        syncLiveUsage: existingData.syncLiveUsage || 0,
         searchableName: (data.name || '').toLowerCase(),
         searchableEmail: (user.email!).toLowerCase(),
     };

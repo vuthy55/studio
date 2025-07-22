@@ -24,6 +24,7 @@ export interface TokenAnalytics {
     referralBonus: number;
     practiceEarn: number;
     translationSpend: number;
+    liveSyncSpend: number;
     totalAwarded: number;
     totalTokensInSystem: number;
 }
@@ -111,6 +112,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         referralBonus: 0,
         practiceEarn: 0,
         translationSpend: 0,
+        liveSyncSpend: 0,
         totalAwarded: 0,
         totalTokensInSystem: 0,
     };
@@ -136,6 +138,9 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                     break;
                 case 'translation_spend':
                     analytics.translationSpend += Math.abs(log.tokenChange);
+                    break;
+                case 'live_sync_spend':
+                    analytics.liveSyncSpend += Math.abs(log.tokenChange);
                     break;
             }
         }
@@ -168,13 +173,15 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
       const userLogs: TokenLedgerEntry[] = [];
       logsSnapshot.forEach((logDoc) => {
         const logData = logDoc.data() as TransactionLog;
-        userLogs.push({
-          ...logData,
-          id: logDoc.id,
-          userId: userId,
-          userEmail: userEmail,
-          timestamp: (logData.timestamp as Timestamp).toDate(),
-        });
+        if(logData.tokenChange !== 0) { // Only include logs with actual token changes
+            userLogs.push({
+            ...logData,
+            id: logDoc.id,
+            userId: userId,
+            userEmail: userEmail,
+            timestamp: (logData.timestamp as Timestamp).toDate(),
+            });
+        }
       });
       return userLogs;
     });

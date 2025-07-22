@@ -16,27 +16,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
-import { auth, db } from '@/lib/firebase';
-import { writeBatch, doc, collection, serverTimestamp, increment } from 'firebase/firestore';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
 
 export default function SyncLiveContent() {
-  const { user, userProfile, settings, fetchUserProfile } = useUserData();
+  const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
 
-  // New state for usage-based timing
-  const [accumulatedUsage, setAccumulatedUsage] = useState(0); // in milliseconds
+  const [currentTurnUsage, setCurrentTurnUsage] = useState(0);
   const turnStartTimeRef = useRef<number | null>(null);
-  const lastChargedMinute = useRef(0);
   
   const { toast } = useToast();
 
   const costPerMinute = settings?.costPerSyncLiveMinute || 1;
-  const freeMinutes = settings?.freeSyncLiveMinutes || 0;
+  const freeMinutes = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000; // in milliseconds
 
   useEffect(() => {
     return () => abortRecognition();
@@ -100,50 +96,15 @@ export default function SyncLiveContent() {
         }
     } catch (error: any) {
         if (error.message !== 'Recognition was aborted.') {
-             toast({ variant: "destructive", title: "Error", description: "No recognized speech" });
+             toast({ variant: "destructive", title: "No recognized speech" });
         }
     } finally {
-        setStatus('idle');
         if (turnStartTimeRef.current) {
             const turnDuration = Date.now() - turnStartTimeRef.current;
-            const newTotalUsage = accumulatedUsage + turnDuration;
-            setAccumulatedUsage(newTotalUsage);
-            
-            // Check if token deduction is needed
-            const totalUsageMinutes = Math.floor(newTotalUsage / 60000);
-            const freeMinutesUsed = Math.floor(freeMinutes);
-            const chargeableMinutes = Math.max(0, totalUsageMinutes - freeMinutesUsed);
-
-            if (chargeableMinutes > lastChargedMinute.current) {
-                const minutesToCharge = chargeableMinutes - lastChargedMinute.current;
-                const tokensToDeduct = minutesToCharge * costPerMinute;
-
-                const currentBalance = userProfile?.tokenBalance ?? 0;
-                if (currentBalance >= tokensToDeduct) {
-                    const batch = writeBatch(db);
-                    const userRef = doc(db, 'users', user.uid);
-                    
-                    for (let i = 0; i < minutesToCharge; i++) {
-                        const logRef = doc(collection(userRef, 'transactionLogs'));
-                        batch.set(logRef, {
-                            actionType: 'translation_spend',
-                            tokenChange: -costPerMinute,
-                            timestamp: serverTimestamp(),
-                            description: `Sync Live usage: 1 minute`
-                        });
-                    }
-                    batch.update(userRef, { tokenBalance: increment(-tokensToDeduct) });
-                    
-                    await batch.commit();
-                    fetchUserProfile(); // Refresh profile to show new balance
-                    lastChargedMinute.current = chargeableMinutes;
-                    toast({title: "Tokens Deducted", description: `${tokensToDeduct} tokens for ${minutesToCharge} minute(s) of usage.`});
-                } else {
-                    setStatus('disabled');
-                    toast({ variant: 'destructive', title: 'Session Ended', description: 'Insufficient tokens to continue.' });
-                }
-            }
+            setCurrentTurnUsage(turnDuration);
+            updateSyncLiveUsage(turnDuration); // Persist usage to context/db
         }
+        setStatus('idle');
         turnStartTimeRef.current = null;
     }
   };
@@ -159,6 +120,26 @@ export default function SyncLiveContent() {
     return `${mins}:${secs}`;
   };
 
+  const calculateCosts = useMemo(() => {
+    const totalUsageMs = (syncLiveUsage || 0) + currentTurnUsage;
+    const remainingFreeMs = Math.max(0, freeMinutes - totalUsageMs);
+    const chargeableMs = Math.max(0, totalUsageMs - freeMinutes);
+    
+    const billedMinutes = Math.ceil(chargeableMs / (60 * 1000));
+    const tokensUsed = billedMinutes * costPerMinute;
+    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensUsed;
+
+    return { totalUsageMs, tokensUsed, hasSufficientTokens };
+  }, [syncLiveUsage, currentTurnUsage, freeMinutes, costPerMinute, userProfile?.tokenBalance]);
+
+  // Disable if the next turn would result in insufficient funds
+  useEffect(() => {
+    if (status === 'idle' && !calculateCosts.hasSufficientTokens) {
+        setStatus('disabled');
+        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
+    }
+  }, [status, calculateCosts.hasSufficientTokens, toast]);
+
   return (
     <Card className="shadow-lg mt-6 w-full max-w-2xl mx-auto">
         <CardHeader>
@@ -170,20 +151,18 @@ export default function SyncLiveContent() {
                 Tap the mic to talk. Your speech will be translated and spoken aloud for the group. This is a 1-to-many solo translation feature.
             </CardDescription>
              {user && settings && (
-                <div className="flex items-center justify-between text-sm pt-2 text-muted-foreground">
-                   <div className="flex items-center gap-4">
-                     <div className="flex items-center gap-1.5" title="Your token balance">
-                        <Coins className="h-4 w-4 text-amber-500" />
-                        <span>Balance: <strong>{userProfile?.tokenBalance ?? '...'}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5" title="Cost per minute after free period">
-                        <Coins className="h-4 w-4 text-red-500" />
-                        <span>Cost: <strong>{costPerMinute}/min after {freeMinutes} free min</strong></span>
-                    </div>
-                   </div>
+                <div className="grid grid-cols-3 gap-4 text-sm pt-2 text-muted-foreground">
+                   <div className="flex items-center gap-1.5" title="Your token balance">
+                      <Coins className="h-4 w-4 text-amber-500" />
+                      <span>Balance: <strong>{userProfile?.tokenBalance ?? '...'}</strong></span>
+                  </div>
                    <div className="flex items-center gap-1.5" title="Total active usage time">
-                        <Clock className="h-4 w-4" />
-                        <span>Usage: <strong>{formatTime(accumulatedUsage)}</strong></span>
+                      <Clock className="h-4 w-4" />
+                      <span>Time Used: <strong>{formatTime(calculateCosts.totalUsageMs)}</strong></span>
+                   </div>
+                   <div className="flex items-center gap-1.5" title="Tokens used this session">
+                      <Coins className="h-4 w-4 text-red-500" />
+                      <span>Tokens Used: <strong>{calculateCosts.tokensUsed}</strong></span>
                    </div>
                 </div>
             )}

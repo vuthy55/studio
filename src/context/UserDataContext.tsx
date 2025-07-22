@@ -22,7 +22,7 @@ export type PracticeHistoryDoc = {
 };
 export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -39,10 +39,12 @@ interface UserDataContextType {
     userProfile: Partial<UserProfile>;
     practiceHistory: PracticeHistoryState;
     settings: AppSettings | null;
+    syncLiveUsage: number;
     fetchUserProfile: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string) => boolean;
+    updateSyncLiveUsage: (durationMs: number) => void;
 }
 
 // --- Context ---
@@ -54,15 +56,15 @@ const UserDataContext = createContext<UserDataContextType | undefined>(undefined
 export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [user, authLoading] = useAuthState(auth);
     
-    // Use local storage for caching. The hook is now robust.
     const [userProfile, setUserProfile] = useLocalStorage<Partial<UserProfile>>('userProfile', {});
     const [practiceHistory, setPracticeHistory] = useLocalStorage<PracticeHistoryState>('practiceHistory', {});
+    const [syncLiveUsage, setSyncLiveUsage] = useState(0);
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [loading, setLoading] = useState(true);
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
-    const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string }>>([]).current;
+    const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string, duration?: number }>>([]).current;
     
     // --- Data Fetching ---
 
@@ -76,7 +78,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists()) {
-                setUserProfile(userDocSnap.data());
+                const profileData = userDocSnap.data() as UserProfile;
+                setUserProfile(profileData);
+                setSyncLiveUsage(profileData.syncLiveUsage || 0); // Load persistent usage
             }
         } catch (error) {
             console.error("Error fetching user profile:", error);
@@ -98,22 +102,19 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, setPracticeHistory]);
     
-    // Effect to fetch initial data on login or if cache is empty
     useEffect(() => {
         const fetchAllData = async () => {
             if (user && !authLoading) {
                 setLoading(true);
-                // Always fetch user profile to get latest token balance, etc.
                 await fetchUserProfile();
-                // Only fetch practice history if it's not in local storage cache
                 if (Object.keys(practiceHistory).length === 0) {
                     await fetchPracticeHistory();
                 }
                 setLoading(false);
             } else if (!user && !authLoading) {
-                // Clear data on logout
                 setUserProfile({});
                 setPracticeHistory({});
+                setSyncLiveUsage(0);
                 setLoading(false);
             }
         }
@@ -131,7 +132,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             const practiceSyncs = { ...pendingPracticeSyncs };
             const tokenSyncs = [...pendingTokenSyncs];
 
-            // Clear the pending queues immediately to avoid race conditions
             Object.keys(pendingPracticeSyncs).forEach(key => delete pendingPracticeSyncs[key]);
             pendingTokenSyncs.length = 0;
 
@@ -141,8 +141,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             const batch = writeBatch(db);
             let totalTokenChange = 0;
+            let totalUsageUpdate = 0;
 
-            // Process practice history and rewards
             for (const phraseId in practiceSyncs) {
                 const { phraseData, rewardAmount } = practiceSyncs[phraseId];
                 const historyDocRef = doc(db, 'users', userUid, 'practiceHistory', phraseId);
@@ -160,21 +160,32 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
             
-            // Process other token expenditures/gains
             for (const tokenTx of tokenSyncs) {
                 totalTokenChange -= tokenTx.amount;
+                totalUsageUpdate += tokenTx.actionType === 'live_sync_spend' ? (tokenTx.duration || 0) : 0;
+                
                 const logRef = doc(collection(db, `users/${userUid}/transactionLogs`));
-                 batch.set(logRef, {
+                const logData: any = {
                     actionType: tokenTx.actionType,
                     tokenChange: -tokenTx.amount,
                     timestamp: serverTimestamp(),
-                    description: tokenTx.description
-                });
+                    description: tokenTx.description,
+                };
+                if(tokenTx.duration) logData.duration = tokenTx.duration;
+                 batch.set(logRef, logData);
             }
 
+            const userDocRef = doc(db, 'users', userUid);
+            const updatePayload: Record<string, any> = {};
             if (totalTokenChange !== 0) {
-                const userDocRef = doc(db, 'users', userUid);
-                batch.update(userDocRef, { tokenBalance: increment(totalTokenChange) });
+                updatePayload.tokenBalance = increment(totalTokenChange);
+            }
+            if (totalUsageUpdate > 0) {
+                 updatePayload.syncLiveUsage = increment(totalUsageUpdate);
+            }
+            
+            if (Object.keys(updatePayload).length > 0) {
+                batch.update(userDocRef, updatePayload);
             }
             
             try {
@@ -186,6 +197,41 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     ).current;
     
     // --- Public Actions ---
+
+    const updateSyncLiveUsage = useCallback((durationMs: number) => {
+        if (!user || !settings) return;
+        
+        const newTotalUsage = syncLiveUsage + durationMs;
+        setSyncLiveUsage(newTotalUsage);
+
+        const freeMinutesMs = (settings.freeSyncLiveMinutes || 0) * 60 * 1000;
+        
+        const prevBilledMinutes = Math.ceil(Math.max(0, syncLiveUsage - freeMinutesMs) / (60 * 1000));
+        const currentBilledMinutes = Math.ceil(Math.max(0, newTotalUsage - freeMinutesMs) / (60 * 1000));
+        
+        const minutesToCharge = currentBilledMinutes - prevBilledMinutes;
+        
+        if (minutesToCharge > 0) {
+            const cost = minutesToCharge * (settings.costPerSyncLiveMinute || 1);
+             const currentBalance = userProfile.tokenBalance || 0;
+             if (currentBalance >= cost) {
+                 setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
+                 pendingTokenSyncs.push({
+                     amount: cost,
+                     actionType: 'live_sync_spend',
+                     description: `Usage charge for ${minutesToCharge} minute(s).`,
+                     duration: durationMs
+                 });
+                 debouncedCommitToFirestore();
+             }
+        } else {
+             // If no charge, still sync usage periodically.
+             pendingTokenSyncs.push({ amount: 0, actionType: 'live_sync_spend', description: 'Usage tracking', duration: durationMs });
+             debouncedCommitToFirestore();
+        }
+
+    }, [user, settings, syncLiveUsage, userProfile.tokenBalance, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore]);
+
 
    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
         if (!user || !settings) return { wasRewardable: false, rewardAmount: 0 };
@@ -208,7 +254,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             const newPassCount = (updatedPhraseHistory.passCountPerLang![lang] || 0) + 1;
             updatedPhraseHistory.passCountPerLang![lang] = newPassCount;
 
-            // One-time reward check: did the count CROSS the threshold?
             if (previousPassCount < settings.practiceThreshold && newPassCount >= settings.practiceThreshold) {
                 wasRewardable = true;
                 rewardAmount = settings.practiceReward;
@@ -225,7 +270,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const updatedHistory = { ...practiceHistory, [phraseId]: updatedPhraseHistory };
         setPracticeHistory(updatedHistory);
 
-        // Add to the sync queue if there's an actual change.
         pendingPracticeSyncs[phraseId] = { phraseData: updatedPhraseHistory, rewardAmount };
         debouncedCommitToFirestore();
         
@@ -243,10 +287,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return false;
         }
 
-        // Optimistically update UI
         setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
         
-        // Add to sync queue
         pendingTokenSyncs.push({ amount: cost, actionType: 'translation_spend', description });
         debouncedCommitToFirestore();
 
@@ -284,10 +326,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         userProfile,
         practiceHistory,
         settings,
+        syncLiveUsage,
         fetchUserProfile,
         recordPracticeAttempt,
         getTopicStats,
         spendTokensForTranslation,
+        updateSyncLiveUsage,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
@@ -302,5 +346,3 @@ export const useUserData = () => {
     }
     return context;
 };
-
-    

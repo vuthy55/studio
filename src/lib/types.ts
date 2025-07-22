@@ -1,4 +1,3 @@
-
 import type { FieldValue } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 
@@ -21,7 +20,7 @@ export type Participant = {
 }
 
 export type RoomMessage = {
-    id: string;
+    id:string;
     text: string;
     speakerName: string;
     speakerUid: string;
@@ -30,10 +29,11 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
+    duration?: number; // Optional: duration in minutes for usage-based transactions
 }
 
 export type PaymentLog = {

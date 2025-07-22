@@ -42,6 +42,7 @@ export interface UserProfile {
   searchableName?: string;
   searchableEmail?: string;
   practiceStats?: PracticeStats;
+  syncLiveUsage?: number; // Total accumulated usage in milliseconds
 }
 
 function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getInitials, countryOptions, handleCountryChange }: any) {
@@ -170,6 +171,7 @@ function TokenHistorySection() {
      const getActionText = (log: TransactionLog) => {
         switch (log.actionType) {
             case 'translation_spend': return 'Live Translation';
+            case 'live_sync_spend': return 'Live Sync Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
@@ -360,5 +362,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    

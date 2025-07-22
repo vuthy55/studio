@@ -113,7 +113,7 @@ export default function UserDetailPage() {
         setIsSaving(true);
         try {
             const userDocRef = doc(db, 'users', userId);
-            const { name, email, country, mobile, role, tokenBalance } = profile;
+            const { name, email, country, mobile, role, tokenBalance, syncLiveUsage } = profile;
             
             await setDoc(userDocRef, { 
                 name, 
@@ -122,6 +122,7 @@ export default function UserDetailPage() {
                 mobile, 
                 role, 
                 tokenBalance,
+                syncLiveUsage: syncLiveUsage || 0,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (email || '').toLowerCase()
             }, { merge: true });
@@ -142,6 +143,7 @@ export default function UserDetailPage() {
      const getActionText = (log: TransactionLog) => {
         switch (log.actionType) {
             case 'translation_spend': return 'Live Translation';
+            case 'live_sync_spend': return 'Live Sync Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             default: return 'Unknown Action';
@@ -207,6 +209,10 @@ export default function UserDetailPage() {
                                 <div className="space-y-2">
                                     <Label htmlFor="tokenBalance">Token Balance</Label>
                                     <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="syncLiveUsage">Sync Live Usage (ms)</Label>
+                                    <Input id="syncLiveUsage" type="number" value={profile.syncLiveUsage || 0} onChange={handleInputChange} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="country">Country</Label>
