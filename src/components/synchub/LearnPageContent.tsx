@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { useState, useMemo, useEffect, useRef, memo, useCallback } from 'react';
 import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -90,9 +90,9 @@ function LearnPageContent() {
         }
     };
     
-    const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
+    const doAssessPronunciation = useCallback((phrase: Phrase, topicId: string) => {
         if (assessingPhraseId) {
-             console.log("[LearnPageContent] Assessment already in progress. Ignoring new request.");
+            console.warn("[LearnPageContent] Assessment already in progress. Ignoring new request.");
             return;
         }
         if (!user) {
@@ -113,33 +113,32 @@ function LearnPageContent() {
         setAssessingPhraseId(phraseId);
         setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); 
     
-        try {
-            const assessment = await assessPronunciationFromMic(referenceText, toLanguage, currentAssessmentId);
-            const { isPass, accuracy, fluency } = assessment;
+        assessPronunciationFromMic(
+            referenceText,
+            toLanguage,
+            // onSuccess callback
+            (assessment) => {
+                console.log(`[LearnPageContent] onSuccess for ${currentAssessmentId}`, assessment);
+                const finalResult: AssessmentResult = { status: assessment.isPass ? 'pass' : 'fail', accuracy: assessment.accuracy, fluency: assessment.fluency };
+                setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
+                recordPracticeAttempt({
+                    phraseId, phraseText: referenceText, topicId, lang: toLanguage,
+                    isPass: assessment.isPass, accuracy: assessment.accuracy, settings
+                });
+                setAssessingPhraseId(null);
+            },
+            // onError callback
+            (error) => {
+                console.error(`[LearnPageContent] onError for ${currentAssessmentId}`, error);
+                if (error.message && !error.message.includes("aborted") && !error.message.includes("canceled")) {
+                    toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+                }
+                setAssessingPhraseId(null);
+            },
+            currentAssessmentId
+        );
+    }, [assessingPhraseId, user, settings, toLanguage, toast, recordPracticeAttempt]);
 
-            const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
-            setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
-            
-            recordPracticeAttempt({
-                phraseId,
-                phraseText: referenceText,
-                topicId,
-                lang: toLanguage,
-                isPass,
-                accuracy,
-                settings
-            });
-
-        } catch (error: any) {
-             console.error(`[LearnPageContent] Assessment ID ${currentAssessmentId} failed:`, error);
-            if (error.message && !error.message.includes("aborted") && !error.message.includes("canceled")) {
-                toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
-            }
-        } finally {
-            setAssessingPhraseId(null);
-        }
-    };
-    
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
             return textObj.english;
@@ -295,7 +294,7 @@ function LearnPageContent() {
                                 const fails = history?.failCountPerLang?.[toLanguage] || 0;
 
                                 const getResultIcon = () => {
-                                    if (isAssessingCurrent) return <LoaderCircle className="h-5 w-5 animate-spin" />;
+                                    if (isAssessingCurrent) return null; // No loader icon, just red mic
                                     if (!assessment) return null;
                                     if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
                                     if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
