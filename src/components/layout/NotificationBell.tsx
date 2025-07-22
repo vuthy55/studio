@@ -4,15 +4,14 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
-import { Bell, Wifi, ArrowRight } from 'lucide-react';
+import { collection, query, where, onSnapshot, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { Bell, Wifi, ArrowRight, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Separator } from '../ui/separator';
 
@@ -20,6 +19,8 @@ interface InvitedRoom {
     id: string;
     topic: string;
     createdAt: Timestamp;
+    creatorUid: string;
+    creatorName?: string;
 }
 
 export default function NotificationBell() {
@@ -40,15 +41,30 @@ export default function NotificationBell() {
             where("status", "==", "active")
         );
 
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const rooms = querySnapshot.docs
+        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+            const roomsData = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
                 .sort((a, b) => {
                     const timeA = a.createdAt?.toMillis() || 0;
                     const timeB = b.createdAt?.toMillis() || 0;
                     return timeB - timeA;
                 });
-            setInvitations(rooms);
+            
+            const roomsWithCreators = await Promise.all(roomsData.map(async (room) => {
+                if (!room.creatorUid) return { ...room, creatorName: 'Unknown' };
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', room.creatorUid));
+                    if (userDoc.exists()) {
+                        return { ...room, creatorName: userDoc.data().name || 'Unknown' };
+                    }
+                    return { ...room, creatorName: 'Unknown' };
+                } catch (error) {
+                    console.error(`Failed to fetch creator for room ${room.id}`, error);
+                    return { ...room, creatorName: 'Unknown' };
+                }
+            }));
+
+            setInvitations(roomsWithCreators);
         }, (error) => {
             console.error("Error fetching invitations:", error);
         });
@@ -88,13 +104,19 @@ export default function NotificationBell() {
                                     key={room.id}
                                     href={`/sync-room/${room.id}`}
                                     onClick={handleLinkClick}
-                                    className="flex items-center justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground"
+                                    className="flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground"
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <Wifi className="h-4 w-4 text-primary" />
-                                        <span className="font-semibold truncate">{room.topic}</span>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <Wifi className="h-4 w-4 text-primary" />
+                                            <span className="font-semibold truncate">{room.topic}</span>
+                                        </div>
+                                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                            <User className="h-3 w-3" />
+                                            Invited by {room.creatorName}
+                                        </p>
                                     </div>
-                                    <ArrowRight className="h-4 w-4" />
+                                    <ArrowRight className="h-4 w-4 mt-1" />
                                </Link>
                            ))
                         ) : (
