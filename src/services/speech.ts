@@ -38,15 +38,10 @@ export type PronunciationAssessmentResult = {
  * Aborts any ongoing recognition. This is a crucial cleanup function.
  */
 export function abortRecognition() {
-    console.log(`[speech.ts] Abort called. Active recognizer ID: ${activeRecognizerId}`);
     if (activeRecognizer) {
         const recognizerToClose = activeRecognizer;
-        const recognizerIdToClose = activeRecognizerId;
-
         activeRecognizer = null;
         activeRecognizerId = null;
-
-        console.log(`[speech.ts] Aborting recognizer: ${recognizerIdToClose} by closing it.`);
         recognizerToClose.close();
     }
 }
@@ -54,14 +49,10 @@ export function abortRecognition() {
 
 export async function assessPronunciationFromMic(
     referenceText: string,
-    lang: LanguageCode,
-    debugId?: string
+    lang: LanguageCode
 ): Promise<PronunciationAssessmentResult> {
-    const currentAssessmentId = debugId || `assessment-${Date.now()}`;
-    console.log(`[speech.ts] Starting assessment ${currentAssessmentId} for lang: ${lang}`);
     
     if (activeRecognizer) {
-        console.warn(`[speech.ts] New assessment (${currentAssessmentId}) requested while another is active (${activeRecognizerId}). Aborting old one.`);
         abortRecognition();
     }
 
@@ -71,30 +62,26 @@ export async function assessPronunciationFromMic(
     }
 
     const speechConfig = getSpeechConfig();
-    // The language must be set on the main config as well.
-    speechConfig.speechRecognitionLanguage = locale;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     
     activeRecognizer = recognizer;
-    activeRecognizerId = currentAssessmentId;
+    activeRecognizerId = `assessment-${Date.now()}`;
 
-    // This is the critical fix: The PronunciationAssessmentConfig requires the language to be set on the config object itself.
     const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
         referenceText,
         sdk.PronunciationAssessmentGradingSystem.HundredMark,
         sdk.PronunciationAssessmentGranularity.Phoneme,
         true
     );
-    // The language parameter was missing here, which is why scores were 0.
+    // This was the missing piece: the language must be set on the pronunciation config itself.
     pronunciationConfig.language = locale; 
-    
     pronunciationConfig.applyTo(recognizer);
 
     return new Promise((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
              // Clean up immediately after the async operation returns.
-            if (activeRecognizerId === currentAssessmentId) {
+            if (activeRecognizer === recognizer) {
                 recognizer.close();
                 activeRecognizer = null;
                 activeRecognizerId = null;
@@ -119,7 +106,7 @@ export async function assessPronunciationFromMic(
             }
         }, err => {
             // Also clean up on error.
-             if (activeRecognizerId === currentAssessmentId) {
+             if (activeRecognizer === recognizer) {
                 recognizer.close();
                 activeRecognizer = null;
                 activeRecognizerId = null;
@@ -132,7 +119,6 @@ export async function assessPronunciationFromMic(
 
 export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<string> {
     if (activeRecognizer) {
-        console.warn(`[speech.ts] New recognition requested while another is active. Aborting old one.`);
         abortRecognition();
     }
     const locale = languageToLocaleMap[fromLanguage];
@@ -179,7 +165,6 @@ export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<stri
 
 export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
     if (activeRecognizer) {
-        console.warn(`[speech.ts] Auto-detect requested while another recognizer is active. Aborting old one.`);
         abortRecognition();
     }
     const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
