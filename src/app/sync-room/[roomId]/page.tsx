@@ -148,7 +148,7 @@ export default function SyncRoomPage() {
                 description: 'This room has been closed by the emcee.',
                 duration: 5000,
             });
-            router.push('/');
+            router.push('/?tab=sync-online');
         }
     }, [roomData, router, toast]);
 
@@ -237,7 +237,7 @@ export default function SyncRoomPage() {
         }
     }, [user, authLoading, router, roomData, participants, participantsLoading, messages]);
 
-    const goBack = () => router.push('/');
+    const goBack = () => router.push('/?tab=sync-online');
 
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage) return;

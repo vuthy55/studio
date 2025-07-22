@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, memo } from 'react';
+import { useState, memo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
@@ -19,7 +20,15 @@ const MemoizedSyncOnline = memo(SyncOnlineHome);
 
 export default function SyncHubPage() {
     const { isMobile } = useSidebar();
+    const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState('prep-vibe');
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
    
     return (
         <div className="space-y-8">
