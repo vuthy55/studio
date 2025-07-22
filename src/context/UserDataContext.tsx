@@ -96,13 +96,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const fetchAllData = async () => {
             if (user && !authLoading) {
                 setLoading(true);
-                // Only fetch if local data is empty, to avoid overwriting on refresh
-                if (!userProfile || Object.keys(userProfile).length === 0) {
-                   await fetchUserProfile();
-                }
-                if (!practiceHistory || Object.keys(practiceHistory).length === 0) {
-                    await fetchPracticeHistory();
-                }
+                await fetchUserProfile();
+                await fetchPracticeHistory();
                 setLoading(false);
             } else if (!user && !authLoading) {
                 // Clear data on logout
@@ -112,62 +107,71 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         }
         fetchAllData();
-    // Dependency array is intentionally limited to prevent re-fetching on every render.
-    // We only want this to run when the user or auth state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, authLoading]);
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory]);
 
 
     // --- Client-Side Actions ---
 
     const debouncedSync = useRef(
-        debounce((args: RecordPracticeAttemptArgs) => {
+        debounce(async (updatedHistoryForSync: PracticeHistoryState) => {
             if (!auth.currentUser || !settings) return;
 
-            const { phraseId, lang, isPass } = args;
             const batch = writeBatch(db);
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
-            const historyDocRef = doc(db, 'users', auth.currentUser.uid, 'practiceHistory', phraseId);
 
-            const passIncrement = isPass ? 1 : 0;
-            const failIncrement = isPass ? 0 : 1;
+            let totalTokensAwardedThisBatch = 0;
 
-            const historyUpdateData = {
-                phraseText: args.phraseText,
-                [`passCountPerLang.${lang}`]: increment(passIncrement),
-                [`failCountPerLang.${lang}`]: increment(failIncrement),
-                [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
-                [`lastAccuracyPerLang.${lang}`]: args.accuracy,
-            };
+            // Iterate over the changed phrases in the local history
+            for (const phraseId in updatedHistoryForSync) {
+                const localPhraseHistory = updatedHistoryForSync[phraseId];
+                
+                // Get the DB state from our local cache to avoid a read
+                const dbPhraseHistory = practiceHistory[phraseId] || {}; 
 
-            batch.set(historyDocRef, historyUpdateData, { merge: true });
+                for (const lang in localPhraseHistory.passCountPerLang) {
+                     const localPasses = localPhraseHistory.passCountPerLang[lang as LanguageCode] || 0;
+                     const dbPasses = dbPhraseHistory.passCountPerLang?.[lang as LanguageCode] || 0;
 
-            // This async operation must be self-contained
-            const awardTokenIfNeeded = async () => {
-                try {
-                    const historySnap = await getDoc(historyDocRef);
-                    const currentPasses = (historySnap.data()?.passCountPerLang?.[lang] || 0) + passIncrement;
-                    
-                    if (isPass && currentPasses > 0 && currentPasses % settings.practiceThreshold === 0) {
-                        batch.update(userDocRef, { tokenBalance: increment(settings.practiceReward) });
-                        
-                        const logRef = doc(collection(db, `users/${auth.currentUser!.uid}/transactionLogs`));
-                        batch.set(logRef, {
-                            actionType: 'practice_earn',
-                            tokenChange: settings.practiceReward,
-                            timestamp: serverTimestamp(),
-                            description: `Reward for practicing: "${args.phraseText}"`
-                        });
-                    }
-                    await batch.commit();
-
-                } catch (error) {
-                     console.error("Error committing batch:", error);
+                    // This is the "cross the threshold" check for the one-time reward
+                     if (dbPasses < settings.practiceThreshold && localPasses >= settings.practiceThreshold) {
+                         totalTokensAwardedThisBatch += settings.practiceReward;
+                     }
                 }
-            };
-            
-            awardTokenIfNeeded();
-            
+                
+                // Update the history document in Firestore
+                const historyDocRef = doc(db, 'users', auth.currentUser.uid, 'practiceHistory', phraseId);
+                const historyUpdateData = {
+                    ...localPhraseHistory,
+                    lastAttemptPerLang: {
+                        ...localPhraseHistory.lastAttemptPerLang,
+                        // Add server timestamps for any new attempts.
+                        ...Object.keys(localPhraseHistory.passCountPerLang || {}).reduce((acc, lang) => {
+                            acc[lang] = serverTimestamp();
+                            return acc;
+                        }, {} as Record<string, any>),
+                    }
+                };
+                batch.set(historyDocRef, historyUpdateData, { merge: true });
+            }
+
+            if (totalTokensAwardedThisBatch > 0) {
+                batch.update(userDocRef, { tokenBalance: increment(totalTokensAwardedThisBatch) });
+
+                const logRef = doc(collection(db, `users/${auth.currentUser.uid}/transactionLogs`));
+                batch.set(logRef, {
+                    actionType: 'practice_earn',
+                    tokenChange: totalTokensAwardedThisBatch,
+                    timestamp: serverTimestamp(),
+                    description: `Reward for reaching practice threshold on ${Object.keys(updatedHistoryForSync).length} phrase(s).`
+                });
+            }
+
+            try {
+                await batch.commit();
+            } catch (error) {
+                 console.error("Error committing practice history batch:", error);
+            }
+
         }, 3000)
     );
 
@@ -175,36 +179,42 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (!user || !settings) return;
         const { phraseId, phraseText, lang, isPass, accuracy } = args;
 
+        let wasRewardable = false;
+        
         // Optimistically update the local state for immediate UI feedback
-        setPracticeHistory(currentHistory => {
-            const newHistory = { ...currentHistory };
-            const phraseHistory = newHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
+        const updatedHistory = { ...practiceHistory };
+        const phraseHistory = updatedHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
+        
+        const previousPassCount = phraseHistory.passCountPerLang?.[lang] || 0;
 
-            if (isPass) {
-                const newPassCount = (phraseHistory.passCountPerLang?.[lang] || 0) + 1;
-                phraseHistory.passCountPerLang = { ...phraseHistory.passCountPerLang, [lang]: newPassCount };
-
-                 if (newPassCount > 0 && newPassCount % settings.practiceThreshold === 0) {
-                     setUserProfile(currentProfile => ({
-                        ...currentProfile,
-                        tokenBalance: (currentProfile.tokenBalance || 0) + settings.practiceReward,
-                    }));
-                }
-
-            } else {
-                phraseHistory.failCountPerLang = { ...phraseHistory.failCountPerLang, [lang]: (phraseHistory.failCountPerLang?.[lang] || 0) + 1 };
-            }
+        if (isPass) {
+            const newPassCount = previousPassCount + 1;
+            phraseHistory.passCountPerLang = { ...phraseHistory.passCountPerLang, [lang]: newPassCount };
             
-            phraseHistory.lastAccuracyPerLang = { ...phraseHistory.lastAccuracyPerLang, [lang]: accuracy };
-            phraseHistory.phraseText = phraseText;
-            newHistory[phraseId] = phraseHistory;
-            return newHistory;
-        });
+            // Check for one-time reward condition
+            if (previousPassCount < settings.practiceThreshold && newPassCount >= settings.practiceThreshold) {
+                wasRewardable = true;
+                setUserProfile(currentProfile => ({
+                    ...currentProfile,
+                    tokenBalance: (currentProfile.tokenBalance || 0) + settings.practiceReward,
+                }));
+            }
+        } else {
+            phraseHistory.failCountPerLang = { ...phraseHistory.failCountPerLang, [lang]: (phraseHistory.failCountPerLang?.[lang] || 0) + 1 };
+        }
+        
+        phraseHistory.lastAccuracyPerLang = { ...phraseHistory.lastAccuracyPerLang, [lang]: accuracy };
+        phraseHistory.phraseText = phraseText;
+        updatedHistory[phraseId] = phraseHistory;
+        
+        setPracticeHistory(updatedHistory);
 
-        // Debounce the call to Firestore
-        debouncedSync.current(args);
+        // Debounce the call to Firestore, sending only the changed data
+        debouncedSync.current({ [phraseId]: phraseHistory });
 
-    }, [user, settings, setPracticeHistory, setUserProfile]);
+        return { wasRewardable, rewardAmount: settings.practiceReward };
+
+    }, [user, settings, practiceHistory, setPracticeHistory, setUserProfile, debouncedSync]);
 
 
     const getTopicStats = useCallback((topicId: string, lang: LanguageCode) => {
@@ -217,10 +227,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         for (const phraseId of topicPhrases) {
             const history = practiceHistory[phraseId];
-            if (history?.passCountPerLang?.[lang] > 0) {
+            const passes = history?.passCountPerLang?.[lang] || 0;
+            if (passes > 0) {
                 correct++;
-                const passes = history.passCountPerLang[lang];
-                tokensEarned += Math.floor(passes / settings.practiceThreshold) * settings.practiceReward;
+            }
+            if (passes >= settings.practiceThreshold) {
+                tokensEarned += settings.practiceReward;
             }
         }
         return { correct, tokensEarned };
@@ -233,7 +245,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         userProfile,
         practiceHistory,
         fetchUserProfile,
-        recordPracticeAttempt,
+        recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => {
+            const result = recordPracticeAttempt(args);
+            // This return is just for the toast, not used elsewhere
+            return result || { wasRewardable: false, rewardAmount: 0 };
+        },
         getTopicStats
     };
 
