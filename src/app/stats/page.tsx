@@ -37,6 +37,8 @@ export default function StatsPage() {
 
     useEffect(() => {
         if (!loading && !user) {
+            // Clear sensitive data before redirecting
+            setDetailedHistoryForDialog([]);
             router.push('/login');
         }
     }, [user, loading, router]);
@@ -68,7 +70,7 @@ export default function StatsPage() {
     };
 
     const languageStats = useMemo(() => {
-        if (!practiceHistory) return [];
+        if (!practiceHistory || !user) return [];
         
         const langTotals: Record<string, { practiced: number; correct: number }> = {};
         
@@ -99,9 +101,9 @@ export default function StatsPage() {
                 percentage: correctPercentage
             };
         }).sort((a,b) => b.practiced - a.practiced);
-    }, [practiceHistory]);
+    }, [practiceHistory, user]);
 
-    if (loading) {
+    if (loading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -194,3 +196,5 @@ export default function StatsPage() {
         </Dialog>
     )
 }
+
+    

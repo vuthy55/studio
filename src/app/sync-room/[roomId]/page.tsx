@@ -100,11 +100,18 @@ function SyncRoomPageContent() {
     // --- Data and Auth Effects ---
 
     useEffect(() => {
-        if (!roomId || authLoading) return;
+        if (authLoading) return;
+
         if (!user) {
+            // Clear all sensitive data on logout before redirecting
+            setRoom(null);
+            setParticipants([]);
+            setLastMessage(null);
             router.push(`/login?redirect=/sync-room/${roomId}`);
             return;
         }
+
+        if (!roomId) return;
 
         const roomRef = doc(db, 'syncRooms', roomId);
         const unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
@@ -150,7 +157,7 @@ function SyncRoomPageContent() {
     }, [roomId, user, authLoading, router, toast]);
 
      useEffect(() => {
-        if (!room) return; 
+        if (!room || !user) return; 
 
         const messagesRef = collection(db, 'syncRooms', room.id, 'messages');
         const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
@@ -174,7 +181,7 @@ function SyncRoomPageContent() {
         }
     // Only re-run when room changes. lastMessage is now managed internally.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [room, user?.uid]);
+    }, [room, user]);
 
 
     // --- Audio Playback Logic ---
@@ -611,3 +618,5 @@ function SyncRoomPageContent() {
 export default function SyncRoomPage() {
     return <SyncRoomPageContent />;
 }
+
+    

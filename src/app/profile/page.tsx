@@ -104,7 +104,12 @@ function PaymentHistorySection() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setPayments([]);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
         const paymentsRef = collection(db, 'users', user.uid, 'paymentHistory');
         const q = query(paymentsRef, orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -174,7 +179,12 @@ function TokenHistorySection() {
     }
 
      useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setTransactions([]);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
         const transRef = collection(db, 'users', user.uid, 'transactionLogs');
         const q = query(transRef, orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -245,6 +255,8 @@ export default function ProfilePage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
+            // Clear sensitive data on logout before redirecting
+            setProfile({});
             router.push('/login');
         }
     }, [user, authLoading, router]);
@@ -348,3 +360,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
