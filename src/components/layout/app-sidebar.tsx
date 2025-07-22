@@ -20,6 +20,7 @@ import { useUserData } from '@/context/UserDataContext';
 import DonateButton from '../DonateButton';
 import BuyTokens from '../BuyTokens';
 import ReferralLink from '../ReferralLink';
+import NotificationBell from './NotificationBell';
 
 
 export function AppSidebar() {
@@ -42,8 +43,9 @@ export function AppSidebar() {
   
   return (
     <Sidebar>
-      <SidebarHeader>
+      <SidebarHeader className="flex justify-between items-center">
         <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>VibeSync</Link>
+        {user && <NotificationBell />}
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
