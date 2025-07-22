@@ -22,6 +22,8 @@ export type PracticeHistoryDoc = {
 };
 export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
 
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus';
+
 interface RecordPracticeAttemptArgs {
     phraseId: string;
     phraseText: string;
@@ -40,6 +42,7 @@ interface UserDataContextType {
     fetchUserProfile: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
+    spendTokens: (amount: number, actionType: TransactionLogType, description: string) => boolean;
 }
 
 // --- Context ---
@@ -58,7 +61,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const pendingSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
+    const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
+    const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string }>>([]).current;
     
     // --- Data Fetching ---
 
@@ -120,40 +124,63 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     // --- Firestore Synchronization Logic ---
     const debouncedCommitToFirestore = useRef(
-        debounce(async (dataToSync: any) => {
+        debounce(async () => {
             const userUid = auth.currentUser?.uid;
-            if (!userUid || Object.keys(dataToSync).length === 0) {
+            if (!userUid) return;
+
+            const practiceSyncs = { ...pendingPracticeSyncs };
+            const tokenSyncs = [...pendingTokenSyncs];
+
+            // Clear the pending queues immediately to avoid race conditions
+            Object.keys(pendingPracticeSyncs).forEach(key => delete pendingPracticeSyncs[key]);
+            pendingTokenSyncs.length = 0;
+
+            if (Object.keys(practiceSyncs).length === 0 && tokenSyncs.length === 0) {
                 return;
             }
 
             const batch = writeBatch(db);
-            let totalTokensAwardedThisBatch = 0;
+            let totalTokenChange = 0;
 
-            for (const phraseId in dataToSync) {
-                const { phraseData, rewardAmount } = dataToSync[phraseId];
+            // Process practice history and rewards
+            for (const phraseId in practiceSyncs) {
+                const { phraseData, rewardAmount } = practiceSyncs[phraseId];
                 const historyDocRef = doc(db, 'users', userUid, 'practiceHistory', phraseId);
-                
                 batch.set(historyDocRef, phraseData, { merge: true });
-                totalTokensAwardedThisBatch += rewardAmount;
+                totalTokenChange += rewardAmount;
+
+                 if (rewardAmount > 0) {
+                    const logRef = doc(collection(db, `users/${userUid}/transactionLogs`));
+                    batch.set(logRef, {
+                        actionType: 'practice_earn',
+                        tokenChange: rewardAmount,
+                        timestamp: serverTimestamp(),
+                        description: `Reward for mastering: "${phraseData.phraseText?.substring(0, 50)}..."`
+                    });
+                }
+            }
+            
+            // Process other token expenditures/gains
+            for (const tokenTx of tokenSyncs) {
+                totalTokenChange -= tokenTx.amount;
+                const logRef = doc(collection(db, `users/${userUid}/transactionLogs`));
+                 batch.set(logRef, {
+                    actionType: tokenTx.actionType,
+                    tokenChange: -tokenTx.amount,
+                    timestamp: serverTimestamp(),
+                    description: tokenTx.description
+                });
             }
 
-            if (totalTokensAwardedThisBatch > 0) {
+            if (totalTokenChange !== 0) {
                 const userDocRef = doc(db, 'users', userUid);
-                batch.update(userDocRef, { tokenBalance: increment(totalTokensAwardedThisBatch) });
-                
-                const logRef = doc(collection(db, `users/${userUid}/transactionLogs`));
-                batch.set(logRef, {
-                    actionType: 'practice_earn',
-                    tokenChange: totalTokensAwardedThisBatch,
-                    timestamp: serverTimestamp(),
-                    description: `Reward for reaching practice threshold.`
-                });
+                batch.update(userDocRef, { tokenBalance: increment(totalTokenChange) });
             }
             
             try {
                 await batch.commit();
             } catch (error) {
-                 console.error("Error committing practice history batch:", error);
+                 console.error("Error committing batch to Firestore:", error);
             }
         }, 3000)
     ).current;
@@ -186,7 +213,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 wasRewardable = true;
                 rewardAmount = settings.practiceReward;
                 
-                // Optimistically update the user's token balance in the UI for instant feedback
                 setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) + rewardAmount }));
             }
         } else {
@@ -199,13 +225,31 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const updatedHistory = { ...practiceHistory, [phraseId]: updatedPhraseHistory };
         setPracticeHistory(updatedHistory);
 
-        // Only add to the sync queue if there's an actual change.
-        pendingSyncs[phraseId] = { phraseData: updatedPhraseHistory, rewardAmount };
-        debouncedCommitToFirestore(pendingSyncs);
+        // Add to the sync queue if there's an actual change.
+        pendingPracticeSyncs[phraseId] = { phraseData: updatedPhraseHistory, rewardAmount };
+        debouncedCommitToFirestore();
         
         return { wasRewardable, rewardAmount };
 
-    }, [user, settings, practiceHistory, setPracticeHistory, setUserProfile, debouncedCommitToFirestore]);
+    }, [user, settings, practiceHistory, setPracticeHistory, setUserProfile, debouncedCommitToFirestore, pendingPracticeSyncs]);
+    
+    const spendTokens = useCallback((amount: number, actionType: TransactionLogType, description: string): boolean => {
+        if (!user || !settings) return false;
+
+        const currentBalance = userProfile.tokenBalance || 0;
+        if (currentBalance < amount) {
+            return false;
+        }
+
+        // Optimistically update UI
+        setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - amount }));
+        
+        // Add to sync queue
+        pendingTokenSyncs.push({ amount, actionType, description });
+        debouncedCommitToFirestore();
+
+        return true;
+    }, [user, settings, userProfile, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore]);
 
 
     const getTopicStats = useCallback((topicId: string, lang: LanguageCode) => {
@@ -240,7 +284,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         settings,
         fetchUserProfile,
         recordPracticeAttempt,
-        getTopicStats
+        getTopicStats,
+        spendTokens,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
