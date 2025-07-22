@@ -13,6 +13,12 @@ const translateFlow = ai.defineFlow(
   },
   async (input) => {
     const { text, fromLanguage, toLanguage } = input;
+    
+    // If the source and target languages are the same, no need to call the AI model.
+    if (fromLanguage.toLowerCase() === toLanguage.toLowerCase()) {
+        return { translatedText: text };
+    }
+
     const prompt = `You are a direct translation assistant. Your only task is to translate the user's text from ${fromLanguage} to ${toLanguage}. Do not add any extra information, context, or phonetic guides. Only provide the direct translation. Text to translate: "${text}"`;
 
     const response = await ai.generate({
