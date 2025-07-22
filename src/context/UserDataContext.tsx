@@ -44,7 +44,7 @@ interface UserDataContextType {
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string) => boolean;
-    updateSyncLiveUsage: (durationMs: number) => void;
+    updateSyncLiveUsage: (durationMs: number) => number;
 }
 
 // --- Context ---
@@ -198,22 +198,27 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     // --- Public Actions ---
 
-    const updateSyncLiveUsage = useCallback((durationMs: number) => {
-        if (!user || !settings) return;
+    const updateSyncLiveUsage = useCallback((durationMs: number): number => {
+        if (!user || !settings) return 0;
         
-        const newTotalUsage = syncLiveUsage + durationMs;
-        setSyncLiveUsage(newTotalUsage);
+        const currentTotalUsage = syncLiveUsage;
+        const newTotalUsage = currentTotalUsage + durationMs;
+        
         pendingUsageSync.duration += durationMs;
+        setSyncLiveUsage(newTotalUsage); // Optimistically update local state for immediate UI feedback
 
         const freeMinutesMs = (settings.freeSyncLiveMinutes || 0) * 60 * 1000;
-        
-        const prevBilledMinutes = Math.ceil(Math.max(0, syncLiveUsage - freeMinutesMs) / (60 * 1000));
+        const costPerMinute = settings.costPerSyncLiveMinute || 1;
+
+        const prevBilledMinutes = Math.ceil(Math.max(0, currentTotalUsage - freeMinutesMs) / (60 * 1000));
         const currentBilledMinutes = Math.ceil(Math.max(0, newTotalUsage - freeMinutesMs) / (60 * 1000));
         
         const minutesToCharge = currentBilledMinutes - prevBilledMinutes;
+        let tokensSpentThisTurn = 0;
         
         if (minutesToCharge > 0) {
-            const cost = minutesToCharge * (settings.costPerSyncLiveMinute || 1);
+            const cost = minutesToCharge * costPerMinute;
+            tokensSpentThisTurn = cost;
              const currentBalance = userProfile.tokenBalance || 0;
              if (currentBalance >= cost) {
                  setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
@@ -227,6 +232,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
         
         debouncedCommitToFirestore();
+        return tokensSpentThisTurn;
 
     }, [user, settings, syncLiveUsage, userProfile.tokenBalance, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore, pendingUsageSync]);
 
