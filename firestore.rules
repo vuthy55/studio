@@ -77,18 +77,24 @@ service cloud.firestore {
     // Sync Rooms: Handles creation, reading, and updates for rooms.
     match /syncRooms/{roomId} {
       function isInvited() {
-        return request.auth != null && request.auth.token.email in resource.data.invitedEmails;
+        // request.resource is null on read, must use resource
+        return request.auth != null && resource.data.invitedEmails.hasAny([request.auth.token.email]);
       }
       function isEmcee() {
-        return request.auth != null && request.auth.token.email in resource.data.emceeEmails;
+        // request.resource is null on read, must use resource
+        return request.auth != null && resource.data.emceeEmails.hasAny([request.auth.token.email]);
       }
       function isCreator() {
+         // request.resource is null on read, must use resource
         return request.auth != null && request.auth.uid == resource.data.creatorUid;
+      }
+      function isOnlyChangingSpeaker() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
       }
 
       allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
       allow read: if isInvited();
-      allow update: if isEmcee();
+      allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
       allow delete: if isCreator();
 
       // Participants sub-collection: Rules for joining and management.
@@ -100,34 +106,38 @@ service cloud.firestore {
           return exists(/databases/$(database)/documents/syncRooms/$(roomId));
         }
         function isInvitedToRoom() {
-          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
+          return roomExists() && request.auth != null && roomData().invitedEmails.hasAny([request.auth.token.email]);
         }
         function isEmceeInRoom() {
-          return roomExists() && request.auth != null && request.auth.token.email in roomData().emceeEmails;
+          return roomExists() && request.auth != null && roomData().emceeEmails.hasAny([request.auth.token.email]);
+        }
+        function isRoomCreator() {
+          return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
+        }
+        function isSelf() {
+            return request.auth != null && request.auth.uid == participantId;
         }
 
         allow list, read: if isInvitedToRoom();
-        allow create: if request.auth != null && request.auth.uid == participantId;
-        allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
-        allow delete: if (request.auth != null && request.auth.uid == participantId);
+        allow create: if isSelf() && request.resource.data.uid == request.auth.uid;
+        allow update: if isEmceeInRoom() || isSelf();
+        allow delete: if isRoomCreator() || isSelf();
       }
       
       // Messages sub-collection: Rules for sending and reading messages.
       match /messages/{messageId} {
-          function isInvitedToRoom() {
-              return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-                     request.auth != null &&
-                     get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.hasAny([request.auth.token.email]);
+          function isParticipant() {
+              return exists(/databases/$(database)/documents/syncRooms/$(roomId)/participants/$(request.auth.uid));
           }
-           function isEmceeInRoom() {
-              return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-                     request.auth != null &&
-                     get(/databases/$(database)/documents/syncRooms/$(roomId)).data.emceeEmails.hasAny([request.auth.token.email]);
+          function isRoomCreator() {
+            return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
+                   request.auth != null &&
+                   get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
           }
 
-          allow list, read: if isInvitedToRoom();
-          allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
-          allow delete: if isEmceeInRoom();
+          allow list, read: if isParticipant();
+          allow create: if isParticipant() && request.resource.data.speakerUid == request.auth.uid;
+          allow delete: if isRoomCreator();
       }
     }
     
