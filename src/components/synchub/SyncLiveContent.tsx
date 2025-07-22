@@ -148,7 +148,14 @@ export default function SyncLiveContent() {
     return `${mins}:${secs}`;
   };
 
-  const tokensUsedDisplay = useMemo(() => calculateCosts(), [calculateCosts]);
+  const tokensUsedDisplay = useMemo(() => {
+    const billedMinutes = Math.ceil(currentTurnUsage / (60 * 1000));
+    if (billedMinutes === 0 && currentTurnUsage > 0) {
+        // Charge for the first minute block as soon as usage starts
+        return costPerMinute;
+    }
+    return billedMinutes * costPerMinute;
+  }, [currentTurnUsage, costPerMinute]);
   
   useEffect(() => {
       const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensUsedDisplay;
@@ -249,3 +256,5 @@ export default function SyncLiveContent() {
     </Card>
   );
 }
+
+    
