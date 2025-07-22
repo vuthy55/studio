@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
@@ -22,10 +22,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Separator } from '@/components/ui/separator';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
@@ -110,7 +111,7 @@ export default function SyncRoomPage() {
     const [roomData, roomLoading, roomError] = useDocumentData(roomRef);
 
     const participantsRef = useMemo(() => collection(db, 'syncRooms', roomId, 'participants'), [roomId]);
-    const [participants, participantsLoading] = useCollection(participantsRef);
+    const [participantsCollection, participantsLoading] = useCollection(participantsRef);
 
     const messagesRef = useMemo(() => collection(db, 'syncRooms', roomId, 'messages'), [roomId]);
     const messagesQuery = useMemo(() => query(messagesRef, orderBy('createdAt', 'asc')), [messagesRef]);
@@ -124,17 +125,32 @@ export default function SyncRoomPage() {
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>());
+    const processedMessages = useRef(new Set<string>>();
     const lastMessageCount = useRef(0);
 
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, translatedMessages]);
+    
+    const { presentParticipants, absentParticipantEmails } = useMemo(() => {
+        if (!roomData || !participantsCollection) {
+            return { presentParticipants: [], absentParticipantEmails: [] };
+        }
+        const presentUids = new Set(participantsCollection.docs.map(doc => doc.id));
+        const present = participantsCollection.docs.map(doc => doc.data() as Participant);
+        const absent = roomData.invitedEmails.filter((email: string) => {
+             return !participantsCollection.docs.some(p => p.data().email === email);
+        });
+        
+        return { presentParticipants: present, absentParticipantEmails: absent };
+
+    }, [roomData, participantsCollection]);
+
 
     const currentUserParticipant = useMemo(() => {
-        return participants?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
-    }, [participants, user]);
+        return participantsCollection?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
+    }, [participantsCollection, user]);
 
     const isCurrentUserEmcee = useMemo(() => {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
@@ -227,7 +243,7 @@ export default function SyncRoomPage() {
         if (!authLoading && !user) {
             router.push('/login');
         } else if (user && roomData && !participantsLoading) {
-            const isParticipant = participants?.docs.some(p => p.id === user.uid);
+            const isParticipant = participantsCollection?.docs.some(p => p.id === user.uid);
             if (isParticipant) {
                 // When joining, mark all current messages as processed to prevent re-playing history
                 messages?.docs.forEach(doc => processedMessages.current.add(doc.id));
@@ -235,9 +251,33 @@ export default function SyncRoomPage() {
                 setHasJoined(true);
             }
         }
-    }, [user, authLoading, router, roomData, participants, participantsLoading, messages]);
+    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, messages]);
 
-    const goBack = () => router.push('/?tab=sync-online');
+    const handleExitRoom = async () => {
+        if (!user) return;
+        try {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            await deleteDoc(participantRef);
+            router.push('/?tab=sync-online');
+        } catch (error) {
+            console.error("Error leaving room:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not leave the room.' });
+        }
+    };
+    
+    const handleEndMeeting = async () => {
+        if (!isCurrentUserEmcee) return;
+        try {
+            await updateDoc(roomRef, {
+                status: 'closed',
+                lastActivityAt: serverTimestamp(),
+            });
+            // The useEffect for room status will handle the redirect for all users
+        } catch (error) {
+            console.error("Error ending meeting:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
+        }
+    };
 
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage) return;
@@ -287,31 +327,21 @@ export default function SyncRoomPage() {
     return (
         <div className="flex h-screen bg-muted/40">
             {/* Left Panel - Participants */}
-            <aside className="w-1/4 min-w-[250px] bg-background border-r flex flex-col">
+            <aside className="w-1/4 min-w-[280px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
                     <div className="flex items-center justify-between">
-                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants ({participants?.docs.length})</h2>
-                         <Button variant="outline" size="sm" onClick={goBack}>
-                            <LogOut className="mr-2 h-4 w-4"/>
-                            Exit Room
-                        </Button>
+                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
                     </div>
-                    {isCurrentUserEmcee && (
-                         <Button variant="destructive" size="sm" className="w-full" disabled>
-                            <ShieldX className="mr-2 h-4 w-4"/>
-                            End Meeting for All
-                        </Button>
-                    )}
                 </header>
                 <ScrollArea className="flex-1">
-                    <div className="p-4 space-y-4">
-                        {participants?.docs.map(doc => {
-                            const p = doc.data() as Participant;
+                    <div className="p-4 space-y-2">
+                         <h3 className="font-semibold text-sm flex items-center gap-2 text-green-600"><UserCheck/> Present ({presentParticipants.length})</h3>
+                        {presentParticipants.map(p => {
                             const isCurrentUser = p.uid === user?.uid;
                             const isEmcee = roomData?.emceeEmails?.includes(p.email);
 
                             return (
-                                <div key={p.uid} className="flex items-center gap-3 group">
+                                <div key={p.uid} className="flex items-center gap-3 group p-1 rounded-md">
                                     <Avatar>
                                         <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
                                     </Avatar>
@@ -341,10 +371,40 @@ export default function SyncRoomPage() {
                             );
                         })}
                     </div>
+                    {absentParticipantEmails.length > 0 && (
+                        <div className="p-4 space-y-2">
+                             <Separator />
+                             <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground pt-2"><UserX/> Invited ({absentParticipantEmails.length})</h3>
+                            {absentParticipantEmails.map(email => (
+                                <div key={email} className="flex items-center gap-3 p-1 rounded-md opacity-60">
+                                    <Avatar>
+                                        <AvatarFallback>{email.charAt(0).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                     <div className="flex-1 overflow-hidden">
+                                         <p className="font-semibold truncate flex items-center gap-1.5">{email}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </ScrollArea>
-                 <footer className="p-4 border-t">
-                    <p className="font-bold text-lg">{roomData.topic}</p>
-                    <p className="text-sm text-muted-foreground">Meeting Room</p>
+                 <footer className="p-4 border-t space-y-4">
+                     <div>
+                        <p className="font-bold text-lg">{roomData.topic}</p>
+                        <p className="text-sm text-muted-foreground">Meeting Room</p>
+                     </div>
+                     <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={handleExitRoom} className="w-full">
+                            <LogOut className="mr-2 h-4 w-4"/>
+                            Exit Room
+                        </Button>
+                        {isCurrentUserEmcee && (
+                            <Button variant="destructive" size="sm" className="w-full" onClick={handleEndMeeting}>
+                                <ShieldX className="mr-2 h-4 w-4"/>
+                                End Meeting
+                            </Button>
+                        )}
+                     </div>
                 </footer>
             </aside>
 
@@ -403,3 +463,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
