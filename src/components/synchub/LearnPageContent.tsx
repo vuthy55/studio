@@ -122,7 +122,15 @@ function LearnPageContent() {
             });
 
             if (wasRewardable) {
-                toast({ title: "Tokens Earned!", description: `Congratulations! You earned ${rewardAmount} tokens!` });
+                toast({ 
+                    title: "Congratulations!",
+                    description: (
+                        <div className="flex items-center gap-2">
+                            <Award className="h-5 w-5 text-amber-500" />
+                            <span>You earned {rewardAmount} tokens!</span>
+                        </div>
+                    )
+                });
             }
 
         } catch (error: any) {
@@ -288,6 +296,8 @@ function LearnPageContent() {
                                 const history = practiceHistory[phrase.id];
                                 const passes = history?.passCountPerLang?.[toLanguage] || 0;
                                 const fails = history?.failCountPerLang?.[toLanguage] || 0;
+                                const hasBeenRewarded = settings && passes >= settings.practiceThreshold;
+
 
                                 const getResultIcon = () => {
                                     if (!assessment) return null;
@@ -329,11 +339,17 @@ function LearnPageContent() {
                                     </div>
                                      { user && (passes > 0 || fails > 0) &&
                                         <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
+                                            {hasBeenRewarded && (
+                                                <div className="flex items-center gap-1 text-amber-500 font-bold" title='Tokens awarded for this phrase'>
+                                                    <Award className="h-4 w-4" />
+                                                    <span>+{settings?.practiceReward || 0}</span>
+                                                </div>
+                                            )}
                                             <div className="flex items-center gap-1" title='Correct attempts'>
                                                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                                                 <span className="font-bold">{passes}</span>
                                             </div>
-                                                <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                            <div className="flex items-center gap-1" title='Incorrect attempts'>
                                                 <XCircle className="h-4 w-4 text-red-500" />
                                                 <span className="font-bold">{fails}</span>
                                             </div>

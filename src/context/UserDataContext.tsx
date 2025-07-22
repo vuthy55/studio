@@ -99,10 +99,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const fetchAllData = async () => {
             if (user && !authLoading) {
                 setLoading(true);
-                // Only fetch from DB if local state is empty, to prevent overwriting
-                if (Object.keys(userProfile).length === 0) {
-                    await fetchUserProfile();
-                }
+                // Always fetch user profile to get latest token balance, etc.
+                await fetchUserProfile();
+                // Only fetch practice history if it's not in local storage cache
                 if (Object.keys(practiceHistory).length === 0) {
                     await fetchPracticeHistory();
                 }
@@ -120,27 +119,18 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
 
     // --- Firestore Synchronization Logic ---
-    
-    // This debounced function is now ONLY responsible for committing batches to Firestore.
-    // It does not modify local state, preventing infinite loops.
     const debouncedCommitToFirestore = useRef(
-        debounce(async () => {
+        debounce(async (dataToSync: any) => {
             const userUid = auth.currentUser?.uid;
-            if (!userUid || Object.keys(pendingSyncs).length === 0) {
+            if (!userUid || Object.keys(dataToSync).length === 0) {
                 return;
             }
 
             const batch = writeBatch(db);
-            const dataToSync = { ...pendingSyncs };
-            // Clear pending syncs immediately to prevent race conditions
-            for (const key in pendingSyncs) {
-                delete pendingSyncs[key];
-            }
-
             let totalTokensAwardedThisBatch = 0;
 
             for (const phraseId in dataToSync) {
-                const { phraseData, rewardAmount } = dataToSync[phraseId] as any;
+                const { phraseData, rewardAmount } = dataToSync[phraseId];
                 const historyDocRef = doc(db, 'users', userUid, 'practiceHistory', phraseId);
                 
                 batch.set(historyDocRef, phraseData, { merge: true });
@@ -177,42 +167,39 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         let wasRewardable = false;
         let rewardAmount = 0;
         
-        // Use a functional update to get the most recent state
-        setPracticeHistory(currentHistory => {
-            const phraseHistory = currentHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
-            const previousPassCount = phraseHistory.passCountPerLang?.[lang] || 0;
+        const currentPhraseHistory = practiceHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
+        const previousPassCount = currentPhraseHistory.passCountPerLang?.[lang] || 0;
+        
+        const updatedPhraseHistory = { ...currentPhraseHistory };
 
-            if (isPass) {
-                const newPassCount = previousPassCount + 1;
-                phraseHistory.passCountPerLang = { ...phraseHistory.passCountPerLang, [lang]: newPassCount };
+        if (isPass) {
+            const newPassCount = previousPassCount + 1;
+            updatedPhraseHistory.passCountPerLang = { ...updatedPhraseHistory.passCountPerLang, [lang]: newPassCount };
+
+            // One-time reward check: did the count CROSS the threshold?
+            if (previousPassCount < currentSettings.practiceThreshold && newPassCount >= currentSettings.practiceThreshold) {
+                wasRewardable = true;
+                rewardAmount = currentSettings.practiceReward;
                 
-                // One-time reward check: did the count CROSS the threshold?
-                if (previousPassCount < currentSettings.practiceThreshold && newPassCount >= currentSettings.practiceThreshold) {
-                    wasRewardable = true;
-                    rewardAmount = currentSettings.practiceReward;
-                    
-                    // Optimistically update the user's token balance in the UI
-                    setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) + rewardAmount }));
-                }
-            } else {
-                phraseHistory.failCountPerLang = { ...phraseHistory.failCountPerLang, [lang]: (phraseHistory.failCountPerLang?.[lang] || 0) + 1 };
+                // Optimistically update the user's token balance in the UI for instant feedback
+                setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) + rewardAmount }));
             }
-            
-            phraseHistory.lastAccuracyPerLang = { ...phraseHistory.lastAccuracyPerLang, [lang]: accuracy };
-            phraseHistory.phraseText = phraseText;
+        } else {
+            updatedPhraseHistory.failCountPerLang = { ...updatedPhraseHistory.failCountPerLang, [lang]: (currentPhraseHistory.failCountPerLang?.[lang] || 0) + 1 };
+        }
+        
+        updatedPhraseHistory.lastAccuracyPerLang = { ...updatedPhraseHistory.lastAccuracyPerLang, [lang]: accuracy };
+        updatedPhraseHistory.phraseText = phraseText;
 
-            const updatedHistory = { ...currentHistory, [phraseId]: phraseHistory };
+        const updatedHistory = { ...practiceHistory, [phraseId]: updatedPhraseHistory };
+        setPracticeHistory(updatedHistory);
 
-            // Add the final state of this phrase to the pending sync batch
-            pendingSyncs[phraseId] = { phraseData: phraseHistory, rewardAmount };
-            debouncedCommitToFirestore();
-            
-            return updatedHistory;
-        });
-
+        pendingSyncs[phraseId] = { phraseData: updatedPhraseHistory, rewardAmount };
+        debouncedCommitToFirestore(pendingSyncs);
+        
         return { wasRewardable, rewardAmount };
 
-    }, [user, settings, setPracticeHistory, setUserProfile, debouncedCommitToFirestore]);
+    }, [user, settings, practiceHistory, setPracticeHistory, setUserProfile, debouncedCommitToFirestore]);
 
 
     const getTopicStats = useCallback((topicId: string, lang: LanguageCode) => {
@@ -226,6 +213,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         for (const phraseId of topicPhrases) {
             const history = practiceHistory[phraseId];
             const passes = history?.passCountPerLang?.[lang] || 0;
+            // A phrase is "correct" if it has been passed at least once.
             if (passes > 0) {
                 correct++;
             }
