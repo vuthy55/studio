@@ -65,6 +65,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
     const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string, duration?: number }>>([]).current;
+    const pendingUsageSync = useRef<{ duration: number }>({ duration: 0 }).current;
     
     // --- Data Fetching ---
 
@@ -131,17 +132,18 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             const practiceSyncs = { ...pendingPracticeSyncs };
             const tokenSyncs = [...pendingTokenSyncs];
+            const usageToSync = pendingUsageSync.duration;
 
             Object.keys(pendingPracticeSyncs).forEach(key => delete pendingPracticeSyncs[key]);
             pendingTokenSyncs.length = 0;
-
-            if (Object.keys(practiceSyncs).length === 0 && tokenSyncs.length === 0) {
+            pendingUsageSync.duration = 0;
+            
+            if (Object.keys(practiceSyncs).length === 0 && tokenSyncs.length === 0 && usageToSync === 0) {
                 return;
             }
 
             const batch = writeBatch(db);
             let totalTokenChange = 0;
-            let totalUsageUpdate = 0;
 
             for (const phraseId in practiceSyncs) {
                 const { phraseData, rewardAmount } = practiceSyncs[phraseId];
@@ -162,8 +164,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             
             for (const tokenTx of tokenSyncs) {
                 totalTokenChange -= tokenTx.amount;
-                totalUsageUpdate += tokenTx.actionType === 'live_sync_spend' ? (tokenTx.duration || 0) : 0;
-                
                 const logRef = doc(collection(db, `users/${userUid}/transactionLogs`));
                 const logData: any = {
                     actionType: tokenTx.actionType,
@@ -180,8 +180,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (totalTokenChange !== 0) {
                 updatePayload.tokenBalance = increment(totalTokenChange);
             }
-            if (totalUsageUpdate > 0) {
-                 updatePayload.syncLiveUsage = increment(totalUsageUpdate);
+            if (usageToSync > 0) {
+                 updatePayload.syncLiveUsage = increment(usageToSync);
             }
             
             if (Object.keys(updatePayload).length > 0) {
@@ -203,6 +203,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         const newTotalUsage = syncLiveUsage + durationMs;
         setSyncLiveUsage(newTotalUsage);
+        pendingUsageSync.duration += durationMs;
 
         const freeMinutesMs = (settings.freeSyncLiveMinutes || 0) * 60 * 1000;
         
@@ -222,15 +223,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                      description: `Usage charge for ${minutesToCharge} minute(s) of Live Sync.`,
                      duration: durationMs
                  });
-                 debouncedCommitToFirestore();
              }
-        } else {
-             // If no charge, still sync usage periodically.
-             pendingTokenSyncs.push({ amount: 0, actionType: 'live_sync_spend', description: 'Usage tracking', duration: durationMs });
-             debouncedCommitToFirestore();
         }
+        
+        debouncedCommitToFirestore();
 
-    }, [user, settings, syncLiveUsage, userProfile.tokenBalance, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore]);
+    }, [user, settings, syncLiveUsage, userProfile.tokenBalance, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore, pendingUsageSync]);
 
 
    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
@@ -346,5 +344,3 @@ export const useUserData = () => {
     }
     return context;
 };
-
-    

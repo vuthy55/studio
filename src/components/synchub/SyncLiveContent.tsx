@@ -26,10 +26,10 @@ export default function SyncLiveContent() {
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
   const [displayText, setDisplayText] = useState<{ lang: string; text: string } | null>(null);
-
-
   const [currentTurnUsage, setCurrentTurnUsage] = useState(0);
+
   const turnStartTimeRef = useRef<number | null>(null);
+  const isMounted = useRef(true);
   
   const { toast } = useToast();
 
@@ -37,21 +37,20 @@ export default function SyncLiveContent() {
   const freeMinutesMs = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000;
 
   useEffect(() => {
-    // This effect runs when the component unmounts (user navigates away)
-    // or if the active tab changes. It resets the session timer display.
+    isMounted.current = true;
     return () => {
-        if (status === 'listening' || status === 'speaking') {
-            abortRecognition();
-        }
-        setCurrentTurnUsage(0);
+      isMounted.current = false;
+      if (status === 'listening' || status === 'speaking') {
+        abortRecognition();
+      }
     };
   }, [status]);
   
   const calculateCostForDuration = useCallback((durationMs: number) => {
-    const chargeableMs = Math.max(0, durationMs - freeMinutesMs);
+    const chargeableMs = Math.max(0, durationMs);
     const billedMinutes = Math.ceil(chargeableMs / (60 * 1000));
     return billedMinutes * costPerMinute;
-  }, [freeMinutesMs, costPerMinute]);
+  }, [costPerMinute]);
 
 
   const startConversationTurn = async () => {
@@ -60,30 +59,39 @@ export default function SyncLiveContent() {
         return;
     }
     
-    // Check for sufficient funds before starting
-    const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
-    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
-
+    const tokensRequiredForFirstMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
+    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForFirstMinute;
+    
     if (!hasSufficientTokens && (syncLiveUsage || 0) >= freeMinutesMs) {
-        setStatus('disabled');
+        if (isMounted.current) setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
         return;
     }
 
-    setStatus('listening');
-    setLastSpoken(null);
-    setDisplayText(null);
+    if (isMounted.current) {
+        setStatus('listening');
+        setLastSpoken(null);
+        setDisplayText(null);
+        setCurrentTurnUsage(0); // Reset session timer on new turn
+    }
+    
     turnStartTimeRef.current = Date.now();
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
         
+        if (!isMounted.current) return;
         setStatus('speaking');
         setLastSpoken({ lang: getAzureLanguageLabel(detectedLang), text: originalText });
         
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
         for (const targetLangLocale of targetLanguages) {
+             if (!isMounted.current) {
+                abortRecognition();
+                return;
+            };
+
             const toLangLabel = getAzureLanguageLabel(targetLangLocale);
             
             const translationResult = await translateText({
@@ -92,7 +100,7 @@ export default function SyncLiveContent() {
                 toLanguage: toLangLabel,
             });
             const translatedText = translationResult.translatedText;
-            setDisplayText({ lang: toLangLabel, text: translatedText });
+            if (isMounted.current) setDisplayText({ lang: toLangLabel, text: translatedText });
             
             const { audioDataUri } = await generateSpeech({ 
                 text: translatedText, 
@@ -108,18 +116,22 @@ export default function SyncLiveContent() {
             });
         }
     } catch (error: any) {
-        if (error.message !== 'Recognition was aborted.') {
+        if (isMounted.current && error.message !== 'Recognition was aborted.') {
              toast({ variant: "destructive", title: "Could not recognize speech", description: "Please try speaking again." });
         }
     } finally {
         if (turnStartTimeRef.current) {
             const turnDuration = Date.now() - turnStartTimeRef.current;
-            updateSyncLiveUsage(turnDuration);
-            setCurrentTurnUsage(prev => prev + turnDuration);
+            if (isMounted.current) {
+              setCurrentTurnUsage(turnDuration);
+              updateSyncLiveUsage(turnDuration);
+            }
         }
-        setStatus('idle');
-        setLastSpoken(null);
-        setDisplayText(null);
+        if (isMounted.current) {
+          setStatus('idle');
+          setLastSpoken(null);
+          setDisplayText(null);
+        }
         turnStartTimeRef.current = null;
     }
   };
@@ -152,9 +164,8 @@ export default function SyncLiveContent() {
   };
 
   const tokensUsedDisplay = useMemo(() => {
-    return calculateCostForDuration((syncLiveUsage || 0) + currentTurnUsage) - calculateCostForDuration(syncLiveUsage || 0);
-  }, [syncLiveUsage, currentTurnUsage, calculateCostForDuration]);
-  
+    return calculateCostForDuration(currentTurnUsage);
+  }, [currentTurnUsage, calculateCostForDuration]);
   
   useEffect(() => {
       const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
@@ -240,7 +251,7 @@ export default function SyncLiveContent() {
           {status === 'disabled' && <X className="h-10 w-10"/>}
         </Button>
 
-        <div className="text-center h-20 w-full p-2 bg-secondary/50 rounded-lg">
+        <div className="text-center h-24 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center">
             <p className="font-semibold text-muted-foreground text-sm">
                 {status === 'idle' && "Tap the mic to start speaking"}
                 {status === 'listening' && "Listening..."}
@@ -262,5 +273,3 @@ export default function SyncLiveContent() {
     </Card>
   );
 }
-
-    
