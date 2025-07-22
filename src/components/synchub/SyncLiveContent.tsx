@@ -16,13 +16,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
 
 export default function SyncLiveContent() {
   const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
-  const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
+  const [selectedLanguages, setSelectedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState(0);
