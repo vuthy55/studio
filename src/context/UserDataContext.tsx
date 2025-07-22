@@ -29,7 +29,6 @@ interface RecordPracticeAttemptArgs {
     lang: LanguageCode;
     isPass: boolean;
     accuracy: number;
-    settings: AppSettings;
 }
 
 interface UserDataContextType {
@@ -37,6 +36,7 @@ interface UserDataContextType {
     loading: boolean;
     userProfile: Partial<UserProfile>;
     practiceHistory: PracticeHistoryState;
+    settings: AppSettings | null;
     fetchUserProfile: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
@@ -58,7 +58,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const pendingSyncs = useRef<PracticeHistoryState>({}).current;
+    const pendingSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
     
     // --- Data Fetching ---
 
@@ -160,40 +160,46 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     // --- Public Actions ---
 
-    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
+   const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
         if (!user || !settings) return { wasRewardable: false, rewardAmount: 0 };
-        const { phraseId, phraseText, lang, isPass, accuracy, settings: currentSettings } = args;
+        const { phraseId, phraseText, lang, isPass, accuracy } = args;
 
         let wasRewardable = false;
         let rewardAmount = 0;
-        
+
         const currentPhraseHistory = practiceHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
         const previousPassCount = currentPhraseHistory.passCountPerLang?.[lang] || 0;
         
-        const updatedPhraseHistory = { ...currentPhraseHistory };
+        const updatedPhraseHistory: PracticeHistoryDoc = { 
+            ...currentPhraseHistory,
+            passCountPerLang: { ...currentPhraseHistory.passCountPerLang },
+            failCountPerLang: { ...currentPhraseHistory.failCountPerLang },
+            lastAccuracyPerLang: { ...currentPhraseHistory.lastAccuracyPerLang },
+        };
 
         if (isPass) {
-            const newPassCount = previousPassCount + 1;
-            updatedPhraseHistory.passCountPerLang = { ...updatedPhraseHistory.passCountPerLang, [lang]: newPassCount };
+            const newPassCount = (updatedPhraseHistory.passCountPerLang![lang] || 0) + 1;
+            updatedPhraseHistory.passCountPerLang![lang] = newPassCount;
 
             // One-time reward check: did the count CROSS the threshold?
-            if (previousPassCount < currentSettings.practiceThreshold && newPassCount >= currentSettings.practiceThreshold) {
+            if (previousPassCount < settings.practiceThreshold && newPassCount >= settings.practiceThreshold) {
                 wasRewardable = true;
-                rewardAmount = currentSettings.practiceReward;
+                rewardAmount = settings.practiceReward;
                 
                 // Optimistically update the user's token balance in the UI for instant feedback
                 setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) + rewardAmount }));
             }
         } else {
-            updatedPhraseHistory.failCountPerLang = { ...updatedPhraseHistory.failCountPerLang, [lang]: (currentPhraseHistory.failCountPerLang?.[lang] || 0) + 1 };
+             updatedPhraseHistory.failCountPerLang![lang] = (updatedPhraseHistory.failCountPerLang![lang] || 0) + 1;
         }
         
-        updatedPhraseHistory.lastAccuracyPerLang = { ...updatedPhraseHistory.lastAccuracyPerLang, [lang]: accuracy };
+        updatedPhraseHistory.lastAccuracyPerLang![lang] = accuracy;
         updatedPhraseHistory.phraseText = phraseText;
 
         const updatedHistory = { ...practiceHistory, [phraseId]: updatedPhraseHistory };
         setPracticeHistory(updatedHistory);
 
+        // Only add to the sync queue if there's an actual change.
         pendingSyncs[phraseId] = { phraseData: updatedPhraseHistory, rewardAmount };
         debouncedCommitToFirestore(pendingSyncs);
         
@@ -212,12 +218,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         for (const phraseId of topicPhrases) {
             const history = practiceHistory[phraseId];
-            const passes = history?.passCountPerLang?.[lang] || 0;
-            // A phrase is "correct" if it has been passed at least once.
+            if (!history) continue;
+
+            const passes = history.passCountPerLang?.[lang] || 0;
             if (passes > 0) {
                 correct++;
             }
-            // Check if the one-time reward has been earned
             if (passes >= settings.practiceThreshold) {
                 tokensEarned += settings.practiceReward;
             }
@@ -231,6 +237,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         loading: loading || authLoading,
         userProfile,
         practiceHistory,
+        settings,
         fetchUserProfile,
         recordPracticeAttempt,
         getTopicStats
