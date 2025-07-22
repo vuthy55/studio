@@ -108,6 +108,22 @@ export function AppSidebar() {
              </>
           )}
 
+          {/* Test pages */}
+          <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === '/test'}>
+                  <Link href="/test" onClick={() => setOpenMobile(false)}>
+                      <TestTube /> Test Genkit
+                  </Link>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === '/test-speech'}>
+                  <Link href="/test-speech" onClick={() => setOpenMobile(false)}>
+                      <Mic /> Test Speech
+                  </Link>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
+
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="flex-col items-stretch gap-y-2">
