@@ -30,7 +30,9 @@ export default function SyncLiveContent() {
     if (inactivityTimerRef.current) {
         clearTimeout(inactivityTimerRef.current);
     }
+    console.log('[SyncLive] Starting 10-second inactivity timer.');
     inactivityTimerRef.current = setTimeout(() => {
+        console.log('[SyncLive] Inactivity timer fired. Resetting session.');
         setStatus('idle');
         setLastSpoken(null);
         abortRecognition();
@@ -45,6 +47,7 @@ export default function SyncLiveContent() {
     }
     // Cleanup function to abort recognition and clear timers if the component unmounts
     return () => {
+      console.log('[SyncLive] Component unmounting. Aborting recognition and clearing timers.');
       abortRecognition();
       if (inactivityTimerRef.current) {
         clearTimeout(inactivityTimerRef.current);
@@ -70,11 +73,16 @@ export default function SyncLiveContent() {
   };
   
   const startConversationTurn = async () => {
+    console.log('[SyncLive] Starting conversation turn. Status: idle -> listening');
     setStatus('listening');
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current); // Stop timer while listening
+    if (inactivityTimerRef.current) {
+        console.log('[SyncLive] Clearing inactivity timer during active listening.');
+        clearTimeout(inactivityTimerRef.current);
+    }
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
+        console.log(`[SyncLive] Speech recognized. Language: ${detectedLang}, Text: "${originalText}". Status: listening -> speaking`);
         
         setStatus('speaking');
         
@@ -84,6 +92,7 @@ export default function SyncLiveContent() {
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
         for (const targetLangLocale of targetLanguages) {
+            console.log(`[SyncLive] Translating and speaking for ${targetLangLocale}.`);
             const toLangLabel = getAzureLanguageLabel(targetLangLocale);
             
             const translationResult = await translateText({
@@ -99,20 +108,32 @@ export default function SyncLiveContent() {
             });
             const audio = new Audio(audioDataUri);
             await audio.play();
+            console.log(`[SyncLive] Playing audio for ${targetLangLocale}.`);
+
             // Wait for audio to finish, with a 2-second pause after.
             await new Promise(resolve => {
-                audio.onended = () => setTimeout(resolve, 2000);
-                audio.onerror = () => setTimeout(resolve, 2000); // also resolve on error
+                audio.onended = () => {
+                    console.log(`[SyncLive] Audio finished for ${targetLangLocale}. Pausing for 2 seconds.`);
+                    setTimeout(resolve, 2000);
+                }
+                audio.onerror = () => {
+                     console.error(`[SyncLive] Audio playback error for ${targetLangLocale}.`);
+                    setTimeout(resolve, 2000); // also resolve on error
+                }
             });
         }
+        console.log('[SyncLive] All audio playback complete.');
+
     } catch (error: any) {
-        console.error("Error during conversation turn:", error);
+        console.error("[SyncLive] Error during conversation turn:", error);
         // Only show toast if it's not a user-initiated abort
         if (error.message !== 'Recognition was aborted.') {
-             toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
+             const errorMessage = error.message === 'No speech could be recognized.' ? 'No recognized speech' : `An error occurred: ${error.message}`;
+             toast({ variant: "destructive", title: "Error", description: errorMessage });
         }
         setStatus('error');
     } finally {
+        console.log('[SyncLive] Turn finished. Status -> idle. Restarting inactivity timer.');
         setStatus('idle');
         resetInactivityTimer(); // Restart timer after the turn is fully complete.
     }
