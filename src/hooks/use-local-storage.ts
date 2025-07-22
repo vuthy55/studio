@@ -1,20 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-
-// This function checks if we're on the client-side
-const isClient = typeof window === 'object';
+import { useState, useEffect } from 'react';
 
 // A custom hook to manage state in localStorage.
 // This hook ensures that state is synchronized with localStorage and across components.
 function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
-    if (!isClient) {
-      return initialValue;
-    }
     try {
-      const item = window.localStorage.getItem(key);
+      const item = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(error);
@@ -22,20 +16,31 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val
     }
   });
 
-  const setValue = useCallback((value: T | ((val: T) => T)) => {
+  const setValue = (value: T | ((val: T) => T)) => {
     try {
       // Allow value to be a function so we have the same API as useState
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       // Save state
       setStoredValue(valueToStore);
       // Save to local storage
-      if (isClient) {
+      if (typeof window !== 'undefined') {
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       }
     } catch (error) {
       console.error(`Error setting localStorage key “${key}”:`, error);
     }
-  }, [key, storedValue]);
+  };
+
+  useEffect(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        setStoredValue(JSON.parse(item));
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }, [key]);
 
   return [storedValue, setValue];
 }
