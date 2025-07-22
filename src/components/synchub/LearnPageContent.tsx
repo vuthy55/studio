@@ -58,7 +58,6 @@ function LearnPageContent() {
     useEffect(() => {
         return () => {
             if (assessingPhraseId) {
-                console.log(`[LearnPageContent] Unmounting with active assessment ${assessingPhraseId}. Aborting.`);
                 abortRecognition();
             }
         };
@@ -102,13 +101,11 @@ function LearnPageContent() {
         const referenceText = getTranslation(phrase, toLanguage);
         const phraseId = phrase.id;
         
-        console.log(`[LearnPageContent] Starting assessment for phraseId: ${phraseId}`);
         setAssessingPhraseId(phraseId);
         setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result for this phrase
     
         try {
             const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
-            console.log(`[LearnPageContent] Received assessment for ${phraseId}:`, assessment);
             const { isPass, accuracy, fluency } = assessment;
 
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
@@ -128,7 +125,6 @@ function LearnPageContent() {
             console.error(`[LearnPageContent] Assessment failed for ${phraseId}:`, error);
             toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
         } finally {
-            console.log(`[LearnPageContent] Finalizing assessment for phraseId: ${phraseId}`);
             setAssessingPhraseId(null);
         }
     };
@@ -288,7 +284,6 @@ function LearnPageContent() {
                                 const fails = history?.failCountPerLang?.[toLanguage] || 0;
 
                                 const getResultIcon = () => {
-                                    if (isAssessingCurrent) return <LoaderCircle className="h-5 w-5 animate-spin" />;
                                     if (!assessment) return null;
                                     if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
                                     if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
