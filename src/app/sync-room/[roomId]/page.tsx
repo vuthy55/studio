@@ -154,7 +154,7 @@ export default function SyncRoomPage() {
 
     // Handle incoming messages for translation and TTS
     useEffect(() => {
-        if (!messages || !user || !currentUserParticipant?.selectedLanguage || messages.docs.length === lastMessageCount.current) {
+        if (!messages || !user || !hasJoined || !currentUserParticipant?.selectedLanguage || messages.docs.length === lastMessageCount.current) {
             return;
         }
 
@@ -165,72 +165,77 @@ export default function SyncRoomPage() {
             const msg = doc.data() as RoomMessage;
             const messageId = doc.id;
 
-            if (msg.speakerUid !== user.uid && !processedMessages.current.has(messageId)) {
-                processedMessages.current.add(messageId);
+            if (processedMessages.current.has(messageId)) {
+                return; // Skip already processed messages
+            }
+
+            processedMessages.current.add(messageId);
+            
+            if (msg.speakerUid === user.uid) {
+                return; // Don't play back our own messages
+            }
                 
-                try {
-                    setTranslatedMessages(prev => ({ ...prev, [messageId]: 'Translating...' }));
+            try {
+                setTranslatedMessages(prev => ({ ...prev, [messageId]: 'Translating...' }));
 
-                    const { translatedText } = await translateText({
-                        text: msg.text,
-                        fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
-                        toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
+                const { translatedText } = await translateText({
+                    text: msg.text,
+                    fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
+                    toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
+                });
+                
+                setTranslatedMessages(prev => ({ ...prev, [messageId]: translatedText }));
+                
+                if (audioPlayerRef.current?.paused === false) {
+                    await new Promise(resolve => {
+                        if (audioPlayerRef.current) audioPlayerRef.current.onended = resolve;
                     });
-                    
-                    setTranslatedMessages(prev => ({ ...prev, [messageId]: translatedText }));
-                    
-                    if (audioPlayerRef.current?.paused === false) {
-                        // If audio is already playing, wait for it to finish
-                        await new Promise(resolve => {
-                            if (audioPlayerRef.current) audioPlayerRef.current.onended = resolve;
-                        });
-                    }
-
-                    setIsSpeaking(true);
-                    const { audioDataUri } = await generateSpeech({ 
-                        text: translatedText, 
-                        lang: currentUserParticipant.selectedLanguage!,
-                    });
-                    
-                    if (audioPlayerRef.current) {
-                        audioPlayerRef.current.src = audioDataUri;
-                        await audioPlayerRef.current.play();
-                        await new Promise(resolve => {
-                            if (audioPlayerRef.current) {
-                                audioPlayerRef.current.onended = () => resolve(true);
-                            } else {
-                                resolve(true);
-                            }
-                        });
-                    }
-                } catch(e: any) {
-                    console.error("Error processing message:", e);
-                    setTranslatedMessages(prev => ({ ...prev, [messageId]: `Error: Could not translate message.` }));
-                    toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-                } finally {
-                    setIsSpeaking(false);
                 }
+
+                setIsSpeaking(true);
+                const { audioDataUri } = await generateSpeech({ 
+                    text: translatedText, 
+                    lang: currentUserParticipant.selectedLanguage!,
+                });
+                
+                if (audioPlayerRef.current) {
+                    audioPlayerRef.current.src = audioDataUri;
+                    await audioPlayerRef.current.play();
+                    await new Promise(resolve => {
+                        if (audioPlayerRef.current) {
+                            audioPlayerRef.current.onended = () => resolve(true);
+                        } else {
+                            resolve(true);
+                        }
+                    });
+                }
+            } catch(e: any) {
+                console.error("Error processing message:", e);
+                setTranslatedMessages(prev => ({ ...prev, [messageId]: `Error: Could not translate message.` }));
+                toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
+            } finally {
+                setIsSpeaking(false);
             }
         };
 
         newMessages.forEach(processMessage);
 
-    }, [messages, user, currentUserParticipant, toast]);
+    }, [messages, user, hasJoined, currentUserParticipant, toast]);
 
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
         } else if (user && roomData && !participantsLoading) {
-            if(currentUserParticipant) {
+            const isParticipant = participants?.docs.some(p => p.id === user.uid);
+            if (isParticipant) {
+                // When joining, mark all current messages as processed to prevent re-playing history
+                messages?.docs.forEach(doc => processedMessages.current.add(doc.id));
+                lastMessageCount.current = messages?.docs.length || 0;
                 setHasJoined(true);
-                // Initialize processed messages with history on first join, so it's not replayed
-                 if (processedMessages.current.size === 0 && messages) {
-                    messages.docs.forEach(doc => processedMessages.current.add(doc.id));
-                }
             }
         }
-    }, [user, authLoading, router, roomData, participantsLoading, currentUserParticipant, messages]);
+    }, [user, authLoading, router, roomData, participants, participantsLoading, messages]);
 
     const goBack = () => router.push('/');
 
@@ -351,7 +356,7 @@ export default function SyncRoomPage() {
                             {messages?.docs.map(doc => {
                                 const msg = doc.data() as RoomMessage;
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || 'Translating...');
+                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || '');
                                 
                                 return (
                                     <div key={doc.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
@@ -398,3 +403,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
