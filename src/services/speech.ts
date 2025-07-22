@@ -123,7 +123,7 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode | ''): Pr
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
             } else {
-                 reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}.`));
+                 reject(new Error(`Could not recognize speech. Please try again.`));
             }
             abortRecognition();
         }, err => {
@@ -145,7 +145,7 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
     return new Promise((resolve, reject) => {
          recognizer.recognizeOnceAsync(result => {
             abortRecognition();
-            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+            if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
                 resolve({
                     detectedLang: autoDetectResult.language,
