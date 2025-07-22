@@ -125,7 +125,7 @@ export default function SyncRoomPage() {
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>>();
+    const processedMessages = useRef(new Set<string,>());
     const lastMessageCount = useRef(0);
 
 
@@ -312,7 +312,7 @@ export default function SyncRoomPage() {
 
     if (roomError) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load room data.' });
-        router.push('/');
+        router.push('/?tab=sync-online');
         return null;
     }
 
