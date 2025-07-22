@@ -2,6 +2,11 @@
 import type { FieldValue } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 
+export interface BlockedUser {
+    uid: string;
+    email: string;
+}
+
 export type SyncRoom = {
     id: string;
     topic: string;
@@ -12,7 +17,7 @@ export type SyncRoom = {
     invitedEmails: string[];
     emceeEmails: string[];
     lastActivityAt?: FieldValue;
-    blockedUids?: string[];
+    blockedUsers?: BlockedUser[];
     summary?: {
         title: string;
         date: string;

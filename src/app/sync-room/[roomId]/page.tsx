@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
-import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
+import type { SyncRoom, Participant, BlockedUser } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
@@ -226,7 +226,7 @@ export default function SyncRoomPage() {
             });
             router.push('/?tab=sync-online');
         }
-        if (user && roomData?.blockedUids?.includes(user.uid)) {
+        if (user && roomData?.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
             toast({
                 variant: 'destructive',
                 title: 'Access Denied',
@@ -292,7 +292,7 @@ export default function SyncRoomPage() {
         if (!authLoading && !user) {
             router.push('/login');
         } else if (user && roomData && !participantsLoading) {
-            if (roomData.blockedUids?.includes(user.uid)) {
+            if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
                  toast({ variant: 'destructive', title: 'Access Denied', description: 'You have been blocked from this room.' });
                  router.push('/?tab=sync-online');
                  return;
@@ -396,23 +396,24 @@ export default function SyncRoomPage() {
         }
     };
 
-    const handleRemoveParticipant = async (participantId: string, participantName: string) => {
+    const handleRemoveParticipant = async (participant: Participant) => {
         if (!isCurrentUserEmcee) return;
         try {
             const batch = writeBatch(db);
-            
+            const userToBlock: BlockedUser = { uid: participant.uid, email: participant.email };
+
             // Add user's UID to the blocked list
             batch.update(roomRef, {
-                blockedUids: arrayUnion(participantId)
+                blockedUsers: arrayUnion(userToBlock)
             });
 
             // Delete participant from subcollection
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', participantId);
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', participant.uid);
             batch.delete(participantRef);
             
             await batch.commit();
 
-            toast({ title: 'User Removed & Blocked', description: `${participantName} has been removed from the room and cannot re-enter.` });
+            toast({ title: 'User Removed & Blocked', description: `${participant.name} has been removed from the room and cannot re-enter.` });
         } catch (error) {
             console.error("Error removing participant:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not remove the participant.' });
@@ -590,7 +591,7 @@ export default function SyncRoomPage() {
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleRemoveParticipant(p.id, p.name)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                        <AlertDialogAction onClick={() => handleRemoveParticipant(p as Participant)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                                             Remove & Block
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>

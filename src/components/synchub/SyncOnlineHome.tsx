@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck } from 'lucide-react';
-import type { SyncRoom, Participant } from '@/lib/types';
+import type { SyncRoom, Participant, BlockedUser } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,16 +44,10 @@ import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { doc as getDoc, getDoc as getFirestoreDoc } from "firebase/firestore";
 
 
 interface InvitedRoom extends SyncRoom {
     id: string;
-}
-
-interface BlockedUserDetails {
-    uid: string;
-    email: string;
 }
 
 export default function SyncOnlineHome() {
@@ -76,7 +70,6 @@ export default function SyncOnlineHome() {
     const [settings, setSettings] = useState<AppSettings | null>(null);
 
     const [isManageBlockedDialogOpen, setManageBlockedDialogOpen] = useState(false);
-    const [blockedUsers, setBlockedUsers] = useState<BlockedUserDetails[]>([]);
     const [selectedRoomForManagement, setSelectedRoomForManagement] = useState<InvitedRoom | null>(null);
 
 
@@ -176,7 +169,7 @@ export default function SyncOnlineHome() {
                 status: 'active',
                 invitedEmails: allInvitedEmails,
                 emceeEmails: [...new Set(emceeEmails)],
-                blockedUids: [],
+                blockedUsers: [],
                 lastActivityAt: serverTimestamp(),
             };
             batch.set(newRoomRef, newRoom);
@@ -220,36 +213,28 @@ export default function SyncOnlineHome() {
         }
     };
 
-     const handleManageBlockedUsers = async (room: InvitedRoom) => {
+     const handleManageBlockedUsers = (room: InvitedRoom) => {
         setSelectedRoomForManagement(room);
-        if (!room.blockedUids || room.blockedUids.length === 0) {
-            setBlockedUsers([]);
-            setManageBlockedDialogOpen(true);
-            return;
-        }
-
-        const userPromises = room.blockedUids.map(uid => getFirestoreDoc(doc(db, 'users', uid)));
-        const userDocs = await Promise.all(userPromises);
-
-        const usersDetails: BlockedUserDetails[] = userDocs
-            .filter(doc => doc.exists())
-            .map(doc => ({ uid: doc.id, email: doc.data()?.email || 'Unknown Email' }));
-
-        setBlockedUsers(usersDetails);
         setManageBlockedDialogOpen(true);
     };
 
-    const handleUnblockUser = async (uidToUnblock: string) => {
+    const handleUnblockUser = async (userToUnblock: BlockedUser) => {
         if (!selectedRoomForManagement) return;
         try {
             const roomRef = doc(db, 'syncRooms', selectedRoomForManagement.id);
             await updateDoc(roomRef, {
-                blockedUids: arrayRemove(uidToUnblock)
+                blockedUsers: arrayRemove(userToUnblock)
             });
             toast({ title: 'User Unblocked', description: 'The user can now rejoin the room.' });
             
-            // Refresh the blocked users list in the dialog
-            setBlockedUsers(prev => prev.filter(u => u.uid !== uidToUnblock));
+            // Refresh the blocked users list in the dialog by updating the selected room state
+            setSelectedRoomForManagement(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    blockedUsers: prev.blockedUsers?.filter(u => u.uid !== userToUnblock.uid)
+                };
+            });
 
             // Refresh the main room list to update its state
             fetchInvitedRooms();
@@ -415,6 +400,32 @@ export default function SyncOnlineHome() {
                 </CardContent>
             </Card>
 
+            <Dialog open={isManageBlockedDialogOpen} onOpenChange={setManageBlockedDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Manage Blocked Users for "{selectedRoomForManagement?.topic}"</DialogTitle>
+                        <DialogDescription>
+                            You can re-admit users who were previously removed from this room.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        {selectedRoomForManagement?.blockedUsers && selectedRoomForManagement.blockedUsers.length > 0 ? (
+                            <ul className="space-y-2">
+                                {selectedRoomForManagement.blockedUsers.map(bu => (
+                                    <li key={bu.uid} className="flex justify-between items-center">
+                                        <span>{bu.email}</span>
+                                        <Button variant="secondary" size="sm" onClick={() => handleUnblockUser(bu)}>
+                                            <UserCheck className="mr-2 h-4 w-4"/>
+                                            Re-admit
+                                        </Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : <p className="text-muted-foreground">No users have been blocked from this room.</p>}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {user && isClient && (
                 <Card>
                     <CardHeader>
@@ -430,7 +441,7 @@ export default function SyncOnlineHome() {
                         ) : invitedRooms.length > 0 ? (
                             <ul className="space-y-3">
                                 {invitedRooms.map(room => {
-                                    const isBlocked = room.blockedUids?.includes(user.uid);
+                                    const isBlocked = room.blockedUsers?.some(bu => bu.uid === user.uid);
                                     const isCreator = room.creatorUid === user.uid;
 
                                     return (
@@ -460,44 +471,19 @@ export default function SyncOnlineHome() {
                                                     <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
                                                 </Button>
                                                 
-                                                {isCreator && room.blockedUids && room.blockedUids.length > 0 && (
-                                                     <Dialog>
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <DialogTrigger asChild>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button variant="outline" size="icon" onClick={() => handleManageBlockedUsers(room)}>
-                                                                            <UserX className="h-4 w-4" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                </DialogTrigger>
-                                                                <TooltipContent><p>Manage Blocked Users</p></TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
-                                                        <DialogContent>
-                                                            <DialogHeader>
-                                                                <DialogTitle>Manage Blocked Users for "{room.topic}"</DialogTitle>
-                                                                <DialogDescription>
-                                                                    You can re-admit users who were previously removed from this room.
-                                                                </DialogDescription>
-                                                            </DialogHeader>
-                                                            <div className="py-4">
-                                                                {blockedUsers.length > 0 ? (
-                                                                    <ul className="space-y-2">
-                                                                        {blockedUsers.map(bu => (
-                                                                            <li key={bu.uid} className="flex justify-between items-center">
-                                                                                <span>{bu.email}</span>
-                                                                                <Button variant="secondary" size="sm" onClick={() => handleUnblockUser(bu.uid)}>
-                                                                                    <UserCheck className="mr-2 h-4 w-4"/>
-                                                                                    Re-admit
-                                                                                </Button>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                ) : <p className="text-muted-foreground">No users have been blocked from this room.</p>}
-                                                            </div>
-                                                        </DialogContent>
-                                                    </Dialog>
+                                                {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
+                                                     <TooltipProvider>
+                                                        <Tooltip>
+                                                            <DialogTrigger asChild>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="outline" size="icon" onClick={() => handleManageBlockedUsers(room)}>
+                                                                        <UserX className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                            </DialogTrigger>
+                                                            <TooltipContent><p>Manage Blocked Users</p></TooltipContent>
+                                                        </Tooltip>
+                                                     </TooltipProvider>
                                                 )}
 
                                                 {isCreator && room.status !== 'closed' && (
