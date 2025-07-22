@@ -36,32 +36,15 @@ export default function SyncLiveContent() {
 
   useEffect(() => {
     // This effect runs when the component unmounts (user navigates away)
+    // or if the active tab changes.
     return () => {
-        abortRecognition();
+        if (status === 'listening' || status === 'speaking') {
+            abortRecognition();
+        }
+        // When leaving the component, reset the session timer display
+        setCurrentTurnUsage(0);
     };
-  }, []);
-  
-  // This effect resets the session usage when the tab is re-visited
-  // after the user has navigated away, ensuring the timer starts fresh.
-  useEffect(() => {
-    setCurrentTurnUsage(0);
-  }, []);
-
-  const handleLanguageSelect = (lang: AzureLanguageCode) => {
-    if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
-      setSelectedLanguages(prev => [...prev, lang]);
-    } else if (selectedLanguages.length >= 4) {
-      toast({ variant: 'destructive', title: 'Limit Reached', description: 'You can select a maximum of 4 languages.' });
-    }
-  };
-
-  const removeLanguage = (langToRemove: AzureLanguageCode) => {
-    if (selectedLanguages.length > 2) {
-      setSelectedLanguages(prev => prev.filter(lang => lang !== langToRemove));
-    } else {
-      toast({ variant: 'destructive', title: 'Minimum Required', description: 'You need at least 2 languages for a conversation.' });
-    }
-  };
+  }, [status]);
   
   const calculateCosts = useCallback(() => {
     const totalUsageMs = (syncLiveUsage || 0) + currentTurnUsage;
@@ -117,9 +100,9 @@ export default function SyncLiveContent() {
             const audio = new Audio(audioDataUri);
             await audio.play();
 
-            await new Promise(resolve => {
-                audio.onended = () => setTimeout(resolve, 1500);
-                audio.onerror = () => setTimeout(resolve, 1500); // Also resolve on error to not block forever
+            await new Promise<void>(resolve => {
+                audio.onended = () => resolve();
+                audio.onerror = () => resolve(); // Also resolve on error to not block forever
             });
         }
     } catch (error: any) {
@@ -129,14 +112,31 @@ export default function SyncLiveContent() {
     } finally {
         if (turnStartTimeRef.current) {
             const turnDuration = Date.now() - turnStartTimeRef.current;
-            setCurrentTurnUsage(prev => prev + turnDuration); // Add to session usage
-            updateSyncLiveUsage(turnDuration); // Persist usage to context/db
+            const newTotalUsage = currentTurnUsage + turnDuration;
+            setCurrentTurnUsage(newTotalUsage);
+            updateSyncLiveUsage(turnDuration);
         }
         setStatus('idle');
         turnStartTimeRef.current = null;
     }
   };
 
+  const handleLanguageSelect = (lang: AzureLanguageCode) => {
+    if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
+      setSelectedLanguages(prev => [...prev, lang]);
+    } else if (selectedLanguages.length >= 4) {
+      toast({ variant: 'destructive', title: 'Limit Reached', description: 'You can select a maximum of 4 languages.' });
+    }
+  };
+
+  const removeLanguage = (langToRemove: AzureLanguageCode) => {
+    if (selectedLanguages.length > 2) {
+      setSelectedLanguages(prev => prev.filter(lang => lang !== langToRemove));
+    } else {
+      toast({ variant: 'destructive', title: 'Minimum Required', description: 'You need at least 2 languages for a conversation.' });
+    }
+  };
+  
   const allLanguageOptions = useMemo(() => {
     return azureLanguages.filter(l => !selectedLanguages.includes(l.value));
   }, [selectedLanguages]);
@@ -149,13 +149,11 @@ export default function SyncLiveContent() {
   };
 
   const tokensUsedDisplay = useMemo(() => {
-    const billedMinutes = Math.ceil(currentTurnUsage / (60 * 1000));
-    if (billedMinutes === 0 && currentTurnUsage > 0) {
-        // Charge for the first minute block as soon as usage starts
-        return costPerMinute;
-    }
+    const totalUsageMs = (syncLiveUsage || 0) + currentTurnUsage;
+    const chargeableMs = Math.max(0, totalUsageMs - freeMinutesMs);
+    const billedMinutes = Math.ceil(chargeableMs / (60 * 1000));
     return billedMinutes * costPerMinute;
-  }, [currentTurnUsage, costPerMinute]);
+  }, [syncLiveUsage, currentTurnUsage, freeMinutesMs, costPerMinute]);
   
   useEffect(() => {
       const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensUsedDisplay;
