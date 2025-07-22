@@ -460,7 +460,7 @@ export default function SyncOnlineHome() {
                                                     <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
                                                 </Button>
                                                 
-                                                {isCreator && (
+                                                {isCreator && room.blockedUids && room.blockedUids.length > 0 && (
                                                      <Dialog>
                                                         <TooltipProvider>
                                                             <Tooltip>
