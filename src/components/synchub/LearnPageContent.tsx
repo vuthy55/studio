@@ -111,7 +111,7 @@ function LearnPageContent() {
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
             setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
             
-            recordPracticeAttempt({
+            const { wasRewardable, rewardAmount } = recordPracticeAttempt({
                 phraseId,
                 phraseText: referenceText,
                 topicId,
@@ -121,9 +121,15 @@ function LearnPageContent() {
                 settings
             });
 
+            if (wasRewardable) {
+                toast({ title: "Tokens Earned!", description: `Congratulations! You earned ${rewardAmount} tokens!` });
+            }
+
         } catch (error: any) {
             console.error(`[LearnPageContent] Assessment failed for ${phraseId}:`, error);
-            toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+            if (error.message !== "Recognition was aborted.") {
+                toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+            }
         } finally {
             setAssessingPhraseId(null);
         }
@@ -315,7 +321,7 @@ function LearnPageContent() {
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
                                                 <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
+                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-destructive" /> : <Mic className={cn("h-5 w-5")} /> }
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>
                                             </div>
