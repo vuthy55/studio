@@ -33,11 +33,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2 } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare } from 'lucide-react';
 import type { SyncRoom, Participant } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface InvitedRoom extends SyncRoom {
     id: string;
@@ -50,7 +51,7 @@ export default function SyncOnlineHome() {
 
     const [isCreating, setIsCreating] = useState(false);
     const [roomTopic, setRoomTopic] = useState('');
-    const [spokenLanguage, setSpokenLanguage] = useState<AzureLanguageCode | ''>('');
+    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
     const [inviteeEmails, setInviteeEmails] = useState('');
     
     const [createdRoomLink, setCreatedRoomLink] = useState('');
@@ -76,7 +77,10 @@ export default function SyncOnlineHome() {
             const roomsRef = collection(db, 'syncRooms');
             const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
             const querySnapshot = await getDocs(q);
-            const rooms = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom));
+            const rooms = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
+                .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); // Sort by newest first
+            
             setInvitedRooms(rooms);
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
@@ -111,21 +115,20 @@ export default function SyncOnlineHome() {
             toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create a room.' });
             return;
         }
-        if (!roomTopic || !spokenLanguage) {
+        if (!roomTopic || !creatorLanguage) {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide a topic and select your language.' });
             return;
         }
 
         setIsCreating(true);
         try {
-            const emails = inviteeEmails.split(',').map(email => email.trim()).filter(Boolean);
+            const emails = inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean); // Handles commas and spaces
             if (!emails.includes(user.email!)) {
                 emails.push(user.email!);
             }
             
             const batch = writeBatch(db);
 
-            // 1. Create the room document
             const newRoomRef = doc(collection(db, 'syncRooms'));
             const newRoom: Omit<SyncRoom, 'id'> = {
                 topic: roomTopic,
@@ -133,26 +136,29 @@ export default function SyncOnlineHome() {
                 createdAt: serverTimestamp(),
                 status: 'active',
                 invitedEmails: emails,
-                activeSpeakerUid: null,
                 emceeUids: [user.uid],
+                lastActivityAt: serverTimestamp(),
+                // Deprecated field, set to null
+                activeSpeakerUid: null,
+                // Add version for easy identification
+                version: 2, 
             };
             batch.set(newRoomRef, newRoom);
 
-            // 2. Create the creator's participant document
             const participantRef = doc(db, 'syncRooms', newRoomRef.id, 'participants', user.uid);
             const creatorParticipant: Participant = {
                 uid: user.uid,
-                name: user.displayName || 'Creator',
+                name: user.displayName || user.email?.split('@')[0] || 'Creator',
                 email: user.email!,
-                selectedLanguage: spokenLanguage,
+                selectedLanguage: creatorLanguage,
             };
             batch.set(participantRef, creatorParticipant);
 
-            // 3. Commit the batch
             await batch.commit();
             
             const joinLink = `${window.location.origin}/sync-room/${newRoomRef.id}`;
             setCreatedRoomLink(joinLink);
+            fetchInvitedRooms(); // Refresh the list to show the new room immediately
 
         } catch (error) {
             console.error("Error creating room:", error);
@@ -166,17 +172,14 @@ export default function SyncOnlineHome() {
         try {
             const batch = writeBatch(db);
     
-            // Delete messages subcollection
             const messagesRef = collection(db, 'syncRooms', roomId, 'messages');
             const messagesSnapshot = await getSubCollectionDocs(messagesRef);
             messagesSnapshot.forEach(doc => batch.delete(doc.ref));
 
-            // Delete participants subcollection
             const participantsRef = collection(db, 'syncRooms', roomId, 'participants');
             const participantsSnapshot = await getSubCollectionDocs(participantsRef);
             participantsSnapshot.forEach(doc => batch.delete(doc.ref));
 
-            // Delete the main room doc
             const roomRef = doc(db, 'syncRooms', roomId);
             batch.delete(roomRef);
 
@@ -199,7 +202,7 @@ export default function SyncOnlineHome() {
     
     const resetAndClose = () => {
         setRoomTopic('');
-        setSpokenLanguage('');
+        setCreatorLanguage('');
         setInviteeEmails('');
         setCreatedRoomLink('');
     };
@@ -254,7 +257,7 @@ export default function SyncOnlineHome() {
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="language">Your Spoken Language</Label>
-                                            <Select onValueChange={(v) => setSpokenLanguage(v as AzureLanguageCode)} value={spokenLanguage}>
+                                            <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
                                                 <SelectTrigger id="language">
                                                     <SelectValue placeholder="Select your language..." />
                                                 </SelectTrigger>
@@ -318,7 +321,7 @@ export default function SyncOnlineHome() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><List /> Your Invited Rooms</CardTitle>
-                        <CardDescription>Rooms you have been invited to join.</CardDescription>
+                        <CardDescription>Rooms you have been invited to or have created.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {isFetchingRooms ? (
@@ -332,11 +335,15 @@ export default function SyncOnlineHome() {
                                     <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
                                         <div className="flex-grow">
                                             <p className="font-semibold">{room.topic}</p>
-                                            <p className="text-sm text-muted-foreground">Click to join the conversation</p>
+                                            <div className="flex items-center gap-2">
+                                                 <p className="text-sm text-muted-foreground">{new Date(room.createdAt?.toDate()).toLocaleString()}</p>
+                                                 {room.version === 2 && <Badge variant="outline">V2</Badge>}
+                                                 {room.status === 'closed' && <Badge variant="destructive">Closed</Badge>}
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Button asChild>
-                                                <Link href={`/sync-room/${room.id}`}>Join Room</Link>
+                                            <Button asChild disabled={room.status === 'closed'}>
+                                                <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
                                             </Button>
                                             {room.creatorUid === user.uid && (
                                                 <AlertDialog onOpenChange={() => setDeleteConfirmation('')}>
@@ -349,7 +356,7 @@ export default function SyncOnlineHome() {
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the room and all of its messages and participant data.
+                                                                This action cannot be undone. This will permanently delete the room and all of its data.
                                                                 <br/><br/>
                                                                 Please type <strong>delete</strong> to confirm.
                                                             </AlertDialogDescription>
