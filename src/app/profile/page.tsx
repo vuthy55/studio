@@ -172,6 +172,13 @@ function TokenHistorySection() {
             default: return 'Unknown Action';
         }
     }
+    
+    const getDescriptionText = (log: TransactionLog) => {
+         if (log.actionType === 'referral_bonus' && log.referredUserName && log.referredUserEmail) {
+            return `Bonus for inviting ${log.referredUserName} (${log.referredUserEmail})`;
+        }
+        return log.description;
+    }
 
      useEffect(() => {
         if (!user) return;
@@ -206,7 +213,7 @@ function TokenHistorySection() {
                                 </div>
                                 <div className="ml-4 flex-grow">
                                     <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
-                                    <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
+                                    <p className="text-sm text-muted-foreground truncate max-w-xs">{getDescriptionText(log)}</p>
                                 </div>
                                 <p className="text-xs text-muted-foreground ml-auto">
                                     {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}

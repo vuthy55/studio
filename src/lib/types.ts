@@ -34,6 +34,9 @@ export type TransactionLog = {
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
+    referredUid?: string;
+    referredUserName?: string;
+    referredUserEmail?: string;
 }
 
 export type PaymentLog = {

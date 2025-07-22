@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -28,11 +29,20 @@ export async function processReferral(referrerUid: string, newUserId: string): P
     // Use a transaction to ensure atomicity
     await db.runTransaction(async (transaction) => {
       const referrerRef = db.collection('users').doc(referrerUid);
-      const referrerDoc = await transaction.get(referrerRef);
+      const referredRef = db.collection('users').doc(newUserId);
+
+      const [referrerDoc, referredDoc] = await transaction.getAll(referrerRef, referredRef);
 
       if (!referrerDoc.exists) {
         throw new Error(`Referrer with ID ${referrerUid} not found.`);
       }
+      if (!referredDoc.exists) {
+        throw new Error(`Referred user with ID ${newUserId} not found.`);
+      }
+      
+      const referredUserData = referredDoc.data();
+      const referredUserName = referredUserData?.name || 'New User';
+      const referredUserEmail = referredUserData?.email || '';
 
       // 1. Update referrer's token balance
       transaction.update(referrerRef, {
@@ -45,7 +55,10 @@ export async function processReferral(referrerUid: string, newUserId: string): P
         actionType: 'referral_bonus',
         tokenChange: referralBonus,
         timestamp: FieldValue.serverTimestamp(),
-        description: `Referral bonus for inviting new user ${newUserId}`
+        description: `Referral bonus for inviting ${referredUserName}`,
+        referredUid: newUserId,
+        referredUserName: referredUserName,
+        referredUserEmail: referredUserEmail,
       });
 
       // 3. Create a referral record for tracking purposes
