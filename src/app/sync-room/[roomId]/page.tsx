@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
@@ -201,7 +201,7 @@ export default function SyncRoomPage() {
     }, [participantsCollection, hasJoined, participantsLoading, user, router, toast]);
 
 
-    // Gracefully exit if room is closed
+    // Gracefully exit if room is closed or user is blocked
     useEffect(() => {
         if (roomData?.status === 'closed') {
             toast({
@@ -211,7 +211,16 @@ export default function SyncRoomPage() {
             });
             router.push('/?tab=sync-online');
         }
-    }, [roomData, router, toast]);
+        if (user && roomData?.blockedUids?.includes(user.uid)) {
+            toast({
+                variant: 'destructive',
+                title: 'Access Denied',
+                description: 'You have been blocked from this room.',
+                duration: 5000
+            });
+            router.push('/?tab=sync-online');
+        }
+    }, [roomData, user, router, toast]);
 
     // Handle incoming messages for translation and TTS
     useEffect(() => {
@@ -266,7 +275,11 @@ export default function SyncRoomPage() {
         if (!authLoading && !user) {
             router.push('/login');
         } else if (user && roomData && !participantsLoading) {
-            // Check if room is closed on initial load
+            if (roomData.blockedUids?.includes(user.uid)) {
+                 toast({ variant: 'destructive', title: 'Access Denied', description: 'You have been blocked from this room.' });
+                 router.push('/?tab=sync-online');
+                 return;
+            }
             if (roomData.status === 'closed') {
                 toast({ title: 'Room Closed', description: 'This room is no longer active.' });
                 router.push('/?tab=sync-online');
@@ -346,9 +359,20 @@ export default function SyncRoomPage() {
     const handleRemoveParticipant = async (participantId: string, participantName: string) => {
         if (!isCurrentUserEmcee) return;
         try {
+            const batch = writeBatch(db);
+            
+            // Add user's UID to the blocked list
+            batch.update(roomRef, {
+                blockedUids: arrayUnion(participantId)
+            });
+
+            // Delete participant from subcollection
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', participantId);
-            await deleteDoc(participantRef);
-            toast({ title: 'User Removed', description: `${participantName} has been removed from the room.` });
+            batch.delete(participantRef);
+            
+            await batch.commit();
+
+            toast({ title: 'User Removed & Blocked', description: `${participantName} has been removed from the room and cannot re-enter.` });
         } catch (error) {
             console.error("Error removing participant:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not remove the participant.' });
@@ -466,7 +490,7 @@ export default function SyncRoomPage() {
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            This will remove {p.name} from the room. They will not be able to rejoin.
+                                                            This will permanently remove {p.name} from the room. They will not be able to rejoin.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
@@ -507,10 +531,28 @@ export default function SyncRoomPage() {
                         Exit Room
                     </Button>
                     {isCurrentUserEmcee && (
-                        <Button variant="destructive" size="sm" className="w-full" onClick={handleEndMeeting}>
-                            <ShieldX className="mr-2 h-4 w-4"/>
-                            End Meeting
-                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" className="w-full">
+                                    <ShieldX className="mr-2 h-4 w-4"/>
+                                    End Meeting
+                                </Button>
+                            </AlertDialogTrigger>
+                             <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>End Meeting for All?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will close the room for all participants. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleEndMeeting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                        End Meeting
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     )}
                 </footer>
             </aside>

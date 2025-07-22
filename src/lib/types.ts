@@ -11,6 +11,7 @@ export type SyncRoom = {
     invitedEmails: string[];
     emceeEmails: string[];
     lastActivityAt?: FieldValue;
+    blockedUids?: string[];
     summary?: {
         title: string;
         date: string;
