@@ -6,7 +6,7 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
 import { recognizeFromMic, assessPronunciationFromMic, abortRecognition } from '@/services/speech';
@@ -14,7 +14,6 @@ import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
@@ -101,7 +100,7 @@ export default function LiveTranslationContent() {
         try {
             const description = `Translated: "${inputText.substring(0, 50)}..."`;
             
-            const spendSuccess = await spendTokensForTranslation(description);
+            const spendSuccess = spendTokensForTranslation(description);
             
             if (!spendSuccess) {
                 toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens for this translation.' });
@@ -338,7 +337,7 @@ export default function LiveTranslationContent() {
             {savedPhrases.length > 0 && user && (
                 <div className="space-y-4">
                     <h3 className="text-xl font-bold font-headline">Your Saved Phrases for Practice</h3>
-                    <Accordion type="multiple" className="w-full">
+                    <div className="w-full space-y-2">
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
                             const assessment = lastAssessment[phrase.id];
                             const history = practiceHistory[phrase.id];
@@ -355,36 +354,20 @@ export default function LiveTranslationContent() {
                             };
                             
                             return (
-                                <AccordionItem value={phrase.id} key={phrase.id}>
-                                    <AccordionTrigger>
-                                        <div className="flex flex-col text-left">
-                                            <span className="text-muted-foreground">{phrase.fromText}</span>
-                                            <span className="font-semibold text-primary">{phrase.toText}</span>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="flex justify-between items-center w-full px-4 pb-2">
-                                            <div className="flex items-center gap-4">
-                                                {hasBeenRewarded && (
-                                                    <div className="flex items-center gap-1 text-amber-500 font-bold" title={`Tokens awarded for this phrase: +${settings?.practiceReward || 0}`}>
-                                                        <Award className="h-4 w-4" />
-                                                        <span>+{settings?.practiceReward || 0}</span>
+                                <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
+                                    <p className="font-semibold text-lg">{phrase.fromText}</p>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex justify-between items-center w-full">
+                                            <div>
+                                                <p className="font-bold text-lg text-primary">{phrase.toText}</p>
+                                                {assessment && (
+                                                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
+                                                        <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                        <p>Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
                                                     </div>
                                                 )}
-                                                <div className="text-xs text-muted-foreground flex items-center gap-1" title='Correct attempts'>
-                                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                    <span className="font-bold">{passes}</span>
-                                                </div>
-                                                <div className="text-xs text-muted-foreground flex items-center gap-1" title='Incorrect attempts'>
-                                                    <XCircle className="h-4 w-4 text-red-500" />
-                                                    <span className="font-bold">{fails}</span>
-                                                </div>
-                                                {assessment && (
-                                                     <p className="text-xs text-muted-foreground">| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                )}
                                             </div>
-
-                                            <div className="flex items-center shrink-0 ml-auto">
+                                            <div className="flex items-center shrink-0">
                                                 {getResultIcon()}
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
@@ -393,16 +376,34 @@ export default function LiveTranslationContent() {
                                                     {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                     <span className="sr-only">Practice</span>
                                                 </Button>
-                                                 <Button size="icon" variant="ghost" onClick={() => handleRemovePhrase(phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    <Bookmark className="h-5 w-5 text-red-500" /><span className="sr-only">Remove</span>
+                                                <Button size="icon" variant="ghost" onClick={() => handleRemovePhrase(phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                    <Trash2 className="h-5 w-5 text-red-500" /><span className="sr-only">Remove</span>
                                                 </Button>
                                             </div>
                                         </div>
-                                    </AccordionContent>
-                                </AccordionItem>
+                                    </div>
+                                    {(passes > 0 || fails > 0) &&
+                                        <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
+                                            {hasBeenRewarded && (
+                                                <div className="flex items-center gap-1 text-amber-500 font-bold" title={`Tokens awarded for this phrase: +${settings?.practiceReward || 0}`}>
+                                                    <Award className="h-4 w-4" />
+                                                    <span>+{settings?.practiceReward || 0}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center gap-1" title='Correct attempts'>
+                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                <span className="font-bold">{passes}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                                <XCircle className="h-4 w-4 text-red-500" />
+                                                <span className="font-bold">{fails}</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
                             )
                         })}
-                    </Accordion>
+                    </div>
                     {savedPhrases.length > visiblePhraseCount && (
                         <div className="text-center">
                             <Button variant="outline" onClick={() => setVisiblePhraseCount(prev => prev + 3)}>Load More</Button>
@@ -412,5 +413,4 @@ export default function LiveTranslationContent() {
             )}
         </div>
     );
-
-    
+}
