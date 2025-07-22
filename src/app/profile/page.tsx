@@ -321,7 +321,7 @@ export default function ProfilePage() {
                         <p className="text-muted-foreground">Manage settings and track your history.</p>
                     </div>
                  </div>
-                 <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 text-lg font-bold text-amber-500">
                         <Coins className="h-6 w-6" />
                         <span>{profile.tokenBalance ?? 0}</span>
@@ -361,3 +361,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
