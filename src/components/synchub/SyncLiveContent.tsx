@@ -102,7 +102,7 @@ export default function SyncLiveContent() {
         console.error("[SyncLive] Error during conversation turn:", error);
         // Only show toast if it's not a user-initiated abort
         if (error.message !== 'Recognition was aborted.') {
-             const errorMessage = error.message === 'No speech could be recognized.' ? 'No recognized speech' : `An error occurred: ${error.message}`;
+             const errorMessage = error.message === 'No recognized speech' ? 'No recognized speech' : `An error occurred: ${error.message}`;
              toast({ variant: "destructive", title: "Error", description: errorMessage });
         }
         setStatus('error');

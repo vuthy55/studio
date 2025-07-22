@@ -158,7 +158,6 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
     
-    console.log('[SpeechService] recognizeWithAutoDetect: Recognizer created.');
     activeRecognizer = recognizer;
     
     return new Promise((resolve, reject) => {
@@ -171,7 +170,7 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                     text: result.text
                 });
             } else {
-                reject(new Error("No speech could be recognized."));
+                reject(new Error("No recognized speech"));
             }
             abortRecognition();
         }, err => {
