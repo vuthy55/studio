@@ -137,7 +137,7 @@ export default function SyncRoomPage() {
     }, [participants, user]);
 
     const isCurrentUserEmcee = useMemo(() => {
-        return user && roomData?.emceeUids?.includes(user.uid);
+        return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
 
     // Gracefully exit if room is closed
@@ -308,7 +308,7 @@ export default function SyncRoomPage() {
                         {participants?.docs.map(doc => {
                             const p = doc.data() as Participant;
                             const isCurrentUser = p.uid === user?.uid;
-                            const isEmcee = roomData?.emceeUids?.includes(p.uid);
+                            const isEmcee = roomData?.emceeEmails?.includes(p.email);
 
                             return (
                                 <div key={p.uid} className="flex items-center gap-3 group">
@@ -403,5 +403,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    

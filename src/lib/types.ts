@@ -9,8 +9,7 @@ export type SyncRoom = {
     createdAt: FieldValue;
     status: 'active' | 'closed';
     invitedEmails: string[];
-    activeSpeakerUid: string | null; // This will be deprecated but kept for compatibility with old rooms if any exist
-    emceeUids: string[];
+    emceeEmails: string[];
     lastActivityAt?: FieldValue;
     summary?: {
         title: string;

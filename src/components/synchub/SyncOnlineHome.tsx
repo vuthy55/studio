@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc } from 'firebase/firestore';
@@ -33,13 +33,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck } from 'lucide-react';
 import type { SyncRoom, Participant } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '../ui/checkbox';
+import { Separator } from '../ui/separator';
 
 interface InvitedRoom extends SyncRoom {
     id: string;
@@ -54,18 +56,31 @@ export default function SyncOnlineHome() {
     const [roomTopic, setRoomTopic] = useState('');
     const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
     const [inviteeEmails, setInviteeEmails] = useState('');
+    const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
     
     const [createdRoomLink, setCreatedRoomLink] = useState('');
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
-    const [deleteConfirmation, setDeleteConfirmation] = useState('');
     const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
         setIsClient(true);
-    }, []);
+        if (user?.email && !emceeEmails.includes(user.email)) {
+            setEmceeEmails([user.email]);
+        }
+    }, [user, emceeEmails]);
+
+    const parsedInviteeEmails = useMemo(() => {
+        return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
+    }, [inviteeEmails]);
+    
+     const toggleEmcee = (email: string) => {
+        setEmceeEmails(prev => 
+            prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
+        );
+    };
 
     const fetchInvitedRooms = useCallback(async () => {
         if (!user) {
@@ -112,7 +127,7 @@ export default function SyncOnlineHome() {
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user) {
+        if (!user || !user.email) {
             toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create a room.' });
             return;
         }
@@ -123,10 +138,7 @@ export default function SyncOnlineHome() {
 
         setIsCreating(true);
         try {
-            const emails = inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean); // Handles commas and spaces
-            if (!emails.includes(user.email!)) {
-                emails.push(user.email!);
-            }
+            const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
             
             const batch = writeBatch(db);
 
@@ -136,8 +148,8 @@ export default function SyncOnlineHome() {
                 creatorUid: user.uid,
                 createdAt: serverTimestamp(),
                 status: 'active',
-                invitedEmails: emails,
-                emceeUids: [user.uid],
+                invitedEmails: allInvitedEmails,
+                emceeEmails: [...new Set(emceeEmails)],
                 lastActivityAt: serverTimestamp(),
             };
             batch.set(newRoomRef, newRoom);
@@ -155,7 +167,7 @@ export default function SyncOnlineHome() {
             
             const joinLink = `${window.location.origin}/sync-room/${newRoomRef.id}`;
             setCreatedRoomLink(joinLink);
-            fetchInvitedRooms(); // Refresh the list to show the new room immediately
+            fetchInvitedRooms();
 
         } catch (error) {
             console.error("Error creating room:", error);
@@ -167,8 +179,6 @@ export default function SyncOnlineHome() {
 
     const handleDeleteRoom = async (roomId: string) => {
         try {
-            // "Soft delete" by changing the status.
-            // The full cleanup will be handled by the "End Meeting" server action.
             const roomRef = doc(db, 'syncRooms', roomId);
             await updateDoc(roomRef, {
                 status: 'closed',
@@ -176,7 +186,7 @@ export default function SyncOnlineHome() {
             });
             
             toast({ title: "Room Closed", description: "The room has been closed for all participants." });
-            fetchInvitedRooms(); // Refreshes the list to show the 'closed' status
+            fetchInvitedRooms();
         } catch (error) {
             console.error("Error closing room:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not close the room.' });
@@ -194,6 +204,7 @@ export default function SyncOnlineHome() {
         setRoomTopic('');
         setCreatorLanguage('');
         setInviteeEmails('');
+        setEmceeEmails(user?.email ? [user.email] : []);
         setCreatedRoomLink('');
     };
 
@@ -231,7 +242,7 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="sm:max-w-[425px]">
+                        <DialogContent className="sm:max-w-md">
                             {!createdRoomLink ? (
                                 <>
                                     <DialogHeader>
@@ -264,6 +275,34 @@ export default function SyncOnlineHome() {
                                             <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
                                             <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
                                         </div>
+
+                                        {(parsedInviteeEmails.length > 0 || user?.email) && (
+                                            <div className="space-y-3">
+                                                <Separator/>
+                                                <Label className="font-semibold flex items-center gap-2">
+                                                    <ShieldCheck className="h-5 w-5 text-primary"/>
+                                                    Assign Emcees
+                                                </Label>
+                                                <ScrollArea className="max-h-32">
+                                                    <div className="space-y-2 pr-4">
+                                                        {user?.email && (
+                                                             <div className="flex items-center space-x-2">
+                                                                <Checkbox id={user.email} checked={emceeEmails.includes(user.email)} onCheckedChange={() => toggleEmcee(user.email)} />
+                                                                <Label htmlFor={user.email} className="font-normal w-full truncate">{user.email} (Creator)</Label>
+                                                            </div>
+                                                        )}
+                                                        {parsedInviteeEmails.map(email => (
+                                                            <div key={email} className="flex items-center space-x-2">
+                                                                <Checkbox id={email} checked={emceeEmails.includes(email)} onCheckedChange={() => toggleEmcee(email)} />
+                                                                <Label htmlFor={email} className="font-normal w-full truncate">{email}</Label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </ScrollArea>
+                                                <Separator/>
+                                            </div>
+                                        )}
+
                                         <DialogFooter>
                                             <Button type="submit" disabled={isCreating}>
                                                 {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -337,7 +376,7 @@ export default function SyncOnlineHome() {
                                                 <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
                                             </Button>
                                             {room.creatorUid === user.uid && room.status !== 'closed' && (
-                                                <AlertDialog onOpenChange={() => setDeleteConfirmation('')}>
+                                                <AlertDialog>
                                                     <AlertDialogTrigger asChild>
                                                          <Button variant="destructive" size="icon">
                                                             <Trash2 className="h-4 w-4" />
