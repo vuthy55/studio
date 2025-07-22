@@ -16,9 +16,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
-import { doc, getDoc, writeBatch, serverTimestamp, increment, collection, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { format } from 'path';
+import { auth, db } from '@/lib/firebase';
+import { writeBatch, doc, collection, serverTimestamp, increment } from 'firebase/firestore';
+
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
 
@@ -27,21 +27,19 @@ export default function SyncLiveContent() {
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
-  const [sessionTime, setSessionTime] = useState(0);
-  const [hasStarted, setHasStarted] = useState(false);
+
+  // New state for usage-based timing
+  const [accumulatedUsage, setAccumulatedUsage] = useState(0); // in milliseconds
+  const turnStartTimeRef = useRef<number | null>(null);
+  const lastChargedMinute = useRef(0);
   
   const { toast } = useToast();
-  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const costPerMinute = settings?.costPerSyncMinute || 1;
+
+  const costPerMinute = settings?.costPerSyncLiveMinute || 1;
+  const freeMinutes = settings?.freeSyncLiveMinutes || 0;
 
   useEffect(() => {
-    // Cleanup function to abort recognition and clear timers if the component unmounts
-    return () => {
-      abortRecognition();
-      if (sessionTimerRef.current) {
-        clearInterval(sessionTimerRef.current);
-      }
-    };
+    return () => abortRecognition();
   }, []);
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
@@ -60,70 +58,20 @@ export default function SyncLiveContent() {
     }
   };
 
-   const startSessionTimers = useCallback(() => {
-    if (!user || !settings || hasStarted) return;
-    setHasStarted(true);
-    
-    // Main session timer for display
-    sessionTimerRef.current = setInterval(() => {
-      setSessionTime(prev => prev + 1);
-    }, 1000);
-
-    // Token deduction timer
-    const freeMinutes = settings.freeSyncLiveMinutes || 0;
-    const initialDelay = freeMinutes * 60 * 1000;
-
-    const deductTokens = async () => {
-        if (!auth.currentUser) return;
-        const currentBalance = (await getDoc(doc(db, 'users', auth.currentUser.uid))).data()?.tokenBalance || 0;
-
-        if (currentBalance >= costPerMinute) {
-             const batch = writeBatch(db);
-             const userRef = doc(db, 'users', auth.currentUser.uid);
-             const logRef = doc(collection(userRef, 'transactionLogs'));
-
-             batch.update(userRef, { tokenBalance: increment(-costPerMinute) });
-             batch.set(logRef, {
-                 actionType: 'translation_spend',
-                 tokenChange: -costPerMinute,
-                 timestamp: serverTimestamp(),
-                 description: `Sync Live session usage: 1 minute`
-             });
-             await batch.commit();
-             fetchUserProfile(); // Refresh profile to show new balance
-        } else {
-             setStatus('disabled');
-             toast({ variant: 'destructive', title: 'Session Ended', description: 'Insufficient tokens to continue.' });
-             if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
-        }
-    };
-
-    setTimeout(() => {
-      deductTokens(); // First deduction after free minutes
-      setInterval(deductTokens, 60 * 1000); // Subsequent deductions every minute
-    }, initialDelay);
-
-  }, [user, settings, hasStarted, costPerMinute, fetchUserProfile, toast]);
-  
   const startConversationTurn = async () => {
-    if (!user) {
+    if (!user || !settings) {
         toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use Sync Live.' });
         return;
     }
     
-    if (!hasStarted) {
-        startSessionTimers();
-    }
-    
     setStatus('listening');
+    turnStartTimeRef.current = Date.now();
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
         
         setStatus('speaking');
-        
-        const fromLangLabel = getAzureLanguageLabel(detectedLang);
-        setLastSpoken({ lang: fromLangLabel, text: originalText });
+        setLastSpoken({ lang: getAzureLanguageLabel(detectedLang), text: originalText });
         
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
@@ -132,7 +80,7 @@ export default function SyncLiveContent() {
             
             const translationResult = await translateText({
                 text: originalText,
-                fromLanguage: fromLangLabel,
+                fromLanguage: getAzureLanguageLabel(detectedLang),
                 toLanguage: toLangLabel,
             });
             const translatedText = translationResult.translatedText;
@@ -150,13 +98,53 @@ export default function SyncLiveContent() {
                 audio.onerror = () => setTimeout(resolve, 1500);
             });
         }
-
     } catch (error: any) {
         if (error.message !== 'Recognition was aborted.') {
              toast({ variant: "destructive", title: "Error", description: "No recognized speech" });
         }
     } finally {
         setStatus('idle');
+        if (turnStartTimeRef.current) {
+            const turnDuration = Date.now() - turnStartTimeRef.current;
+            const newTotalUsage = accumulatedUsage + turnDuration;
+            setAccumulatedUsage(newTotalUsage);
+            
+            // Check if token deduction is needed
+            const totalUsageMinutes = Math.floor(newTotalUsage / 60000);
+            const freeMinutesUsed = Math.floor(freeMinutes);
+            const chargeableMinutes = Math.max(0, totalUsageMinutes - freeMinutesUsed);
+
+            if (chargeableMinutes > lastChargedMinute.current) {
+                const minutesToCharge = chargeableMinutes - lastChargedMinute.current;
+                const tokensToDeduct = minutesToCharge * costPerMinute;
+
+                const currentBalance = userProfile?.tokenBalance ?? 0;
+                if (currentBalance >= tokensToDeduct) {
+                    const batch = writeBatch(db);
+                    const userRef = doc(db, 'users', user.uid);
+                    
+                    for (let i = 0; i < minutesToCharge; i++) {
+                        const logRef = doc(collection(userRef, 'transactionLogs'));
+                        batch.set(logRef, {
+                            actionType: 'translation_spend',
+                            tokenChange: -costPerMinute,
+                            timestamp: serverTimestamp(),
+                            description: `Sync Live usage: 1 minute`
+                        });
+                    }
+                    batch.update(userRef, { tokenBalance: increment(-tokensToDeduct) });
+                    
+                    await batch.commit();
+                    fetchUserProfile(); // Refresh profile to show new balance
+                    lastChargedMinute.current = chargeableMinutes;
+                    toast({title: "Tokens Deducted", description: `${tokensToDeduct} tokens for ${minutesToCharge} minute(s) of usage.`});
+                } else {
+                    setStatus('disabled');
+                    toast({ variant: 'destructive', title: 'Session Ended', description: 'Insufficient tokens to continue.' });
+                }
+            }
+        }
+        turnStartTimeRef.current = null;
     }
   };
 
@@ -164,9 +152,10 @@ export default function SyncLiveContent() {
     return azureLanguages.filter(l => !selectedLanguages.includes(l.value));
   }, [selectedLanguages]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const secs = (seconds % 60).toString().padStart(2, '0');
+  const formatTime = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const secs = (totalSeconds % 60).toString().padStart(2, '0');
     return `${mins}:${secs}`;
   };
 
@@ -178,7 +167,7 @@ export default function SyncLiveContent() {
                 Sync Live
             </CardTitle>
             <CardDescription>
-                Tap the mic to talk. Your speech will be translated and spoken aloud for the group. The mic becomes available again after all translations have played.
+                Tap the mic to talk. Your speech will be translated and spoken aloud for the group. This is a 1-to-many solo translation feature.
             </CardDescription>
              {user && settings && (
                 <div className="flex items-center justify-between text-sm pt-2 text-muted-foreground">
@@ -189,12 +178,12 @@ export default function SyncLiveContent() {
                     </div>
                     <div className="flex items-center gap-1.5" title="Cost per minute after free period">
                         <Coins className="h-4 w-4 text-red-500" />
-                        <span>Cost: <strong>{costPerMinute}/min</strong></span>
+                        <span>Cost: <strong>{costPerMinute}/min after {freeMinutes} free min</strong></span>
                     </div>
                    </div>
-                   <div className="flex items-center gap-1.5" title="Session time">
+                   <div className="flex items-center gap-1.5" title="Total active usage time">
                         <Clock className="h-4 w-4" />
-                        <span>Time: <strong>{formatTime(sessionTime)}</strong></span>
+                        <span>Usage: <strong>{formatTime(accumulatedUsage)}</strong></span>
                    </div>
                 </div>
             )}

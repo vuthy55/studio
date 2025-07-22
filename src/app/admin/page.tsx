@@ -294,10 +294,15 @@ function SettingsTabContent() {
                             <Input id="translationCost" type="number" value={settings.translationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
                             <p className="text-sm text-muted-foreground">Tokens charged for each live translation.</p>
                         </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="costPerSyncLiveMinute">Sync Live Cost (per minute)</Label>
+                            <Input id="costPerSyncLiveMinute" type="number" value={settings.costPerSyncLiveMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                            <p className="text-sm text-muted-foreground">Tokens per minute for the 1-on-1 Sync Live feature.</p>
+                        </div>
                         <div className="space-y-2">
-                            <Label htmlFor="costPerSyncMinute">Sync Room Cost (per minute)</Label>
-                            <Input id="costPerSyncMinute" type="number" value={settings.costPerSyncMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens per minute for Sync Online/Live.</p>
+                            <Label htmlFor="costPerSyncOnlineMinute">Sync Online Cost (per minute)</Label>
+                            <Input id="costPerSyncOnlineMinute" type="number" value={settings.costPerSyncOnlineMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                            <p className="text-sm text-muted-foreground">Tokens per minute for Sync Online group rooms.</p>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="maxUsersPerRoom">Max Users per Sync Room</Label>
@@ -901,5 +906,3 @@ export default function AdminPage() {
     
 
     
-
-

@@ -8,7 +8,8 @@ export interface AppSettings {
   practiceReward: number;
   practiceThreshold: number;
   translationCost: number;
-  costPerSyncMinute: number;
+  costPerSyncLiveMinute: number;
+  costPerSyncOnlineMinute: number;
   freeSyncLiveMinutes: number;
   freeSyncOnlineMinutes: number;
   maxUsersPerRoom: number;
@@ -20,7 +21,8 @@ const defaultSettings: AppSettings = {
   practiceReward: 1,
   practiceThreshold: 3,
   translationCost: 1,
-  costPerSyncMinute: 1,
+  costPerSyncLiveMinute: 1,
+  costPerSyncOnlineMinute: 1,
   freeSyncLiveMinutes: 10,
   freeSyncOnlineMinutes: 10,
   maxUsersPerRoom: 5,
