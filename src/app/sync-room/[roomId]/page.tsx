@@ -121,17 +121,14 @@ export default function SyncRoomPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     
-    const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
-
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>() as Set<string>);
-    const lastMessageCount = useRef(0);
+    const processedMessages = useRef(new Set<string>());
 
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, translatedMessages]);
+    }, [messages]);
     
     const { presentParticipants, absentParticipantEmails } = useMemo(() => {
         if (!roomData || !participantsCollection) {
@@ -176,73 +173,49 @@ export default function SyncRoomPage() {
 
     // Handle incoming messages for translation and TTS
     useEffect(() => {
-        if (!messages || !user || !hasJoined || !currentUserParticipant?.selectedLanguage || messages.docs.length === lastMessageCount.current) {
-            return;
-        }
-
-        const newMessages = messages.docs.slice(lastMessageCount.current);
-        lastMessageCount.current = messages.docs.length;
+        if (!messages || !user || !currentUserParticipant?.selectedLanguage) return;
 
         const processMessage = async (doc: any) => {
             const msg = doc.data() as RoomMessage;
-            const messageId = doc.id;
-
-            if (processedMessages.current.has(messageId)) {
-                return; // Skip already processed messages
-            }
-
-            processedMessages.current.add(messageId);
-            
-            if (msg.speakerUid === user.uid) {
-                return; // Don't play back our own messages
-            }
+            if (msg.speakerUid !== user.uid && !processedMessages.current.has(doc.id)) {
+                processedMessages.current.add(doc.id);
                 
-            try {
-                setTranslatedMessages(prev => ({ ...prev, [messageId]: 'Translating...' }));
-
-                const { translatedText } = await translateText({
-                    text: msg.text,
-                    fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
-                    toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
-                });
-                
-                setTranslatedMessages(prev => ({ ...prev, [messageId]: translatedText }));
-                
-                if (audioPlayerRef.current?.paused === false) {
-                    await new Promise(resolve => {
-                        if (audioPlayerRef.current) audioPlayerRef.current.onended = resolve;
+                try {
+                    setIsSpeaking(true);
+                    
+                    const translated = await translateText({
+                        text: msg.text,
+                        fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
+                        toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
                     });
-                }
-
-                setIsSpeaking(true);
-                const { audioDataUri } = await generateSpeech({ 
-                    text: translatedText, 
-                    lang: currentUserParticipant.selectedLanguage!,
-                });
-                
-                if (audioPlayerRef.current) {
-                    audioPlayerRef.current.src = audioDataUri;
-                    await audioPlayerRef.current.play();
-                    await new Promise(resolve => {
-                        if (audioPlayerRef.current) {
-                            audioPlayerRef.current.onended = () => resolve(true);
-                        } else {
-                            resolve(true);
-                        }
+                    
+                    const { audioDataUri } = await generateSpeech({ 
+                        text: translated.translatedText, 
+                        lang: currentUserParticipant.selectedLanguage!,
                     });
+                    
+                    if (audioPlayerRef.current) {
+                        audioPlayerRef.current.src = audioDataUri;
+                        await audioPlayerRef.current.play();
+                        await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
+                    }
+                } catch(e: any) {
+                    console.error("Error processing message:", e);
+                    toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
+                } finally {
+                    setIsSpeaking(false);
                 }
-            } catch(e: any) {
-                console.error("Error processing message:", e);
-                setTranslatedMessages(prev => ({ ...prev, [messageId]: `Error: Could not translate message.` }));
-                toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-            } finally {
-                setIsSpeaking(false);
             }
         };
+        
+        const playQueue = async () => {
+             for (const doc of messages.docs) {
+                await processMessage(doc);
+            }
+        };
+        playQueue();
 
-        newMessages.forEach(processMessage);
-
-    }, [messages, user, hasJoined, currentUserParticipant, toast]);
+    }, [messages, user, currentUserParticipant, toast]);
 
 
     useEffect(() => {
@@ -258,9 +231,6 @@ export default function SyncRoomPage() {
 
             const isParticipant = participantsCollection?.docs.some(p => p.id === user.uid);
             if (isParticipant) {
-                // When joining, mark all current messages as processed to prevent re-playing history
-                messages?.docs.forEach(doc => processedMessages.current.add(doc.id));
-                lastMessageCount.current = messages?.docs.length || 0;
                 setHasJoined(true);
             }
         }
@@ -300,7 +270,6 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
-                 await updateDoc(roomRef, { lastActivityAt: serverTimestamp() });
                 await addDoc(messagesRef, {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
@@ -463,7 +432,6 @@ export default function SyncRoomPage() {
                             {messages?.docs.map(doc => {
                                 const msg = doc.data() as RoomMessage;
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || '');
                                 
                                 return (
                                     <div key={doc.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
@@ -474,7 +442,7 @@ export default function SyncRoomPage() {
                                         )}
                                         <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-background'}`}>
                                             {!isOwnMessage && <p className="text-xs font-bold mb-1">{msg.speakerName}</p>}
-                                            <p>{displayText}</p>
+                                            <p>{msg.text}</p>
                                             <p className="text-xs opacity-70 mt-1 text-right">{doc.data().createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                         </div>
                                     </div>
@@ -510,7 +478,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
 
     
