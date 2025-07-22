@@ -159,7 +159,7 @@ export default function SyncOnlineHome() {
 
         } catch (error) {
             console.error("Error creating room:", error);
-            toast({ variant: "destructive", title: "Error", description: "cannot create room" });
+            toast({ variant: "destructive", title: "error when i tried to create room" });
         } finally {
             setIsCreating(false);
         }
@@ -390,3 +390,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
