@@ -42,6 +42,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
+import { getAppSettings, type AppSettings } from '@/services/settings';
 
 interface InvitedRoom extends SyncRoom {
     id: string;
@@ -64,12 +65,14 @@ export default function SyncOnlineHome() {
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
     const [isClient, setIsClient] = useState(false);
+    const [settings, setSettings] = useState<AppSettings | null>(null);
 
     useEffect(() => {
         setIsClient(true);
         if (user?.email && !emceeEmails.includes(user.email)) {
             setEmceeEmails([user.email]);
         }
+        getAppSettings().then(setSettings);
     }, [user, emceeEmails]);
 
     const parsedInviteeEmails = useMemo(() => {
@@ -136,10 +139,19 @@ export default function SyncOnlineHome() {
             return;
         }
 
+        const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
+
+        if (settings && allInvitedEmails.length > settings.maxUsersPerRoom) {
+            toast({
+                variant: 'destructive',
+                title: 'Participant Limit Exceeded',
+                description: `You can invite a maximum of ${settings.maxUsersPerRoom - 1} other participants (total ${settings.maxUsersPerRoom}).`,
+            });
+            return;
+        }
+        
         setIsCreating(true);
         try {
-            const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
-            
             const batch = writeBatch(db);
 
             const newRoomRef = doc(collection(db, 'syncRooms'));
@@ -248,7 +260,7 @@ export default function SyncOnlineHome() {
                                     <DialogHeader>
                                         <DialogTitle>Create a Sync Room</DialogTitle>
                                         <DialogDescription>
-                                            Fill in the details below. Once created, you'll get a shareable link.
+                                            Fill in the details below. Once created, you'll get a shareable link. The max number of users per room is {settings?.maxUsersPerRoom || 5}.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
@@ -413,3 +425,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
