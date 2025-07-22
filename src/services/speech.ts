@@ -120,15 +120,16 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode | ''): Pr
 
     return new Promise<string>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
+            abortRecognition();
+            // Crucially, check if the result text is not null, undefined, OR an empty string.
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
             } else {
                  reject(new Error(`Could not recognize speech. Please try again.`));
             }
-            abortRecognition();
         }, err => {
-            reject(new Error(`Recognition error: ${err}`));
             abortRecognition();
+            reject(new Error(`Recognition error: ${err}`));
         });
     });
 }
