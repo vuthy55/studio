@@ -228,36 +228,37 @@ export default function SyncRoomPage() {
 
         const processMessage = async (doc: any) => {
             const msg = doc.data() as RoomMessage;
-            if (msg.speakerUid !== user.uid && !processedMessages.current.has(doc.id)) {
-                processedMessages.current.add(doc.id);
+            if (msg.speakerUid === user.uid || processedMessages.current.has(doc.id)) {
+                return;
+            }
+            processedMessages.current.add(doc.id);
+            
+            try {
+                setIsSpeaking(true);
                 
-                try {
-                    setIsSpeaking(true);
-                    
-                    const translated = await translateText({
-                        text: msg.text,
-                        fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
-                        toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
-                    });
+                const translated = await translateText({
+                    text: msg.text,
+                    fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
+                    toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
+                });
 
-                    setTranslatedMessages(prev => ({...prev, [doc.id]: translated.translatedText}));
-                    
-                    const { audioDataUri } = await generateSpeech({ 
-                        text: translated.translatedText, 
-                        lang: currentUserParticipant.selectedLanguage!,
-                    });
-                    
-                    if (audioPlayerRef.current) {
-                        audioPlayerRef.current.src = audioDataUri;
-                        await audioPlayerRef.current.play();
-                        await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
-                    }
-                } catch(e: any) {
-                    console.error("Error processing message:", e);
-                    toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-                } finally {
-                    setIsSpeaking(false);
+                setTranslatedMessages(prev => ({...prev, [doc.id]: translated.translatedText}));
+                
+                const { audioDataUri } = await generateSpeech({ 
+                    text: translated.translatedText, 
+                    lang: currentUserParticipant.selectedLanguage!,
+                });
+                
+                if (audioPlayerRef.current) {
+                    audioPlayerRef.current.src = audioDataUri;
+                    await audioPlayerRef.current.play();
+                    await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
                 }
+            } catch(e: any) {
+                console.error("Error processing message:", e);
+                toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
+            } finally {
+                setIsSpeaking(false);
             }
         };
         
@@ -266,6 +267,7 @@ export default function SyncRoomPage() {
                 await processMessage(doc);
             }
         };
+        
         playQueue();
 
     }, [messages, user, currentUserParticipant, toast]);
