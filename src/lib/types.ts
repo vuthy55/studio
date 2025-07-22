@@ -26,6 +26,7 @@ export type Participant = {
     name: string;
     email: string;
     selectedLanguage: AzureLanguageCode | '';
+    isMuted?: boolean;
 }
 
 export type RoomMessage = {

@@ -22,11 +22,22 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX, ShieldQuestion } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
@@ -48,6 +59,7 @@ function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom
                 name: name,
                 email: user.email!,
                 selectedLanguage: language,
+                isMuted: false,
             };
             await setDoc(participantRef, participantData);
             onJoin();
@@ -137,7 +149,7 @@ export default function SyncRoomPage() {
             return { presentParticipants: [], absentParticipantEmails: [] };
         }
         const presentUids = new Set(participantsCollection.docs.map(doc => doc.id));
-        const present = participantsCollection.docs.map(doc => doc.data() as Participant);
+        const present = participantsCollection.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant & { id: string }));
         const absent = roomData.invitedEmails.filter((email: string) => {
              return !participantsCollection.docs.some(p => p.data().email === email);
         });
@@ -155,10 +167,38 @@ export default function SyncRoomPage() {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
 
-    const isRoomCreator = useCallback((email: string) => {
-        const creatorEmail = presentParticipants.find(p => p.uid === roomData?.creatorUid)?.email;
-        return email === creatorEmail;
-    }, [presentParticipants, roomData]);
+    const isRoomCreator = useCallback((uid: string) => {
+        return uid === roomData?.creatorUid;
+    }, [roomData]);
+    
+    // Listen for mute status
+    useEffect(() => {
+        if (currentUserParticipant?.isMuted) {
+            abortRecognition();
+            setIsListening(false);
+            toast({
+                variant: 'destructive',
+                title: "You've been muted",
+                description: "An emcee has muted your microphone.",
+            });
+        }
+    }, [currentUserParticipant?.isMuted, toast]);
+
+    // Handle being removed from the room
+    useEffect(() => {
+        const wasParticipant = hasJoined;
+        const isStillParticipant = participantsCollection?.docs.some(doc => doc.id === user?.uid);
+
+        if (wasParticipant && !isStillParticipant && !participantsLoading) {
+            toast({
+                variant: 'destructive',
+                title: 'You were removed',
+                description: 'An emcee has removed you from the room.',
+                duration: 5000,
+            });
+            router.push('/?tab=sync-online');
+        }
+    }, [participantsCollection, hasJoined, participantsLoading, user, router, toast]);
 
 
     // Gracefully exit if room is closed
@@ -267,7 +307,7 @@ export default function SyncRoomPage() {
     };
 
     const handleMicPress = async () => {
-        if (!currentUserParticipant?.selectedLanguage) return;
+        if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
 
         setIsListening(true);
         try {
@@ -290,6 +330,31 @@ export default function SyncRoomPage() {
             setIsListening(false);
         }
     }
+    
+    const handleMuteToggle = async (participantId: string, currentMuteStatus: boolean) => {
+        if (!isCurrentUserEmcee) return;
+        try {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', participantId);
+            await updateDoc(participantRef, { isMuted: !currentMuteStatus });
+            toast({ title: `User ${currentMuteStatus ? 'Unmuted' : 'Muted'}`, description: `The participant's microphone status has been updated.` });
+        } catch (error) {
+            console.error("Error toggling mute:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not update mute status.' });
+        }
+    };
+
+    const handleRemoveParticipant = async (participantId: string, participantName: string) => {
+        if (!isCurrentUserEmcee) return;
+        try {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', participantId);
+            await deleteDoc(participantRef);
+            toast({ title: 'User Removed', description: `${participantName} has been removed from the room.` });
+        } catch (error) {
+            console.error("Error removing participant:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not remove the participant.' });
+        }
+    };
+
 
     const handlePromoteToEmcee = async (participantEmail: string) => {
         if (!isCurrentUserEmcee) return;
@@ -338,7 +403,7 @@ export default function SyncRoomPage() {
     return (
         <div className="flex h-screen bg-muted/40">
             {/* Left Panel - Participants */}
-            <aside className="w-1/4 min-w-[280px] bg-background border-r flex flex-col">
+            <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
                      <div className="bg-primary/10 p-3 rounded-lg">
                         <p className="font-bold text-lg text-primary">{roomData.topic}</p>
@@ -352,10 +417,11 @@ export default function SyncRoomPage() {
                         {presentParticipants.map(p => {
                             const isCurrentUser = p.uid === user?.uid;
                             const isEmcee = roomData?.emceeEmails?.includes(p.email);
-                            const isCreator = isRoomCreator(p.email);
+                            const isCreator = isRoomCreator(p.uid);
+                            const canBeModified = isCurrentUserEmcee && !isCreator && !isCurrentUser;
 
                             return (
-                                <div key={p.uid} className="flex items-center gap-3 group p-1 rounded-md">
+                                <div key={p.id} className="flex items-center gap-3 group p-2 rounded-md hover:bg-muted/50">
                                     <Avatar>
                                         <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
                                     </Avatar>
@@ -367,32 +433,53 @@ export default function SyncRoomPage() {
                                         <p className="text-xs text-muted-foreground truncate">{getAzureLanguageLabel(p.selectedLanguage)}</p>
                                     </div>
                                     
-                                    {isCurrentUserEmcee && !isEmcee && (
-                                         <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handlePromoteToEmcee(p.email)}>
-                                                        <Crown className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent><p>Promote to Emcee</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                     {p.isMuted && <MicOff className="h-4 w-4 text-red-500"/>}
+                                    {isListening && isCurrentUser && <Mic className="h-4 w-4 text-green-500 animate-pulse" />}
+
+                                    {canBeModified && (
+                                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMuteToggle(p.id, !!p.isMuted)}>
+                                                            <MicOff className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>{p.isMuted ? 'Unmute' : 'Mute'} Participant</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+
+                                            <AlertDialog>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <AlertDialogTrigger asChild>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                                                    <RemoveUserIcon className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                        </AlertDialogTrigger>
+                                                        <TooltipContent><p>Remove Participant</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This will remove {p.name} from the room. They will not be able to rejoin.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleRemoveParticipant(p.id, p.name)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                            Remove
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
                                     )}
 
-                                     {isCurrentUserEmcee && isEmcee && !isCreator && (
-                                         <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handleDemoteEmcee(p.email)}>
-                                                        <ShieldQuestion className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent><p>Demote Emcee</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    )}
-                                    {isListening && isCurrentUser && <Mic className="h-4 w-4 text-green-500 animate-pulse" />}
                                 </div>
                             );
                         })}
@@ -400,7 +487,7 @@ export default function SyncRoomPage() {
                     {absentParticipantEmails.length > 0 && (
                         <div className="p-4 space-y-2">
                              <Separator />
-                             <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground pt-2"><UserX/> Invited ({absentParticipantEmails.length})</h3>
+                             <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground pt-2"><RemoveUserIcon/> Invited ({absentParticipantEmails.length})</h3>
                             {absentParticipantEmails.map(email => (
                                 <div key={email} className="flex items-center gap-3 p-1 rounded-md opacity-60">
                                     <Avatar>
@@ -468,13 +555,14 @@ export default function SyncRoomPage() {
                         size="lg" 
                         className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
                         onClick={isListening ? abortRecognition : handleMicPress}
-                        disabled={isSpeaking}
+                        disabled={isSpeaking || currentUserParticipant?.isMuted}
+                        title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
                     >
-                        {isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>}
+                        {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
                     </Button>
                     <div className="flex-1">
                         <p className="font-semibold text-muted-foreground">
-                            {isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk")}
+                            {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
                         </p>
                     </div>
                 </div>
@@ -483,5 +571,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
