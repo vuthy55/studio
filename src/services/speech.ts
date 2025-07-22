@@ -14,7 +14,6 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
 // --- Singleton Manager for the active recognizer ---
 let activeRecognizer: sdk.SpeechRecognizer | null = null;
 let activeRecognizerId: string | null = null;
-let safetyTimeout: NodeJS.Timeout | null = null;
 
 function getSpeechConfig(): sdk.SpeechConfig {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
@@ -40,38 +39,24 @@ export type PronunciationAssessmentResult = {
  */
 export function abortRecognition() {
     console.log(`[speech.ts] Abort called. Active recognizer ID: ${activeRecognizerId}`);
-    if (safetyTimeout) {
-        clearTimeout(safetyTimeout);
-        safetyTimeout = null;
-    }
     if (activeRecognizer) {
-        const recognizerToStop = activeRecognizer;
-        const recognizerIdToStop = activeRecognizerId;
-        console.log(`[speech.ts] Aborting recognizer: ${recognizerIdToStop}`);
-        
-        // Nullify immediately to prevent race conditions
+        // The recognizeOnceAsync method doesn't have a manual stop.
+        // Instead, we can close the recognizer, which will cancel the operation.
+        // We set a flag or nullify the active recognizer to prevent further actions.
+        const recognizerToClose = activeRecognizer;
+        const recognizerIdToClose = activeRecognizerId;
+
         activeRecognizer = null;
         activeRecognizerId = null;
 
-        try {
-            // This will trigger the 'canceled' event on the recognizer.
-            recognizerToStop.stopContinuousRecognitionAsync(
-                () => {
-                    console.log(`[speech.ts] Successfully stopped recognizer: ${recognizerIdToStop}`);
-                },
-                (err) => {
-                     console.warn(`[speech.ts] Error on stopping recognizer ${recognizerIdToStop}:`, err);
-                }
-            );
-        } catch (e) {
-            console.warn(`[speech.ts] Exception while stopping recognizer ${recognizerIdToStop}, it may have already been closed.`, e);
-        }
+        console.log(`[speech.ts] Aborting recognizer: ${recognizerIdToClose} by closing it.`);
+        recognizerToClose.close();
     }
 }
 
 
 /**
- * Performs pronunciation assessment with auto-stop and a safety timeout.
+ * Performs pronunciation assessment using the more reliable `recognizeOnceAsync`.
  * @param referenceText The text to compare against.
  * @param lang The language of the text.
  * @param debugId A unique ID for this assessment attempt for logging.
@@ -106,37 +91,16 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     pronunciationConfig.applyTo(recognizer);
 
     return new Promise((resolve, reject) => {
-        let promiseHandled = false;
-
-        const cleanup = () => {
-            console.log(`[speech.ts] Cleanup for ${currentAssessmentId}.`);
-            if (safetyTimeout) {
-                clearTimeout(safetyTimeout);
-                safetyTimeout = null;
-            }
-             if (activeRecognizerId === currentAssessmentId) {
+        recognizer.recognizeOnceAsync(result => {
+             // Clean up immediately
+            if (activeRecognizerId === currentAssessmentId) {
                 recognizer.close();
                 activeRecognizer = null;
                 activeRecognizerId = null;
-                console.log(`[speech.ts] Recognizer ${currentAssessmentId} closed and nulled.`);
             }
-        };
-        
-        console.log(`[speech.ts] Setting 10s safety timeout for ${currentAssessmentId}.`);
-        safetyTimeout = setTimeout(() => {
-            if (promiseHandled) return;
-            promiseHandled = true;
-            console.error(`[speech.ts] Assessment ${currentAssessmentId} hit 10-second safety timeout.`);
-            reject(new Error("Assessment timed out after 10 seconds."));
-            cleanup();
-        }, 10000);
 
-        recognizer.recognized = (s, e) => {
-            console.log(`[speech.ts] Event 'recognized' for ${currentAssessmentId}. Result: ${sdk.ResultReason[e.result.reason]}`);
-            if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
-                if (promiseHandled) return;
-                promiseHandled = true;
-                const assessment = sdk.PronunciationAssessmentResult.fromResult(e.result);
+            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
                 resolve({
                     accuracy: assessment.accuracyScore,
                     fluency: assessment.fluencyScore,
@@ -144,48 +108,28 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                     pronScore: assessment.pronunciationScore,
                     isPass: assessment.accuracyScore > 70
                 });
-                 recognizer.stopContinuousRecognitionAsync(); // Stop recognition since we have what we need
-            } else if (e.result.reason === sdk.ResultReason.NoMatch) {
-                 if (promiseHandled) return;
-                 promiseHandled = true;
-                 reject(new Error("Could not recognize speech. Please try again."));
+            } else if (result.reason === sdk.ResultReason.NoMatch) {
+                reject(new Error("Could not recognize speech. Please try again."));
+            } else if (result.reason === sdk.ResultReason.Canceled) {
+                 const cancellation = sdk.CancellationDetails.fromResult(result);
+                 if (cancellation.reason === sdk.CancellationReason.Error) {
+                    reject(new Error(`Assessment failed: ${cancellation.errorDetails}`));
+                 } else {
+                    // This case is for intentional cancellations, e.g., navigating away.
+                    // We don't reject, just let it fail silently as the user has moved on.
+                    console.log("[speech.ts] Assessment was canceled by the user or another operation.");
+                 }
+            } else {
+                 reject(new Error(`Speech assessment failed with reason: ${sdk.ResultReason[result.reason]}`));
             }
-        };
-        
-        recognizer.canceled = (s, e) => {
-             console.log(`[speech.ts] Event 'canceled' for ${currentAssessmentId}. Reason: ${sdk.CancellationReason[e.reason]}`);
-            if (promiseHandled) return;
-            promiseHandled = true;
-            if (e.reason === sdk.CancellationReason.Error) {
-                reject(new Error(e.errorDetails));
-            } else if (e.reason !== sdk.CancellationReason.CancelledByUser) {
-                reject(new Error("Recognition was canceled unexpectedly."));
+        }, err => {
+            if (activeRecognizerId === currentAssessmentId) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
             }
-            // If CancelledByUser, we don't reject, just let it close silently.
-        };
-
-        recognizer.sessionStopped = (s, e) => {
-            console.log(`[speech.ts] Event 'sessionStopped' for ${currentAssessmentId}. Cleaning up.`);
-            cleanup();
-             if (!promiseHandled) {
-                promiseHandled = true;
-                // If the session stops without a result (e.g., user navigates away after speaking but before result), reject it.
-                reject(new Error("Session stopped before a result was finalized."));
-            }
-        };
-
-        recognizer.startContinuousRecognitionAsync(
-            () => { 
-                console.log(`[speech.ts] Session started for ${currentAssessmentId}.`);
-             },
-            (err) => {
-                if (promiseHandled) return;
-                promiseHandled = true;
-                console.error(`[speech.ts] Could not start microphone for ${currentAssessmentId}:`, err);
-                reject(new Error(`Could not start microphone: ${err}`));
-                cleanup();
-            }
-        );
+            reject(new Error(`Error during recognizeOnceAsync: ${err}`));
+        });
     });
 }
 
