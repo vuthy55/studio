@@ -43,7 +43,11 @@ export default function NotificationBell() {
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const rooms = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
-                .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+                .sort((a, b) => {
+                    const timeA = a.createdAt?.toMillis() || 0;
+                    const timeB = b.createdAt?.toMillis() || 0;
+                    return timeB - timeA;
+                });
             setInvitations(rooms);
         }, (error) => {
             console.error("Error fetching invitations:", error);
