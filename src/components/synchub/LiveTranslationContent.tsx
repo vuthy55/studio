@@ -17,7 +17,6 @@ import { useLanguage } from '@/context/LanguageContext';
 import { doc, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getAppSettings } from '@/services/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
@@ -43,7 +42,7 @@ type SavedPhrase = {
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, loading, settings, recordPracticeAttempt } = useUserData();
+    const { user, userProfile, practiceHistory, loading, settings, recordPracticeAttempt, fetchUserProfile } = useUserData();
     
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
@@ -92,22 +91,31 @@ export default function LiveTranslationContent() {
     };
     
     useEffect(() => {
+        console.log('[DEBUG] useEffect for translation triggered. Input text:', inputText);
         const debounceTimer = setTimeout(() => {
             if (inputText) {
+                console.log('[DEBUG] Debounce timer fired. Calling handleTranslation.');
                 handleTranslation();
             } else {
+                console.log('[DEBUG] Input text is empty, clearing translation.');
                 setTranslatedText('');
             }
         }, 500);
 
-        return () => clearTimeout(debounceTimer);
+        return () => {
+            console.log('[DEBUG] Cleanup useEffect for translation.');
+            clearTimeout(debounceTimer);
+        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inputText, fromLanguage, toLanguage]);
 
 
     const handleTranslation = async () => {
         if (!inputText) return;
+        console.log('[DEBUG] handleTranslation started.');
+
         if (!user || !settings) {
+            console.log('[DEBUG] User or settings not available. User:', !!user, 'Settings:', !!settings);
             if (!user) toast({ variant: 'destructive', title: 'Not Logged In', description: 'Please log in to use translation.' });
             setTranslatedText('');
             return;
@@ -115,30 +123,25 @@ export default function LiveTranslationContent() {
 
         setIsTranslating(true);
         const translationCost = settings.translationCost;
+        console.log(`[DEBUG] Translation cost: ${translationCost}`);
 
         try {
-             // First check for sufficient funds locally
-            if ((userProfile?.tokenBalance || 0) < translationCost) {
+             if ((userProfile?.tokenBalance || 0) < translationCost) {
                 throw new Error("Insufficient tokens for translation.");
             }
-
-            // Optimistically deduct tokens from UI
-            // This will be reverted in the catch block if the transaction fails
-            // setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - translationCost}));
             
-            // Note: We don't deduct optimistically here as it's a paid action, unlike a free reward
-            
+            console.log('[DEBUG] Calling Genkit translateText flow and Firestore transaction.');
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
             const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
             const resultPromise = translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
 
-            // While the AI translates, run the firestore transaction in parallel
             const transactionPromise = runTransaction(db, async (transaction) => {
                 const userDocRef = doc(db, 'users', user.uid);
                 const userDoc = await transaction.get(userDocRef);
                 if (!userDoc.exists()) throw new Error("User document does not exist!");
                 
                 const currentBalance = userDoc.data().tokenBalance || 0;
+                 console.log(`[DEBUG-FIRESTORE] Current balance: ${currentBalance}`);
                 if (currentBalance < translationCost) throw new Error("Insufficient tokens for translation.");
                 
                 const newBalance = currentBalance - translationCost;
@@ -151,19 +154,23 @@ export default function LiveTranslationContent() {
                     timestamp: serverTimestamp(),
                     description: `Translated: "${inputText.substring(0, 50)}..."`
                 });
+                console.log(`[DEBUG-FIRESTORE] Transaction prepared. New balance will be ${newBalance}.`);
             });
 
-            // Wait for both to complete
             const [result] = await Promise.all([resultPromise, transactionPromise]);
             
+            console.log('[DEBUG] Translation successful:', result.translatedText);
             setTranslatedText(result.translatedText);
+            // After a successful transaction, we need to refresh the local user data
+            await fetchUserProfile();
 
         } catch (error: any) {
-            console.error('Translation failed', error);
+            console.error('[DEBUG] Translation failed', error);
             const errorMessage = typeof error === 'string' ? error : (error.message || 'Could not translate the text.');
             toast({ variant: 'destructive', title: 'Translation Error', description: errorMessage });
-            setTranslatedText(''); // Clear previous translation on error
+            setTranslatedText('');
         } finally {
+            console.log('[DEBUG] handleTranslation finished.');
             setIsTranslating(false);
         }
     };
@@ -172,15 +179,18 @@ export default function LiveTranslationContent() {
         if (isRecognizing || assessingPhraseId) return;
         
         setIsRecognizing(true);
+        console.log('[DEBUG-SPEECH] Starting voice recognition.');
         try {
             const recognizedText = await recognizeFromMic(fromLanguage);
+            console.log('[DEBUG-SPEECH] Recognized text:', recognizedText);
             setInputText(recognizedText);
         } catch (error: any) {
-            console.error("Error during speech recognition:", error);
+            console.error("[DEBUG-SPEECH] Error during speech recognition:", error);
             if (error.message !== "Recognition was aborted.") {
                toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
             }
         } finally {
+            console.log('[DEBUG-SPEECH] Finished voice recognition.');
             setIsRecognizing(false);
         }
     }
@@ -199,7 +209,7 @@ export default function LiveTranslationContent() {
     const { id: phraseId, toText: referenceText, toLang } = phrase;
     
     setAssessingPhraseId(phraseId);
-    setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result for this phrase
+    setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any));
 
     try {
         const assessment = await assessPronunciationFromMic(referenceText, toLang);
@@ -211,7 +221,7 @@ export default function LiveTranslationContent() {
         const { wasRewardable, rewardAmount } = recordPracticeAttempt({
             phraseId,
             phraseText: referenceText,
-            topicId: 'live_translation_saved', // A unique identifier for this category
+            topicId: 'live_translation_saved',
             lang: toLang,
             isPass,
             accuracy,
@@ -230,7 +240,6 @@ export default function LiveTranslationContent() {
         }
 
     } catch (error: any) {
-        console.error(`[LiveTranslation] Assessment failed for ${phraseId}:`, error);
         if (error.message !== "Recognition was aborted.") {
             toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
         }
@@ -338,7 +347,7 @@ export default function LiveTranslationContent() {
                         
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                            <Label htmlFor="to-language-live">{languages.find(l => l.value === toLanguage)?.label} (Cost: {settings?.translationCost || 1} Token)</Label>
+                            <Label htmlFor="to-language-live">{languages.find(l => l.value === toLanguage)?.label} (Cost: {settings?.translationCost || '...'} Tokens)</Label>
                             <div className="flex items-center">
                                     <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={!translatedText || !!assessingPhraseId}>
                                         <Volume2 className="h-5 w-5" />
@@ -437,5 +446,3 @@ export default function LiveTranslationContent() {
         </div>
     );
 }
-
-    
