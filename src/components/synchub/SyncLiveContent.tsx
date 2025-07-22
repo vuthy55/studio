@@ -6,7 +6,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, LoaderCircle, X, Languages, Users, Volume2 } from 'lucide-react';
+import { Mic, LoaderCircle, X, Languages, Users, Volume2, Coins, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -15,24 +15,34 @@ import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
+import { useUserData } from '@/context/UserDataContext';
+import { doc, getDoc, writeBatch, serverTimestamp, increment, collection, addDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { format } from 'path';
 
-type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
+type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
 
 export default function SyncLiveContent() {
+  const { user, userProfile, settings, fetchUserProfile } = useUserData();
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
+  const [sessionTime, setSessionTime] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
   
   const { toast } = useToast();
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const costPerMinute = settings?.costPerSyncMinute || 1;
 
   useEffect(() => {
-    // Cleanup function to abort recognition if the component unmounts
+    // Cleanup function to abort recognition and clear timers if the component unmounts
     return () => {
-      console.log('[SyncLive] Component unmounting. Aborting recognition.');
       abortRecognition();
+      if (sessionTimerRef.current) {
+        clearInterval(sessionTimerRef.current);
+      }
     };
   }, []);
-
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
     if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
@@ -49,14 +59,66 @@ export default function SyncLiveContent() {
       toast({ variant: 'destructive', title: 'Minimum Required', description: 'You need at least 2 languages for a conversation.' });
     }
   };
+
+   const startSessionTimers = useCallback(() => {
+    if (!user || !settings || hasStarted) return;
+    setHasStarted(true);
+    
+    // Main session timer for display
+    sessionTimerRef.current = setInterval(() => {
+      setSessionTime(prev => prev + 1);
+    }, 1000);
+
+    // Token deduction timer
+    const freeMinutes = settings.freeSyncLiveMinutes || 0;
+    const initialDelay = freeMinutes * 60 * 1000;
+
+    const deductTokens = async () => {
+        if (!auth.currentUser) return;
+        const currentBalance = (await getDoc(doc(db, 'users', auth.currentUser.uid))).data()?.tokenBalance || 0;
+
+        if (currentBalance >= costPerMinute) {
+             const batch = writeBatch(db);
+             const userRef = doc(db, 'users', auth.currentUser.uid);
+             const logRef = doc(collection(userRef, 'transactionLogs'));
+
+             batch.update(userRef, { tokenBalance: increment(-costPerMinute) });
+             batch.set(logRef, {
+                 actionType: 'translation_spend',
+                 tokenChange: -costPerMinute,
+                 timestamp: serverTimestamp(),
+                 description: `Sync Live session usage: 1 minute`
+             });
+             await batch.commit();
+             fetchUserProfile(); // Refresh profile to show new balance
+        } else {
+             setStatus('disabled');
+             toast({ variant: 'destructive', title: 'Session Ended', description: 'Insufficient tokens to continue.' });
+             if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
+        }
+    };
+
+    setTimeout(() => {
+      deductTokens(); // First deduction after free minutes
+      setInterval(deductTokens, 60 * 1000); // Subsequent deductions every minute
+    }, initialDelay);
+
+  }, [user, settings, hasStarted, costPerMinute, fetchUserProfile, toast]);
   
   const startConversationTurn = async () => {
-    console.log('[SyncLive] Starting conversation turn. Status: idle -> listening');
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use Sync Live.' });
+        return;
+    }
+    
+    if (!hasStarted) {
+        startSessionTimers();
+    }
+    
     setStatus('listening');
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
-        console.log(`[SyncLive] Speech recognized. Language: ${detectedLang}, Text: "${originalText}". Status: listening -> speaking`);
         
         setStatus('speaking');
         
@@ -66,7 +128,6 @@ export default function SyncLiveContent() {
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
         for (const targetLangLocale of targetLanguages) {
-            console.log(`[SyncLive] Translating and speaking for ${targetLangLocale}.`);
             const toLangLabel = getAzureLanguageLabel(targetLangLocale);
             
             const translationResult = await translateText({
@@ -81,33 +142,20 @@ export default function SyncLiveContent() {
                 lang: targetLangLocale 
             });
 
-            console.log(`[SyncLive] Received audio data URI snippet: ${audioDataUri.substring(0, 50)}...`);
             const audio = new Audio(audioDataUri);
-            console.log(`[SyncLive] Playing audio for ${targetLangLocale}.`);
             await audio.play();
 
-            // Wait for audio to finish, with a pause after.
             await new Promise(resolve => {
-                audio.onended = () => {
-                    console.log(`[SyncLive] Audio finished for ${targetLangLocale}. Pausing for 1.5 seconds.`);
-                    setTimeout(resolve, 1500);
-                }
-                audio.onerror = () => {
-                     console.error(`[SyncLive] Audio playback error for ${targetLangLocale}.`);
-                    setTimeout(resolve, 1500); // also resolve on error
-                }
+                audio.onended = () => setTimeout(resolve, 1500);
+                audio.onerror = () => setTimeout(resolve, 1500);
             });
         }
-        console.log('[SyncLive] All audio playback complete.');
 
     } catch (error: any) {
-        console.error("[SyncLive] Error during conversation turn:", error);
         if (error.message !== 'Recognition was aborted.') {
              toast({ variant: "destructive", title: "Error", description: "No recognized speech" });
         }
-        setStatus('error');
     } finally {
-        console.log('[SyncLive] Turn finished. Status -> idle.');
         setStatus('idle');
     }
   };
@@ -115,6 +163,12 @@ export default function SyncLiveContent() {
   const allLanguageOptions = useMemo(() => {
     return azureLanguages.filter(l => !selectedLanguages.includes(l.value));
   }, [selectedLanguages]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  };
 
   return (
     <Card className="shadow-lg mt-6 w-full max-w-2xl mx-auto">
@@ -126,6 +180,24 @@ export default function SyncLiveContent() {
             <CardDescription>
                 Tap the mic to talk. Your speech will be translated and spoken aloud for the group. The mic becomes available again after all translations have played.
             </CardDescription>
+             {user && settings && (
+                <div className="flex items-center justify-between text-sm pt-2 text-muted-foreground">
+                   <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-1.5" title="Your token balance">
+                        <Coins className="h-4 w-4 text-amber-500" />
+                        <span>Balance: <strong>{userProfile?.tokenBalance ?? '...'}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1.5" title="Cost per minute after free period">
+                        <Coins className="h-4 w-4 text-red-500" />
+                        <span>Cost: <strong>{costPerMinute}/min</strong></span>
+                    </div>
+                   </div>
+                   <div className="flex items-center gap-1.5" title="Session time">
+                        <Clock className="h-4 w-4" />
+                        <span>Time: <strong>{formatTime(sessionTime)}</strong></span>
+                   </div>
+                </div>
+            )}
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
         <div className="w-full space-y-4">
@@ -162,7 +234,8 @@ export default function SyncLiveContent() {
               "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
               status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-              (status === 'idle' || status === 'error') && 'bg-primary hover:bg-primary/90'
+              (status === 'idle') && 'bg-primary hover:bg-primary/90',
+              status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
           )}
           onClick={startConversationTurn}
           disabled={status !== 'idle'}
@@ -170,7 +243,7 @@ export default function SyncLiveContent() {
           {status === 'idle' && <Mic className="h-10 w-10"/>}
           {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
           {status === 'speaking' && <Volume2 className="h-12 w-12" />}
-          {status === 'error' && <Mic className="h-10 w-10"/>}
+          {status === 'disabled' && <X className="h-10 w-10"/>}
         </Button>
 
         <div className="text-center h-16">
@@ -178,7 +251,7 @@ export default function SyncLiveContent() {
                 {status === 'idle' && "Tap the mic to start speaking"}
                 {status === 'listening' && "Listening..."}
                 {status === 'speaking' && "Translating & Speaking..."}
-                {status === 'error' && "An error occurred. Tap to try again."}
+                {status === 'disabled' && "Session disabled due to insufficient tokens."}
             </p>
             {lastSpoken && (status === 'speaking' || status === 'listening') && (
                  <p className="text-sm text-foreground mt-1 truncate max-w-md">
