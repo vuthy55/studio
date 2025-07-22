@@ -6,7 +6,7 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
 import { recognizeFromMic, assessPronunciationFromMic, abortRecognition } from '@/services/speech';
@@ -14,18 +14,19 @@ import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, runTransaction, addDoc, collection, serverTimestamp, onSnapshot, query, setDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getAppSettings, type AppSettings } from '@/services/settings';
+import { getAppSettings } from '@/services/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { useUserData } from '@/context/UserDataContext';
+import { cn } from '@/lib/utils';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail';
 type AssessmentResult = {
-  status: AssessmentStatus;
+  status: 'pass' | 'fail';
   accuracy?: number;
   fluency?: number;
 };
@@ -38,21 +39,12 @@ type SavedPhrase = {
     toText: string;
 }
 
-interface PracticeHistoryDoc {
-    [key: string]: any;
-}
-
-interface PracticeHistoryStats {
-    [phraseId: string]: {
-        passCountPerLang: Record<string, number>;
-        failCountPerLang: Record<string, number>;
-    }
-}
-
 
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
+    const { user, userProfile, practiceHistory, loading, settings, recordPracticeAttempt } = useUserData();
+    
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
@@ -61,24 +53,15 @@ export default function LiveTranslationContent() {
     const [isRecognizing, setIsRecognizing] = useState(false);
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
-    const [phraseAssessments, setPhraseAssessments] = useState<Record<string, AssessmentResult>>({});
-    const [practiceHistoryStats, setPracticeHistoryStats] = useState<PracticeHistoryStats>({});
+    const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
     const [savedPhrases, setSavedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
-
-    const [user] = useAuthState(auth);
-    const [settings, setSettings] = useState<AppSettings | null>(null);
-
-     useEffect(() => {
-        getAppSettings().then(setSettings);
-    }, []);
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
         return () => {
             if (isRecognizing || assessingPhraseId) {
-                console.log("LiveTranslationContent unmounting: Aborting recognition.");
                 abortRecognition();
             }
         };
@@ -89,32 +72,6 @@ export default function LiveTranslationContent() {
         malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
         chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
     };
-
-    useEffect(() => {
-        if (!user) {
-            setPracticeHistoryStats({});
-            return;
-        };
-
-        const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
-        const q = query(historyRef);
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const stats: PracticeHistoryStats = {};
-            querySnapshot.forEach((doc) => {
-                const data = doc.data() as PracticeHistoryDoc;
-                stats[doc.id] = {
-                    passCountPerLang: data.passCountPerLang || {},
-                    failCountPerLang: data.failCountPerLang || {},
-                };
-            });
-            setPracticeHistoryStats(stats);
-        }, (error) => {
-            console.error("Error listening to practice history:", error);
-        });
-
-        return () => unsubscribe();
-    }, [user]);
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
         if (!text || isRecognizing || assessingPhraseId) return;
@@ -149,8 +106,10 @@ export default function LiveTranslationContent() {
 
 
     const handleTranslation = async () => {
-        if (!inputText || !user || !settings) {
+        if (!inputText) return;
+        if (!user || !settings) {
             if (!user) toast({ variant: 'destructive', title: 'Not Logged In', description: 'Please log in to use translation.' });
+            setTranslatedText('');
             return;
         }
 
@@ -158,30 +117,45 @@ export default function LiveTranslationContent() {
         const translationCost = settings.translationCost;
 
         try {
-            await runTransaction(db, async (transaction) => {
+             // First check for sufficient funds locally
+            if ((userProfile?.tokenBalance || 0) < translationCost) {
+                throw new Error("Insufficient tokens for translation.");
+            }
+
+            // Optimistically deduct tokens from UI
+            // This will be reverted in the catch block if the transaction fails
+            // setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - translationCost}));
+            
+            // Note: We don't deduct optimistically here as it's a paid action, unlike a free reward
+            
+            const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
+            const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
+            const resultPromise = translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+
+            // While the AI translates, run the firestore transaction in parallel
+            const transactionPromise = runTransaction(db, async (transaction) => {
                 const userDocRef = doc(db, 'users', user.uid);
                 const userDoc = await transaction.get(userDocRef);
-                if (!userDoc.exists()) throw "User document does not exist!";
+                if (!userDoc.exists()) throw new Error("User document does not exist!");
                 
                 const currentBalance = userDoc.data().tokenBalance || 0;
-                if (currentBalance < translationCost) throw "Insufficient tokens for translation.";
+                if (currentBalance < translationCost) throw new Error("Insufficient tokens for translation.");
                 
                 const newBalance = currentBalance - translationCost;
                 transaction.update(userDocRef, { tokenBalance: newBalance });
                 
-                const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                const newLogRef = doc(logRef); // auto-generate ID
-                transaction.set(newLogRef, {
+                const logRef = doc(db.collection('users').doc(user.uid).collection('transactionLogs'));
+                transaction.set(logRef, {
                     actionType: 'translation_spend',
                     tokenChange: -translationCost,
                     timestamp: serverTimestamp(),
-                    description: `Translated: "${inputText}"`
+                    description: `Translated: "${inputText.substring(0, 50)}..."`
                 });
             });
 
-            const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
-            const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+            // Wait for both to complete
+            const [result] = await Promise.all([resultPromise, transactionPromise]);
+            
             setTranslatedText(result.translatedText);
 
         } catch (error: any) {
@@ -195,7 +169,7 @@ export default function LiveTranslationContent() {
     };
 
     const doRecognizeFromMicrophone = async () => {
-        if (isRecognizing) return;
+        if (isRecognizing || assessingPhraseId) return;
         
         setIsRecognizing(true);
         try {
@@ -211,61 +185,57 @@ export default function LiveTranslationContent() {
         }
     }
 
-   const doAssessPronunciation = async (referenceText: string, lang: LanguageCode, phraseId: string) => {
-    if (!user || !settings) {
-        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to assess pronunciation.' });
+   const doAssessPronunciation = async (phrase: SavedPhrase) => {
+    if (assessingPhraseId) return;
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
         return;
     }
+    if (!settings) {
+        toast({ variant: 'destructive', title: 'Loading...', description: 'App settings are still loading. Please try again in a moment.' });
+        return;
+    }
+
+    const { id: phraseId, toText: referenceText, toLang } = phrase;
     
     setAssessingPhraseId(phraseId);
-    let finalResult: AssessmentResult = { status: 'fail', accuracy: 0, fluency: 0 };
-    
+    setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result for this phrase
+
     try {
-        const assessment = await assessPronunciationFromMic(referenceText, lang);
+        const assessment = await assessPronunciationFromMic(referenceText, toLang);
         const { isPass, accuracy, fluency } = assessment;
-        finalResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
-            
-        await runTransaction(db, async (transaction) => {
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDoc = await transaction.get(userDocRef);
-                if (!userDoc.exists()) throw "User document not found!";
 
-                const historyDocRef = doc(db, 'users', user.uid, 'practiceHistory', phraseId);
-                const historySnap = await transaction.get(historyDocRef);
-                const passCountForLang = (historySnap.data()?.passCountPerLang?.[lang] || 0) + (isPass ? 1 : 0);
-                const failCountForLang = (historySnap.data()?.failCountPerLang?.[lang] || 0) + (isPass ? 0 : 1);
-
-                const historyData = {
-                    phraseText: referenceText,
-                    [`passCountPerLang.${lang}`]: passCountForLang,
-                    [`failCountPerLang.${lang}`]: failCountForLang,
-                    [`lastAttemptPerLang.${lang}`]: serverTimestamp(),
-                    [`lastAccuracyPerLang.${lang}`]: accuracy
-                };
-                transaction.set(historyDocRef, historyData, { merge: true });
-
-                if (isPass && passCountForLang > 0 && passCountForLang % settings.practiceThreshold === 0) {
-                    transaction.update(userDocRef, { tokenBalance: (userDoc.data()?.tokenBalance || 0) + settings.practiceReward });
-                    
-                    const logRef = collection(db, `users/${user.uid}/transactionLogs`);
-                    const newLogRef = doc(logRef);
-                    transaction.set(newLogRef, {
-                        actionType: 'practice_earn',
-                        tokenChange: settings.practiceReward,
-                        timestamp: serverTimestamp(),
-                        description: `Earned for mastering a saved phrase.`
-                    });
-                    toast({ title: "Tokens Earned!", description: `You earned ${settings.practiceReward} token!` });
-                }
+        const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
+        setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
+        
+        const { wasRewardable, rewardAmount } = recordPracticeAttempt({
+            phraseId,
+            phraseText: referenceText,
+            topicId: 'live_translation_saved', // A unique identifier for this category
+            lang: toLang,
+            isPass,
+            accuracy,
         });
+
+        if (wasRewardable) {
+            toast({ 
+                title: "Congratulations!",
+                description: (
+                    <div className="flex items-center gap-2">
+                        <Award className="h-5 w-5 text-amber-500" />
+                        <span>You earned {rewardAmount} tokens!</span>
+                    </div>
+                )
+            });
+        }
+
     } catch (error: any) {
-      console.error("Error during assessment:", error);
-      if (error.message !== "Recognition was aborted.") {
-        toast({ variant: 'destructive', title: 'Assessment Error', description: error.message });
-      }
+        console.error(`[LiveTranslation] Assessment failed for ${phraseId}:`, error);
+        if (error.message !== "Recognition was aborted.") {
+            toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+        }
     } finally {
-      setPhraseAssessments(prev => ({...prev, [phraseId]: finalResult}));
-      setAssessingPhraseId(null);
+        setAssessingPhraseId(null);
     }
   };
 
@@ -289,6 +259,11 @@ export default function LiveTranslationContent() {
         setSavedPhrases([newPhrase, ...savedPhrases]);
         toast({ title: "Phrase Saved", description: "Added to your practice list below." });
     };
+
+    const handleRemovePhrase = (idToRemove: string) => {
+        setSavedPhrases(savedPhrases.filter(p => p.id !== idToRemove));
+        toast({ title: "Phrase Removed", description: "Removed from your practice list." });
+    }
 
     return (
         <div className="space-y-8">
@@ -384,15 +359,24 @@ export default function LiveTranslationContent() {
                 </CardContent>
             </Card>
 
-            {savedPhrases.length > 0 && (
+            {savedPhrases.length > 0 && user && (
                 <div className="space-y-4">
                     <h3 className="text-xl font-bold font-headline">Your Saved Phrases</h3>
                     <Accordion type="multiple" className="w-full">
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
-                            const assessment = phraseAssessments[phrase.id];
-                            const passes = practiceHistoryStats[phrase.id]?.passCountPerLang?.[phrase.toLang] || 0;
-                            const fails = practiceHistoryStats[phrase.id]?.failCountPerLang?.[phrase.toLang] || 0;
+                            const assessment = lastAssessment[phrase.id];
+                            const history = practiceHistory[phrase.id];
+                            const passes = history?.passCountPerLang?.[phrase.toLang] || 0;
+                            const fails = history?.failCountPerLang?.[phrase.toLang] || 0;
                             const isAssessingCurrent = assessingPhraseId === phrase.id;
+                            const hasBeenRewarded = settings && passes >= settings.practiceThreshold;
+
+                            const getResultIcon = () => {
+                                if (!assessment) return null;
+                                if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+                                if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
+                                return null;
+                            };
                             
                             return (
                                 <AccordionItem value={phrase.id} key={phrase.id}>
@@ -404,26 +388,37 @@ export default function LiveTranslationContent() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="flex justify-between items-center w-full px-4 pb-2">
-                                            <div className="text-xs text-muted-foreground flex items-center gap-4">
-                                                <div className="flex items-center gap-1" title='Correct attempts'>
+                                            <div className="flex items-center gap-4">
+                                                {hasBeenRewarded && (
+                                                    <div className="flex items-center gap-1 text-amber-500 font-bold" title='Tokens awarded for this phrase'>
+                                                        <Award className="h-4 w-4" />
+                                                        <span>+{settings?.practiceReward || 0}</span>
+                                                    </div>
+                                                )}
+                                                <div className="text-xs text-muted-foreground flex items-center gap-1" title='Correct attempts'>
                                                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                                                     <span className="font-bold">{passes}</span>
                                                 </div>
-                                                 <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                                <div className="text-xs text-muted-foreground flex items-center gap-1" title='Incorrect attempts'>
                                                     <XCircle className="h-4 w-4 text-red-500" />
                                                     <span className="font-bold">{fails}</span>
                                                 </div>
                                                 {assessment && (
-                                                     <p>| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                     <p className="text-xs text-muted-foreground">| Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
                                                 )}
                                             </div>
+
                                             <div className="flex items-center shrink-0 ml-auto">
+                                                {getResultIcon()}
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                 </Button>
-                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                     <span className="sr-only">Practice</span>
+                                                </Button>
+                                                 <Button size="icon" variant="ghost" onClick={() => handleRemovePhrase(phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                    <Bookmark className="h-5 w-5 text-red-500" /><span className="sr-only">Remove</span>
                                                 </Button>
                                             </div>
                                         </div>
@@ -442,3 +437,5 @@ export default function LiveTranslationContent() {
         </div>
     );
 }
+
+    
