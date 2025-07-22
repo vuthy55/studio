@@ -116,6 +116,8 @@ export default function SyncRoomPage() {
     const messagesRef = useMemo(() => collection(db, 'syncRooms', roomId, 'messages'), [roomId]);
     const messagesQuery = useMemo(() => query(messagesRef, orderBy('createdAt', 'asc')), [messagesRef]);
     const [messages, messagesLoading] = useCollection(messagesQuery);
+    const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+
 
     const [hasJoined, setHasJoined] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -188,6 +190,8 @@ export default function SyncRoomPage() {
                         fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
                         toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
                     });
+
+                    setTranslatedMessages(prev => ({...prev, [doc.id]: translated.translatedText}));
                     
                     const { audioDataUri } = await generateSpeech({ 
                         text: translated.translatedText, 
@@ -432,7 +436,8 @@ export default function SyncRoomPage() {
                             {messages?.docs.map(doc => {
                                 const msg = doc.data() as RoomMessage;
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                
+                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage)}...`);
+
                                 return (
                                     <div key={doc.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                                         {!isOwnMessage && (
@@ -442,7 +447,7 @@ export default function SyncRoomPage() {
                                         )}
                                         <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-background'}`}>
                                             {!isOwnMessage && <p className="text-xs font-bold mb-1">{msg.speakerName}</p>}
-                                            <p>{msg.text}</p>
+                                            <p>{displayText}</p>
                                             <p className="text-xs opacity-70 mt-1 text-right">{doc.data().createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                         </div>
                                     </div>
