@@ -40,7 +40,7 @@ type SavedPhrase = {
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, loading, settings, recordPracticeAttempt, spendTokens } = useUserData();
+    const { user, userProfile, practiceHistory, loading, settings, recordPracticeAttempt, spendTokensForTranslation } = useUserData();
     
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
@@ -88,22 +88,6 @@ export default function LiveTranslationContent() {
         }
     };
     
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            if (inputText) {
-                handleTranslation();
-            } else {
-                setTranslatedText('');
-            }
-        }, 500);
-
-        return () => {
-            clearTimeout(debounceTimer);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [inputText, fromLanguage, toLanguage]);
-
-
     const handleTranslation = async () => {
         if (!inputText.trim()) return;
 
@@ -115,11 +99,9 @@ export default function LiveTranslationContent() {
 
         setIsTranslating(true);
         try {
-            const translationCost = settings.translationCost;
             const description = `Translated: "${inputText.substring(0, 50)}..."`;
             
-            // Use the centralized token spending function
-            const spendSuccess = spendTokens(translationCost, 'translation_spend', description);
+            const spendSuccess = spendTokensForTranslation(description);
             
             if (!spendSuccess) {
                 throw new Error("Insufficient tokens for translation.");
@@ -140,6 +122,21 @@ export default function LiveTranslationContent() {
             setIsTranslating(false);
         }
     };
+
+    useEffect(() => {
+        const debounceTimer = setTimeout(() => {
+            if (inputText) {
+                handleTranslation();
+            } else {
+                setTranslatedText('');
+            }
+        }, 500);
+
+        return () => {
+            clearTimeout(debounceTimer);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inputText, fromLanguage, toLanguage]);
 
     const doRecognizeFromMicrophone = async () => {
         if (isRecognizing || assessingPhraseId) return;
@@ -309,7 +306,12 @@ export default function LiveTranslationContent() {
                         
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                            <Label htmlFor="to-language-live">{languages.find(l => l.value === toLanguage)?.label} (Cost: {settings?.translationCost || '...'} Tokens)</Label>
+                            <Label htmlFor="to-language-live" className="text-sm">
+                                {languages.find(l => l.value === toLanguage)?.label} 
+                                {user && (
+                                     <span className="text-muted-foreground"> (Cost: {settings?.translationCost || '...'} / Bal: {userProfile?.tokenBalance ?? '...'})</span>
+                                )}
+                            </Label>
                             <div className="flex items-center">
                                     <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={!translatedText || !!assessingPhraseId}>
                                         <Volume2 className="h-5 w-5" />
@@ -332,7 +334,7 @@ export default function LiveTranslationContent() {
 
             {savedPhrases.length > 0 && user && (
                 <div className="space-y-4">
-                    <h3 className="text-xl font-bold font-headline">Your Saved Phrases</h3>
+                    <h3 className="text-xl font-bold font-headline">Your Saved Phrases for Practice</h3>
                     <Accordion type="multiple" className="w-full">
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
                             const assessment = lastAssessment[phrase.id];
@@ -361,7 +363,7 @@ export default function LiveTranslationContent() {
                                         <div className="flex justify-between items-center w-full px-4 pb-2">
                                             <div className="flex items-center gap-4">
                                                 {hasBeenRewarded && (
-                                                    <div className="flex items-center gap-1 text-amber-500 font-bold" title='Tokens awarded for this phrase'>
+                                                    <div className="flex items-center gap-1 text-amber-500 font-bold" title={`Tokens awarded for this phrase: +${settings?.practiceReward || 0}`}>
                                                         <Award className="h-4 w-4" />
                                                         <span>+{settings?.practiceReward || 0}</span>
                                                     </div>
@@ -408,3 +410,5 @@ export default function LiveTranslationContent() {
         </div>
     );
 }
+
+    
