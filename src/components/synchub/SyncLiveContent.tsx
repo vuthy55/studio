@@ -86,15 +86,15 @@ export default function SyncLiveContent() {
             console.log(`[SyncLive] Playing audio for ${targetLangLocale}.`);
             await audio.play();
 
-            // Wait for audio to finish, with a 2-second pause after.
+            // Wait for audio to finish, with a pause after.
             await new Promise(resolve => {
                 audio.onended = () => {
-                    console.log(`[SyncLive] Audio finished for ${targetLangLocale}. Pausing for 2 seconds.`);
-                    setTimeout(resolve, 2000);
+                    console.log(`[SyncLive] Audio finished for ${targetLangLocale}. Pausing for 1.5 seconds.`);
+                    setTimeout(resolve, 1500);
                 }
                 audio.onerror = () => {
                      console.error(`[SyncLive] Audio playback error for ${targetLangLocale}.`);
-                    setTimeout(resolve, 2000); // also resolve on error
+                    setTimeout(resolve, 1500); // also resolve on error
                 }
             });
         }
@@ -103,8 +103,7 @@ export default function SyncLiveContent() {
     } catch (error: any) {
         console.error("[SyncLive] Error during conversation turn:", error);
         if (error.message !== 'Recognition was aborted.') {
-             const errorMessage = error.message === 'No speech could be recognized' ? 'No recognized speech' : `An error occurred: ${error.message}`;
-             toast({ variant: "destructive", title: "Error", description: errorMessage });
+             toast({ variant: "destructive", title: "Error", description: "No recognized speech" });
         }
         setStatus('error');
     } finally {
