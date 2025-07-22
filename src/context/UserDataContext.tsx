@@ -44,7 +44,7 @@ interface UserDataContextType {
 
 // --- Context ---
 
-const UserDataContext = createContext<UserDataDataContextType | undefined>(undefined);
+const UserDataContext = createContext<UserDataContextType | undefined>(undefined);
 
 // --- Provider ---
 
@@ -96,8 +96,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const fetchAllData = async () => {
             if (user && !authLoading) {
                 setLoading(true);
-                await fetchUserProfile();
-                await fetchPracticeHistory();
+                // Only fetch from DB if local state is empty, to prevent overwriting
+                if (Object.keys(userProfile).length === 0) {
+                    await fetchUserProfile();
+                }
+                if (Object.keys(practiceHistory).length === 0) {
+                    await fetchPracticeHistory();
+                }
                 setLoading(false);
             } else if (!user && !authLoading) {
                 // Clear data on logout
@@ -107,7 +112,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         }
         fetchAllData();
-    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory]);
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory, userProfile, practiceHistory]);
 
 
     // --- Client-Side Actions ---
