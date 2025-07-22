@@ -106,8 +106,10 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     pronunciationConfig.applyTo(recognizer);
 
     return new Promise((resolve, reject) => {
+        let promiseHandled = false;
+
         const cleanup = () => {
-             console.log(`[speech.ts] Cleanup for ${currentAssessmentId}.`);
+            console.log(`[speech.ts] Cleanup for ${currentAssessmentId}.`);
             if (safetyTimeout) {
                 clearTimeout(safetyTimeout);
                 safetyTimeout = null;
@@ -122,6 +124,8 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
         
         console.log(`[speech.ts] Setting 10s safety timeout for ${currentAssessmentId}.`);
         safetyTimeout = setTimeout(() => {
+            if (promiseHandled) return;
+            promiseHandled = true;
             console.error(`[speech.ts] Assessment ${currentAssessmentId} hit 10-second safety timeout.`);
             reject(new Error("Assessment timed out after 10 seconds."));
             cleanup();
@@ -130,6 +134,8 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
         recognizer.recognized = (s, e) => {
             console.log(`[speech.ts] Event 'recognized' for ${currentAssessmentId}. Result: ${sdk.ResultReason[e.result.reason]}`);
             if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
+                if (promiseHandled) return;
+                promiseHandled = true;
                 const assessment = sdk.PronunciationAssessmentResult.fromResult(e.result);
                 resolve({
                     accuracy: assessment.accuracyScore,
@@ -138,28 +144,34 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                     pronScore: assessment.pronunciationScore,
                     isPass: assessment.accuracyScore > 70
                 });
+                 recognizer.stopContinuousRecognitionAsync(); // Stop recognition since we have what we need
             } else if (e.result.reason === sdk.ResultReason.NoMatch) {
+                 if (promiseHandled) return;
+                 promiseHandled = true;
                  reject(new Error("Could not recognize speech. Please try again."));
             }
-        };
-
-        recognizer.speechEndDetected = (s, e) => {
-            console.log(`[speech.ts] Event 'speechEndDetected' for ${currentAssessmentId}. Stopping recognizer.`);
-            recognizer.stopContinuousRecognitionAsync();
         };
         
         recognizer.canceled = (s, e) => {
              console.log(`[speech.ts] Event 'canceled' for ${currentAssessmentId}. Reason: ${sdk.CancellationReason[e.reason]}`);
+            if (promiseHandled) return;
+            promiseHandled = true;
             if (e.reason === sdk.CancellationReason.Error) {
                 reject(new Error(e.errorDetails));
             } else if (e.reason !== sdk.CancellationReason.CancelledByUser) {
                 reject(new Error("Recognition was canceled unexpectedly."));
             }
+            // If CancelledByUser, we don't reject, just let it close silently.
         };
 
         recognizer.sessionStopped = (s, e) => {
             console.log(`[speech.ts] Event 'sessionStopped' for ${currentAssessmentId}. Cleaning up.`);
             cleanup();
+             if (!promiseHandled) {
+                promiseHandled = true;
+                // If the session stops without a result (e.g., user navigates away after speaking but before result), reject it.
+                reject(new Error("Session stopped before a result was finalized."));
+            }
         };
 
         recognizer.startContinuousRecognitionAsync(
@@ -167,6 +179,8 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                 console.log(`[speech.ts] Session started for ${currentAssessmentId}.`);
              },
             (err) => {
+                if (promiseHandled) return;
+                promiseHandled = true;
                 console.error(`[speech.ts] Could not start microphone for ${currentAssessmentId}:`, err);
                 reject(new Error(`Could not start microphone: ${err}`));
                 cleanup();
