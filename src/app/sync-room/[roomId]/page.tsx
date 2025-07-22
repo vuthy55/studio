@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX, ShieldQuestion } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -155,6 +155,12 @@ export default function SyncRoomPage() {
     const isCurrentUserEmcee = useMemo(() => {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
+
+    const isRoomCreator = useCallback((email: string) => {
+        const creatorEmail = presentParticipants.find(p => p.uid === roomData?.creatorUid)?.email;
+        return email === creatorEmail;
+    }, [presentParticipants, roomData]);
+
 
     // Gracefully exit if room is closed
     useEffect(() => {
@@ -312,6 +318,31 @@ export default function SyncRoomPage() {
         }
     }
 
+    const handlePromoteToEmcee = async (participantEmail: string) => {
+        if (!isCurrentUserEmcee) return;
+        try {
+            await updateDoc(roomRef, {
+                emceeEmails: arrayUnion(participantEmail)
+            });
+            toast({ title: 'Promotion Success', description: `${participantEmail} is now an emcee.` });
+        } catch (error) {
+            console.error("Error promoting emcee:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not promote participant.' });
+        }
+    };
+
+    const handleDemoteEmcee = async (participantEmail: string) => {
+        try {
+            await updateDoc(roomRef, {
+                emceeEmails: arrayRemove(participantEmail)
+            });
+            toast({ title: 'Demotion Success', description: `${participantEmail} is no longer an emcee.` });
+        } catch (error) {
+            console.error("Error demoting emcee:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not demote emcee.' });
+        }
+    };
+
 
     if (authLoading || roomLoading || participantsLoading) {
         return <div className="flex h-screen items-center justify-center"><LoaderCircle className="h-10 w-10 animate-spin" /></div>;
@@ -336,9 +367,11 @@ export default function SyncRoomPage() {
             {/* Left Panel - Participants */}
             <aside className="w-1/4 min-w-[280px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
-                    <div className="flex items-center justify-between">
-                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
-                    </div>
+                     <div className="bg-primary/10 p-3 rounded-lg">
+                        <p className="font-bold text-lg text-primary">{roomData.topic}</p>
+                        <p className="text-sm text-primary/80">Sync Room</p>
+                     </div>
+                     <h2 className="text-lg font-semibold flex items-center gap-2 pt-2"><Users /> Participants</h2>
                 </header>
                 <ScrollArea className="flex-1">
                     <div className="p-4 space-y-2">
@@ -346,6 +379,7 @@ export default function SyncRoomPage() {
                         {presentParticipants.map(p => {
                             const isCurrentUser = p.uid === user?.uid;
                             const isEmcee = roomData?.emceeEmails?.includes(p.email);
+                            const isCreator = isRoomCreator(p.email);
 
                             return (
                                 <div key={p.uid} className="flex items-center gap-3 group p-1 rounded-md">
@@ -359,17 +393,29 @@ export default function SyncRoomPage() {
                                         </p>
                                         <p className="text-xs text-muted-foreground truncate">{getAzureLanguageLabel(p.selectedLanguage)}</p>
                                     </div>
+                                    
                                     {isCurrentUserEmcee && !isEmcee && (
                                          <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handlePromoteToEmcee(p.email)}>
                                                         <Crown className="h-4 w-4" />
                                                     </Button>
                                                 </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Promote to Emcee</p>
-                                                </TooltipContent>
+                                                <TooltipContent><p>Promote to Emcee</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+
+                                     {isCurrentUserEmcee && isEmcee && !isCreator && (
+                                         <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handleDemoteEmcee(p.email)}>
+                                                        <ShieldQuestion className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent><p>Demote Emcee</p></TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
                                     )}
@@ -395,23 +441,17 @@ export default function SyncRoomPage() {
                         </div>
                     )}
                 </ScrollArea>
-                 <footer className="p-4 border-t space-y-4">
-                     <div>
-                        <p className="font-bold text-lg">{roomData.topic}</p>
-                        <p className="text-sm text-muted-foreground">Meeting Room</p>
-                     </div>
-                     <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={handleExitRoom} className="w-full">
-                            <LogOut className="mr-2 h-4 w-4"/>
-                            Exit Room
+                 <footer className="p-4 border-t flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleExitRoom} className="w-full">
+                        <LogOut className="mr-2 h-4 w-4"/>
+                        Exit Room
+                    </Button>
+                    {isCurrentUserEmcee && (
+                        <Button variant="destructive" size="sm" className="w-full" onClick={handleEndMeeting}>
+                            <ShieldX className="mr-2 h-4 w-4"/>
+                            End Meeting
                         </Button>
-                        {isCurrentUserEmcee && (
-                            <Button variant="destructive" size="sm" className="w-full" onClick={handleEndMeeting}>
-                                <ShieldX className="mr-2 h-4 w-4"/>
-                                End Meeting
-                            </Button>
-                        )}
-                     </div>
+                    )}
                 </footer>
             </aside>
 
