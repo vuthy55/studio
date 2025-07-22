@@ -108,8 +108,8 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 }
 
 
-export async function recognizeFromMic(fromLanguage: AzureLanguageCode | ''): Promise<string> {
-    if (!fromLanguage) throw new Error("Unsupported language for recognition.");
+export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise<string> {
+    if (!fromLanguage) throw new Error("A valid language code must be provided for recognition.");
 
     const speechConfig = getSpeechConfig();
     speechConfig.speechRecognitionLanguage = fromLanguage;
