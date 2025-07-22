@@ -23,38 +23,15 @@ export default function SyncLiveContent() {
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
   
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-    }
-    console.log('[SyncLive] Starting 10-second inactivity timer.');
-    inactivityTimerRef.current = setTimeout(() => {
-        console.log('[SyncLive] Inactivity timer fired. Resetting session.');
-        setStatus('idle');
-        setLastSpoken(null);
-        console.log('[SyncLive] Inactivity timer calling abortRecognition.');
-        abortRecognition();
-        toast({ title: 'Session Resetted', description: 'Conversation reset due to inactivity.' });
-    }, 10000); // 10 seconds
-  }, [toast]);
-
   useEffect(() => {
-    // Start the timer when the component mounts and languages are selected
-    if (selectedLanguages.length > 1) {
-        resetInactivityTimer();
-    }
-    // Cleanup function to abort recognition and clear timers if the component unmounts
+    // Cleanup function to abort recognition if the component unmounts
     return () => {
-      console.log('[SyncLive] Component unmounting. Aborting recognition and clearing timers.');
+      console.log('[SyncLive] Component unmounting. Aborting recognition.');
       abortRecognition();
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-      }
     };
-  }, [selectedLanguages, resetInactivityTimer]);
+  }, []);
 
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
@@ -76,10 +53,6 @@ export default function SyncLiveContent() {
   const startConversationTurn = async () => {
     console.log('[SyncLive] Starting conversation turn. Status: idle -> listening');
     setStatus('listening');
-    if (inactivityTimerRef.current) {
-        console.log('[SyncLive] Clearing inactivity timer during active listening.');
-        clearTimeout(inactivityTimerRef.current);
-    }
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
@@ -129,14 +102,13 @@ export default function SyncLiveContent() {
         console.error("[SyncLive] Error during conversation turn:", error);
         // Only show toast if it's not a user-initiated abort
         if (error.message !== 'Recognition was aborted.') {
-             const errorMessage = error.message === 'No recognized speech' ? 'No recognized speech' : `An error occurred: ${error.message}`;
+             const errorMessage = error.message === 'No speech could be recognized.' ? 'No recognized speech' : `An error occurred: ${error.message}`;
              toast({ variant: "destructive", title: "Error", description: errorMessage });
         }
         setStatus('error');
     } finally {
-        console.log('[SyncLive] Turn finished. Status -> idle. Restarting inactivity timer.');
+        console.log('[SyncLive] Turn finished. Status -> idle.');
         setStatus('idle');
-        resetInactivityTimer(); // Restart timer after the turn is fully complete.
     }
   };
 
@@ -152,7 +124,7 @@ export default function SyncLiveContent() {
                 Sync Live
             </CardTitle>
             <CardDescription>
-                Tap the mic to talk. Your speech will be translated and spoken aloud for the group. The mic becomes available again after all translations have played. The session resets after 10 seconds of inactivity.
+                Tap the mic to talk. Your speech will be translated and spoken aloud for the group. The mic becomes available again after all translations have played.
             </CardDescription>
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">

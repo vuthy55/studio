@@ -115,14 +115,12 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
             }
             
             // Cleanup
-            activeRecognizer = null;
-            recognizer.close();
+            abortRecognition();
         }, err => {
             console.error(`[SPEECH] recognizeOnceAsync threw an error: ${err}`);
             reject(new Error(`Recognition error: ${err}`));
             // Cleanup
-            activeRecognizer = null;
-            recognizer.close();
+            abortRecognition();
         });
     });
 }
@@ -146,12 +144,10 @@ export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<stri
             } else {
                  reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}.`));
             }
-            activeRecognizer = null;
-            recognizer.close();
+            abortRecognition();
         }, err => {
             reject(new Error(`Recognition error: ${err}`));
-            activeRecognizer = null;
-            recognizer.close();
+            abortRecognition();
         });
     });
 }
@@ -175,16 +171,12 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                     text: result.text
                 });
             } else {
-                reject(new Error("No recognized speech"));
+                reject(new Error("No speech could be recognized."));
             }
-            console.log('[SpeechService] recognizeWithAutoDetect: Closing recognizer and cleaning up.');
-            activeRecognizer = null;
-            recognizer.close();
+            abortRecognition();
         }, err => {
             reject(new Error(`Auto-detect recognition error: ${err}`));
-            console.error('[SpeechService] recognizeWithAutoDetect: Closing recognizer on error.');
-            activeRecognizer = null;
-            recognizer.close();
+            abortRecognition();
         });
     });
 }
