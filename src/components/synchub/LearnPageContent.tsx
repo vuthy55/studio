@@ -56,10 +56,9 @@ function LearnPageContent() {
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
-        // This is the cleanup function that will run when the component unmounts.
         return () => {
-            // If a phrase is being assessed when the component unmounts, abort it.
             if (assessingPhraseId) {
+                console.log(`[LearnPageContent] Unmounting with active assessment ${assessingPhraseId}. Aborting.`);
                 abortRecognition();
             }
         };
@@ -90,7 +89,7 @@ function LearnPageContent() {
     };
     
     const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
-        if (assessingPhraseId) return;
+        if (assessingPhraseId) return; // Don't start a new assessment if one is in progress.
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
             return;
@@ -103,15 +102,17 @@ function LearnPageContent() {
         const referenceText = getTranslation(phrase, toLanguage);
         const phraseId = phrase.id;
         
+        console.log(`[LearnPageContent] Starting assessment for phraseId: ${phraseId}`);
         setAssessingPhraseId(phraseId);
-        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result
+        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result for this phrase
     
         try {
             const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
+            console.log(`[LearnPageContent] Received assessment for ${phraseId}:`, assessment);
             const { isPass, accuracy, fluency } = assessment;
 
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
-            setLastAssessment({ [phraseId]: finalResult });
+            setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
             
             recordPracticeAttempt({
                 phraseId,
@@ -124,12 +125,10 @@ function LearnPageContent() {
             });
 
         } catch (error: any) {
-            console.error("[assessPronunciation] Error:", error);
-            // Don't toast on abort, it's expected if user navigates away
-            if (error.message !== "Recognition was aborted.") {
-                toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
-            }
+            console.error(`[LearnPageContent] Assessment failed for ${phraseId}:`, error);
+            toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
         } finally {
+            console.log(`[LearnPageContent] Finalizing assessment for phraseId: ${phraseId}`);
             setAssessingPhraseId(null);
         }
     };
