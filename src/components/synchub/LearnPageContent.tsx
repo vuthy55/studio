@@ -294,7 +294,7 @@ function LearnPageContent() {
                                 const fails = history?.failCountPerLang?.[toLanguage] || 0;
 
                                 const getResultIcon = () => {
-                                    if (isAssessingCurrent) return null; // No loader icon, just red mic
+                                    if (isAssessingCurrent) return null; // No icon during assessment
                                     if (!assessment) return null;
                                     if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
                                     if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
@@ -321,11 +321,11 @@ function LearnPageContent() {
                                             </div>
                                             <div className="flex items-center shrink-0">
                                                 {getResultIcon()}
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play audio</span>
                                                 </Button>
-                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!!assessingPhraseId}>
                                                     <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
                                                     <span className="sr-only">Record pronunciation</span>
                                                 </Button>
@@ -352,7 +352,7 @@ function LearnPageContent() {
                                             <div className="flex justify-between items-center w-full">
                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                 <div className="flex items-center shrink-0">
-                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!!assessingPhraseId}>
                                                         <Volume2 className="h-5 w-5" />
                                                         <span className="sr-only">Play audio</span>
                                                     </Button>
