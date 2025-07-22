@@ -42,7 +42,7 @@ interface UserDataContextType {
     fetchUserProfile: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
-    spendTokens: (amount: number, actionType: TransactionLogType, description: string) => boolean;
+    spendTokensForTranslation: (description: string) => boolean;
 }
 
 // --- Context ---
@@ -233,19 +233,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     }, [user, settings, practiceHistory, setPracticeHistory, setUserProfile, debouncedCommitToFirestore, pendingPracticeSyncs]);
     
-    const spendTokens = useCallback((amount: number, actionType: TransactionLogType, description: string): boolean => {
+    const spendTokensForTranslation = useCallback((description: string): boolean => {
         if (!user || !settings) return false;
 
         const currentBalance = userProfile.tokenBalance || 0;
-        if (currentBalance < amount) {
+        const cost = settings.translationCost || 1;
+
+        if (currentBalance < cost) {
             return false;
         }
 
         // Optimistically update UI
-        setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - amount }));
+        setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
         
         // Add to sync queue
-        pendingTokenSyncs.push({ amount, actionType, description });
+        pendingTokenSyncs.push({ amount: cost, actionType: 'translation_spend', description });
         debouncedCommitToFirestore();
 
         return true;
@@ -285,7 +287,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         fetchUserProfile,
         recordPracticeAttempt,
         getTopicStats,
-        spendTokens,
+        spendTokensForTranslation,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
@@ -300,3 +302,5 @@ export const useUserData = () => {
     }
     return context;
 };
+
+    
