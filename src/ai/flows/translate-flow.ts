@@ -14,8 +14,12 @@ const translateFlow = ai.defineFlow(
   async (input) => {
     const { text, fromLanguage, toLanguage } = input;
     
-    // If the source and target languages are the same, no need to call the AI model.
-    if (fromLanguage.toLowerCase() === toLanguage.toLowerCase()) {
+    // Debugging: Log the languages being compared
+    console.log(`[Translate Flow] From: "${fromLanguage}", To: "${toLanguage}"`);
+
+    // Robust comparison to handle case sensitivity and whitespace
+    if (fromLanguage.trim().toLowerCase() === toLanguage.trim().toLowerCase()) {
+        console.log('[Translate Flow] Languages are the same, returning original text.');
         return { translatedText: text };
     }
 
