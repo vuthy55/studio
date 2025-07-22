@@ -139,13 +139,14 @@ export default function SyncRoomPage() {
 
         const processMessage = async (doc: any) => {
             const msg = doc.data() as RoomMessage;
+            const messageId = doc.id;
+
             // Process only new messages from other users
-            if (msg.speakerUid !== user.uid && !processedMessages.current.has(doc.id)) {
-                processedMessages.current.add(doc.id); // Mark as processed immediately
+            if (msg.speakerUid !== user.uid && !processedMessages.current.has(messageId)) {
+                processedMessages.current.add(messageId); // Mark as processed immediately
                 
                 try {
-                    setIsSpeaking(true);
-                    setTranslatedMessages(prev => ({ ...prev, [doc.id]: 'Translating...' }));
+                    setTranslatedMessages(prev => ({ ...prev, [messageId]: 'Translating...' }));
 
                     const { translatedText } = await translateText({
                         text: msg.text,
@@ -153,7 +154,9 @@ export default function SyncRoomPage() {
                         toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
                     });
                     
-                    setTranslatedMessages(prev => ({ ...prev, [doc.id]: translatedText }));
+                    setTranslatedMessages(prev => ({ ...prev, [messageId]: translatedText }));
+                    
+                    setIsSpeaking(true); // Set speaking state just before playing audio
 
                     const { audioDataUri } = await generateSpeech({ 
                         text: translatedText, 
@@ -164,14 +167,22 @@ export default function SyncRoomPage() {
                         audioPlayerRef.current.src = audioDataUri;
                         await audioPlayerRef.current.play();
                         // Wait for playback to finish before processing the next one
-                        await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
+                        await new Promise(resolve => {
+                            if (audioPlayerRef.current) {
+                                audioPlayerRef.current.onended = () => {
+                                    setIsSpeaking(false);
+                                    resolve(true);
+                                }
+                            } else {
+                                resolve(true);
+                            }
+                        });
                     }
                 } catch(e: any) {
                     console.error("Error processing message:", e);
-                    setTranslatedMessages(prev => ({ ...prev, [doc.id]: `Error: Could not translate message.` }));
+                    setTranslatedMessages(prev => ({ ...prev, [messageId]: `Error: Could not translate message.` }));
                     toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-                } finally {
-                    setIsSpeaking(false);
+                    setIsSpeaking(false); // Reset on error
                 }
             }
         };
