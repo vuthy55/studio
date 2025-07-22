@@ -38,16 +38,21 @@ export type PronunciationAssessmentResult = {
  */
 export function abortRecognition() {
     if (activeRecognizer) {
-        console.log(`[DEBUG] Abort called. Closing active recognizer.`);
+        console.log(`[SpeechService] ABORT triggered. Closing active recognizer.`);
         try {
             // For continuous recognition, we need to stop it first.
             // For recognizeOnceAsync, close() is sufficient but stopping doesn't hurt.
-            activeRecognizer.stopContinuousRecognitionAsync();
+            activeRecognizer.stopContinuousRecognitionAsync(
+                () => { console.log(`[SpeechService] Continuous recognition stopped.`); },
+                (err) => { console.error(`[SpeechService] Error stopping continuous recognition: ${err}`); }
+            );
             activeRecognizer.close();
+            console.log(`[SpeechService] Recognizer closed.`);
         } catch (e) {
-            console.error("[DEBUG] Error during abort: ", e);
+            console.error("[SpeechService] Error during recognizer.close(): ", e);
         } finally {
             activeRecognizer = null;
+            console.log(`[SpeechService] activeRecognizer set to null.`);
         }
     }
 }
@@ -156,10 +161,13 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
+    
+    console.log('[SpeechService] recognizeWithAutoDetect: Recognizer created.');
     activeRecognizer = recognizer;
     
     return new Promise((resolve, reject) => {
          recognizer.recognizeOnceAsync(result => {
+            console.log(`[SpeechService] recognizeWithAutoDetect: recognition complete. Reason: ${sdk.ResultReason[result.reason]}.`);
             if (result.reason === sdk.ResultReason.RecognizedSpeech) {
                 const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
                 resolve({
@@ -167,12 +175,14 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                     text: result.text
                 });
             } else {
-                reject(new Error("No speech could be recognized."));
+                reject(new Error("No recognized speech"));
             }
+            console.log('[SpeechService] recognizeWithAutoDetect: Closing recognizer and cleaning up.');
             activeRecognizer = null;
             recognizer.close();
         }, err => {
             reject(new Error(`Auto-detect recognition error: ${err}`));
+            console.error('[SpeechService] recognizeWithAutoDetect: Closing recognizer on error.');
             activeRecognizer = null;
             recognizer.close();
         });

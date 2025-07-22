@@ -35,6 +35,7 @@ export default function SyncLiveContent() {
         console.log('[SyncLive] Inactivity timer fired. Resetting session.');
         setStatus('idle');
         setLastSpoken(null);
+        console.log('[SyncLive] Inactivity timer calling abortRecognition.');
         abortRecognition();
         toast({ title: 'Session Resetted', description: 'Conversation reset due to inactivity.' });
     }, 10000); // 10 seconds
@@ -107,8 +108,8 @@ export default function SyncLiveContent() {
                 lang: targetLangLocale 
             });
             const audio = new Audio(audioDataUri);
-            await audio.play();
             console.log(`[SyncLive] Playing audio for ${targetLangLocale}.`);
+            await audio.play();
 
             // Wait for audio to finish, with a 2-second pause after.
             await new Promise(resolve => {
@@ -128,7 +129,7 @@ export default function SyncLiveContent() {
         console.error("[SyncLive] Error during conversation turn:", error);
         // Only show toast if it's not a user-initiated abort
         if (error.message !== 'Recognition was aborted.') {
-             const errorMessage = error.message === 'No speech could be recognized.' ? 'No recognized speech' : `An error occurred: ${error.message}`;
+             const errorMessage = error.message === 'No recognized speech' ? 'No recognized speech' : `An error occurred: ${error.message}`;
              toast({ variant: "destructive", title: "Error", description: errorMessage });
         }
         setStatus('error');
