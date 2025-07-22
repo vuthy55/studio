@@ -119,13 +119,15 @@ export default function SyncRoomPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     
+    const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+    }, [messages, translatedMessages]);
 
     const currentUserParticipant = useMemo(() => {
         return participants?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
@@ -143,14 +145,18 @@ export default function SyncRoomPage() {
                 
                 try {
                     setIsSpeaking(true);
-                    const translated = await translateText({
+                    setTranslatedMessages(prev => ({ ...prev, [doc.id]: 'Translating...' }));
+
+                    const { translatedText } = await translateText({
                         text: msg.text,
                         fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
                         toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
                     });
                     
+                    setTranslatedMessages(prev => ({ ...prev, [doc.id]: translatedText }));
+
                     const { audioDataUri } = await generateSpeech({ 
-                        text: translated.translatedText, 
+                        text: translatedText, 
                         lang: currentUserParticipant.selectedLanguage!,
                     });
                     
@@ -162,6 +168,7 @@ export default function SyncRoomPage() {
                     }
                 } catch(e: any) {
                     console.error("Error processing message:", e);
+                    setTranslatedMessages(prev => ({ ...prev, [doc.id]: `Error: Could not translate message.` }));
                     toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
                 } finally {
                     setIsSpeaking(false);
@@ -280,6 +287,8 @@ export default function SyncRoomPage() {
                             {messages?.docs.map(doc => {
                                 const msg = doc.data() as RoomMessage;
                                 const isOwnMessage = msg.speakerUid === user?.uid;
+                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || '');
+                                
                                 return (
                                     <div key={doc.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                                         {!isOwnMessage && (
@@ -289,7 +298,7 @@ export default function SyncRoomPage() {
                                         )}
                                         <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-background'}`}>
                                             {!isOwnMessage && <p className="text-xs font-bold mb-1">{msg.speakerName}</p>}
-                                            <p>{msg.text}</p>
+                                            <p>{displayText}</p>
                                             <p className="text-xs opacity-70 mt-1 text-right">{doc.data().createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                         </div>
                                     </div>
@@ -316,7 +325,7 @@ export default function SyncRoomPage() {
                     </Button>
                     <div className="flex-1">
                         <p className="font-semibold text-muted-foreground">
-                            {isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press and hold the mic to talk")}
+                            {isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk")}
                         </p>
                     </div>
                 </div>
