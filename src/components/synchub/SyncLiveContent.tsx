@@ -46,13 +46,11 @@ export default function SyncLiveContent() {
     };
   }, [status]);
   
-  const calculateCosts = useCallback(() => {
-    const totalUsageMs = (syncLiveUsage || 0) + currentTurnUsage;
-    const chargeableMs = Math.max(0, totalUsageMs - freeMinutesMs);
+  const calculateCostForDuration = useCallback((durationMs: number) => {
+    const chargeableMs = Math.max(0, durationMs - freeMinutesMs);
     const billedMinutes = Math.ceil(chargeableMs / (60 * 1000));
-    const tokensUsed = billedMinutes * costPerMinute;
-    return tokensUsed;
-  }, [syncLiveUsage, currentTurnUsage, freeMinutesMs, costPerMinute]);
+    return billedMinutes * costPerMinute;
+  }, [freeMinutesMs, costPerMinute]);
 
 
   const startConversationTurn = async () => {
@@ -62,10 +60,10 @@ export default function SyncLiveContent() {
     }
     
     // Check for sufficient funds before starting
-    const futureTokensUsed = calculateCosts();
-    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= futureTokensUsed;
+    const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
+    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
 
-    if (!hasSufficientTokens) {
+    if (!hasSufficientTokens && (syncLiveUsage || 0) > freeMinutesMs) {
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
         return;
@@ -102,7 +100,7 @@ export default function SyncLiveContent() {
 
             await new Promise<void>(resolve => {
                 audio.onended = () => resolve();
-                audio.onerror = () => resolve(); // Also resolve on error to not block forever
+                audio.onerror = () => resolve();
             });
         }
     } catch (error: any) {
@@ -149,19 +147,24 @@ export default function SyncLiveContent() {
   };
 
   const tokensUsedDisplay = useMemo(() => {
-    const totalUsageMs = (syncLiveUsage || 0) + currentTurnUsage;
-    const chargeableMs = Math.max(0, totalUsageMs - freeMinutesMs);
-    const billedMinutes = Math.ceil(chargeableMs / (60 * 1000));
-    return billedMinutes * costPerMinute;
-  }, [syncLiveUsage, currentTurnUsage, freeMinutesMs, costPerMinute]);
+    if (!syncLiveUsage) {
+      return calculateCostForDuration(currentTurnUsage);
+    }
+    const costBefore = calculateCostForDuration(syncLiveUsage);
+    const costAfter = calculateCostForDuration(syncLiveUsage + currentTurnUsage);
+    return costAfter - costBefore;
+  }, [syncLiveUsage, currentTurnUsage, calculateCostForDuration]);
+  
   
   useEffect(() => {
-      const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensUsedDisplay;
-      if (status === 'idle' && !hasSufficientTokens) {
+      const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
+      const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
+      if (status === 'idle' && !hasSufficientTokens && (syncLiveUsage || 0) > freeMinutesMs) {
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
       }
-  }, [status, tokensUsedDisplay, userProfile?.tokenBalance, toast]);
+  }, [status, syncLiveUsage, userProfile?.tokenBalance, calculateCostForDuration, freeMinutesMs, toast]);
+
 
   return (
     <Card className="shadow-lg mt-6 w-full max-w-2xl mx-auto">
