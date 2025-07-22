@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ export default function TestAutoDetectPage() {
   const [status, setStatus] = useState<RecognitionStatus>('idle');
   const [result, setResult] = useState<{ detectedLang: string, text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { availableLanguages, selectedLanguageObjects } = useMemo(() => {
     const selectedSet = new Set(selectedLanguages);
@@ -41,6 +42,16 @@ export default function TestAutoDetectPage() {
     setSelectedLanguages(prev => prev.filter(lang => lang !== langToRemove));
   };
 
+  const handleStopTest = () => {
+    if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+    }
+    abortRecognition();
+    setStatus('idle');
+    setError('Recognition manually stopped.');
+  }
+
   const handleStartTest = async () => {
     if (selectedLanguages.length < 1) {
         toast({ variant: 'destructive', title: 'No Languages', description: 'Please select at least one language to detect.' });
@@ -49,6 +60,13 @@ export default function TestAutoDetectPage() {
     setError(null);
     setResult(null);
     setStatus('listening');
+
+    // Set a 30-second safety timeout
+    timeoutRef.current = setTimeout(() => {
+        abortRecognition();
+        setStatus('idle');
+        setError('Recognition timed out after 30 seconds.');
+    }, 30000);
 
     try {
       const recognitionResult = await recognizeWithAutoDetect(selectedLanguages);
@@ -60,6 +78,9 @@ export default function TestAutoDetectPage() {
         setError(e.message || 'An unknown error occurred.');
       }
     } finally {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
       setStatus('idle');
     }
   };
@@ -70,7 +91,7 @@ export default function TestAutoDetectPage() {
         <CardHeader>
           <CardTitle>Azure Speech Auto-Detect Test</CardTitle>
           <CardDescription>
-            Select up to 4 languages, then press the button and speak. The microphone will stop automatically after a pause.
+            Select up to 4 languages, then press the button and speak. The microphone will stop automatically after a pause or after 30 seconds.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -100,17 +121,26 @@ export default function TestAutoDetectPage() {
             </div>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-4">
             <Button onClick={handleStartTest} disabled={status !== 'idle'} size="lg">
-              {status === 'listening' ? <LoaderCircle className="mr-2 h-5 w-5 animate-spin" /> : <Mic className="mr-2 h-5 w-5" />}
-              {status === 'listening' ? 'Listening...' : 'Start Test'}
+              <Mic className="mr-2 h-5 w-5" />
+              Start Test
+            </Button>
+             <Button onClick={handleStopTest} disabled={status !== 'listening'} variant="destructive" size="lg">
+              <X className="mr-2 h-5 w-5" />
+              Stop
             </Button>
           </div>
 
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Status & Results</h3>
              <div className="p-4 bg-muted rounded-md space-y-2">
-                <p><strong>Status:</strong> <span className="capitalize">{status}</span></p>
+                <p><strong>Status:</strong> 
+                    <span className="capitalize ml-2">
+                        {status === 'listening' ? <LoaderCircle className="inline-block mr-2 h-4 w-4 animate-spin" /> : null}
+                        {status}
+                    </span>
+                </p>
              </div>
             {result && (
               <div className="p-4 bg-secondary rounded-md space-y-2">
