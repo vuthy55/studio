@@ -39,6 +39,7 @@ import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface InvitedRoom extends SyncRoom {
     id: string;
@@ -138,10 +139,6 @@ export default function SyncOnlineHome() {
                 invitedEmails: emails,
                 emceeUids: [user.uid],
                 lastActivityAt: serverTimestamp(),
-                // Deprecated field, set to null
-                activeSpeakerUid: null,
-                // Add version for easy identification
-                version: 2, 
             };
             batch.set(newRoomRef, newRoom);
 
@@ -162,7 +159,7 @@ export default function SyncOnlineHome() {
 
         } catch (error) {
             console.error("Error creating room:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'cannot create room' });
+            toast({ variant: "destructive", title: "Error", description: "cannot create room" });
         } finally {
             setIsCreating(false);
         }
@@ -262,9 +259,11 @@ export default function SyncOnlineHome() {
                                                     <SelectValue placeholder="Select your language..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
+                                                  <ScrollArea className="h-72">
                                                     {azureLanguages.map(lang => (
                                                         <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                                     ))}
+                                                  </ScrollArea>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -336,13 +335,12 @@ export default function SyncOnlineHome() {
                                         <div className="flex-grow">
                                             <p className="font-semibold">{room.topic}</p>
                                             <div className="flex items-center gap-2">
-                                                 <p className="text-sm text-muted-foreground">{new Date(room.createdAt?.toDate()).toLocaleString()}</p>
-                                                 {room.version === 2 && <Badge variant="outline">V2</Badge>}
+                                                 <p className="text-sm text-muted-foreground">{room.createdAt ? new Date(room.createdAt.toDate()).toLocaleString() : ''}</p>
                                                  {room.status === 'closed' && <Badge variant="destructive">Closed</Badge>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Button asChild disabled={room.status === 'closed'}>
+                                            <Button asChild>
                                                 <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
                                             </Button>
                                             {room.creatorUid === user.uid && (
