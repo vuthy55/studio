@@ -30,7 +30,6 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { isMobile } = useSidebar();
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -201,7 +200,7 @@ export default function LoginPage() {
   return (
     <div className="space-y-8">
         <header className="flex items-center gap-4">
-             {isMobile && <SidebarTrigger />}
+             <SidebarTrigger />
         </header>
 
         <div className="flex justify-center items-center">

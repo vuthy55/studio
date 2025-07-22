@@ -29,7 +29,6 @@ interface DetailedHistory {
 export default function StatsPage() {
     const { user, loading, practiceHistory, getTopicStats } = useUserData();
     const router = useRouter();
-    const { isMobile } = useSidebar();
     
     const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
     const [selectedLanguageForDialog, setSelectedLanguageForDialog] = useState<LanguageCode | null>(null);
@@ -115,7 +114,7 @@ export default function StatsPage() {
         <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLanguageForDialog(null)}>
             <div className="space-y-8">
                 <header className="flex items-center gap-4">
-                    {isMobile && <SidebarTrigger />}
+                    <SidebarTrigger />
                     <div>
                         <h1 className="text-3xl font-bold font-headline flex items-center gap-2"><Languages className="h-8 w-8"/> Language Performance</h1>
                         <p className="text-muted-foreground">Your accuracy across all languages practiced.</p>

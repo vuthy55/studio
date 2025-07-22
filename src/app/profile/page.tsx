@@ -235,7 +235,6 @@ function TokenHistorySection() {
 export default function ProfilePage() {
     const { user, loading: authLoading, userProfile, fetchUserProfile } = useUserData();
     const router = useRouter();
-    const { isMobile } = useSidebar();
     const { toast } = useToast();
     
     const [profile, setProfile] = useState<Partial<UserProfile>>({});
@@ -316,7 +315,7 @@ export default function ProfilePage() {
         <div className="space-y-8">
             <header className="flex justify-between items-start">
                  <div className="flex items-center gap-4">
-                    {isMobile && <SidebarTrigger />}
+                    <SidebarTrigger />
                     <div>
                         <h1 className="text-3xl font-bold font-headline">My Account</h1>
                         <p className="text-muted-foreground">Manage settings and track your history.</p>

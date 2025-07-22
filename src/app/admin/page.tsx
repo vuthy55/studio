@@ -849,7 +849,6 @@ function TokensTabContent() {
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
-    const { isMobile } = useSidebar();
     const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
@@ -874,7 +873,7 @@ export default function AdminPage() {
     return (
         <div className="space-y-8">
             <header className="flex items-center gap-4">
-                {isMobile && <SidebarTrigger />}
+                <SidebarTrigger />
                 <div>
                   <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
                   <p className="text-muted-foreground">Manage users and app settings.</p>

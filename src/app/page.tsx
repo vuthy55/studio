@@ -19,7 +19,6 @@ const MemoizedSyncOnline = memo(SyncOnlineHome);
 
 
 export default function SyncHubPage() {
-    const { isMobile } = useSidebar();
     const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState('prep-vibe');
 
@@ -34,7 +33,7 @@ export default function SyncHubPage() {
         <div className="space-y-8">
              <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    {isMobile && <SidebarTrigger />}
+                    <SidebarTrigger />
                     <div>
                         <h1 className="text-3xl font-bold font-headline">SyncHub</h1>
                         <p className="text-muted-foreground">Prepare, practice, and connect.</p>
