@@ -6,6 +6,7 @@ service cloud.firestore {
 
     function isAdmin() {
       // Safe check for admin role, reusable by all rules.
+      // Ensures the user is authenticated and their document exists with role 'admin'.
       return request.auth != null &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
@@ -17,10 +18,14 @@ service cloud.firestore {
         return request.auth != null && request.auth.uid == userId;
       }
       
-      // Allow admins to list all users for searching
-      allow list: if isAdmin();
-      allow read, update: if isOwner() || isAdmin();
-      // Allow user to create their own record during signup
+      // Allow admins to list ALL users for search/dashboard features.
+      // Allow authenticated users to read their own profile.
+      allow read, list: if isOwner() || isAdmin();
+
+      // Allow a user to update their own profile, or an admin to update any profile.
+      allow update: if isOwner() || isAdmin();
+      
+      // Allow a user to create their own user document during signup.
       allow create: if isOwner();
 
       // Transaction Logs: A user can read and create their own logs.
@@ -42,20 +47,27 @@ service cloud.firestore {
       }
     }
     
-    // --- NEW RULES FOR ADMIN DASHBOARD ---
+    // --- RULES FOR ADMIN DASHBOARD ---
     
-    // Financial Ledger: Only admins can read the ledger.
+    // Financial Ledger: Only admins can read or create entries.
     match /financialLedger/{ledgerId} {
       allow read, create: if isAdmin();
       allow update, delete: if false;
     }
     
     // Transaction Logs Collection Group: Allow admins to query across all users' logs.
+    // This is necessary for the main token ledger view in the admin panel.
     match /{path=**}/transactionLogs/{logId} {
       allow read: if isAdmin();
     }
     
-    // --- END NEW RULES ---
+    // Referrals Log: Only admins can read the central referrals log.
+    match /referrals/{referralId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false; // Only created by server action.
+    }
+    
+    // --- END ADMIN RULES ---
 
     // App Settings: Only admins can read and write application-wide settings.
     match /settings/{settingId} {
@@ -65,12 +77,15 @@ service cloud.firestore {
     // Sync Rooms: Handles creation, reading, and updates for rooms.
     match /syncRooms/{roomId} {
       function isInvited() {
-        return request.auth != null && request.auth.token.email in resource.data.invitedEmails;
+        // request.resource is null on read, must use resource
+        return request.auth != null && resource.data.invitedEmails.hasAny([request.auth.token.email]);
       }
       function isEmcee() {
+        // request.resource is null on read, must use resource
         return request.auth != null && request.auth.uid in resource.data.emceeUids;
       }
       function isCreator() {
+         // request.resource is null on read, must use resource
         return request.auth != null && request.auth.uid == resource.data.creatorUid;
       }
       function isOnlyChangingSpeaker() {
@@ -91,7 +106,7 @@ service cloud.firestore {
           return exists(/databases/$(database)/documents/syncRooms/$(roomId));
         }
         function isInvitedToRoom() {
-          return roomExists() && request.auth != null && request.auth.token.email in roomData().invitedEmails;
+          return roomExists() && request.auth != null && roomData().invitedEmails.hasAny([request.auth.token.email]);
         }
         function isEmceeInRoom() {
           return roomExists() && request.auth != null && request.auth.uid in roomData().emceeUids;
@@ -99,24 +114,20 @@ service cloud.firestore {
         function isRoomCreator() {
           return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
         }
-        function isCreatingOwnParticipantRecord() {
-            return request.auth != null && request.auth.uid == participantId &&
-                   request.resource.data.uid == request.auth.uid &&
-                   getAfter(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
+        function isSelf() {
+            return request.auth != null && request.auth.uid == participantId;
         }
 
         allow list, read: if isInvitedToRoom();
-        allow create: if (request.auth != null && isInvitedToRoom() && request.resource.data.uid == request.auth.uid) || isCreatingOwnParticipantRecord();
-        allow update: if isEmceeInRoom() || (request.auth != null && request.auth.uid == participantId);
-        allow delete: if isRoomCreator() || (request.auth != null && request.auth.uid == participantId);
+        allow create: if isSelf() && request.resource.data.uid == request.auth.uid;
+        allow update: if isEmceeInRoom() || isSelf();
+        allow delete: if isRoomCreator() || isSelf();
       }
       
       // Messages sub-collection: Rules for sending and reading messages.
       match /messages/{messageId} {
-          function isInvitedToRoom() {
-              return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-                     request.auth != null &&
-                     get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.hasAny([request.auth.token.email]);
+          function isParticipant() {
+              return exists(/databases/$(database)/documents/syncRooms/$(roomId)/participants/$(request.auth.uid));
           }
           function isRoomCreator() {
             return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
@@ -124,8 +135,8 @@ service cloud.firestore {
                    get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
           }
 
-          allow list, read: if isInvitedToRoom();
-          allow create: if isInvitedToRoom() && request.resource.data.speakerUid == request.auth.uid;
+          allow list, read: if isParticipant();
+          allow create: if isParticipant() && request.resource.data.speakerUid == request.auth.uid;
           allow delete: if isRoomCreator();
       }
     }
