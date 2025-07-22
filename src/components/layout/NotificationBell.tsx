@@ -14,13 +14,12 @@ import {
 } from '@/components/ui/popover';
 import Link from 'next/link';
 import { Separator } from '../ui/separator';
+import type { SyncRoom } from '@/lib/types';
 
-interface InvitedRoom {
+
+interface InvitedRoom extends SyncRoom {
     id: string;
-    topic: string;
     createdAt: Timestamp;
-    creatorUid: string;
-    creatorName?: string;
 }
 
 export default function NotificationBell() {
@@ -50,21 +49,7 @@ export default function NotificationBell() {
                     return timeB - timeA;
                 });
             
-            const roomsWithCreators = await Promise.all(roomsData.map(async (room) => {
-                if (!room.creatorUid) return { ...room, creatorName: 'Unknown' };
-                try {
-                    const userDoc = await getDoc(doc(db, 'users', room.creatorUid));
-                    if (userDoc.exists()) {
-                        return { ...room, creatorName: userDoc.data().name || 'Unknown' };
-                    }
-                    return { ...room, creatorName: 'Unknown' };
-                } catch (error) {
-                    console.error(`Failed to fetch creator for room ${room.id}`, error);
-                    return { ...room, creatorName: 'Unknown' };
-                }
-            }));
-
-            setInvitations(roomsWithCreators);
+            setInvitations(roomsData);
         }, (error) => {
             console.error("Error fetching invitations:", error);
         });
@@ -113,7 +98,7 @@ export default function NotificationBell() {
                                         </div>
                                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                                             <User className="h-3 w-3" />
-                                            Invited by {room.creatorName}
+                                            Invited by {room.creatorName || 'a user'}
                                         </p>
                                     </div>
                                     <ArrowRight className="h-4 w-4 mt-1" />

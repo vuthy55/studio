@@ -171,6 +171,7 @@ export default function SyncOnlineHome() {
             const newRoom: Omit<SyncRoom, 'id'> = {
                 topic: roomTopic,
                 creatorUid: user.uid,
+                creatorName: user.displayName || user.email?.split('@')[0] || 'Creator',
                 createdAt: serverTimestamp(),
                 status: 'active',
                 invitedEmails: allInvitedEmails,
