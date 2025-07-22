@@ -40,9 +40,6 @@ export type PronunciationAssessmentResult = {
 export function abortRecognition() {
     console.log(`[speech.ts] Abort called. Active recognizer ID: ${activeRecognizerId}`);
     if (activeRecognizer) {
-        // The recognizeOnceAsync method doesn't have a manual stop.
-        // Instead, we can close the recognizer, which will cancel the operation.
-        // We set a flag or nullify the active recognizer to prevent further actions.
         const recognizerToClose = activeRecognizer;
         const recognizerIdToClose = activeRecognizerId;
 
@@ -56,7 +53,8 @@ export function abortRecognition() {
 
 
 /**
- * Performs pronunciation assessment using the more reliable `recognizeOnceAsync`.
+ * Performs pronunciation assessment using a controlled continuous recognition session.
+ * This is more stable for UI components that re-render.
  * @param referenceText The text to compare against.
  * @param lang The language of the text.
  * @param debugId A unique ID for this assessment attempt for logging.
@@ -66,7 +64,7 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     const currentAssessmentId = debugId || `assessment-${Date.now()}`;
     
     if (activeRecognizer) {
-        console.log(`[speech.ts] New assessment (${currentAssessmentId}) requested while another is active (${activeRecognizerId}). Aborting old one.`);
+        console.warn(`[speech.ts] New assessment (${currentAssessmentId}) requested while another is active (${activeRecognizerId}). Aborting old one.`);
         abortRecognition();
     }
 
@@ -91,16 +89,22 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     pronunciationConfig.applyTo(recognizer);
 
     return new Promise((resolve, reject) => {
-        recognizer.recognizeOnceAsync(result => {
-             // Clean up immediately
-            if (activeRecognizerId === currentAssessmentId) {
-                recognizer.close();
-                activeRecognizer = null;
-                activeRecognizerId = null;
-            }
+        let recognized = false;
 
-            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
-                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
+        recognizer.recognized = (s, e) => {
+            if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
+                if (recognized) return; // Already handled
+                recognized = true;
+
+                console.log(`[speech.ts] Event 'recognized' for ${currentAssessmentId}.`);
+                const assessment = sdk.PronunciationAssessmentResult.fromResult(e.result);
+                
+                // Immediately stop recognition
+                recognizer.stopContinuousRecognitionAsync(
+                    () => console.log(`[speech.ts] Stop continuous recognition succeeded for ${currentAssessmentId}.`),
+                    (err) => console.error(`[speech.ts] Stop continuous recognition failed for ${currentAssessmentId}: ${err}`)
+                );
+                
                 resolve({
                     accuracy: assessment.accuracyScore,
                     fluency: assessment.fluencyScore,
@@ -108,28 +112,41 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                     pronScore: assessment.pronunciationScore,
                     isPass: assessment.accuracyScore > 70
                 });
-            } else if (result.reason === sdk.ResultReason.NoMatch) {
-                reject(new Error("Could not recognize speech. Please try again."));
-            } else if (result.reason === sdk.ResultReason.Canceled) {
-                 const cancellation = sdk.CancellationDetails.fromResult(result);
-                 if (cancellation.reason === sdk.CancellationReason.Error) {
-                    reject(new Error(`Assessment failed: ${cancellation.errorDetails}`));
-                 } else {
-                    // This case is for intentional cancellations, e.g., navigating away.
-                    // We don't reject, just let it fail silently as the user has moved on.
-                    console.log("[speech.ts] Assessment was canceled by the user or another operation.");
-                 }
-            } else {
-                 reject(new Error(`Speech assessment failed with reason: ${sdk.ResultReason[result.reason]}`));
+            } else if (e.result.reason === sdk.ResultReason.NoMatch) {
+                 reject(new Error("Could not recognize speech. Please try again."));
             }
-        }, err => {
-            if (activeRecognizerId === currentAssessmentId) {
+        };
+
+        recognizer.canceled = (s, e) => {
+             if (recognized) return;
+             console.log(`[speech.ts] Event 'canceled' for ${currentAssessmentId}. Reason: ${sdk.CancellationReason[e.reason]}`);
+             if (e.reason === sdk.CancellationReason.Error) {
+                reject(new Error(`Assessment canceled: ${e.errorDetails}`));
+             } else {
+                 reject(new Error("Assessment was canceled."));
+             }
+        };
+
+        recognizer.sessionStopped = (s, e) => {
+             console.log(`[speech.ts] Event 'sessionStopped' for ${currentAssessmentId}. Cleaning up.`);
+             if (activeRecognizerId === currentAssessmentId) {
                 recognizer.close();
                 activeRecognizer = null;
                 activeRecognizerId = null;
+             }
+             if (!recognized) {
+                // This can happen if the user never spoke.
+                reject(new Error("No speech was detected."));
+             }
+        };
+
+        recognizer.startContinuousRecognitionAsync(
+            () => console.log(`[speech.ts] Session started for ${currentAssessmentId}.`),
+            (err) => {
+                console.error(`[speech.ts] Error starting session for ${currentAssessmentId}: ${err}`);
+                reject(new Error(`Could not start microphone: ${err}`));
             }
-            reject(new Error(`Error during recognizeOnceAsync: ${err}`));
-        });
+        );
     });
 }
 
@@ -145,27 +162,38 @@ export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<stri
 
     return new Promise<string>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
+            recognizer.close();
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
             } else {
                  reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}.`));
             }
-            recognizer.close();
         }, err => {
-            reject(new Error(`Recognition error: ${err}`));
             recognizer.close();
+            reject(new Error(`Recognition error: ${err}`));
         });
     });
 }
 
 export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
+    if (activeRecognizer) {
+        console.warn(`[speech.ts] Auto-detect requested while another recognizer is active. Aborting old one.`);
+        abortRecognition();
+    }
     const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
+    activeRecognizer = recognizer;
+    activeRecognizerId = `autodetect-${Date.now()}`;
     
     return new Promise((resolve, reject) => {
          recognizer.recognizeOnceAsync(result => {
+            if (activeRecognizer === recognizer) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
+            }
             if (result.reason === sdk.ResultReason.RecognizedSpeech) {
                 const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
                 resolve({
@@ -175,10 +203,13 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
             } else {
                 reject(new Error("No speech could be recognized."));
             }
-            recognizer.close();
         }, err => {
+            if (activeRecognizer === recognizer) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
+            }
             reject(new Error(`Auto-detect recognition error: ${err}`));
-            recognizer.close();
         });
     });
 }
