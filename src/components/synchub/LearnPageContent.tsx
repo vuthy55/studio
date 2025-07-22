@@ -47,6 +47,8 @@ function LearnPageContent() {
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isFetchingSettings, setIsFetchingSettings] = useState(true);
 
+    const assessmentIdCounter = useRef(0);
+
     useEffect(() => {
         getAppSettings().then(s => {
             setSettings(s)
@@ -56,10 +58,9 @@ function LearnPageContent() {
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
-        // This is the cleanup function that will run when the component unmounts.
         return () => {
-            // If a phrase is being assessed when the component unmounts, abort it.
             if (assessingPhraseId) {
+                console.log(`[LearnPageContent] Unmounting with active assessment ${assessingPhraseId}. Aborting.`);
                 abortRecognition();
             }
         };
@@ -90,7 +91,10 @@ function LearnPageContent() {
     };
     
     const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
-        if (assessingPhraseId) return; // Prevent multiple assessments at once
+        if (assessingPhraseId) {
+             console.log("[LearnPageContent] Assessment already in progress. Ignoring new request.");
+            return;
+        }
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
             return;
@@ -103,15 +107,18 @@ function LearnPageContent() {
         const referenceText = getTranslation(phrase, toLanguage);
         const phraseId = phrase.id;
         
+        assessmentIdCounter.current += 1;
+        const currentAssessmentId = `assessment-${phraseId}-${assessmentIdCounter.current}`;
+
         setAssessingPhraseId(phraseId);
-        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result
+        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); 
     
         try {
-            const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
+            const assessment = await assessPronunciationFromMic(referenceText, toLanguage, currentAssessmentId);
             const { isPass, accuracy, fluency } = assessment;
 
             const finalResult: AssessmentResult = { status: isPass ? 'pass' : 'fail', accuracy, fluency };
-            setLastAssessment({ [phraseId]: finalResult });
+            setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
             
             recordPracticeAttempt({
                 phraseId,
@@ -124,8 +131,7 @@ function LearnPageContent() {
             });
 
         } catch (error: any) {
-            console.error("[assessPronunciation] Error:", error);
-            // Don't toast on abort, it's expected if user navigates away or starts new assessment
+             console.error(`[LearnPageContent] Assessment ID ${currentAssessmentId} failed:`, error);
             if (error.message && !error.message.includes("aborted") && !error.message.includes("canceled")) {
                 toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
             }
