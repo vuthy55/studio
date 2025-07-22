@@ -107,7 +107,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         }
         fetchAllData();
-    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory]);
+    // This is the fix: removing setUserProfile and setPracticeHistory from the dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory]);
 
 
     // --- Client-Side Actions ---
