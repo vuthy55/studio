@@ -71,22 +71,29 @@ export async function assessPronunciationFromMic(
     }
 
     const speechConfig = getSpeechConfig();
+    // The language must be set on the main config as well.
+    speechConfig.speechRecognitionLanguage = locale;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     
     activeRecognizer = recognizer;
     activeRecognizerId = currentAssessmentId;
 
+    // This is the critical fix: The PronunciationAssessmentConfig requires the language to be set on the config object itself.
     const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
         referenceText,
         sdk.PronunciationAssessmentGradingSystem.HundredMark,
         sdk.PronunciationAssessmentGranularity.Phoneme,
         true
     );
+    // The language parameter was missing here, which is why scores were 0.
+    pronunciationConfig.language = locale; 
+    
     pronunciationConfig.applyTo(recognizer);
 
     return new Promise((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
+             // Clean up immediately after the async operation returns.
             if (activeRecognizerId === currentAssessmentId) {
                 recognizer.close();
                 activeRecognizer = null;
@@ -100,7 +107,7 @@ export async function assessPronunciationFromMic(
                     fluency: assessment.fluencyScore,
                     completeness: assessment.completenessScore,
                     pronScore: assessment.pronunciationScore,
-                    isPass: assessment.accuracyScore > 70
+                    isPass: (assessment.accuracyScore || 0) > 70
                 });
             } else if (result.reason === sdk.ResultReason.NoMatch) {
                 reject(new Error("No speech could be recognized. Please try again."));
@@ -111,7 +118,8 @@ export async function assessPronunciationFromMic(
                  reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}.`));
             }
         }, err => {
-            if (activeRecognizerId === currentAssessmentId) {
+            // Also clean up on error.
+             if (activeRecognizerId === currentAssessmentId) {
                 recognizer.close();
                 activeRecognizer = null;
                 activeRecognizerId = null;
