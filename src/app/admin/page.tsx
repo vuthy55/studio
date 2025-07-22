@@ -125,9 +125,14 @@ function UsersTabContent() {
     }, [toast]);
     
     useEffect(() => {
+        // Clear search results if the debounced term is empty
+        if (!debouncedSearchTerm) {
+            setUsers([]);
+            setHasSearched(false);
+            return;
+        }
         fetchUsers(debouncedSearchTerm);
     }, [debouncedSearchTerm, fetchUsers]);
-
 
     const handleRowClick = (userId: string) => {
         router.push(`/admin/${userId}`);
@@ -314,7 +319,7 @@ function SettingsTabContent() {
 }
 
 function FinancialTabContent() {
-    const [currentUser] = useAuthState(auth);
+    const [user] = useAuthState(auth);
     const { toast } = useToast();
     const [ledger, setLedger] = useState<FinancialLedgerEntry[]>([]);
     const [analytics, setAnalytics] = useState({ revenue: 0, expenses: 0, net: 0 });
@@ -337,7 +342,7 @@ function FinancialTabContent() {
     });
 
     const resetForm = () => {
-        setFormState({ description: '', amount: '', userEmail: currentUser?.email || '', link: '', source: 'manual' });
+        setFormState({ description: '', amount: '', userEmail: user?.email || '', link: '', source: 'manual' });
     };
 
     const handleOpenRevenueDialog = () => {
@@ -358,6 +363,13 @@ function FinancialTabContent() {
     };
 
     const fetchData = useCallback(async () => {
+        if (!auth.currentUser) {
+            setLedger([]);
+            setAnalytics({ revenue: 0, expenses: 0, net: 0 });
+            setUserMap({});
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         try {
             const [ledgerData, analyticsData] = await Promise.all([
@@ -388,7 +400,7 @@ function FinancialTabContent() {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [fetchData, user]); // Refetch when user logs in/out
 
     const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
         e.preventDefault();
@@ -696,6 +708,7 @@ function FinancialTabContent() {
 }
 
 function TokensTabContent() {
+    const [user] = useAuthState(auth);
     const { toast } = useToast();
     const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
     const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
@@ -712,25 +725,32 @@ function TokensTabContent() {
         }
     };
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const [analyticsData, ledgerData] = await Promise.all([
-                    getTokenAnalytics(),
-                    getTokenLedger()
-                ]);
-                setAnalytics(analyticsData);
-                setLedger(ledgerData);
-            } catch (err: any) {
-                 console.error("Error fetching token data:", err);
-                toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchData();
+     const fetchData = useCallback(async () => {
+        if (!auth.currentUser) {
+            setAnalytics(null);
+            setLedger([]);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const [analyticsData, ledgerData] = await Promise.all([
+                getTokenAnalytics(),
+                getTokenLedger()
+            ]);
+            setAnalytics(analyticsData);
+            setLedger(ledgerData);
+        } catch (err: any) {
+             console.error("Error fetching token data:", err);
+            toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
+        } finally {
+            setIsLoading(false);
+        }
     }, [toast]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData, user]); // Refetch when user logs in/out
     
     if (isLoading) {
         return (
@@ -881,4 +901,5 @@ export default function AdminPage() {
     
 
     
+
 

@@ -78,6 +78,9 @@ export default function UserDetailPage() {
     useEffect(() => {
         if (adminLoading) return;
         if (!adminUser) {
+            // Clear sensitive data on logout before redirecting
+            setProfile({});
+            setTransactions([]);
             router.push('/login');
             return;
         }
@@ -85,6 +88,7 @@ export default function UserDetailPage() {
             fetchProfileAndLogs(userId);
         }
     }, [adminUser, adminLoading, router, userId, fetchProfileAndLogs]);
+
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value, type } = e.target;
