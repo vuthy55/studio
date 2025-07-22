@@ -101,10 +101,13 @@ export default function LiveTranslationContent() {
         try {
             const description = `Translated: "${inputText.substring(0, 50)}..."`;
             
-            const spendSuccess = spendTokensForTranslation(description);
+            const spendSuccess = await spendTokensForTranslation(description);
             
             if (!spendSuccess) {
-                throw new Error("Insufficient tokens for translation.");
+                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens for this translation.' });
+                setTranslatedText('');
+                setIsTranslating(false);
+                return;
             }
             
             const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
@@ -409,4 +412,5 @@ export default function LiveTranslationContent() {
             )}
         </div>
     );
-}
+
+    
