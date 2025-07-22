@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,22 +18,39 @@ import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'error';
 
-export default function GroupConverseContent() {
+export default function SyncLiveContent() {
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
-
+  
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Cleanup function to abort recognition if the component unmounts
-    // during a listening or speaking phase.
-    return () => {
-      if (status === 'listening' || status === 'speaking') {
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+    }
+    inactivityTimerRef.current = setTimeout(() => {
+        setStatus('idle');
+        setLastSpoken(null);
         abortRecognition();
+        toast({ title: 'Session Resetted', description: 'Conversation reset due to inactivity.' });
+    }, 10000); // 10 seconds
+  }, [toast]);
+
+  useEffect(() => {
+    // Start the timer when the component mounts and languages are selected
+    if (selectedLanguages.length > 1) {
+        resetInactivityTimer();
+    }
+    // Cleanup function to abort recognition and clear timers if the component unmounts
+    return () => {
+      abortRecognition();
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
       }
     };
-  }, [status]);
+  }, [selectedLanguages, resetInactivityTimer]);
 
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
@@ -52,8 +69,9 @@ export default function GroupConverseContent() {
     }
   };
   
-  const startConversation = async () => {
+  const startConversationTurn = async () => {
     setStatus('listening');
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current); // Stop timer while listening
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
@@ -81,20 +99,22 @@ export default function GroupConverseContent() {
             });
             const audio = new Audio(audioDataUri);
             await audio.play();
+            // Wait for audio to finish, with a 2-second pause after.
             await new Promise(resolve => {
-                audio.onended = resolve;
-                audio.onerror = resolve; // also resolve on error to not block the loop
+                audio.onended = () => setTimeout(resolve, 2000);
+                audio.onerror = () => setTimeout(resolve, 2000); // also resolve on error
             });
         }
     } catch (error: any) {
         console.error("Error during conversation turn:", error);
-        toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
+        // Only show toast if it's not a user-initiated abort
+        if (error.message !== 'Recognition was aborted.') {
+             toast({ variant: "destructive", title: "Error", description: `An error occurred: ${error.message}` });
+        }
         setStatus('error');
     } finally {
-        // Only set back to idle if we weren't unmounted mid-process
-        if (status !== 'idle') {
-            setStatus('idle');
-        }
+        setStatus('idle');
+        resetInactivityTimer(); // Restart timer after the turn is fully complete.
     }
   };
 
@@ -107,10 +127,10 @@ export default function GroupConverseContent() {
         <CardHeader>
             <CardTitle className="flex items-center gap-3 text-2xl">
                 <Users className="h-7 w-7 text-primary"/>
-                Group Conversation
+                Sync Live
             </CardTitle>
             <CardDescription>
-                Press the microphone to speak. It will be translated and spoken aloud for the group. The mic will be available again after.
+                Tap the mic to talk. Your speech will be translated and spoken aloud for the group. The mic becomes available again after all translations have played. The session resets after 10 seconds of inactivity.
             </CardDescription>
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
@@ -150,23 +170,23 @@ export default function GroupConverseContent() {
               status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
               (status === 'idle' || status === 'error') && 'bg-primary hover:bg-primary/90'
           )}
-          onClick={startConversation}
+          onClick={startConversationTurn}
           disabled={status !== 'idle'}
         >
-          {status === 'idle' && <><Mic className="h-10 w-10 mr-2"/> Speak</>}
+          {status === 'idle' && <Mic className="h-10 w-10"/>}
           {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
           {status === 'speaking' && <Volume2 className="h-12 w-12" />}
-          {status === 'error' && <><Mic className="h-10 w-10 mr-2"/> Retry</>}
+          {status === 'error' && <Mic className="h-10 w-10"/>}
         </Button>
 
         <div className="text-center h-16">
             <p className="font-semibold text-muted-foreground">
-                {status === 'idle' && "Press Speak to begin"}
+                {status === 'idle' && "Tap the mic to start speaking"}
                 {status === 'listening' && "Listening..."}
                 {status === 'speaking' && "Translating & Speaking..."}
-                {status === 'error' && "An error occurred. Press Retry."}
+                {status === 'error' && "An error occurred. Tap to try again."}
             </p>
-            {lastSpoken && status !== 'idle' && (
+            {lastSpoken && (status === 'speaking' || status === 'listening') && (
                  <p className="text-sm text-foreground mt-1 truncate max-w-md">
                      <span className="font-bold">{lastSpoken.lang}:</span> "{lastSpoken.text}"
                  </p>

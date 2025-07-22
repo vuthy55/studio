@@ -5,15 +5,15 @@ import { useState, memo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
-import GroupConverseContent from '@/components/synchub/GroupConverseContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
+import SyncLiveContent from '@/components/synchub/SyncLiveContent';
 
 // Memoize the components to prevent unnecessary re-renders when the tab changes.
 // By defining them here as stable constants, we ensure React doesn't unmount them.
 const MemoizedLearnPage = memo(LearnPageContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
-const MemoizedGroupConverse = memo(GroupConverseContent);
+const MemoizedSyncLive = memo(SyncLiveContent);
 const MemoizedSyncOnline = memo(SyncOnlineHome);
 
 
@@ -47,7 +47,7 @@ export default function SyncHubPage() {
                    <MemoizedLiveTranslation />
                 </TabsContent>
                 <TabsContent value="sync-live" className="mt-6">
-                   <MemoizedGroupConverse />
+                   <MemoizedSyncLive />
                 </TabsContent>
                 <TabsContent value="sync-online" className="mt-6">
                     <MemoizedSyncOnline />
