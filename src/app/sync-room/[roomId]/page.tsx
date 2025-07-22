@@ -125,7 +125,7 @@ export default function SyncRoomPage() {
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string,>());
+    const processedMessages = useRef(new Set<string>() as Set<string>);
     const lastMessageCount = useRef(0);
 
 
@@ -510,5 +510,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
