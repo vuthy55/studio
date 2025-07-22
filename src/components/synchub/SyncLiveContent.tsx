@@ -24,29 +24,26 @@ export default function SyncLiveContent() {
   const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
-  const [displayText, setDisplayText] = useState<{ lang: string } | null>(null);
+  const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState(0);
   const [sessionTokensUsed, setSessionTokensUsed] = useState(0);
 
-
-  const isMounted = useRef(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const sessionUsageRef = useRef(0);
   
   const { toast } = useToast();
 
   const costPerMinute = settings?.costPerSyncLiveMinute || 1;
   const freeMinutesMs = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000;
-  
-  // This ref will hold the accumulated usage for the current session.
-  // It persists across re-renders without causing them.
-  const sessionUsageRef = useRef(0);
 
   useEffect(() => {
-    isMounted.current = true;
-    // When the component unmounts, stop any active recognition.
     return () => {
-      isMounted.current = false;
-      if (status === 'listening' || status === 'speaking') {
+      if (status !== 'idle') {
         abortRecognition();
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
     };
   }, [status]);
@@ -58,44 +55,36 @@ export default function SyncLiveContent() {
         return;
     }
     
-    // Check if the user has enough tokens for the *next* minute of paid usage
-    const totalUsageAfterNextMinute = (syncLiveUsage || 0) + sessionUsageRef.current + 60000;
-    const tokensRequiredForNextMinute = calculateCostForDuration(totalUsageAfterNextMinute) - calculateCostForDuration((syncLiveUsage || 0) + sessionUsageRef.current);
+    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
     
-    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
-    
-    if (!hasSufficientTokens && ((syncLiveUsage || 0) + sessionUsageRef.current) >= freeMinutesMs) {
-        if (isMounted.current) setStatus('disabled');
+    if (!hasSufficientTokens && (syncLiveUsage || 0) + sessionUsageRef.current >= freeMinutesMs) {
+        setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
         return;
     }
 
-    if (isMounted.current) {
-        setStatus('listening');
-        setDisplayText(null);
-    }
+    setStatus('listening');
+    setSpeakingLanguage(null);
+    
+    timeoutRef.current = setTimeout(() => {
+        abortRecognition();
+        setStatus('idle');
+        toast({ variant: 'destructive', title: 'Timeout', description: 'Recognition timed out after 30 seconds.' });
+    }, 30000);
     
     const turnStartTime = Date.now();
     
     try {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
-        
-        if (!isMounted.current) return;
-        
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
         setStatus('speaking');
 
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
         for (const targetLangLocale of targetLanguages) {
-             if (!isMounted.current) {
-                abortRecognition(); // Stop further processing if component unmounts
-                return;
-            };
-
             const toLangLabel = getAzureLanguageLabel(targetLangLocale);
-            
-            // Set the language name for display
-            if (isMounted.current) setDisplayText({ lang: toLangLabel });
+            setSpeakingLanguage(toLangLabel);
             
             const translationResult = await translateText({
                 text: originalText,
@@ -104,40 +93,40 @@ export default function SyncLiveContent() {
             });
             const translatedText = translationResult.translatedText;
             
-            const { audioDataUri } = await generateSpeech({ 
-                text: translatedText, 
-                lang: targetLangLocale 
-            });
+            const { audioDataUri } = await generateSpeech({ text: translatedText, lang: targetLangLocale });
 
-            const audio = new Audio(audioDataUri);
-            await audio.play();
-
-            // Wait for the audio to finish before proceeding to the next language
-            await new Promise<void>(resolve => {
-                audio.onended = () => resolve();
-                audio.onerror = (e) => {
-                    console.error("Audio playback error:", e);
-                    resolve(); // Resolve anyway to continue the loop
-                };
-            });
+            if (audioPlayerRef.current) {
+                audioPlayerRef.current.src = audioDataUri;
+                await audioPlayerRef.current.play();
+                await new Promise<void>(resolve => {
+                    if(audioPlayerRef.current) {
+                        audioPlayerRef.current.onended = () => resolve();
+                        audioPlayerRef.current.onerror = (e) => {
+                            console.error("Audio playback error:", e);
+                            resolve(); 
+                        };
+                    } else {
+                        resolve();
+                    }
+                });
+            }
         }
     } catch (error: any) {
-        if (isMounted.current && error.message !== 'Recognition was aborted.') {
-             toast({ variant: "destructive", title: "Could not recognize speech", description: "Please try speaking again." });
+         if (error.message !== 'Recognition was aborted.') {
+             toast({ variant: "destructive", title: "Recognition Error", description: "Could not recognize speech. Please try again." });
         }
     } finally {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         const turnDuration = Date.now() - turnStartTime;
-        if (isMounted.current) {
-          // Accumulate session usage in the ref
-          sessionUsageRef.current += turnDuration;
-          setSessionUsage(sessionUsageRef.current); // Update state for display
+        
+        sessionUsageRef.current += turnDuration;
+        setSessionUsage(sessionUsageRef.current);
 
-          const tokensIncurred = updateSyncLiveUsage(turnDuration);
-          setSessionTokensUsed(prev => prev + tokensIncurred);
+        const tokensIncurred = updateSyncLiveUsage(turnDuration);
+        setSessionTokensUsed(prev => prev + tokensIncurred);
 
-          setStatus('idle');
-          setDisplayText(null);
-        }
+        setStatus('idle');
+        setSpeakingLanguage(null);
     }
   };
 
@@ -183,15 +172,13 @@ export default function SyncLiveContent() {
 
   
   useEffect(() => {
-      // Check for sufficient tokens when component mounts or dependencies change
-      const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
-      const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
+      const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
       
       if (status === 'idle' && !hasSufficientTokens && (syncLiveUsage || 0) >= freeMinutesMs) {
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
       }
-  }, [status, syncLiveUsage, userProfile?.tokenBalance, calculateCostForDuration, freeMinutesMs, toast]);
+  }, [status, syncLiveUsage, userProfile?.tokenBalance, calculateCostForDuration, freeMinutesMs, toast, costPerMinute]);
 
 
   return (
@@ -275,9 +262,10 @@ export default function SyncLiveContent() {
         <div className="text-center h-24 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center">
              {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
              {status === 'listening' && <p className="font-semibold text-muted-foreground text-sm">Listening...</p>}
-             {status === 'speaking' && displayText && <p className="text-lg text-primary font-bold">Speaking: {displayText.lang}</p>}
+             {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
              {status === 'disabled' && <p className="font-semibold text-destructive text-sm">Session disabled due to insufficient tokens.</p>}
         </div>
+        <audio ref={audioPlayerRef} className="hidden" />
       </CardContent>
     </Card>
   );
