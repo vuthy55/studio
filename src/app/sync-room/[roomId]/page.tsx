@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -394,6 +394,7 @@ export default function SyncRoomPage() {
     };
 
     const handleDemoteEmcee = async (participantEmail: string) => {
+        if (!isCurrentUserEmcee) return;
         try {
             await updateDoc(roomRef, {
                 emceeEmails: arrayRemove(participantEmail)
@@ -443,6 +444,7 @@ export default function SyncRoomPage() {
                             const isEmcee = roomData?.emceeEmails?.includes(p.email);
                             const isCreator = isRoomCreator(p.uid);
                             const canBeModified = isCurrentUserEmcee && !isCreator && !isCurrentUser;
+                             const canBeDemoted = isCurrentUserEmcee && !isCreator && isEmcee;
 
                             return (
                                 <div key={p.id} className="flex items-center gap-3 group p-2 rounded-md hover:bg-muted/50">
@@ -463,6 +465,26 @@ export default function SyncRoomPage() {
                                     {canBeModified && (
                                         <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <TooltipProvider>
+                                                {!isEmcee ? (
+                                                     <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handlePromoteToEmcee(p.email)}>
+                                                                <ShieldCheck className="h-4 w-4 text-green-600" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Promote to Emcee</p></TooltipContent>
+                                                    </Tooltip>
+                                                ) : canBeDemoted && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDemoteEmcee(p.email)}>
+                                                                <ShieldX className="h-4 w-4 text-muted-foreground" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Demote Emcee</p></TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                               
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMuteToggle(p.id, !!p.isMuted)}>
@@ -490,13 +512,13 @@ export default function SyncRoomPage() {
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            This will permanently remove {p.name} from the room. They will not be able to rejoin.
+                                                            This will permanently remove and block {p.name} from the room. They will not be able to rejoin.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => handleRemoveParticipant(p.id, p.name)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                                            Remove
+                                                            Remove & Block
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
@@ -613,3 +635,6 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+
+    
