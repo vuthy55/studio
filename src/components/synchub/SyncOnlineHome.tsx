@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -167,26 +167,19 @@ export default function SyncOnlineHome() {
 
     const handleDeleteRoom = async (roomId: string) => {
         try {
-            const batch = writeBatch(db);
-    
-            const messagesRef = collection(db, 'syncRooms', roomId, 'messages');
-            const messagesSnapshot = await getSubCollectionDocs(messagesRef);
-            messagesSnapshot.forEach(doc => batch.delete(doc.ref));
-
-            const participantsRef = collection(db, 'syncRooms', roomId, 'participants');
-            const participantsSnapshot = await getSubCollectionDocs(participantsRef);
-            participantsSnapshot.forEach(doc => batch.delete(doc.ref));
-
+            // "Soft delete" by changing the status.
+            // The full cleanup will be handled by the "End Meeting" server action.
             const roomRef = doc(db, 'syncRooms', roomId);
-            batch.delete(roomRef);
-
-            await batch.commit();
+            await updateDoc(roomRef, {
+                status: 'closed',
+                lastActivityAt: serverTimestamp(),
+            });
             
-            toast({ title: "Room Deleted", description: "The sync room and all its data have been deleted." });
-            fetchInvitedRooms();
+            toast({ title: "Room Closed", description: "The room has been closed for all participants." });
+            fetchInvitedRooms(); // Refreshes the list to show the 'closed' status
         } catch (error) {
-            console.error("Error deleting room:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the room.' });
+            console.error("Error closing room:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not close the room.' });
         }
     };
     
@@ -343,7 +336,7 @@ export default function SyncOnlineHome() {
                                             <Button asChild>
                                                 <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
                                             </Button>
-                                            {room.creatorUid === user.uid && (
+                                            {room.creatorUid === user.uid && room.status !== 'closed' && (
                                                 <AlertDialog onOpenChange={() => setDeleteConfirmation('')}>
                                                     <AlertDialogTrigger asChild>
                                                          <Button variant="destructive" size="icon">
@@ -354,24 +347,15 @@ export default function SyncOnlineHome() {
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the room and all of its data.
-                                                                <br/><br/>
-                                                                Please type <strong>delete</strong> to confirm.
+                                                                This will close the room for all participants. This action cannot be undone.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
-                                                        <Input 
-                                                            id="delete-confirm"
-                                                            value={deleteConfirmation}
-                                                            onChange={(e) => setDeleteConfirmation(e.target.value)}
-                                                            className="mt-2"
-                                                        />
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                             <AlertDialogAction 
-                                                                onClick={() => handleDeleteRoom(room.id)} 
-                                                                disabled={deleteConfirmation.toLowerCase() !== 'delete'}
+                                                                onClick={() => handleDeleteRoom(room.id)}
                                                             >
-                                                                Delete
+                                                                Close Room
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
@@ -390,5 +374,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    

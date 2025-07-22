@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
@@ -22,9 +22,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
@@ -133,6 +134,22 @@ export default function SyncRoomPage() {
         return participants?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
     }, [participants, user]);
 
+    const isCurrentUserEmcee = useMemo(() => {
+        return user && roomData?.emceeUids?.includes(user.uid);
+    }, [user, roomData]);
+
+    // Gracefully exit if room is closed
+    useEffect(() => {
+        if (roomData?.status === 'closed') {
+            toast({
+                title: 'Meeting Ended',
+                description: 'This room has been closed by the emcee.',
+                duration: 5000,
+            });
+            router.push('/');
+        }
+    }, [roomData, router, toast]);
+
     // Handle incoming messages for translation and TTS
     useEffect(() => {
         if (!messages || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -189,7 +206,9 @@ export default function SyncRoomPage() {
 
         const playQueue = async () => {
              for (const doc of messages.docs) {
-                await processMessage(doc);
+                if (!audioPlayerRef.current || audioPlayerRef.current.paused) {
+                    await processMessage(doc);
+                }
             }
         };
         playQueue();
@@ -217,6 +236,7 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
+                 await updateDoc(roomRef, { lastActivityAt: serverTimestamp() });
                 await addDoc(messagesRef, {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
@@ -257,27 +277,54 @@ export default function SyncRoomPage() {
         <div className="flex h-screen bg-muted/40">
             {/* Left Panel - Participants */}
             <aside className="w-1/4 min-w-[250px] bg-background border-r flex flex-col">
-                <header className="p-4 border-b">
-                     <Button variant="ghost" size="sm" onClick={goBack} className="mb-2">
-                        <ArrowLeft className="mr-2 h-4 w-4"/>
-                        Back to SyncHub
-                    </Button>
-                    <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants ({participants?.docs.length})</h2>
+                <header className="p-4 border-b space-y-2">
+                    <div className="flex items-center justify-between">
+                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants ({participants?.docs.length})</h2>
+                         <Button variant="outline" size="sm" onClick={goBack}>
+                            <LogOut className="mr-2 h-4 w-4"/>
+                            Exit Room
+                        </Button>
+                    </div>
+                    {isCurrentUserEmcee && (
+                         <Button variant="destructive" size="sm" className="w-full" disabled>
+                            <ShieldX className="mr-2 h-4 w-4"/>
+                            End Meeting for All
+                        </Button>
+                    )}
                 </header>
                 <ScrollArea className="flex-1">
                     <div className="p-4 space-y-4">
                         {participants?.docs.map(doc => {
                             const p = doc.data() as Participant;
                             const isCurrentUser = p.uid === user?.uid;
+                            const isEmcee = roomData?.emceeUids?.includes(p.uid);
+
                             return (
-                                <div key={p.uid} className="flex items-center gap-3">
+                                <div key={p.uid} className="flex items-center gap-3 group">
                                     <Avatar>
                                         <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1 overflow-hidden">
-                                        <p className="font-semibold truncate">{p.name} {isCurrentUser && '(You)'}</p>
+                                        <p className="font-semibold truncate flex items-center gap-1.5">
+                                            {isEmcee && <Crown className="h-4 w-4 text-amber-400"/>}
+                                            {p.name} {isCurrentUser && '(You)'}
+                                        </p>
                                         <p className="text-xs text-muted-foreground truncate">{getAzureLanguageLabel(p.selectedLanguage)}</p>
                                     </div>
+                                    {isCurrentUserEmcee && !isEmcee && (
+                                         <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled>
+                                                        <Crown className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Promote to Emcee</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
                                     {isListening && isCurrentUser && <Mic className="h-4 w-4 text-green-500 animate-pulse" />}
                                 </div>
                             );
@@ -298,7 +345,7 @@ export default function SyncRoomPage() {
                             {messages?.docs.map(doc => {
                                 const msg = doc.data() as RoomMessage;
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || '');
+                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || 'Translating...');
                                 
                                 return (
                                     <div key={doc.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
