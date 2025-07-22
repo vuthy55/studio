@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -38,6 +38,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
@@ -134,6 +145,10 @@ export default function SyncRoomPage() {
     const [hasJoined, setHasJoined] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    
+    const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+    const [emailsToInvite, setEmailsToInvite] = useState('');
+    const [isSendingInvites, setIsSendingInvites] = useState(false);
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -320,6 +335,29 @@ export default function SyncRoomPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
         }
     };
+    
+    const handleSendInvites = async () => {
+        const emails = emailsToInvite.split(/[ ,]+/).map(e => e.trim()).filter(Boolean);
+        if (emails.length === 0) {
+            toast({ variant: 'destructive', title: 'No Emails', description: 'Please enter at least one email address.' });
+            return;
+        }
+
+        setIsSendingInvites(true);
+        try {
+            await updateDoc(roomRef, {
+                invitedEmails: arrayUnion(...emails)
+            });
+            toast({ title: 'Invites Sent', description: 'The new participants can now join the room from their Sync Online tab.' });
+            setEmailsToInvite('');
+            setIsInviteDialogOpen(false);
+        } catch (error) {
+            console.error('Error sending invites:', error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not send invitations.' });
+        } finally {
+            setIsSendingInvites(false);
+        }
+    };
 
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
@@ -436,7 +474,40 @@ export default function SyncRoomPage() {
                         <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                         <p className="text-sm text-primary/80">Sync Room</p>
                      </div>
-                     <h2 className="text-lg font-semibold flex items-center gap-2 pt-2"><Users /> Participants</h2>
+                     <div className="flex items-center justify-between pt-2">
+                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
+                        {isCurrentUserEmcee && (
+                            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Invite More People</DialogTitle>
+                                        <DialogDescription>
+                                            Enter email addresses separated by commas to invite them to this room.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="py-4 space-y-2">
+                                        <Label htmlFor="emails-to-invite">Emails</Label>
+                                        <Textarea 
+                                            id="emails-to-invite" 
+                                            value={emailsToInvite}
+                                            onChange={(e) => setEmailsToInvite(e.target.value)}
+                                            placeholder="friend1@example.com, friend2@example.com"
+                                        />
+                                    </div>
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                        <Button onClick={handleSendInvites} disabled={isSendingInvites}>
+                                            {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                            Send Invites
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        )}
+                     </div>
                 </header>
                 <ScrollArea className="flex-1">
                     <div className="p-4 space-y-2">
@@ -637,6 +708,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-
-    

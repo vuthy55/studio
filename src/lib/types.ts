@@ -6,7 +6,7 @@ export type SyncRoom = {
     id: string;
     topic: string;
     creatorUid: string;
-    creatorName: string; // Add this line
+    creatorName: string;
     createdAt: FieldValue;
     status: 'active' | 'closed';
     invitedEmails: string[];
