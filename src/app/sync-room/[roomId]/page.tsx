@@ -5,11 +5,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, RoomMessage } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
+import { recognizeFromMic, abortRecognition } from '@/services/speech';
+import { translateText } from '@/ai/flows/translate-flow';
+import { generateSpeech } from '@/services/tts';
+
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -18,8 +22,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
@@ -111,8 +116,12 @@ export default function SyncRoomPage() {
     const [messages, messagesLoading] = useCollection(messagesQuery);
 
     const [hasJoined, setHasJoined] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
     
+    const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const processedMessages = useRef(new Set<string>());
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -121,6 +130,54 @@ export default function SyncRoomPage() {
     const currentUserParticipant = useMemo(() => {
         return participants?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
     }, [participants, user]);
+
+    // Handle incoming messages for translation and TTS
+    useEffect(() => {
+        if (!messages || !user || !currentUserParticipant?.selectedLanguage) return;
+
+        const processMessage = async (doc: any) => {
+            const msg = doc.data() as RoomMessage;
+            // Process only new messages from other users
+            if (msg.speakerUid !== user.uid && !processedMessages.current.has(doc.id)) {
+                processedMessages.current.add(doc.id); // Mark as processed immediately
+                
+                try {
+                    setIsSpeaking(true);
+                    const translated = await translateText({
+                        text: msg.text,
+                        fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
+                        toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
+                    });
+                    
+                    const { audioDataUri } = await generateSpeech({ 
+                        text: translated.translatedText, 
+                        lang: currentUserParticipant.selectedLanguage!,
+                    });
+                    
+                    if (audioPlayerRef.current) {
+                        audioPlayerRef.current.src = audioDataUri;
+                        await audioPlayerRef.current.play();
+                        // Wait for playback to finish before processing the next one
+                        await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
+                    }
+                } catch(e: any) {
+                    console.error("Error processing message:", e);
+                    toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
+                } finally {
+                    setIsSpeaking(false);
+                }
+            }
+        };
+
+        const playQueue = async () => {
+             for (const doc of messages.docs) {
+                await processMessage(doc);
+            }
+        };
+        playQueue();
+
+    }, [messages, user, currentUserParticipant, toast]);
+
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -133,6 +190,31 @@ export default function SyncRoomPage() {
     }, [user, authLoading, router, roomData, participantsLoading, currentUserParticipant]);
 
     const goBack = () => router.push('/');
+
+    const handleMicPress = async () => {
+        if (!currentUserParticipant?.selectedLanguage) return;
+
+        setIsListening(true);
+        try {
+            const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
+            
+            if (recognizedText) {
+                await addDoc(messagesRef, {
+                    text: recognizedText,
+                    speakerName: currentUserParticipant.name,
+                    speakerUid: currentUserParticipant.uid,
+                    speakerLanguage: currentUserParticipant.selectedLanguage,
+                    createdAt: serverTimestamp(),
+                });
+            }
+        } catch (error: any) {
+             if (error.message !== "Recognition was aborted.") {
+               toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
+            }
+        } finally {
+            setIsListening(false);
+        }
+    }
 
 
     if (authLoading || roomLoading || participantsLoading) {
@@ -178,7 +260,7 @@ export default function SyncRoomPage() {
                                         <p className="font-semibold truncate">{p.name} {isCurrentUser && '(You)'}</p>
                                         <p className="text-xs text-muted-foreground truncate">{getAzureLanguageLabel(p.selectedLanguage)}</p>
                                     </div>
-                                    {isCurrentUser && <Mic className="h-4 w-4 text-green-500" />}
+                                    {isListening && isCurrentUser && <Mic className="h-4 w-4 text-green-500 animate-pulse" />}
                                 </div>
                             );
                         })}
@@ -224,15 +306,22 @@ export default function SyncRoomPage() {
                     </ScrollArea>
                 </div>
                 <div className="p-4 border-t bg-background flex items-center gap-4">
-                    <Button size="lg" className="rounded-full w-24 h-24 text-lg">
-                        <Mic className="h-10 w-10"/>
+                    <Button 
+                        size="lg" 
+                        className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
+                        onClick={isListening ? abortRecognition : handleMicPress}
+                        disabled={isSpeaking}
+                    >
+                        {isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>}
                     </Button>
                     <div className="flex-1">
-                        <p className="font-semibold text-muted-foreground">Press and hold the mic to talk</p>
+                        <p className="font-semibold text-muted-foreground">
+                            {isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press and hold the mic to talk")}
+                        </p>
                     </div>
                 </div>
+                 <audio ref={audioPlayerRef} className="hidden" />
             </main>
         </div>
     );
 }
-
