@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
 import type { TransactionLog } from '@/lib/types';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface TransactionLogWithId extends TransactionLog {
     id: string;
@@ -160,7 +161,8 @@ export default function UserDetailPage() {
     
     return (
         <div className="space-y-8">
-            <header>
+            <header className="flex items-center gap-4">
+                <SidebarTrigger className="md:hidden"/>
                 <Button variant="ghost" asChild>
                     <Link href="/admin">
                         <ArrowLeft className="mr-2 h-4 w-4"/>

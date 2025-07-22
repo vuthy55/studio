@@ -5,7 +5,6 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
-import Link from "next/link";
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -90,9 +89,8 @@ const SidebarProvider = React.forwardRef<
 
     // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
-        setOpen(open => !open);
-        setOpenMobile(open => !open);
-    }, [setOpen, setOpenMobile])
+      setOpen((open) => !open)
+    }, [setOpen])
 
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
@@ -265,7 +263,7 @@ const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  const { setOpenMobile } = useSidebar()
 
   return (
     <Button
@@ -276,7 +274,7 @@ const SidebarTrigger = React.forwardRef<
       className={cn("h-8 w-8 md:hidden", className)}
       onClick={(event) => {
         onClick?.(event)
-        toggleSidebar()
+        setOpenMobile(true)
       }}
       {...props}
     >

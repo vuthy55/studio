@@ -38,16 +38,18 @@ export function AppSidebar() {
     }
   };
   
+  const closeSidebar = () => setOpenMobile(false);
+  
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="font-headline text-2xl font-bold text-primary">VibeSync</Link>
+        <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>VibeSync</Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
-              <Link href="/" onClick={() => setOpenMobile(false)}>
+              <Link href="/" onClick={closeSidebar}>
                 <Share2 />
                 SyncHub
               </Link>
@@ -65,7 +67,7 @@ export function AppSidebar() {
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
-                    <Link href="/admin" onClick={() => setOpenMobile(false)}>
+                    <Link href="/admin" onClick={closeSidebar}>
                       <Shield />
                       Admin
                     </Link>
@@ -74,7 +76,7 @@ export function AppSidebar() {
               )}
                <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/stats'}>
-                  <Link href="/stats" onClick={() => setOpenMobile(false)}>
+                  <Link href="/stats" onClick={closeSidebar}>
                     <BarChart />
                     My Stats
                   </Link>
@@ -82,7 +84,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
-                  <Link href="/profile" onClick={() => setOpenMobile(false)}>
+                  <Link href="/profile" onClick={closeSidebar}>
                     <User />
                     My Account
                   </Link>
@@ -99,7 +101,7 @@ export function AppSidebar() {
              <>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/login'}>
-                  <Link href="/login" onClick={() => setOpenMobile(false)}>
+                  <Link href="/login" onClick={closeSidebar}>
                     <LogIn />
                     Login
                   </Link>
@@ -111,21 +113,21 @@ export function AppSidebar() {
           {/* Test pages */}
           <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === '/test'}>
-                  <Link href="/test" onClick={() => setOpenMobile(false)}>
+                  <Link href="/test" onClick={closeSidebar}>
                       <TestTube /> Test Genkit
                   </Link>
               </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === '/test-speech'}>
-                  <Link href="/test-speech" onClick={() => setOpenMobile(false)}>
+                  <Link href="/test-speech" onClick={closeSidebar}>
                       <Mic /> Test Speech
                   </Link>
               </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/test-autodetect'}>
-                <Link href="/test-autodetect" onClick={() => setOpenMobile(false)}>
+                <Link href="/test-autodetect" onClick={closeSidebar}>
                     <RadioTower /> Test Auto-Detect
                 </Link>
             </SidebarMenuButton>
