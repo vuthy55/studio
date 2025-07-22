@@ -25,6 +25,8 @@ export default function SyncLiveContent() {
   const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [lastSpoken, setLastSpoken] = useState<{ lang: string; text: string } | null>(null);
+  const [displayText, setDisplayText] = useState<{ lang: string; text: string } | null>(null);
+
 
   const [currentTurnUsage, setCurrentTurnUsage] = useState(0);
   const turnStartTimeRef = useRef<number | null>(null);
@@ -36,12 +38,11 @@ export default function SyncLiveContent() {
 
   useEffect(() => {
     // This effect runs when the component unmounts (user navigates away)
-    // or if the active tab changes.
+    // or if the active tab changes. It resets the session timer display.
     return () => {
         if (status === 'listening' || status === 'speaking') {
             abortRecognition();
         }
-        // When leaving the component, reset the session timer display
         setCurrentTurnUsage(0);
     };
   }, [status]);
@@ -63,13 +64,15 @@ export default function SyncLiveContent() {
     const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
     const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
 
-    if (!hasSufficientTokens && (syncLiveUsage || 0) > freeMinutesMs) {
+    if (!hasSufficientTokens && (syncLiveUsage || 0) >= freeMinutesMs) {
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
         return;
     }
 
     setStatus('listening');
+    setLastSpoken(null);
+    setDisplayText(null);
     turnStartTimeRef.current = Date.now();
     
     try {
@@ -89,6 +92,7 @@ export default function SyncLiveContent() {
                 toLanguage: toLangLabel,
             });
             const translatedText = translationResult.translatedText;
+            setDisplayText({ lang: toLangLabel, text: translatedText });
             
             const { audioDataUri } = await generateSpeech({ 
                 text: translatedText, 
@@ -105,16 +109,17 @@ export default function SyncLiveContent() {
         }
     } catch (error: any) {
         if (error.message !== 'Recognition was aborted.') {
-             toast({ variant: "destructive", title: "No recognized speech" });
+             toast({ variant: "destructive", title: "Could not recognize speech", description: "Please try speaking again." });
         }
     } finally {
         if (turnStartTimeRef.current) {
             const turnDuration = Date.now() - turnStartTimeRef.current;
-            const newTotalUsage = currentTurnUsage + turnDuration;
-            setCurrentTurnUsage(newTotalUsage);
             updateSyncLiveUsage(turnDuration);
+            setCurrentTurnUsage(prev => prev + turnDuration);
         }
         setStatus('idle');
+        setLastSpoken(null);
+        setDisplayText(null);
         turnStartTimeRef.current = null;
     }
   };
@@ -147,19 +152,14 @@ export default function SyncLiveContent() {
   };
 
   const tokensUsedDisplay = useMemo(() => {
-    if (!syncLiveUsage) {
-      return calculateCostForDuration(currentTurnUsage);
-    }
-    const costBefore = calculateCostForDuration(syncLiveUsage);
-    const costAfter = calculateCostForDuration(syncLiveUsage + currentTurnUsage);
-    return costAfter - costBefore;
+    return calculateCostForDuration((syncLiveUsage || 0) + currentTurnUsage) - calculateCostForDuration(syncLiveUsage || 0);
   }, [syncLiveUsage, currentTurnUsage, calculateCostForDuration]);
   
   
   useEffect(() => {
       const tokensRequiredForNextMinute = calculateCostForDuration((syncLiveUsage || 0) + 1) - calculateCostForDuration(syncLiveUsage || 0);
       const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= tokensRequiredForNextMinute;
-      if (status === 'idle' && !hasSufficientTokens && (syncLiveUsage || 0) > freeMinutesMs) {
+      if (status === 'idle' && !hasSufficientTokens && (syncLiveUsage || 0) >= freeMinutesMs) {
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
       }
@@ -240,16 +240,21 @@ export default function SyncLiveContent() {
           {status === 'disabled' && <X className="h-10 w-10"/>}
         </Button>
 
-        <div className="text-center h-16">
-            <p className="font-semibold text-muted-foreground">
+        <div className="text-center h-20 w-full p-2 bg-secondary/50 rounded-lg">
+            <p className="font-semibold text-muted-foreground text-sm">
                 {status === 'idle' && "Tap the mic to start speaking"}
                 {status === 'listening' && "Listening..."}
                 {status === 'speaking' && "Translating & Speaking..."}
                 {status === 'disabled' && "Session disabled due to insufficient tokens."}
             </p>
             {lastSpoken && (status === 'speaking' || status === 'listening') && (
-                 <p className="text-sm text-foreground mt-1 truncate max-w-md">
+                 <p className="text-sm text-foreground mt-1 truncate max-w-md mx-auto">
                      <span className="font-bold">{lastSpoken.lang}:</span> "{lastSpoken.text}"
+                 </p>
+            )}
+             {displayText && status === 'speaking' && (
+                 <p className="text-lg text-primary font-bold mt-2 truncate max-w-md mx-auto">
+                     <span className="font-semibold">{displayText.lang}:</span> {displayText.text}
                  </p>
             )}
         </div>

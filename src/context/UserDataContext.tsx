@@ -219,7 +219,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                  pendingTokenSyncs.push({
                      amount: cost,
                      actionType: 'live_sync_spend',
-                     description: `Usage charge for ${minutesToCharge} minute(s).`,
+                     description: `Usage charge for ${minutesToCharge} minute(s) of Live Sync.`,
                      duration: durationMs
                  });
                  debouncedCommitToFirestore();
@@ -346,3 +346,5 @@ export const useUserData = () => {
     }
     return context;
 };
+
+    
