@@ -8,12 +8,14 @@ import LearnPageContent from '@/components/synchub/LearnPageContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 import SyncLiveContent from '@/components/synchub/SyncLiveContent';
+import SyncLive2Content from '@/components/synchub/SyncLive2Content';
 
 // Memoize the components to prevent unnecessary re-renders when the tab changes.
 // By defining them here as stable constants, we ensure React doesn't unmount them.
 const MemoizedLearnPage = memo(LearnPageContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedSyncLive = memo(SyncLiveContent);
+const MemoizedSyncLive2 = memo(SyncLive2Content);
 const MemoizedSyncOnline = memo(SyncOnlineHome);
 
 
@@ -34,10 +36,11 @@ export default function SyncHubPage() {
             </header>
 
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
                     <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
+                    <TabsTrigger value="sync-live-2">Sync Live 2</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
                 <TabsContent value="prep-vibe" className="mt-6">
@@ -48,6 +51,9 @@ export default function SyncHubPage() {
                 </TabsContent>
                 <TabsContent value="sync-live" className="mt-6">
                    <MemoizedSyncLive />
+                </TabsContent>
+                 <TabsContent value="sync-live-2" className="mt-6">
+                   <MemoizedSyncLive2 />
                 </TabsContent>
                 <TabsContent value="sync-online" className="mt-6">
                     <MemoizedSyncOnline />
