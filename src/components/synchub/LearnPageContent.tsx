@@ -90,7 +90,7 @@ function LearnPageContent() {
         }
     };
     
-    const doAssessPronunciation = useCallback((phrase: Phrase, topicId: string) => {
+    const doAssessPronunciation = useCallback(async (phrase: Phrase, topicId: string) => {
         if (assessingPhraseId) {
             console.warn("[LearnPageContent] Assessment already in progress. Ignoring new request.");
             return;
@@ -113,30 +113,26 @@ function LearnPageContent() {
         setAssessingPhraseId(phraseId);
         setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); 
     
-        assessPronunciationFromMic(
-            referenceText,
-            toLanguage,
-            // onSuccess callback
-            (assessment) => {
-                console.log(`[LearnPageContent] onSuccess for ${currentAssessmentId}`, assessment);
-                const finalResult: AssessmentResult = { status: assessment.isPass ? 'pass' : 'fail', accuracy: assessment.accuracy, fluency: assessment.fluency };
-                setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
-                recordPracticeAttempt({
-                    phraseId, phraseText: referenceText, topicId, lang: toLanguage,
-                    isPass: assessment.isPass, accuracy: assessment.accuracy, settings
-                });
-                setAssessingPhraseId(null);
-            },
-            // onError callback
-            (error) => {
-                console.error(`[LearnPageContent] onError for ${currentAssessmentId}`, error);
-                if (error.message && !error.message.includes("aborted") && !error.message.includes("canceled")) {
-                    toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
-                }
-                setAssessingPhraseId(null);
-            },
-            currentAssessmentId
-        );
+        try {
+            const assessment = await assessPronunciationFromMic(referenceText, toLanguage, currentAssessmentId);
+            
+            console.log(`[LearnPageContent] onSuccess for ${currentAssessmentId}`, assessment);
+            const finalResult: AssessmentResult = { status: assessment.isPass ? 'pass' : 'fail', accuracy: assessment.accuracy, fluency: assessment.fluency };
+            setLastAssessment(prev => ({ ...prev, [phraseId]: finalResult }));
+            recordPracticeAttempt({
+                phraseId, phraseText: referenceText, topicId, lang: toLanguage,
+                isPass: assessment.isPass, accuracy: assessment.accuracy, settings
+            });
+
+        } catch (error: any) {
+            console.error(`[LearnPageContent] onError for ${currentAssessmentId}`, error);
+            if (error.message && !error.message.includes("aborted") && !error.message.includes("canceled")) {
+                toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+            }
+        } finally {
+            setAssessingPhraseId(null);
+        }
+
     }, [assessingPhraseId, user, settings, toLanguage, toast, recordPracticeAttempt]);
 
     const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {

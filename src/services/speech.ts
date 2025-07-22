@@ -52,13 +52,11 @@ export function abortRecognition() {
 }
 
 
-export function assessPronunciationFromMic(
+export async function assessPronunciationFromMic(
     referenceText: string,
     lang: LanguageCode,
-    onSuccess: (result: PronunciationAssessmentResult) => void,
-    onError: (error: Error) => void,
     debugId?: string
-) {
+): Promise<PronunciationAssessmentResult> {
     const currentAssessmentId = debugId || `assessment-${Date.now()}`;
     console.log(`[speech.ts] Starting assessment ${currentAssessmentId} for lang: ${lang}`);
     
@@ -69,8 +67,7 @@ export function assessPronunciationFromMic(
 
     const locale = languageToLocaleMap[lang];
     if (!locale) {
-        onError(new Error("Unsupported language for assessment."));
-        return;
+        throw new Error("Unsupported language for assessment.");
     }
 
     const speechConfig = getSpeechConfig();
@@ -88,71 +85,40 @@ export function assessPronunciationFromMic(
     );
     pronunciationConfig.applyTo(recognizer);
 
-    let recognized = false;
-    let timeoutId: NodeJS.Timeout | null = null;
+    return new Promise((resolve, reject) => {
+        recognizer.recognizeOnceAsync(result => {
+            if (activeRecognizerId === currentAssessmentId) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
+            }
 
-    const cleanup = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        if (activeRecognizerId === currentAssessmentId) {
-            console.log(`[speech.ts] Cleanup for ${currentAssessmentId}.`);
-            recognizer.close();
-            activeRecognizer = null;
-            activeRecognizerId = null;
-        } else {
-             console.log(`[speech.ts] Cleanup called for ${currentAssessmentId}, but active recognizer is now ${activeRecognizerId}. No action taken.`);
-        }
-    };
-    
-    console.log(`[speech.ts] Setting 5s safety timeout for ${currentAssessmentId}.`);
-    timeoutId = setTimeout(() => {
-        if (recognized) return;
-        console.error(`[speech.ts] Assessment ${currentAssessmentId} hit 5-second safety timeout.`);
-        onError(new Error("Assessment timed out after 5 seconds."));
-        cleanup();
-    }, 5000);
-
-    recognizer.recognized = (s, e) => {
-        console.log(`[speech.ts] Event 'recognized' for ${currentAssessmentId}. Result: ${sdk.ResultReason[e.result.reason]}`);
-        if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
-            if (recognized) return; // Process only the first valid recognition
-            recognized = true;
-            
-            const assessment = sdk.PronunciationAssessmentResult.fromResult(e.result);
-            console.log(`[speech.ts] Assessment success for ${currentAssessmentId}. Calling onSuccess callback.`);
-            onSuccess({
-                accuracy: assessment.accuracyScore,
-                fluency: assessment.fluencyScore,
-                completeness: assessment.completenessScore,
-                pronScore: assessment.pronunciationScore,
-                isPass: assessment.accuracyScore > 70
-            });
-            recognizer.stopContinuousRecognitionAsync(cleanup, cleanup);
-        }
-    };
-    
-    recognizer.canceled = (s, e) => {
-         console.log(`[speech.ts] Event 'canceled' for ${currentAssessmentId}. Reason: ${sdk.CancellationReason[e.reason]}`);
-         if (recognized) return;
-         if (e.reason === sdk.CancellationReason.Error) {
-            onError(new Error(`Assessment canceled: ${e.errorDetails}`));
-         }
-         cleanup();
-    };
-
-    recognizer.sessionStopped = (s, e) => {
-        console.log(`[speech.ts] Event 'sessionStopped' for ${currentAssessmentId}. Cleaning up.`);
-        cleanup();
-    };
-
-    recognizer.startContinuousRecognitionAsync(
-        () => {
-            console.log(`[speech.ts] Session started for ${currentAssessmentId}.`);
-        },
-        (err) => {
-            onError(new Error(`Could not start microphone: ${err}`));
-            cleanup();
-        }
-    );
+            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
+                resolve({
+                    accuracy: assessment.accuracyScore,
+                    fluency: assessment.fluencyScore,
+                    completeness: assessment.completenessScore,
+                    pronScore: assessment.pronunciationScore,
+                    isPass: assessment.accuracyScore > 70
+                });
+            } else if (result.reason === sdk.ResultReason.NoMatch) {
+                reject(new Error("No speech could be recognized. Please try again."));
+            } else if (result.reason === sdk.ResultReason.Canceled) {
+                 const cancellation = sdk.CancellationDetails.fromResult(result);
+                 reject(new Error(`Assessment canceled: ${cancellation.errorDetails} [Reason: ${cancellation.reason}]`));
+            } else {
+                 reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}.`));
+            }
+        }, err => {
+            if (activeRecognizerId === currentAssessmentId) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
+            }
+            reject(new Error(`Recognition error: ${err}`));
+        });
+    });
 }
 
 
