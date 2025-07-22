@@ -66,6 +66,10 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+    
+    // This is the important fix: We need to set the language on the speechConfig BEFORE creating the recognizer.
+    speechConfig.speechRecognitionLanguage = locale;
+    
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     
     // Set the recognizer instance for potential abortion
@@ -77,8 +81,7 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
         sdk.PronunciationAssessmentGranularity.Phoneme,
         true
     );
-    // Explicitly set the language on the config itself
-    pronunciationConfig.phonemeAlphabet = "ipa";
+
     pronunciationConfig.applyTo(recognizer);
     console.log(`[SPEECH] PronunciationAssessmentConfig created and applied.`);
 
