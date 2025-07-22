@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart, Mic, Wallet } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, TestTube, Shield, Coins, BarChart, Mic, Wallet, RadioTower } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -122,6 +122,13 @@ export function AppSidebar() {
                       <Mic /> Test Speech
                   </Link>
               </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/test-autodetect'}>
+                <Link href="/test-autodetect" onClick={() => setOpenMobile(false)}>
+                    <RadioTower /> Test Auto-Detect
+                </Link>
+            </SidebarMenuButton>
           </SidebarMenuItem>
 
         </SidebarMenu>
