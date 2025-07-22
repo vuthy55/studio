@@ -23,21 +23,23 @@ export async function generateSpeech(input: GenerateSpeechInput): Promise<Genera
 
   const voiceMap: Record<string, { male: string, female: string }> = {
     'th-TH': { male: 'th-TH-NiwatNeural', female: 'th-TH-PremwadeeNeural' },
-    'vi-VN': { male: 'vi-VN-HoaiMyNeural', female: 'vi-VN-NamMinhNeural' },
+    'vi-VN': { male: 'vi-VN-NamMinhNeural', female: 'vi-VN-HoaiMyNeural' },
     'km-KH': { male: 'km-KH-PisethNeural', female: 'km-KH-SreymomNeural' },
     'fil-PH': { male: 'fil-PH-AngeloNeural', female: 'fil-PH-BlessicaNeural' },
     'ms-MY': { male: 'ms-MY-OsmanNeural', female: 'ms-MY-YasminNeural' },
     'id-ID': { male: 'id-ID-ArdiNeural', female: 'id-ID-GadisNeural' },
-    'my-MM': { male: 'my-MM-NilarNeural', female: 'my-MM-ThihaNeural' },
-    'lo-LA': { male: 'lo-LA-KeomanyNeural', female: 'lo-LA-ChanthavongNeural' },
-    'ta-IN': { male: 'ta-IN-ValluvarNeural', female: 'ta-IN-PallaviNeural' },
+    'my-MM': { male: 'my-MM-ThihaNeural', female: 'my-MM-NilarNeural' },
+    'lo-LA': { male: 'lo-LA-ChanthavongNeural', female: 'lo-LA-KeomanyNeural' },
+    'ta-IN': { male: 'ta-IN-PallaviNeural', female: 'ta-IN-ValluvarNeural' },
     'zh-CN': { male: 'zh-CN-YunxiNeural', female: 'zh-CN-XiaoxiaoNeural' },
     'fr-FR': { male: 'fr-FR-HenriNeural', female: 'fr-FR-DeniseNeural' },
     'es-ES': { male: 'es-ES-AlvaroNeural', female: 'es-ES-ElviraNeural' },
     'it-IT': { male: 'it-IT-DiegoNeural', female: 'it-IT-ElsaNeural' },
     'en-US': { male: 'en-US-GuyNeural', female: 'en-US-JennyNeural' },
   };
-
+  
+  // If a specific voice is requested ('male' or 'female') AND the language exists in our map,
+  // set the specific voice name. Otherwise, do nothing and let Azure use its default voice for the language.
   if (voice && voice !== 'default' && voiceMap[lang]) {
     speechConfig.speechSynthesisVoiceName = voiceMap[lang][voice];
   }
