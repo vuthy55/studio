@@ -11,6 +11,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<SetState
   // The state is initialized with a function, which is only executed on the client-side.
   // This prevents SSR errors and ensures we read from localStorage only when available.
   const [storedValue, setStoredValue] = useState<T>(() => {
+    // This part does not run on the server.
     if (typeof window === 'undefined') {
       return initialValue;
     }

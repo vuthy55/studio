@@ -44,7 +44,7 @@ interface UserDataContextType {
 
 // --- Context ---
 
-const UserDataContext = createContext<UserDataContextType | undefined>(undefined);
+const UserDataContext = createContext<UserDataDataContextType | undefined>(undefined);
 
 // --- Provider ---
 
@@ -75,7 +75,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
-    }, [user]);
+    }, [user, setUserProfile]);
 
     const fetchPracticeHistory = useCallback(async () => {
         if (!user) return;
@@ -90,57 +90,35 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching practice history:", error);
         }
-    }, [user]);
+    }, [user, setPracticeHistory]);
 
     useEffect(() => {
         const fetchAllData = async () => {
             if (user && !authLoading) {
                 setLoading(true);
-                await Promise.all([fetchUserProfile(), fetchPracticeHistory()]);
+                // Only fetch if local data is empty, to avoid overwriting on refresh
+                if (!userProfile || Object.keys(userProfile).length === 0) {
+                   await fetchUserProfile();
+                }
+                if (!practiceHistory || Object.keys(practiceHistory).length === 0) {
+                    await fetchPracticeHistory();
+                }
                 setLoading(false);
             } else if (!user && !authLoading) {
+                // Clear data on logout
                 setUserProfile({});
                 setPracticeHistory({});
                 setLoading(false);
             }
         }
         fetchAllData();
-    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory]);
+    // Dependency array is intentionally limited to prevent re-fetching on every render.
+    // We only want this to run when the user or auth state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, authLoading]);
 
 
     // --- Client-Side Actions ---
-
-    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs) => {
-        if (!user || !settings) return;
-        const { phraseId, phraseText, lang, isPass, accuracy } = args;
-
-        setPracticeHistory(currentHistory => {
-            const newHistory = { ...currentHistory };
-            const phraseHistory = newHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
-
-            if (isPass) {
-                const newPassCount = (phraseHistory.passCountPerLang?.[lang] || 0) + 1;
-                phraseHistory.passCountPerLang = { ...phraseHistory.passCountPerLang, [lang]: newPassCount };
-
-                if (newPassCount > 0 && newPassCount % settings.practiceThreshold === 0) {
-                     setUserProfile(currentProfile => ({
-                        ...currentProfile,
-                        tokenBalance: (currentProfile.tokenBalance || 0) + settings.practiceReward,
-                    }));
-                }
-            } else {
-                phraseHistory.failCountPerLang = { ...phraseHistory.failCountPerLang, [lang]: (phraseHistory.failCountPerLang?.[lang] || 0) + 1 };
-            }
-            
-            phraseHistory.lastAccuracyPerLang = { ...phraseHistory.lastAccuracyPerLang, [lang]: accuracy };
-            phraseHistory.phraseText = phraseText;
-            newHistory[phraseId] = phraseHistory;
-            return newHistory;
-        });
-
-        debouncedSync.current(args);
-
-    }, [user, settings, setPracticeHistory, setUserProfile]);
 
     const debouncedSync = useRef(
         debounce((args: RecordPracticeAttemptArgs) => {
@@ -164,25 +142,69 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             batch.set(historyDocRef, historyUpdateData, { merge: true });
 
-            getDoc(historyDocRef).then(historySnap => {
-                const currentPasses = historySnap.data()?.passCountPerLang?.[lang] || 0;
-                if (isPass && (currentPasses + 1) % settings.practiceThreshold === 0) {
-                    batch.update(userDocRef, { tokenBalance: increment(settings.practiceReward) });
-                     const logRef = doc(collection(db, `users/${auth.currentUser!.uid}/transactionLogs`));
-                     batch.set(logRef, {
-                        actionType: 'practice_earn',
-                        tokenChange: settings.practiceReward,
-                        timestamp: serverTimestamp(),
-                        description: `Reward for practicing: "${args.phraseText}"`
-                    });
+            // This async operation must be self-contained
+            const awardTokenIfNeeded = async () => {
+                try {
+                    const historySnap = await getDoc(historyDocRef);
+                    const currentPasses = (historySnap.data()?.passCountPerLang?.[lang] || 0) + passIncrement;
+                    
+                    if (isPass && currentPasses > 0 && currentPasses % settings.practiceThreshold === 0) {
+                        batch.update(userDocRef, { tokenBalance: increment(settings.practiceReward) });
+                        
+                        const logRef = doc(collection(db, `users/${auth.currentUser!.uid}/transactionLogs`));
+                        batch.set(logRef, {
+                            actionType: 'practice_earn',
+                            tokenChange: settings.practiceReward,
+                            timestamp: serverTimestamp(),
+                            description: `Reward for practicing: "${args.phraseText}"`
+                        });
+                    }
+                    await batch.commit();
+
+                } catch (error) {
+                     console.error("Error committing batch:", error);
                 }
-                
-                batch.commit().catch(error => {
-                    console.error("Error syncing debounced data to Firestore:", error);
-                });
-            });
+            };
+            
+            awardTokenIfNeeded();
+            
         }, 3000)
     );
+
+    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs) => {
+        if (!user || !settings) return;
+        const { phraseId, phraseText, lang, isPass, accuracy } = args;
+
+        // Optimistically update the local state for immediate UI feedback
+        setPracticeHistory(currentHistory => {
+            const newHistory = { ...currentHistory };
+            const phraseHistory = newHistory[phraseId] || { passCountPerLang: {}, failCountPerLang: {} };
+
+            if (isPass) {
+                const newPassCount = (phraseHistory.passCountPerLang?.[lang] || 0) + 1;
+                phraseHistory.passCountPerLang = { ...phraseHistory.passCountPerLang, [lang]: newPassCount };
+
+                 if (newPassCount > 0 && newPassCount % settings.practiceThreshold === 0) {
+                     setUserProfile(currentProfile => ({
+                        ...currentProfile,
+                        tokenBalance: (currentProfile.tokenBalance || 0) + settings.practiceReward,
+                    }));
+                }
+
+            } else {
+                phraseHistory.failCountPerLang = { ...phraseHistory.failCountPerLang, [lang]: (phraseHistory.failCountPerLang?.[lang] || 0) + 1 };
+            }
+            
+            phraseHistory.lastAccuracyPerLang = { ...phraseHistory.lastAccuracyPerLang, [lang]: accuracy };
+            phraseHistory.phraseText = phraseText;
+            newHistory[phraseId] = phraseHistory;
+            return newHistory;
+        });
+
+        // Debounce the call to Firestore
+        debouncedSync.current(args);
+
+    }, [user, settings, setPracticeHistory, setUserProfile]);
 
 
     const getTopicStats = useCallback((topicId: string, lang: LanguageCode) => {
