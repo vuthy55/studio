@@ -20,12 +20,13 @@ import { doc, runTransaction, addDoc, collection, serverTimestamp, onSnapshot, q
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { cn } from '@/lib/utils';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
-type AssessmentStatus = 'unattempted' | 'pass' | 'fail';
 type AssessmentResult = {
-  status: AssessmentStatus;
+  status: 'pass' | 'fail';
   accuracy?: number;
   fluency?: number;
 };
@@ -195,7 +196,7 @@ export default function LiveTranslationContent() {
     };
 
     const doRecognizeFromMicrophone = async () => {
-        if (isRecognizing) return;
+        if (isRecognizing || assessingPhraseId) return;
         
         setIsRecognizing(true);
         try {
@@ -203,7 +204,7 @@ export default function LiveTranslationContent() {
             setInputText(recognizedText);
         } catch (error: any) {
             console.error("Error during speech recognition:", error);
-            if (error.message !== "Recognition was aborted.") {
+             if (error.message !== "Recognition was aborted.") {
                toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
             }
         } finally {
@@ -348,7 +349,7 @@ export default function LiveTranslationContent() {
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="from-language-live">{languages.find(l => l.value === fromLanguage)?.label}</Label>
                                 <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={isRecognizing || !!assessingPhraseId}>
-                                    {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                    <Mic className={cn("h-5 w-5", isRecognizing && "text-red-500")} />
                                     <span className="sr-only">Record from microphone</span>
                                 </Button>
                             </div>
@@ -422,7 +423,7 @@ export default function LiveTranslationContent() {
                                                     <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                 </Button>
                                                 <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                    <Mic className={cn("h-5 w-5", isAssessingCurrent && "text-red-500")} />
                                                     <span className="sr-only">Practice</span>
                                                 </Button>
                                             </div>

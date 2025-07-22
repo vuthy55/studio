@@ -123,6 +123,10 @@ export async function assessPronunciationFromMic(
 
 
 export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<string> {
+    if (activeRecognizer) {
+        console.warn(`[speech.ts] New recognition requested while another is active. Aborting old one.`);
+        abortRecognition();
+    }
     const locale = languageToLocaleMap[fromLanguage];
     if (!locale) throw new Error("Unsupported language for recognition.");
 
@@ -130,17 +134,36 @@ export async function recognizeFromMic(fromLanguage: LanguageCode): Promise<stri
     speechConfig.speechRecognitionLanguage = locale;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+    activeRecognizer = recognizer;
+    activeRecognizerId = `recognize-${Date.now()}`;
+
 
     return new Promise<string>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
-            recognizer.close();
+            if (activeRecognizer === recognizer) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
+            }
+
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
-            } else {
+            } else if (result.reason === sdk.ResultReason.Canceled) {
+                const cancellation = sdk.CancellationDetails.fromResult(result);
+                // Don't reject on user-initiated cancellations (e.g. abortRecognition was called)
+                if (cancellation.reason !== sdk.CancellationReason.CancelledByUser) {
+                   reject(new Error(`Recognition was canceled: ${cancellation.errorDetails}`));
+                }
+            }
+            else {
                  reject(new Error(`Could not recognize speech. Reason: ${sdk.ResultReason[result.reason]}.`));
             }
         }, err => {
-            recognizer.close();
+            if (activeRecognizer === recognizer) {
+                recognizer.close();
+                activeRecognizer = null;
+                activeRecognizerId = null;
+            }
             reject(new Error(`Recognition error: ${err}`));
         });
     });
