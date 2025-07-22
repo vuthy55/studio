@@ -40,7 +40,7 @@ type SavedPhrase = {
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, loading, settings, recordPracticeAttempt, spendTokensForTranslation } = useUserData();
+    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation } = useUserData();
     
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
@@ -82,8 +82,8 @@ export default function LiveTranslationContent() {
             console.error("TTS generation failed.", error);
             toast({
                 variant: 'destructive',
-                title: 'Error generating audio',
-                description: 'Could not generate audio for the selected language. Credentials might be missing.',
+                title: 'Audio Error',
+                description: error.message || 'Could not generate audio for the selected language.',
             });
         }
     };
@@ -410,5 +410,3 @@ export default function LiveTranslationContent() {
         </div>
     );
 }
-
-    
