@@ -243,6 +243,13 @@ export default function SyncRoomPage() {
         if (!authLoading && !user) {
             router.push('/login');
         } else if (user && roomData && !participantsLoading) {
+            // Check if room is closed on initial load
+            if (roomData.status === 'closed') {
+                toast({ title: 'Room Closed', description: 'This room is no longer active.' });
+                router.push('/?tab=sync-online');
+                return;
+            }
+
             const isParticipant = participantsCollection?.docs.some(p => p.id === user.uid);
             if (isParticipant) {
                 // When joining, mark all current messages as processed to prevent re-playing history
@@ -251,7 +258,7 @@ export default function SyncRoomPage() {
                 setHasJoined(true);
             }
         }
-    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, messages]);
+    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, messages, toast]);
 
     const handleExitRoom = async () => {
         if (!user) return;

@@ -43,9 +43,8 @@ export function AppSidebar() {
   
   return (
     <Sidebar>
-      <SidebarHeader className="flex justify-between items-center">
+      <SidebarHeader>
         <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>VibeSync</Link>
-        {user && <NotificationBell />}
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
