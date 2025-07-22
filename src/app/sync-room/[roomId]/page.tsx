@@ -125,6 +125,8 @@ export default function SyncRoomPage() {
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
+    const lastMessageCount = useRef(0);
+
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -152,15 +154,19 @@ export default function SyncRoomPage() {
 
     // Handle incoming messages for translation and TTS
     useEffect(() => {
-        if (!messages || !user || !currentUserParticipant?.selectedLanguage) return;
+        if (!messages || !user || !currentUserParticipant?.selectedLanguage || messages.docs.length === lastMessageCount.current) {
+            return;
+        }
+
+        const newMessages = messages.docs.slice(lastMessageCount.current);
+        lastMessageCount.current = messages.docs.length;
 
         const processMessage = async (doc: any) => {
             const msg = doc.data() as RoomMessage;
             const messageId = doc.id;
 
-            // Process only new messages from other users
             if (msg.speakerUid !== user.uid && !processedMessages.current.has(messageId)) {
-                processedMessages.current.add(messageId); // Mark as processed immediately
+                processedMessages.current.add(messageId);
                 
                 try {
                     setTranslatedMessages(prev => ({ ...prev, [messageId]: 'Translating...' }));
@@ -173,8 +179,14 @@ export default function SyncRoomPage() {
                     
                     setTranslatedMessages(prev => ({ ...prev, [messageId]: translatedText }));
                     
-                    setIsSpeaking(true); // Set speaking state just before playing audio
+                    if (audioPlayerRef.current?.paused === false) {
+                        // If audio is already playing, wait for it to finish
+                        await new Promise(resolve => {
+                            if (audioPlayerRef.current) audioPlayerRef.current.onended = resolve;
+                        });
+                    }
 
+                    setIsSpeaking(true);
                     const { audioDataUri } = await generateSpeech({ 
                         text: translatedText, 
                         lang: currentUserParticipant.selectedLanguage!,
@@ -183,13 +195,9 @@ export default function SyncRoomPage() {
                     if (audioPlayerRef.current) {
                         audioPlayerRef.current.src = audioDataUri;
                         await audioPlayerRef.current.play();
-                        // Wait for playback to finish before processing the next one
                         await new Promise(resolve => {
                             if (audioPlayerRef.current) {
-                                audioPlayerRef.current.onended = () => {
-                                    setIsSpeaking(false);
-                                    resolve(true);
-                                }
+                                audioPlayerRef.current.onended = () => resolve(true);
                             } else {
                                 resolve(true);
                             }
@@ -199,19 +207,13 @@ export default function SyncRoomPage() {
                     console.error("Error processing message:", e);
                     setTranslatedMessages(prev => ({ ...prev, [messageId]: `Error: Could not translate message.` }));
                     toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-                    setIsSpeaking(false); // Reset on error
+                } finally {
+                    setIsSpeaking(false);
                 }
             }
         };
 
-        const playQueue = async () => {
-             for (const doc of messages.docs) {
-                if (!audioPlayerRef.current || audioPlayerRef.current.paused) {
-                    await processMessage(doc);
-                }
-            }
-        };
-        playQueue();
+        newMessages.forEach(processMessage);
 
     }, [messages, user, currentUserParticipant, toast]);
 
@@ -222,9 +224,13 @@ export default function SyncRoomPage() {
         } else if (user && roomData && !participantsLoading) {
             if(currentUserParticipant) {
                 setHasJoined(true);
+                // Initialize processed messages with history on first join, so it's not replayed
+                 if (processedMessages.current.size === 0 && messages) {
+                    messages.docs.forEach(doc => processedMessages.current.add(doc.id));
+                }
             }
         }
-    }, [user, authLoading, router, roomData, participantsLoading, currentUserParticipant]);
+    }, [user, authLoading, router, roomData, participantsLoading, currentUserParticipant, messages]);
 
     const goBack = () => router.push('/');
 
