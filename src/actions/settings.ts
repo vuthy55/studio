@@ -16,20 +16,6 @@ export interface AppSettings {
   costPerSyncOnlineMinute: number;
 }
 
-export const defaultSettings: AppSettings = {
-  signupBonus: 100,
-  referralBonus: 150,
-  practiceReward: 1,
-  practiceThreshold: 3,
-  freeSyncLiveMinutes: 10,
-  translationCost: 1,
-  costPerSyncLiveMinute: 2,
-  maxUsersPerRoom: 5,
-  freeSyncOnlineMinutes: 10,
-  costPerSyncOnlineMinute: 2,
-};
-
-
 const settingsDocRef = db.collection('settings').doc('appConfig');
 
 /**
@@ -37,6 +23,19 @@ const settingsDocRef = db.collection('settings').doc('appConfig');
  * This is a secure server-side operation.
  */
 export async function getAppSettingsAction(): Promise<AppSettings> {
+    const defaultSettings: AppSettings = {
+        signupBonus: 100,
+        referralBonus: 150,
+        practiceReward: 1,
+        practiceThreshold: 3,
+        freeSyncLiveMinutes: 10,
+        translationCost: 1,
+        costPerSyncLiveMinute: 2,
+        maxUsersPerRoom: 5,
+        freeSyncOnlineMinutes: 10,
+        costPerSyncOnlineMinute: 2,
+    };
+    
     try {
         const docSnap = await settingsDocRef.get();
         if (docSnap.exists) {
