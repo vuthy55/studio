@@ -11,12 +11,11 @@ import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { getTokenAnalytics, getTokenLedger, type TokenAnalytics, type TokenLedgerEntry, getFinancialLedger, getLedgerAnalytics, type FinancialLedgerEntry } from '@/services/ledger';
+import { getTokenAnalytics, getTokenLedger, type TokenAnalytics, type TokenLedgerEntry } from '@/services/ledger';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
 
 
 function TokenAnalyticsTest() {
@@ -146,131 +145,6 @@ function TokenAnalyticsTest() {
     );
 }
 
-function FinancialLedgerTest() {
-    const { toast } = useToast();
-    const [analytics, setAnalytics] = useState<{ revenue: number, expenses: number, net: number } | null>(null);
-    const [ledger, setLedger] = useState<FinancialLedgerEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [userMap, setUserMap] = useState<Record<string, string>>({});
-
-    const handleFetchData = useCallback(async () => {
-        setIsLoading(true);
-        setAnalytics(null);
-        setLedger([]);
-        setUserMap({});
-        try {
-            const [analyticsData, ledgerData] = await Promise.all([
-                getLedgerAnalytics(),
-                getFinancialLedger(),
-            ]);
-            setAnalytics(analyticsData);
-            setLedger(ledgerData);
-
-            const userIds = [...new Set(ledgerData.map(item => item.userId).filter(Boolean))] as string[];
-            if (userIds.length > 0) {
-                const usersRef = collection(db, 'users');
-                const q = query(usersRef, where(documentId(), 'in', userIds));
-                const userSnapshot = await getDocs(q);
-                const fetchedUserMap: Record<string, string> = {};
-                userSnapshot.forEach(doc => {
-                    fetchedUserMap[doc.id] = doc.data().email || 'Unknown User';
-                });
-                setUserMap(fetchedUserMap);
-            }
-
-        } catch (err: any) {
-            console.error("Error fetching financial data:", err);
-            toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch financial data.' });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast]);
-    
-     return (
-        <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-                <CardTitle>Financial Ledger Test</CardTitle>
-                <CardDescription>
-                    Fetches and displays a full overview of the financial ledger. This mirrors the "Financial" tab in the Admin Dashboard.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <Button onClick={handleFetchData} disabled={isLoading}>
-                    {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch Financial Data'}
-                </Button>
-
-                {analytics && (
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                                <PlusCircle className="h-4 w-4 text-green-500" />
-                                </CardHeader>
-                                <CardContent>
-                                <div className="text-2xl font-bold text-green-600">${analytics.revenue.toFixed(2)}</div>
-                                </CardContent>
-                            </Card>
-                             <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-                                <MinusCircle className="h-4 w-4 text-red-500" />
-                                </CardHeader>
-                                <CardContent>
-                                <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-                                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                                </CardHeader>
-                                <CardContent>
-                                <div className={`text-2xl font-bold ${analytics.net >= 0 ? 'text-foreground' : 'text-red-600'}`}>${analytics.net.toFixed(2)}</div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                        <div className="border rounded-md min-h-[200px]">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                        <TableHead>Type/Method</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>By</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {ledger.map((item) => (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="text-xs">{format(item.timestamp as Date, 'd MMM, HH:mm')}</TableCell>
-                                            <TableCell className={`text-right font-medium text-xs ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
-                                                {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
-                                            </TableCell>
-                                             <TableCell className="text-xs capitalize">
-                                                {item.source === 'manual' && item.link ? (
-                                                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 flex items-center gap-1">
-                                                        {item.source} <ExternalLink className="h-3 w-3" />
-                                                    </a>
-                                                ) : (
-                                                    item.source
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-xs">{item.description}</TableCell>
-                                            <TableCell className="text-xs">{item.userId ? (userMap[item.userId] || 'User') : 'System'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-     )
-}
-
 const TestPage = () => {
   const [user] = useAuthState(auth);
   const [name, setName] = useState('programmers');
@@ -302,7 +176,6 @@ const TestPage = () => {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
-      <FinancialLedgerTest />
       <TokenAnalyticsTest />
 
       <Card className="max-w-2xl mx-auto">
