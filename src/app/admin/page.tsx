@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, getDocs, where, orderBy, documentId } from 'firebase/firestore';
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,10 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
+import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
+import { Checkbox } from '@/components/ui/checkbox';
+import { permanentlyDeleteRooms } from '@/actions/room';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 interface UserWithId extends UserProfile {
@@ -866,6 +870,178 @@ function TokensTabContent() {
     )
 }
 
+function RoomsTabContent() {
+  const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
+  const { toast } = useToast();
+
+  const handleFetchRooms = async () => {
+    setIsLoading(true);
+    setError('');
+    setSelectedRoomIds([]);
+    try {
+      const fetchedRooms = await getAllRooms();
+      setRooms(fetchedRooms);
+    } catch (e: any) {
+      setError(e.message || 'An unknown error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRoomIds(rooms.map(r => r.id));
+    } else {
+      setSelectedRoomIds([]);
+    }
+  };
+
+  const handleSelectRoom = (roomId: string, checked: boolean) => {
+    setSelectedRoomIds(prev => {
+      if (checked) {
+        return [...prev, roomId];
+      } else {
+        return prev.filter(id => id !== roomId);
+      }
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    setIsDeleting(true);
+    try {
+      const result = await permanentlyDeleteRooms(selectedRoomIds);
+      if (result.success) {
+        toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
+        handleFetchRooms();
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
+    } catch (e: any) {
+       toast({ variant: 'destructive', title: 'Client Error', description: 'Failed to call the delete action.' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const { activeRooms, closedRooms } = useMemo(() => {
+    return {
+      activeRooms: rooms.filter(r => r.status === 'active'),
+      closedRooms: rooms.filter(r => r.status === 'closed'),
+    };
+  }, [rooms]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Room Management</CardTitle>
+        <CardDescription>
+          View all rooms in the system. Use this tool to permanently delete rooms that are no longer needed. This action cannot be undone.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-between items-center">
+            <Button onClick={handleFetchRooms} disabled={isLoading}>
+                {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch All Rooms'}
+            </Button>
+            {selectedRoomIds.length > 0 && (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isDeleting}>
+                            {isDeleting ? <LoaderCircle className="animate-spin mr-2" /> : <Trash2 className="mr-2" />}
+                            Delete ({selectedRoomIds.length})
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s) and all associated data (participants, messages).
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteSelected}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+        </div>
+
+        {error && (
+          <div className="p-4 bg-destructive/20 text-destructive rounded-md">
+            <p className="font-semibold">Error:</p>
+            <p>{error}</p>
+          </div>
+        )}
+        
+        {rooms.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 py-2 border-b">
+                <Checkbox 
+                    id="select-all"
+                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                    checked={rooms.length > 0 && selectedRoomIds.length === rooms.length}
+                />
+                <label htmlFor="select-all" className="text-sm font-medium">Select All ({rooms.length})</label>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                <h4 className="font-semibold">Active Rooms ({activeRooms.length})</h4>
+                 <div className="border rounded-md max-h-60 overflow-y-auto">
+                    <Table>
+                         <TableBody>
+                            {activeRooms.map(room => (
+                                <TableRow key={room.id}>
+                                    <TableCell className="p-2 w-10">
+                                        <Checkbox id={room.id} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                    </TableCell>
+                                    <TableCell className="p-2">
+                                        <label htmlFor={room.id} className="font-medium">{room.topic}</label>
+                                    </TableCell>
+                                    <TableCell className="p-2 text-right">
+                                        <Badge variant="default">Active</Badge>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                         </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                <h4 className="font-semibold">Closed Rooms ({closedRooms.length})</h4>
+                 <div className="border rounded-md max-h-60 overflow-y-auto">
+                    <Table>
+                        <TableBody>
+                        {closedRooms.map(room => (
+                             <TableRow key={room.id}>
+                                <TableCell className="p-2 w-10">
+                                    <Checkbox id={room.id} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                </TableCell>
+                                <TableCell className="p-2">
+                                     <label htmlFor={room.id} className="font-medium">{room.topic}</label>
+                                </TableCell>
+                                <TableCell className="p-2 text-right">
+                                    <Badge variant="destructive">Closed</Badge>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                  </div>
+                </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -901,14 +1077,18 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="users">Users</TabsTrigger>
+                    <TabsTrigger value="rooms">Rooms</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
                     <TabsTrigger value="financial">Financial</TabsTrigger>
                     <TabsTrigger value="tokens">Tokens</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
+                </TabsContent>
+                <TabsContent value="rooms" className="mt-6">
+                    <RoomsTabContent />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
@@ -924,7 +1104,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
-
-    
