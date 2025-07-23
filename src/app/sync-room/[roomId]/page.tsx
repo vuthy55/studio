@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp, getDoc } from 'firebase/firestore';
-import { useDocumentData } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, BlockedUser, RoomMessage } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzureCodeToLanguageCode } from '@/lib/azure-languages';
@@ -149,7 +148,6 @@ export default function SyncRoomPage() {
     const [messagesLoading, setMessagesLoading] = useState(true);
     const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
 
-    const [joinTimestamp, setJoinTimestamp] = useState<Timestamp | null>(null);
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
@@ -163,7 +161,6 @@ export default function SyncRoomPage() {
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<() => void | null>(null);
     const sessionStartTime = useRef<number | null>(null);
-
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -234,18 +231,56 @@ export default function SyncRoomPage() {
         }
     }, [user, isExiting, roomId, router, toast, handleSyncOnlineSessionEnd]);
     
-    const handleJoin = useCallback((joinTime: Timestamp) => {
-        console.log("[DEBUG] handleJoin called. Current listener status:", messageListenerUnsubscribe.current ? "Active" : "Inactive");
-        if(messageListenerUnsubscribe.current) return;
-        
-        console.log("[DEBUG] Proceeding to join room and set up listener.");
-        setJoinTimestamp(joinTime);
-        setMessagesLoading(true);
+    // This is called ONLY after the user clicks "Join" on the setup screen.
+    const handleJoin = useCallback(() => {
+        console.log("[DEBUG] User has explicitly joined. Setting session start time.");
         sessionStartTime.current = Date.now();
+    }, []);
 
-        const q = query(collection(db, 'syncRooms', roomId, 'messages'), where("createdAt", ">", joinTime));
+    // Effect 1: Listen for participants
+    useEffect(() => {
+        if(user) {
+            console.log("[DEBUG] Effect 1: Setting up participants listener.");
+            const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
+            const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
+                const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
+                 console.log("[DEBUG] Effect 1: Participants list updated, found", parts.length, "participants.");
+                setParticipants(parts);
+                setParticipantsLoading(false);
+            }, (error) => {
+                console.error("[DEBUG] Effect 1: Error listening to participants:", error);
+                setParticipantsLoading(false);
+            });
+            return () => {
+                console.log("[DEBUG] Effect 1: Cleaning up participants listener.");
+                unsubscribe();
+            };
+        }
+    }, [user, roomId]);
+
+    // Effect 2: Listen for messages, DEPENDS on a valid currentUserParticipant
+    useEffect(() => {
+        if (!currentUserParticipant?.joinedAt) {
+            console.log("[DEBUG] Effect 2: Skipping message listener, currentUserParticipant not ready.");
+            return;
+        }
+
+        // Prevent setting up multiple listeners
+        if (messageListenerUnsubscribe.current) {
+             console.log("[DEBUG] Effect 2: Message listener already active, skipping setup.");
+             return;
+        }
+
+        console.log("[DEBUG] Effect 2: Participant is ready. Setting up message listener.");
+        setMessagesLoading(true);
+
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'), 
+            where("createdAt", ">", currentUserParticipant.joinedAt)
+        );
         
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+            console.log("[DEBUG] Effect 2: Received message snapshot with", snapshot.docChanges().length, "changes.");
             const newMessages: RoomMessage[] = [];
             snapshot.docChanges().forEach((change) => {
                 if (change.type === "added") {
@@ -258,32 +293,22 @@ export default function SyncRoomPage() {
             }
             setMessagesLoading(false);
         }, (error) => {
-            console.error("Error listening to messages:", error);
+            console.error("[DEBUG] Effect 2: Error listening to messages:", error);
             setMessagesLoading(false);
             toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
         });
         
-        console.log("[DEBUG] Message listener attached successfully.");
         messageListenerUnsubscribe.current = unsubscribe;
-    }, [roomId, toast]);
-
-    useEffect(() => {
-        if(user) {
-            const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
-            const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
-                const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
-                setParticipants(parts);
-
-                const currentParticipant = parts.find(p => p.uid === user.uid);
-                if (currentParticipant && currentParticipant.joinedAt && !joinTimestamp) {
-                    handleJoin(currentParticipant.joinedAt);
-                }
-                setParticipantsLoading(false);
-            });
-            return () => unsubscribe();
-        }
-    }, [user, roomId, joinTimestamp, handleJoin]);
-
+        console.log("[DEBUG] Effect 2: Message listener attached successfully.");
+        
+        return () => {
+            console.log("[DEBUG] Effect 2: Cleaning up message listener.");
+            if (messageListenerUnsubscribe.current) {
+                messageListenerUnsubscribe.current();
+                messageListenerUnsubscribe.current = null;
+            }
+        };
+    }, [currentUserParticipant, roomId, toast]);
     
     // Listen for mute status
     useEffect(() => {
@@ -300,11 +325,11 @@ export default function SyncRoomPage() {
 
     // Handle being removed from the room
     useEffect(() => {
-        if (isExiting || !joinTimestamp || participantsLoading) return; 
+        if (isExiting || !currentUserParticipant || participantsLoading) return; 
 
         const isStillParticipant = participants?.some(p => p.uid === user?.uid);
 
-        if (joinTimestamp && !isStillParticipant) {
+        if (currentUserParticipant && !isStillParticipant) {
              toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -313,7 +338,7 @@ export default function SyncRoomPage() {
             });
             router.push('/?tab=sync-online');
         }
-    }, [participants, joinTimestamp, participantsLoading, user, router, toast, isExiting]);
+    }, [participants, currentUserParticipant, participantsLoading, user, router, toast, isExiting]);
 
     // Gracefully exit if room is closed or user is blocked
     useEffect(() => {
@@ -539,7 +564,7 @@ export default function SyncRoomPage() {
         return <div className="flex h-screen items-center justify-center"><p>Room not found.</p></div>;
     }
 
-    if (user && !joinTimestamp) {
+    if (user && !currentUserParticipant) {
         return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={handleJoin} />;
     }
 
@@ -785,5 +810,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
