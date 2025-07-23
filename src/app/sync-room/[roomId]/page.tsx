@@ -78,7 +78,6 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
                 joinedAt: joinTime
             };
             await setDoc(participantRef, participantData);
-            // This is the key change: onJoinSuccess is ONLY called after the user is successfully written to Firestore.
             onJoinSuccess(joinTime);
         } catch (error) {
             console.error("Error joining room:", error);
@@ -193,7 +192,6 @@ export default function SyncRoomPage() {
     const [messagesLoading, setMessagesLoading] = useState(true);
     const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
     
-    // Tracks if the current user is a participant. 'unknown' initially, then 'yes' or 'no'.
     const [isParticipant, setIsParticipant] = useState<'unknown' | 'yes' | 'no'>('unknown');
 
     const [isListening, setIsListening] = useState(false);
@@ -251,13 +249,12 @@ export default function SyncRoomPage() {
         } else if (lastResetValue && typeof lastResetValue === 'object' && 'seconds' in lastResetValue) {
             lastResetDate = new Timestamp((lastResetValue as any).seconds, (lastResetValue as any).nanoseconds).toDate();
         } else {
-            lastResetDate = new Date(0); // If undefined or malformed, treat as epoch
+            lastResetDate = new Date(0);
         }
         
         const now = new Date();
         let currentUsageMs = userProfile.syncOnlineUsage || 0;
     
-        // Reset usage if the last reset was in a previous month
         if (lastResetDate.getMonth() !== now.getMonth() || lastResetDate.getFullYear() !== now.getFullYear()) {
             currentUsageMs = 0;
         }
@@ -336,7 +333,6 @@ export default function SyncRoomPage() {
         router.push('/?tab=sync-online');
     };
 
-    // Effect to listen for participants and determine join status
     useEffect(() => {
         if (!user || roomLoading) return;
         
@@ -348,7 +344,6 @@ export default function SyncRoomPage() {
             setParticipants(parts);
             setParticipantsLoading(false);
             
-            // This is the key check: it runs only ONCE when isParticipant is 'unknown'
             if (isParticipant === 'unknown') {
                 const self = parts.find(p => p.uid === user.uid);
                 if (self && self.joinedAt) {
@@ -408,7 +403,7 @@ export default function SyncRoomPage() {
                 description: 'This room has been closed by the emcee.',
                 duration: 5000,
             });
-            handleExitRoom();
+            handleManualExit();
         }
         if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
             toast({
@@ -417,7 +412,7 @@ export default function SyncRoomPage() {
                 description: 'You have been blocked from this room.',
                 duration: 5000
             });
-            handleExitRoom();
+            handleManualExit();
         }
     }, [roomData, user, toast, handleExitRoom]);
 
@@ -499,6 +494,7 @@ export default function SyncRoomPage() {
                 status: 'closed',
                 lastActivityAt: serverTimestamp(),
             });
+            // The useEffect that watches roomData will handle the redirect for all users
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
@@ -627,7 +623,6 @@ export default function SyncRoomPage() {
         return <div className="flex h-screen items-center justify-center"><p>Room not found.</p></div>;
     }
     
-    // If user is not a participant, show the setup screen.
     if (user && isParticipant === 'no') {
         return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoinSuccess={onJoinSuccess} />;
     }
@@ -916,3 +911,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
