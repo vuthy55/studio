@@ -131,12 +131,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         }
     };
     
-    const handleShare = () => {
-        const shareLink = `${window.location.origin}/sync-room-summary/${room.id}`;
-        navigator.clipboard.writeText(shareLink);
-        toast({ title: "Link Copied!", description: "A shareable link has been copied to your clipboard." });
-    };
-    
     const handleDownload = () => {
         if (!editableSummary) return;
 
@@ -330,7 +324,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                     ) : (
                          <>
                              <div className="flex-grow flex gap-2">
-                                <Button variant="secondary" onClick={handleShare}><Share2 className="mr-2 h-4 w-4"/> Share</Button>
                                 <Button variant="secondary" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/> Download</Button>
                             </div>
                             {isEmcee && <Button variant="secondary" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>}
