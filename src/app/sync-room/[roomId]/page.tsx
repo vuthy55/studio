@@ -9,7 +9,7 @@ import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, a
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, BlockedUser } from '@/lib/types';
-import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
+import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzureCodeToLanguageCode } from '@/lib/azure-languages';
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
@@ -261,10 +261,13 @@ export default function SyncRoomPage() {
             try {
                 setIsSpeaking(true);
                 
+                const fromLangSimple = mapAzureCodeToLanguageCode(msg.speakerLanguage);
+                const toLangSimple = mapAzureCodeToLanguageCode(currentUserParticipant.selectedLanguage!);
+                
                 const translated = await translateText({
                     text: msg.text,
-                    fromLanguage: getAzureLanguageLabel(msg.speakerLanguage),
-                    toLanguage: getAzureLanguageLabel(currentUserParticipant.selectedLanguage!),
+                    fromLanguage: fromLangSimple,
+                    toLanguage: toLangSimple,
                 });
 
                 setTranslatedMessages(prev => ({...prev, [doc.id]: translated.translatedText}));

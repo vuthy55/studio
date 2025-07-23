@@ -1,4 +1,6 @@
 
+import { LanguageCode } from './data';
+
 export const azureLanguages = [
   { value: 'af-ZA', label: 'Afrikaans (South Africa)' },
   { value: 'am-ET', label: 'Amharic (Ethiopia)' },
@@ -158,4 +160,22 @@ const azureLanguageMap = new Map(azureLanguages.map(l => [l.value, l.label]));
  */
 export function getAzureLanguageLabel(code: AzureLanguageCode | string): string {
   return azureLanguageMap.get(code as AzureLanguageCode) || code;
+}
+
+
+const azureToSimpleMap: Record<string, LanguageCode> = {
+  'en': 'english', 'th': 'thai', 'vi': 'vietnamese', 'km': 'khmer', 'fil': 'filipino',
+  'ms': 'malay', 'id': 'indonesian', 'my': 'burmese', 'lo': 'laos', 'ta': 'tamil',
+  'zh': 'chinese', 'fr': 'french', 'es': 'spanish', 'it': 'italian',
+};
+
+/**
+ * Maps a full Azure language code (e.g., 'en-US', 'th-TH') to our internal simple language code (e.g., 'english', 'thai').
+ * @param azureCode The Azure language code from the speech service.
+ * @returns The corresponding simple LanguageCode or a fallback.
+ */
+export function mapAzureCodeToLanguageCode(azureCode: AzureLanguageCode | string): LanguageCode {
+  if (!azureCode) return 'english'; // Default fallback
+  const primaryTag = azureCode.split('-')[0]; // e.g., 'en' from 'en-US'
+  return azureToSimpleMap[primaryTag] || 'english';
 }
