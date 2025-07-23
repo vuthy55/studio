@@ -4,7 +4,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp, getDoc } from 'firebase/firestore';
 
@@ -22,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -137,7 +136,7 @@ export default function SyncRoomPage() {
     const router = useRouter();
     const { toast } = useToast();
     const roomId = params.roomId as string;
-    const { handleSyncOnlineSessionEnd } = useUserData();
+    const { userProfile, settings, handleSyncOnlineSessionEnd } = useUserData();
 
     const [user, authLoading] = useAuthState(auth);
     
@@ -162,7 +161,6 @@ export default function SyncRoomPage() {
     const messageListenerUnsubscribe = useRef<() => void | null>(null);
     const sessionStartTime = useRef<number | null>(null);
 
-     // State to track if the user is currently exiting to prevent duplicate calls
     const isExiting = useRef(false);
 
      useEffect(() => {
@@ -190,6 +188,13 @@ export default function SyncRoomPage() {
     const isCurrentUserEmcee = useMemo(() => {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
+    
+    const freeMinutesRemaining = useMemo(() => {
+        if (!settings || !userProfile) return 0;
+        const freeMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const usedMs = userProfile.syncOnlineUsage || 0;
+        return Math.max(0, Math.floor((freeMs - usedMs) / 60000));
+    }, [settings, userProfile]);
 
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
@@ -197,7 +202,7 @@ export default function SyncRoomPage() {
 
     const handleExitRoom = useCallback(async () => {
         if (!user || isExiting.current) return;
-        isExiting.current = true; // Mark that we are starting the exit process
+        isExiting.current = true;
 
         console.log("[DEBUG] Exit: Exiting process started.");
 
@@ -222,18 +227,14 @@ export default function SyncRoomPage() {
             console.log("[DEBUG] Exit: Participant document deleted.");
         } catch (error) {
             console.error("Error leaving room:", error);
-            // Don't show toast here as it might not be visible during page unload.
-            // The error is logged to the console for debugging.
         }
     }, [user, roomId, handleSyncOnlineSessionEnd]);
     
-    // A separate function to handle the manual button click for exiting
     const handleManualExit = async () => {
         await handleExitRoom();
         router.push('/?tab=sync-online');
     };
     
-    // This is called ONLY after the user clicks "Join" on the setup screen.
     const handleJoin = useCallback((joinTimestamp: Timestamp) => {
         console.log("[DEBUG] handleJoin called. Current listener status:", messageListenerUnsubscribe.current ? "Active" : "Inactive");
         if (messageListenerUnsubscribe.current) {
@@ -273,23 +274,27 @@ export default function SyncRoomPage() {
         
     }, [roomId, toast]);
 
-    // Effect 1: Listen for participants
     useEffect(() => {
-        if(user) {
-            const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
-            const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
-                const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
-                setParticipants(parts);
-                setParticipantsLoading(false);
-            }, (error) => {
-                console.error("Error listening to participants:", error);
-                setParticipantsLoading(false);
-            });
-            return () => unsubscribe();
+        if (!user || roomLoading) return;
+        
+        console.log('[DEBUG] Participant listener effect running.');
+        const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
+        const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
+            const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
+            console.log('[DEBUG] Fetched participants:', parts.map(p => p.name));
+            setParticipants(parts);
+            setParticipantsLoading(false);
+        }, (error) => {
+            console.error("Error listening to participants:", error);
+            setParticipantsLoading(false);
+        });
+        return () => {
+             console.log('[DEBUG] Unsubscribing from participants listener.');
+             unsubscribe();
         }
-    }, [user, roomId]);
+    }, [user, roomId, roomLoading]);
     
-    // Listen for mute status
+    
     useEffect(() => {
         if (currentUserParticipant?.isMuted) {
             abortRecognition();
@@ -302,13 +307,13 @@ export default function SyncRoomPage() {
         }
     }, [currentUserParticipant?.isMuted, toast]);
 
-    // Handle being removed from the room
     useEffect(() => {
-        if (isExiting.current || !currentUserParticipant || participantsLoading) return; 
-
-        const isStillParticipant = participants?.some(p => p.uid === user?.uid);
-
+        if (isExiting.current || participantsLoading || !user) return; 
+    
+        const isStillParticipant = participants.some(p => p.uid === user.uid);
+        
         if (currentUserParticipant && !isStillParticipant) {
+             console.log('[DEBUG] User is no longer in participant list. Exiting.');
              toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -319,9 +324,9 @@ export default function SyncRoomPage() {
         }
     }, [participants, currentUserParticipant, participantsLoading, user, toast, handleExitRoom]);
 
-    // Gracefully exit if room is closed or user is blocked
     useEffect(() => {
-        if (roomData?.status === 'closed') {
+        if (!roomData || !user) return;
+        if (roomData.status === 'closed') {
             toast({
                 title: 'Meeting Ended',
                 description: 'This room has been closed by the emcee.',
@@ -329,7 +334,7 @@ export default function SyncRoomPage() {
             });
             handleExitRoom();
         }
-        if (user && roomData?.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
+        if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
             toast({
                 variant: 'destructive',
                 title: 'Access Denied',
@@ -340,7 +345,6 @@ export default function SyncRoomPage() {
         }
     }, [roomData, user, toast, handleExitRoom]);
 
-    // Handle incoming messages for translation and TTS
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
 
@@ -399,7 +403,6 @@ export default function SyncRoomPage() {
         }
     }, [user, authLoading, router]);
 
-    // Handle leaving on browser close/refresh
     useEffect(() => {
         const handleBeforeUnload = () => {
             handleExitRoom();
@@ -409,7 +412,6 @@ export default function SyncRoomPage() {
 
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
-            // This cleanup function will also run on component unmount (e.g., navigating away)
             handleExitRoom();
         };
     }, [handleExitRoom]);
@@ -421,7 +423,6 @@ export default function SyncRoomPage() {
                 status: 'closed',
                 lastActivityAt: serverTimestamp(),
             });
-            // The useEffect for room status will handle the redirect for all users
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
@@ -743,6 +744,22 @@ export default function SyncRoomPage() {
 
             {/* Right Panel - Chat and Controls */}
             <main className="flex-1 flex flex-col">
+                <header className="p-4 border-b bg-background">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2" title="Cost per minute after free minutes are used">
+                            <Coins className="h-4 w-4 text-amber-500" />
+                            <span>Cost: {settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                        </div>
+                        <div className="flex items-center gap-2" title="Your free minutes remaining for this month">
+                            <Clock className="h-4 w-4 text-primary" />
+                            <span>Free: {freeMinutesRemaining} min left</span>
+                        </div>
+                         <div className="flex items-center gap-2" title="Your current token balance">
+                            <Coins className="h-4 w-4 text-amber-500" />
+                            <span>Balance: {userProfile?.tokenBalance ?? '...'}</span>
+                        </div>
+                    </div>
+                </header>
                 <div className="flex-1 flex flex-col p-6 overflow-hidden">
                      <ScrollArea className="flex-grow pr-4 -mr-4">
                         <div className="space-y-4">
