@@ -20,16 +20,19 @@ export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'las
  * @returns {Promise<ClientSyncRoom[]>} A promise that resolves to an array of all rooms.
  */
 export async function getAllRooms(): Promise<ClientSyncRoom[]> {
+  console.log("[SERVER ACTION] getAllRooms invoked.");
   try {
     const roomsCol = collection(db, 'syncRooms');
     const q = query(roomsCol, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-        console.log("No rooms found.");
+        console.log("[SERVER ACTION] No rooms found in 'syncRooms' collection.");
         return [];
     }
     
+    console.log(`[SERVER ACTION] Found ${snapshot.size} room(s).`);
+
     const rooms = snapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         // Convert Timestamps to ISO strings for safe serialization to the client.
@@ -46,7 +49,7 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
     return rooms;
 
   } catch (error) {
-    console.error("Error in getAllRooms server action:", error);
+    console.error("[SERVER ACTION] Error in getAllRooms:", error);
     // In case of an error, return an empty array to prevent the client from crashing.
     return [];
   }

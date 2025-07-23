@@ -21,8 +21,10 @@ function RoomTrackingTest() {
   const handleFetchRooms = async () => {
     setIsLoading(true);
     setError('');
+    console.log("Attempting to fetch rooms...");
     try {
       const fetchedRooms = await getAllRooms();
+      console.log("Fetched rooms from server:", fetchedRooms);
       setRooms(fetchedRooms);
     } catch (e: any) {
       console.error('Error fetching rooms:', e);
