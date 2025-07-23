@@ -78,11 +78,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const fetchUserProfile = useCallback(async () => {
-        // This is the definitive guard. If there's no authenticated user, stop immediately.
+        // Final guard: directly check the current user from the auth object.
         if (!auth.currentUser || isLoggingOut.current) {
             console.log("[DEBUG] UserDataContext: fetchUserProfile aborted, auth.currentUser is null or user is logging out.");
             return;
         }
+        
         try {
             console.log("[DEBUG] UserDataContext: fetchUserProfile running for user:", auth.currentUser.uid);
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
@@ -95,7 +96,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
-    }, [setUserProfile, isLoggingOut]);
+    }, [setUserProfile]); // Removed unstable dependencies
 
     const fetchPracticeHistory = useCallback(async () => {
          if (!user) {
@@ -119,7 +120,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const fetchAllData = async () => {
             if (user && !authLoading) {
                 console.log("[DEBUG] UserDataContext: User detected, fetching data.");
-                isLoggingOut.current = false; // Reset flag on login
+                isLoggingOut.current = false;
                 setLoading(true);
                 await fetchUserProfile();
                 if (Object.keys(practiceHistory).length === 0) {
@@ -129,6 +130,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             } 
             else if (!user && !authLoading && !isLoggingOut.current) {
                 console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
+                // Clear local state
                 setUserProfile({});
                 setPracticeHistory({});
                 setSyncLiveUsage(0);
@@ -136,7 +138,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         }
         fetchAllData();
-    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory, practiceHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, authLoading]); // Removed unstable dependencies to break loop
 
 
     // --- Firestore Synchronization Logic ---
@@ -214,13 +217,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     // --- Public Actions ---
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         console.log("[DEBUG] UserDataContext: Logout initiated.");
-        isLoggingOut.current = true; // Set the guard immediately
-        debouncedCommitToFirestore.flush(); // Ensure any pending writes are sent before logout.
+        isLoggingOut.current = true; 
+        debouncedCommitToFirestore.flush(); 
         await auth.signOut();
-        // The useEffect hook watching `user` will handle the rest of the state cleanup.
-    };
+    }, [debouncedCommitToFirestore]);
 
     const updateSyncLiveUsage = useCallback((durationMs: number): number => {
         if (!user || !settings) return 0;
