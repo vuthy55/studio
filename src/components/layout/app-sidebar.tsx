@@ -111,14 +111,16 @@ export function AppSidebar() {
              </>
           )}
 
-          {/* Test pages */}
-          <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/test'}>
-                  <Link href="/test" onClick={closeSidebar}>
-                      <TestTube /> Test Genkit
-                  </Link>
-              </SidebarMenuButton>
-          </SidebarMenuItem>
+          {/* Test page, only visible to the specified admin */}
+          {user?.email === 'thegreenhomecommunity@gmail.com' && (
+            <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/test'}>
+                    <Link href="/test" onClick={closeSidebar}>
+                        <TestTube /> Test
+                    </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
 
         </SidebarMenu>
       </SidebarContent>
