@@ -507,7 +507,6 @@ export default function TestPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Hardcoded list of known working models for this environment.
   const models = [
     'googleai/gemini-2.0-flash',
     'googleai/gemini-pro',
