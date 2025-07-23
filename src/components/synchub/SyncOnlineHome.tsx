@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText } from 'lucide-react';
 import type { SyncRoom, Participant, BlockedUser } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,6 +48,74 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 
 interface InvitedRoom extends SyncRoom {
     id: string;
+}
+
+function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
+    if (!room.summary) return null;
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                 <Button variant="outline" size="sm">
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Summary
+                 </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{room.summary.title}</DialogTitle>
+                    <DialogDescription>
+                        Meeting held on {new Date(room.summary.date).toLocaleDateString()}
+                    </DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] p-1">
+                <div className="space-y-6 pr-4">
+                    <div className="space-y-2">
+                        <h3 className="font-semibold">Summary</h3>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{room.summary.summary}</p>
+                    </div>
+
+                    {room.summary.actionItems && room.summary.actionItems.length > 0 && (
+                        <div className="space-y-2">
+                            <h3 className="font-semibold">Action Items</h3>
+                            <ul className="list-disc pl-5 space-y-1 text-sm">
+                                {room.summary.actionItems.map((item, index) => (
+                                    <li key={index}>
+                                        <strong>{item.task}</strong>
+                                        {(item.personInCharge || item.dueDate) && (
+                                            <span className="text-muted-foreground text-xs block">
+                                                {item.personInCharge && `Assigned to: ${item.personInCharge}`}
+                                                {item.personInCharge && item.dueDate && ' | '}
+                                                {item.dueDate && `Due: ${item.dueDate}`}
+                                            </span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                        <h3 className="font-semibold">Participants</h3>
+                        <div className="flex gap-4 text-sm">
+                             <div>
+                                <h4 className="font-medium flex items-center gap-1.5 text-green-600"><UserCheck/> Present</h4>
+                                <ul className="list-disc pl-5">
+                                    {room.summary.presentParticipants.map((p, i) => <li key={i}>{p}</li>)}
+                                </ul>
+                            </div>
+                             <div>
+                                <h4 className="font-medium flex items-center gap-1.5 text-red-600"><UserX/> Absent</h4>
+                                <ul className="list-disc pl-5">
+                                    {room.summary.absentParticipants.map((p, i) => <li key={i}>{p}</li>)}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 export default function SyncOnlineHome() {
@@ -102,6 +170,7 @@ export default function SyncOnlineHome() {
             const querySnapshot = await getDocs(q);
             const rooms = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
+                // Keep active rooms OR closed rooms that have a summary
                 .filter(room => room.status === 'active' || room.summary)
                 .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); // Sort by newest first
             
@@ -390,9 +459,15 @@ export default function SyncOnlineHome() {
                                                     </TooltipProvider>
                                                 ) : null}
 
-                                                <Button asChild disabled={isBlocked || room.status === 'closed'}>
-                                                    <Link href={`/sync-room/${room.id}`}>Join Room</Link>
-                                                </Button>
+                                                {room.status === 'active' && (
+                                                    <Button asChild disabled={isBlocked}>
+                                                        <Link href={`/sync-room/${room.id}`}>Join Room</Link>
+                                                    </Button>
+                                                )}
+
+                                                {room.summary && (
+                                                    <RoomSummaryDialog room={room} />
+                                                )}
                                                 
                                                 {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
                                                     <Dialog>

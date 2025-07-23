@@ -14,6 +14,7 @@ import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
 import { softDeleteRoom } from '@/actions/room';
+import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info, Trash2 } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info, Trash2, Save } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -43,7 +44,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -196,7 +196,7 @@ export default function SyncRoomPage() {
     
     const [isParticipant, setIsParticipant] = useState<'unknown' | 'yes' | 'no'>('unknown');
 
-    const [isListening, setIsListening] = useState(false);
+    const [isListening, setIsListening] = useState(isListening);
     const [isSpeaking, setIsSpeaking] = useState(false);
     
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
@@ -204,6 +204,7 @@ export default function SyncRoomPage() {
     const [isSendingInvites, setIsSendingInvites] = useState(false);
     
     const [sessionTimer, setSessionTimer] = useState('00:00');
+    const [isSummarizing, setIsSummarizing] = useState(false);
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -515,6 +516,23 @@ export default function SyncRoomPage() {
         }
     };
     
+    const handleSaveAndEndMeeting = async () => {
+        if (!isCurrentUserEmcee) return;
+        setIsSummarizing(true);
+        toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.' });
+        try {
+            await handleExitRoom();
+            await summarizeRoom({ roomId });
+            toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
+            router.push('/?tab=sync-online');
+        } catch (error) {
+            console.error("Error saving and ending meeting:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
+
     const handleSendInvites = async () => {
         const emails = emailsToInvite.split(/[ ,]+/).map(e => e.trim()).filter(Boolean);
         if (emails.length === 0) {
@@ -623,8 +641,11 @@ export default function SyncRoomPage() {
         }
     };
 
-    if (authLoading || roomLoading || participantsLoading || isParticipant === 'unknown') {
-        return <div className="flex h-screen items-center justify-center"><LoaderCircle className="h-10 w-10 animate-spin" /></div>;
+    if (authLoading || roomLoading || participantsLoading || isParticipant === 'unknown' || isSummarizing) {
+        return <div className="flex h-screen items-center justify-center flex-col gap-4">
+            <LoaderCircle className="h-10 w-10 animate-spin" />
+            {isSummarizing && <p className="text-lg text-muted-foreground">AI is summarizing, please wait...</p>}
+            </div>;
     }
 
     if (roomError) {
@@ -767,7 +788,7 @@ export default function SyncRoomPage() {
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => handleRemoveParticipant(p as Participant)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                                            Remove & Block
+                                                            Remove &amp; Block
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
@@ -819,7 +840,7 @@ export default function SyncRoomPage() {
                                             <Info className="h-4 w-4 cursor-help" />
                                         </TooltipTrigger>
                                         <TooltipContent side="top" align="start" className="max-w-xs text-sm">
-                                            <p className="font-bold">About the Timer & Billing</p>
+                                            <p className="font-bold">About the Timer &amp; Billing</p>
                                             <p className="mt-2">This timer is a visual estimate of your current session duration.</p>
                                             <p className="mt-1">Final billing is calculated securely on the server when your session ends.</p>
                                             <p className="mt-2 font-semibold">A session ends if you:</p>
@@ -876,7 +897,7 @@ export default function SyncRoomPage() {
                                                 <TooltipTrigger asChild>
                                                     <Button type="button" variant="destructive" onClick={handleEndMeeting}>
                                                         <Trash2 className="mr-2 h-4 w-4" />
-                                                        End & Delete
+                                                        End &amp; Delete
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
@@ -888,13 +909,13 @@ export default function SyncRoomPage() {
                                          <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button type="button" disabled>
-                                                      Save & End
-                                                      <Badge variant="secondary" className="ml-2">Soon</Badge>
+                                                     <Button type="button" onClick={handleSaveAndEndMeeting}>
+                                                        <Save className="mr-2 h-4 w-4" />
+                                                        Save &amp; End
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p>Generate an AI summary, then end the meeting. (Coming soon)</p>
+                                                    <p>Generate an AI summary, then end the meeting.</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
