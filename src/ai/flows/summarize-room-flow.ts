@@ -75,8 +75,8 @@ const summarizeRoomPrompt = ai.definePrompt({
     schema: z.object({
       transcript: z.string(),
       meetingDate: z.string(),
-      presentParticipants: z.array(ParticipantSchema),
-      absentParticipants: z.array(ParticipantSchema),
+      allInvitedUsers: z.array(ParticipantSchema),
+      presentParticipantEmails: z.array(z.string().email()),
     }),
   },
   output: {
@@ -87,8 +87,9 @@ const summarizeRoomPrompt = ai.definePrompt({
 
 CONTEXT:
 - The meeting was held on {{meetingDate}}.
-- Participants present: {{#each presentParticipants}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
-- Participants absent: {{#each absentParticipants}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
+- All invited users are: {{#each allInvitedUsers}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
+- The emails of users who were PRESENT are: {{#each presentParticipantEmails}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}.
+- From this information, you must determine who was present and who was absent and populate the output fields accordingly.
 
 TRANSCRIPT:
 {{{transcript}}}
@@ -138,47 +139,26 @@ const summarizeRoomFlow = ai.defineFlow(
     
     const transcript = messages.map(msg => `${msg.speakerName}: ${msg.text}`).join('\n');
     
-    // Fetch all invited user profiles to get accurate names and emails
-    const usersRef = db.collection('users');
-    const allInvitedUsersMap = new Map<string, { name: string; email: string }>();
-
+    const allInvitedUsers: { name: string; email: string }[] = [];
     if (roomData.invitedEmails && roomData.invitedEmails.length > 0) {
+        const usersRef = db.collection('users');
         const invitedUsersQuery = usersRef.where('email', 'in', roomData.invitedEmails);
         const invitedUsersSnap = await invitedUsersQuery.get();
         invitedUsersSnap.forEach(doc => {
             const userData = doc.data();
-            allInvitedUsersMap.set(userData.email, { name: userData.name || userData.email.split('@')[0], email: userData.email });
+            allInvitedUsers.push({ name: userData.name || userData.email.split('@')[0], email: userData.email });
         });
     }
 
-
-    // Add any present participants who might not have been in the original invite list (e.g., creator)
-     presentParticipantDocs.forEach(p => {
-        if (!allInvitedUsersMap.has(p.email)) {
-             allInvitedUsersMap.set(p.email, { name: p.name, email: p.email });
-        }
-    });
-
-    const presentEmails = new Set(presentParticipantDocs.map(p => p.email));
-    
-    const presentParticipants: {name: string, email: string}[] = [];
-    const absentParticipants: {name: string, email: string}[] = [];
-
-    allInvitedUsersMap.forEach((user, email) => {
-        if (presentEmails.has(email)) {
-            presentParticipants.push(user);
-        } else {
-            absentParticipants.push(user);
-        }
-    });
+    const presentParticipantEmails = presentParticipantDocs.map(p => p.email);
     
     const meetingDate = (roomData.createdAt as Timestamp).toDate().toISOString().split('T')[0];
 
     const promptData = {
       transcript,
       meetingDate,
-      presentParticipants,
-      absentParticipants,
+      allInvitedUsers,
+      presentParticipantEmails,
     };
 
     let output;
@@ -210,3 +190,5 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

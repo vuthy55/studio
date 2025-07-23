@@ -71,9 +71,19 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
             return "Unknown";
         }
-        const date = new Date(dateString + 'T00:00:00Z'); // Treat as UTC
-        if (isNaN(date.getTime())) return "Unknown";
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+        try {
+            const date = new Date(dateString);
+             // Check if date is valid, Safari can be tricky with 'YYYY-MM-DD'
+            if (isNaN(date.getTime())) {
+                const parts = dateString.split('-').map(Number);
+                const utcDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+                 if(isNaN(utcDate.getTime())) return "Unknown";
+                 return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+            }
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+        } catch (e) {
+            return "Unknown";
+        }
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -764,3 +774,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
