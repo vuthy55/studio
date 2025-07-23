@@ -13,6 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
+import { softDeleteRoom } from '@/actions/room';
 
 
 import { Button } from '@/components/ui/button';
@@ -494,11 +495,12 @@ export default function SyncRoomPage() {
         if (!isCurrentUserEmcee || isExiting.current) return;
         try {
             await handleExitRoom();
-            await updateDoc(doc(db, 'syncRooms', roomId), {
-                status: 'closed',
-                lastActivityAt: serverTimestamp(),
-            });
-             router.push('/?tab=sync-online');
+            const result = await softDeleteRoom(roomId);
+            if (result.success) {
+                router.push('/?tab=sync-online');
+            } else {
+                 toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
+            }
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
@@ -833,28 +835,58 @@ export default function SyncRoomPage() {
                             Exit Room
                         </Button>
                         {isCurrentUserEmcee && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
+                            <Dialog>
+                                <DialogTrigger asChild>
                                     <Button variant="destructive" size="sm" className="w-full">
                                         <ShieldX className="mr-2 h-4 w-4"/>
                                         End Meeting
                                     </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>End Meeting for All?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will close the room for all participants. This action cannot be undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleEndMeeting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                            End Meeting
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                                </DialogTrigger>
+                                 <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>End Meeting for All?</DialogTitle>
+                                        <DialogDescription>
+                                            Choose how you want to end this meeting. Ending it will close the room for all participants.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <DialogFooter className="sm:justify-around gap-2 pt-4">
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <DialogClose asChild>
+                                                        <Button type="button" variant="secondary">Cancel</Button>
+                                                    </DialogClose>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Return to the room.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button type="button" variant="destructive" onClick={handleEndMeeting}>Delete</Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>End the meeting and close the room permanently.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                        
+                                         <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button type="button" disabled>Summary</Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Generate an AI summary, then end the meeting.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                         )}
                     </div>
                 </footer>
@@ -915,7 +947,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
-
-    
