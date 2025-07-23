@@ -5,8 +5,8 @@ import { runTestFlow } from '@/ai/flows/test-flow';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useState, useMemo } from 'react';
-import { LoaderCircle, Trash2 } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { LoaderCircle, Trash2, Banknote, PlusCircle, MinusCircle } from 'lucide-react';
 import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
@@ -16,7 +16,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms } from '@/actions/room';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
+import { getTokenAnalytics, getTokenLedger, type TokenAnalytics, type TokenLedgerEntry } from '@/services/ledger';
+import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
+import Link from 'next/link';
 
 function RoomTrackingTest() {
   const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
@@ -173,6 +177,132 @@ function RoomTrackingTest() {
   );
 }
 
+function TokenAnalyticsTest() {
+    const { toast } = useToast();
+    const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
+    const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const getReasonText = (log: TokenLedgerEntry) => {
+        switch (log.actionType) {
+            case 'purchase': return 'Token Purchase';
+            case 'signup_bonus': return 'Signup Bonus';
+            case 'referral_bonus': return 'Referral Bonus';
+            case 'practice_earn': return 'Practice Reward';
+            case 'translation_spend': return 'Live Translation';
+            case 'live_sync_spend': return 'Live Sync Usage';
+            case 'live_sync_online_spend': return 'Sync Online Usage';
+            default: return 'Unknown Action';
+        }
+    };
+    
+    const formatDuration = (ms: number) => {
+        if (ms < 1000) return `${ms}ms`;
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
+    };
+
+    const handleFetchData = useCallback(async () => {
+        setIsLoading(true);
+        setAnalytics(null);
+        setLedger([]);
+        try {
+            const [analyticsData, ledgerData] = await Promise.all([
+                getTokenAnalytics(),
+                getTokenLedger()
+            ]);
+            setAnalytics(analyticsData);
+            setLedger(ledgerData);
+        } catch (err: any) {
+            console.error("Error fetching token data:", err);
+            toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    return (
+        <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+                <CardTitle>Token Economy Test</CardTitle>
+                <CardDescription>
+                    Fetches and displays a full overview of the token economy, including analytics and a detailed transaction ledger. This mirrors the "Tokens" tab in the Admin Dashboard.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <Button onClick={handleFetchData} disabled={isLoading}>
+                    {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch Token Data'}
+                </Button>
+
+                {analytics && (
+                    <div className="space-y-6">
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base"><Banknote/> Total Tokens</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-1 text-sm">
+                                    <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base"><MinusCircle className="text-red-500" /> Tokens Distributed</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-1 text-sm">
+                                    <div className="flex justify-between"><span>Signup:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>Referral:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>Practice:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
+                                    <Separator className="my-1" />
+                                    <div className="flex justify-between font-bold"><span>Total Free:</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                        <div className="border rounded-md min-h-[200px]">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>User</TableHead>
+                                        <TableHead className="text-right">QTY</TableHead>
+                                        <TableHead>Reason</TableHead>
+                                        <TableHead>Description</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {ledger.map((log) => (
+                                        <TableRow key={log.id}>
+                                            <TableCell className="text-xs">{format(log.timestamp, 'd MMM, HH:mm')}</TableCell>
+                                            <TableCell className="text-xs">{log.userEmail}</TableCell>
+                                            <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="text-xs">{getReasonText(log)}</TableCell>
+                                            <TableCell className="text-xs">
+                                                {log.description}
+                                                {log.duration && ` (${formatDuration(log.duration)})`}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function TestPage() {
   const [user] = useAuthState(auth);
@@ -206,6 +336,7 @@ export default function TestPage() {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
+      <TokenAnalyticsTest />
       <RoomTrackingTest />
 
       <Card className="max-w-2xl mx-auto">
