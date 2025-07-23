@@ -162,6 +162,7 @@ export default function SyncRoomPage() {
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
+    const messageListenerUnsubscribe = useRef<() => void | null>(null);
 
 
      useEffect(() => {
@@ -186,13 +187,6 @@ export default function SyncRoomPage() {
     const currentUserParticipant = useMemo(() => {
         return participantsCollection?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
     }, [participantsCollection, user]);
-
-    // This effect runs once the user has successfully joined and sets the timestamp.
-    useEffect(() => {
-        if(currentUserParticipant?.joinedAt) {
-            setJoinTimestamp(currentUserParticipant.joinedAt);
-        }
-    }, [currentUserParticipant]);
 
 
     const isCurrentUserEmcee = useMemo(() => {
@@ -254,39 +248,6 @@ export default function SyncRoomPage() {
             router.push('/?tab=sync-online');
         }
     }, [roomData, user, router, toast]);
-
-    // --- NEW: Manual Message Listener ---
-    useEffect(() => {
-        if (!joinTimestamp) return; // Only listen for messages after we have a join timestamp
-
-        setMessagesLoading(true);
-
-        const q = query(messagesRef, where("createdAt", ">", joinTimestamp));
-        
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const newMessages: RoomMessage[] = [];
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-                }
-            });
-
-            if (newMessages.length > 0) {
-                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
-            }
-            setMessagesLoading(false);
-        }, (error) => {
-            console.error("Error listening to messages:", error);
-            setMessagesLoading(false);
-            // This might indicate a permissions issue still, so we toast
-            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
-        });
-
-        // Cleanup function to detach the listener when the component unmounts or joinTimestamp changes
-        return () => unsubscribe();
-
-    }, [joinTimestamp, messagesRef, toast]);
-
 
     // Handle incoming messages for translation and TTS
     useEffect(() => {
@@ -366,9 +327,42 @@ export default function SyncRoomPage() {
         }
     }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, toast]);
 
+
+    // This function now also sets up the message listener.
+    const handleJoin = (joinTime: Timestamp) => {
+        setJoinTimestamp(joinTime);
+        setMessagesLoading(true);
+
+        const q = query(messagesRef, where("createdAt", ">", joinTime));
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+
+            if (newMessages.length > 0) {
+                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
+            }
+            setMessagesLoading(false);
+        }, (error) => {
+            console.error("Error listening to messages:", error);
+            setMessagesLoading(false);
+            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+        });
+        
+        messageListenerUnsubscribe.current = unsubscribe;
+    };
+
+
     const handleExitRoom = async () => {
         if (!user) return;
         setIsExiting(true); // Set the flag to indicate voluntary exit
+        if (messageListenerUnsubscribe.current) {
+            messageListenerUnsubscribe.current();
+        }
         try {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
@@ -529,7 +523,7 @@ export default function SyncRoomPage() {
     }
 
     if (user && !joinTimestamp) {
-        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={(joinTime) => setJoinTimestamp(joinTime)} />;
+        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={handleJoin} />;
     }
 
     return (
@@ -774,3 +768,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
