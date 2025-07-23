@@ -119,13 +119,6 @@ export function AppSidebar() {
                   </Link>
               </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/test-speech'}>
-                  <Link href="/test-speech" onClick={closeSidebar}>
-                      <Mic /> Test Speech
-                  </Link>
-              </SidebarMenuButton>
-          </SidebarMenuItem>
 
         </SidebarMenu>
       </SidebarContent>
