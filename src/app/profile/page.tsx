@@ -269,8 +269,6 @@ export default function ProfilePage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            // Clear sensitive data on logout before redirecting
-            setProfile({});
             router.push('/login');
         }
     }, [user, authLoading, router]);
@@ -371,6 +369,7 @@ export default function ProfilePage() {
     
 
     
+
 
 
 

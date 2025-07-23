@@ -25,13 +25,13 @@ import NotificationBell from './NotificationBell';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user, loading, userProfile } = useUserData();
+  const { user, loading, userProfile, logout } = useUserData();
   const { toast } = useToast();
   const { setOpenMobile } = useSidebar();
   
   const handleLogout = async () => {
     try {
-      await auth.signOut();
+      await logout();
       toast({ title: 'Success', description: 'You have been logged out.' });
       setOpenMobile(false);
     } catch (error: any) {
