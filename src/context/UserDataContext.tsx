@@ -76,12 +76,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const fetchUserProfile = useCallback(async () => {
-        if (!user) {
-             console.log("[DEBUG] UserDataContext: fetchUserProfile aborted, no user.");
-             return;
+        // This is the definitive guard. If there's no authenticated user, stop immediately.
+        if (!auth.currentUser) {
+            console.log("[DEBUG] UserDataContext: fetchUserProfile aborted, auth.currentUser is null.");
+            return;
         }
         try {
-            const userDocRef = doc(db, 'users', user.uid);
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists()) {
                 const profileData = userDocSnap.data() as UserProfile;
@@ -91,7 +92,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
-    }, [user, setUserProfile]);
+    }, [setUserProfile]);
 
     const fetchPracticeHistory = useCallback(async () => {
          if (!user) {
