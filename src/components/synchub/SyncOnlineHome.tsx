@@ -60,8 +60,7 @@ export default function SyncOnlineHome() {
     const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
     const [inviteeEmails, setInviteeEmails] = useState('');
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
-    
-    const [createdRoomLink, setCreatedRoomLink] = useState('');
+    const [isCreateRoomDialogOpen, setIsCreateRoomDialogOpen] = useState(false);
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
@@ -132,6 +131,14 @@ export default function SyncOnlineHome() {
              setInvitedRooms([]);
         }
     }, [user, loading, fetchInvitedRooms]);
+    
+    const resetAndClose = () => {
+        setRoomTopic('');
+        setCreatorLanguage('');
+        setInviteeEmails('');
+        setEmceeEmails(user?.email ? [user.email] : []);
+        setIsCreateRoomDialogOpen(false);
+    };
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -173,20 +180,12 @@ export default function SyncOnlineHome() {
             };
             batch.set(newRoomRef, newRoom);
 
-            const participantRef = doc(db, 'syncRooms', newRoomRef.id, 'participants', user.uid);
-            const creatorParticipant: Participant = {
-                uid: user.uid,
-                name: user.displayName || user.email?.split('@')[0] || 'Creator',
-                email: user.email!,
-                selectedLanguage: creatorLanguage,
-            };
-            batch.set(participantRef, creatorParticipant);
-
             await batch.commit();
             
-            const joinLink = `${window.location.origin}/sync-room/${newRoomRef.id}`;
-            setCreatedRoomLink(joinLink);
+            toast({ title: "Room Created!", description: "Your new room is available in the list below." });
             fetchInvitedRooms();
+            resetAndClose();
+
 
         } catch (error) {
             console.error("Error creating room:", error);
@@ -236,21 +235,6 @@ export default function SyncOnlineHome() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not unblock the user.' });
         }
     }, []);
-    
-    const copyToClipboard = () => {
-        if (typeof window !== 'undefined') {
-            navigator.clipboard.writeText(createdRoomLink);
-            toast({ title: 'Copied!', description: 'Room link copied to clipboard.' });
-        }
-    };
-    
-    const resetAndClose = () => {
-        setRoomTopic('');
-        setCreatorLanguage('');
-        setInviteeEmails('');
-        setEmceeEmails(user?.email ? [user.email] : []);
-        setCreatedRoomLink('');
-    };
 
     if (loading || !isClient) {
         return (
@@ -277,7 +261,10 @@ export default function SyncOnlineHome() {
                     <CardDescription>Create a private room and invite others for a real-time, multi-language voice conversation.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Dialog onOpenChange={(open) => !open && resetAndClose()}>
+                     <Dialog open={isCreateRoomDialogOpen} onOpenChange={(open) => {
+                        setIsCreateRoomDialogOpen(open);
+                        if (!open) resetAndClose();
+                     }}>
                         <DialogTrigger asChild>
                              <Button disabled={!user}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -287,106 +274,71 @@ export default function SyncOnlineHome() {
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                         <DialogContent className="sm:max-w-md">
-                            {!createdRoomLink ? (
-                                <>
-                                    <DialogHeader>
-                                        <DialogTitle>Create a Sync Room</DialogTitle>
-                                        <DialogDescription>
-                                            Fill in the details below. Once created, you'll get a shareable link. The max number of users per room is {settings?.maxUsersPerRoom || 5}.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="topic">Room Topic</Label>
-                                            <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Bali" required />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="language">Your Spoken Language</Label>
-                                            <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                                                <SelectTrigger id="language">
-                                                    <SelectValue placeholder="Select your language..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  <ScrollArea className="h-72">
-                                                    {azureLanguages.map(lang => (
-                                                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                                    ))}
-                                                  </ScrollArea>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
-                                            <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
-                                        </div>
+                            <DialogHeader>
+                                <DialogTitle>Create a Sync Room</DialogTitle>
+                                <DialogDescription>
+                                    Fill in the details below. Once created, you'll get a shareable link. The max number of users per room is {settings?.maxUsersPerRoom || 5}.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="topic">Room Topic</Label>
+                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Bali" required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="language">Your Spoken Language</Label>
+                                    <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                                        <SelectTrigger id="language">
+                                            <SelectValue placeholder="Select your language..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <ScrollArea className="h-72">
+                                            {azureLanguages.map(lang => (
+                                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                            ))}
+                                          </ScrollArea>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                                    <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                                </div>
 
-                                        {(parsedInviteeEmails.length > 0 || user?.email) && (
-                                            <div className="space-y-3">
-                                                <Separator/>
-                                                <Label className="font-semibold flex items-center gap-2">
-                                                    <ShieldCheck className="h-5 w-5 text-primary"/>
-                                                    Assign Emcees
-                                                </Label>
-                                                <ScrollArea className="max-h-32">
-                                                    <div className="space-y-2 pr-4">
-                                                        {user?.email && (
-                                                             <div className="flex items-center space-x-2">
-                                                                <Checkbox id={user.email} checked={emceeEmails.includes(user.email)} onCheckedChange={() => toggleEmcee(user.email)} />
-                                                                <Label htmlFor={user.email} className="font-normal w-full truncate">{user.email} (Creator)</Label>
-                                                            </div>
-                                                        )}
-                                                        {parsedInviteeEmails.map(email => (
-                                                            <div key={email} className="flex items-center space-x-2">
-                                                                <Checkbox id={email} checked={emceeEmails.includes(email)} onCheckedChange={() => toggleEmcee(email)} />
-                                                                <Label htmlFor={email} className="font-normal w-full truncate">{email}</Label>
-                                                            </div>
-                                                        ))}
+                                {(parsedInviteeEmails.length > 0 || user?.email) && (
+                                    <div className="space-y-3">
+                                        <Separator/>
+                                        <Label className="font-semibold flex items-center gap-2">
+                                            <ShieldCheck className="h-5 w-5 text-primary"/>
+                                            Assign Emcees
+                                        </Label>
+                                        <ScrollArea className="max-h-32">
+                                            <div className="space-y-2 pr-4">
+                                                {user?.email && (
+                                                     <div className="flex items-center space-x-2">
+                                                        <Checkbox id={user.email} checked={emceeEmails.includes(user.email)} onCheckedChange={() => toggleEmcee(user.email)} />
+                                                        <Label htmlFor={user.email} className="font-normal w-full truncate">{user.email} (Creator)</Label>
                                                     </div>
-                                                </ScrollArea>
-                                                <Separator/>
+                                                )}
+                                                {parsedInviteeEmails.map(email => (
+                                                    <div key={email} className="flex items-center space-x-2">
+                                                        <Checkbox id={email} checked={emceeEmails.includes(email)} onCheckedChange={() => toggleEmcee(email)} />
+                                                        <Label htmlFor={email} className="font-normal w-full truncate">{email}</Label>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        )}
-
-                                        <DialogFooter>
-                                            <Button type="submit" disabled={isCreating}>
-                                                {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                                Create Room
-                                            </Button>
-                                        </DialogFooter>
-                                    </form>
-                                </>
-                            ) : (
-                                 <>
-                                    <DialogHeader>
-                                        <DialogTitle>Room Created!</DialogTitle>
-                                        <DialogDescription>
-                                            Share this link with your friends to invite them to the room.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="py-4 space-y-4">
-                                        <div className="flex items-center space-x-2">
-                                            <Input value={createdRoomLink} readOnly />
-                                            <Button type="button" size="sm" onClick={copyToClipboard}>
-                                                <span className="sr-only">Copy</span>
-                                                <Copy className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                         <Button asChild type="button">
-                                            <Link href={createdRoomLink.replace(window.location.origin, '')}>
-                                                Go to Room
-                                                <ArrowRight className="ml-2 h-4 w-4" />
-                                            </Link>
-                                        </Button>
+                                        </ScrollArea>
+                                        <Separator/>
                                     </div>
-                                    <DialogFooter>
-                                         <DialogClose asChild>
-                                            <Button type="button" variant="secondary" onClick={resetAndClose}>
-                                              Close
-                                            </Button>
-                                          </DialogClose>
-                                    </DialogFooter>
-                                </>
-                            )}
+                                )}
+
+                                <DialogFooter>
+                                    <Button type="submit" disabled={isCreating}>
+                                        {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        Create Room
+                                    </Button>
+                                </DialogFooter>
+                            </form>
                         </DialogContent>
                     </Dialog>
                 </CardContent>
@@ -433,8 +385,8 @@ export default function SyncOnlineHome() {
                                                     </TooltipProvider>
                                                 ) : null}
 
-                                                <Button asChild disabled={isBlocked}>
-                                                    <Link href={`/sync-room/${room.id}`}>{room.status === 'closed' ? 'View Summary' : 'Join Room'}</Link>
+                                                <Button asChild disabled={isBlocked || room.status === 'closed'}>
+                                                    <Link href={`/sync-room/${room.id}`}>Join Room</Link>
                                                 </Button>
                                                 
                                                 {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
