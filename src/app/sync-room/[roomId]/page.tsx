@@ -238,7 +238,7 @@ export default function SyncRoomPage() {
         // Query for messages created *after* the user joined the room.
         const messagesQuery = query(
             collection(db, 'syncRooms', roomId, 'messages'),
-            where("createdAt", ">", joinTimestamp)
+            where("createdAt", ">=", joinTimestamp)
         );
 
         const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
@@ -338,16 +338,12 @@ export default function SyncRoomPage() {
             setParticipants(parts);
             setParticipantsLoading(false);
 
-            // If the user is a participant and we haven't started listening yet, call onJoinSuccess.
-            // This handles re-joining an already-joined room correctly.
+            // This logic handles re-joining an already-joined room correctly.
+            // It only triggers if the user is a participant AND the message listener isn't already running.
             const self = parts.find(p => p.uid === user.uid);
             if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
                 console.log("[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.");
                 onJoinSuccess(self.joinedAt);
-            } else if (self) {
-                 console.log("[DEBUG] Participant Listener: Current user is a participant, but message listener is already active.");
-            } else {
-                 console.log("[DEBUG] Participant Listener: Current user is NOT yet a participant.");
             }
         }, (error) => {
             console.error("[DEBUG] Participant Listener: Firestore error!", error);
@@ -909,3 +905,4 @@ export default function SyncRoomPage() {
     
 
     
+
