@@ -150,7 +150,7 @@ export default function SyncRoomPage() {
     const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
 
     const [isListening, setIsListening] = useState(false);
-    const [isSpeaking, setIsSpeaking] = useState(isSpeaking);
+    const [isSpeaking, setIsSpeaking] = useState(false);
     
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
     const [emailsToInvite, setEmailsToInvite] = useState('');
@@ -878,5 +878,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
