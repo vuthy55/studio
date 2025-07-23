@@ -275,7 +275,11 @@ export default function SyncRoomPage() {
         }, (error) => {
             console.error("Error listening to messages:", error);
             setMessagesLoading(false);
-            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+            if (error.code === 'permission-denied') {
+                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
+            } else {
+                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+            }
         });
 
         messageListenerUnsubscribe.current = unsubscribe;
@@ -832,7 +836,7 @@ export default function SyncRoomPage() {
                             })}
                              <div ref={messagesEndRef} />
                         </div>
-                         {messagesLoading && <LoaderCircle className="mx-auto my-4 h-6 w-6 animate-spin" />}
+                         {messagesLoading && currentUserParticipant && <LoaderCircle className="mx-auto my-4 h-6 w-6 animate-spin" />}
                          {!messagesLoading && messages?.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
                                 <p>No messages yet. Be the first to speak!</p>
