@@ -78,7 +78,7 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
                 joinedAt: joinTime
             };
             await setDoc(participantRef, participantData);
-            // Call the success callback to notify the parent component
+            // This is the key change: onJoinSuccess is ONLY called after the user is successfully written to Firestore.
             onJoinSuccess(joinTime);
         } catch (error) {
             console.error("Error joining room:", error);
@@ -194,16 +194,68 @@ export default function SyncRoomPage() {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
     
-    const freeMinutesRemaining = useMemo(() => {
-        if (!settings || !userProfile) return 0;
-        const freeMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
-        const usedMs = userProfile.syncOnlineUsage || 0;
-        return Math.max(0, Math.floor((freeMs - usedMs) / 60000));
-    }, [settings, userProfile]);
-
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
     }, [roomData]);
+
+    const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
+        if (messageListenerUnsubscribe.current) {
+            console.warn("[DEBUG] Message listener setup aborted: a listener is already active.");
+            return;
+        }
+
+        console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
+        setMessagesLoading(true);
+        // Query for messages created *after* the user joined the room.
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'),
+            where("createdAt", ">", joinTimestamp)
+        );
+
+        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+            console.log(`[DEBUG] setupMessageListener: Snapshot received with ${snapshot.docChanges().length} changes.`);
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+
+            if (newMessages.length > 0) {
+                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
+            }
+            setMessagesLoading(false);
+        }, (error) => {
+            console.error("[DEBUG] setupMessageListener: Firestore error!", error);
+            setMessagesLoading(false);
+            if (error.code === 'permission-denied') {
+                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
+            } else {
+                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+            }
+        });
+
+        messageListenerUnsubscribe.current = unsubscribe;
+    }, [roomId, toast]);
+
+
+    const onJoinSuccess = useCallback((joinTime: Timestamp) => {
+        console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
+        sessionStartTime.current = Date.now();
+        setupMessageListener(joinTime);
+
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = setInterval(() => {
+            if (sessionStartTime.current) {
+                const elapsedMs = Date.now() - sessionStartTime.current;
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                setSessionTimer(`${minutes}:${seconds}`);
+            }
+        }, 1000);
+    }, [setupMessageListener]);
+    
 
     const handleExitRoom = useCallback(async () => {
         if (!user || isExiting.current) return;
@@ -244,62 +296,6 @@ export default function SyncRoomPage() {
         await handleExitRoom();
         router.push('/?tab=sync-online');
     };
-    
-    const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
-        if (messageListenerUnsubscribe.current) {
-            console.warn("[DEBUG] Message listener setup aborted: a listener is already active.");
-            return;
-        }
-
-        console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
-        setMessagesLoading(true);
-        const messagesQuery = query(
-            collection(db, 'syncRooms', roomId, 'messages'),
-            where("createdAt", ">", joinTimestamp)
-        );
-
-        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-            console.log(`[DEBUG] setupMessageListener: Snapshot received with ${snapshot.docChanges().length} changes.`);
-            const newMessages: RoomMessage[] = [];
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-                }
-            });
-
-            if (newMessages.length > 0) {
-                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
-            }
-            setMessagesLoading(false);
-        }, (error) => {
-            console.error("[DEBUG] setupMessageListener: Firestore error!", error);
-            setMessagesLoading(false);
-            if (error.code === 'permission-denied') {
-                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
-            } else {
-                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
-            }
-        });
-
-        messageListenerUnsubscribe.current = unsubscribe;
-    }, [roomId, toast]);
-
-    const onJoin = useCallback((joinTime: Timestamp) => {
-        console.log(`[DEBUG] onJoin: Called with joinTime ${joinTime.toDate()}.`);
-        sessionStartTime.current = Date.now();
-        setupMessageListener(joinTime);
-
-        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = setInterval(() => {
-            if (sessionStartTime.current) {
-                const elapsedMs = Date.now() - sessionStartTime.current;
-                const totalSeconds = Math.floor(elapsedMs / 1000);
-                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                setSessionTimer(`${minutes}:${seconds}`);
-            }
-        }, 1000);
-    }, [setupMessageListener]);
 
     // Effect to listen for participants
     useEffect(() => {
@@ -313,12 +309,12 @@ export default function SyncRoomPage() {
             setParticipants(parts);
             setParticipantsLoading(false);
 
-            // If the user is a participant and we haven't started listening yet, call onJoin.
-            // This now handles re-joining a room correctly.
+            // If the user is a participant and we haven't started listening yet, call onJoinSuccess.
+            // This handles re-joining an already-joined room correctly.
             const self = parts.find(p => p.uid === user.uid);
             if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
-                console.log("[DEBUG] Participant Listener: Current user IS a participant. Calling onJoin.");
-                onJoin(self.joinedAt);
+                console.log("[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.");
+                onJoinSuccess(self.joinedAt);
             } else if (self) {
                  console.log("[DEBUG] Participant Listener: Current user is a participant, but message listener is already active.");
             } else {
@@ -333,7 +329,7 @@ export default function SyncRoomPage() {
             console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
-    }, [user, roomId, roomLoading, onJoin]);
+    }, [user, roomId, roomLoading, onJoinSuccess]);
     
     
     useEffect(() => {
@@ -593,7 +589,7 @@ export default function SyncRoomPage() {
     }
 
     if (user && !currentUserParticipant) {
-        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoinSuccess={onJoin} />;
+        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoinSuccess={onJoinSuccess} />;
     }
 
     return (
@@ -880,3 +876,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
