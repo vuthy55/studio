@@ -732,59 +732,29 @@ export default function SyncRoomPage() {
                         </div>
                     )}
                 </ScrollArea>
-                 <footer className="p-4 border-t flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
-                        <LogOut className="mr-2 h-4 w-4"/>
-                        Exit Room
-                    </Button>
-                    {isCurrentUserEmcee && (
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" size="sm" className="w-full">
-                                    <ShieldX className="mr-2 h-4 w-4"/>
-                                    End Meeting
-                                </Button>
-                            </AlertDialogTrigger>
-                             <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>End Meeting for All?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will close the room for all participants. This action cannot be undone.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleEndMeeting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                        End Meeting
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
-                </footer>
-            </aside>
-
-            {/* Right Panel - Chat and Controls */}
-            <main className="flex-1 flex flex-col">
-                <header className="p-4 border-b bg-background">
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2" title="Cost per minute after free minutes are used">
-                            <Coins className="h-4 w-4 text-amber-500" />
-                            <span>Cost: {settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                 <footer className="p-4 border-t flex flex-col gap-4">
+                    <div className="text-xs text-muted-foreground space-y-2 border rounded-lg p-3">
+                        <div className="flex justify-between" title="Your current token balance">
+                           <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
+                           <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
                         </div>
-                         <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2" title="Your free minutes remaining for this month">
-                                <Clock className="h-4 w-4 text-primary" />
-                                <span>Free: {freeMinutesRemaining} min left</span>
-                            </div>
-                             <div className="flex items-center gap-2 font-mono" title="Session duration timer">
-                                <span>({sessionTimer})</span>
+                         <div className="flex justify-between" title="Cost per minute after free minutes are used">
+                            <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
+                            <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                        </div>
+                        <div className="flex justify-between" title="Your free minutes remaining for this month">
+                            <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Minutes:</span>
+                            <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                        </div>
+                        <div className="flex justify-between font-mono text-sm" title="Session duration timer">
+                            <div className="flex items-center gap-1.5">
+                                Session:
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger>
                                             <Info className="h-4 w-4 cursor-help" />
                                         </TooltipTrigger>
-                                        <TooltipContent side="bottom" align="start" className="max-w-xs text-sm">
+                                        <TooltipContent side="top" align="start" className="max-w-xs text-sm">
                                             <p className="font-bold">About the Timer & Billing</p>
                                             <p className="mt-2">This timer is a visual estimate of your current session duration.</p>
                                             <p className="mt-1">Final billing is calculated securely on the server when your session ends.</p>
@@ -798,14 +768,46 @@ export default function SyncRoomPage() {
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
-                             </div>
-                         </div>
-                         <div className="flex items-center gap-2" title="Your current token balance">
-                            <Coins className="h-4 w-4 text-amber-500" />
-                            <span>Balance: {userProfile?.tokenBalance ?? '...'}</span>
+                            </div>
+                            <span>{sessionTimer}</span>
                         </div>
                     </div>
-                </header>
+
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
+                            <LogOut className="mr-2 h-4 w-4"/>
+                            Exit Room
+                        </Button>
+                        {isCurrentUserEmcee && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm" className="w-full">
+                                        <ShieldX className="mr-2 h-4 w-4"/>
+                                        End Meeting
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>End Meeting for All?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will close the room for all participants. This action cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleEndMeeting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                            End Meeting
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
+                    </div>
+                </footer>
+            </aside>
+
+            {/* Right Panel - Chat and Controls */}
+            <main className="flex-1 flex flex-col">
                 <div className="flex-1 flex flex-col p-6 overflow-hidden">
                      <ScrollArea className="flex-grow pr-4 -mr-4">
                         <div className="space-y-4">
@@ -859,7 +861,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
-
-    
