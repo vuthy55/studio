@@ -69,7 +69,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        if(isNaN(date.getTime())) return dateString;
+        if(isNaN(date.getTime())) return "Unknown";
         const timezoneOffset = date.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(date.getTime() + timezoneOffset);
         return adjustedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -221,7 +221,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                             </TableHeader>
                             <TableBody>
                                 {editableSummary.actionItems.map((item, index) => (
-                                    <TableRow key={`action-${index}`}>
+                                    <TableRow key={`action-${item.task}-${index}`}>
                                         <TableCell>{index + 1}</TableCell>
                                         <TableCell>
                                             {isEditing ? (
@@ -272,7 +272,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.presentParticipants.map((p, i) => (
-                                            <TableRow key={p.email}>
+                                            <TableRow key={`present-${p.email}-${i}`}>
                                                 <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -293,7 +293,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.absentParticipants.map((p, i) => (
-                                            <TableRow key={p.email}>
+                                            <TableRow key={`absent-${p.email}-${i}`}>
                                                 <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -763,3 +763,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
