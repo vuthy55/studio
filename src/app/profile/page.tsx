@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { TransactionLog, PaymentLog } from '@/lib/types';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
 import ReferralLink from '@/components/ReferralLink';
@@ -233,8 +233,8 @@ function TokenHistorySection() {
                                         {log.duration && ` (${formatDuration(log.duration)})`}
                                     </p>
                                 </div>
-                                <p className="text-xs text-muted-foreground ml-auto">
-                                    {log.timestamp ? formatDistanceToNow((log.timestamp as Timestamp).toDate(), { addSuffix: true }) : 'Just now'}
+                                <p className="text-xs text-muted-foreground ml-auto text-right">
+                                    {log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'Just now'}
                                 </p>
                             </div>
                         ))}
@@ -371,6 +371,7 @@ export default function ProfilePage() {
     
 
     
+
 
 
 
