@@ -617,7 +617,7 @@ function FinancialTabContent() {
                                     return (
                                         <TableRow key={item.id}>
                                             <TableCell className="font-mono text-muted-foreground">{runningNumber}</TableCell>
-                                            <TableCell>{format(item.timestamp, 'd MMM, yyyy')}</TableCell>
+                                            <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                             <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                                 {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                             </TableCell>
@@ -686,7 +686,7 @@ function FinancialTabContent() {
                                          <TableCell className="font-mono text-xs text-muted-foreground">
                                            {String(detailsDialogContent.data.length - index).padStart(5, '0')}
                                         </TableCell>
-                                        <TableCell>{format(item.timestamp, 'd MMM, yyyy')}</TableCell>
+                                        <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                         <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                              {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                         </TableCell>
@@ -833,7 +833,7 @@ function TokensTabContent() {
                             {ledger.map((log, index) => (
                                 <TableRow key={log.id}>
                                     <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.length - index).padStart(5, '0')}</TableCell>
-                                    <TableCell>{format(log.timestamp, 'd MMM, yyyy')}</TableCell>
+                                    <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                     <TableCell>
                                         <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
                                             {log.userEmail}
