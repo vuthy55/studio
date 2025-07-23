@@ -68,11 +68,11 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     }, [user, room]);
 
     const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
+        // The date comes in as 'YYYY-MM-DD'. Adding a time component and 'Z' treats it as UTC.
+        // This prevents the browser from interpreting it in local time and shifting the date.
+        const date = new Date(`${dateString}T12:00:00Z`);
         if(isNaN(date.getTime())) return "Unknown";
-        const timezoneOffset = date.getTimezoneOffset() * 60000;
-        const adjustedDate = new Date(date.getTime() + timezoneOffset);
-        return adjustedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -272,7 +272,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.presentParticipants.map((p, i) => (
-                                            <TableRow key={`present-${p.email}-${i}`}>
+                                            <TableRow key={p.email}>
                                                 <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -293,7 +293,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.absentParticipants.map((p, i) => (
-                                            <TableRow key={`absent-${p.email}-${i}`}>
+                                            <TableRow key={p.email}>
                                                 <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -763,5 +763,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    

@@ -74,6 +74,7 @@ const summarizeRoomPrompt = ai.definePrompt({
   input: {
     schema: z.object({
       transcript: z.string(),
+      meetingDate: z.string(),
       presentParticipants: z.array(ParticipantSchema),
       absentParticipants: z.array(ParticipantSchema),
     }),
@@ -81,10 +82,11 @@ const summarizeRoomPrompt = ai.definePrompt({
   output: {
     schema: SummarizeRoomOutputSchema,
   },
+  model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are a professional meeting assistant. Your task is to analyze the provided meeting transcript and create a concise, structured summary.
 
 CONTEXT:
-- The meeting was held on {{currentDate}}.
+- The meeting was held on {{meetingDate}}.
 - Participants present: {{#each presentParticipants}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
 - Participants absent: {{#each absentParticipants}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
 
@@ -138,13 +140,17 @@ const summarizeRoomFlow = ai.defineFlow(
     
     // Fetch all invited user profiles to get accurate names and emails
     const usersRef = db.collection('users');
-    const invitedUsersQuery = usersRef.where('email', 'in', roomData.invitedEmails);
-    const invitedUsersSnap = await invitedUsersQuery.get();
     const allInvitedUsersMap = new Map<string, { name: string; email: string }>();
-    invitedUsersSnap.forEach(doc => {
-        const userData = doc.data();
-        allInvitedUsersMap.set(userData.email, { name: userData.name, email: userData.email });
-    });
+
+    if (roomData.invitedEmails && roomData.invitedEmails.length > 0) {
+        const invitedUsersQuery = usersRef.where('email', 'in', roomData.invitedEmails);
+        const invitedUsersSnap = await invitedUsersQuery.get();
+        invitedUsersSnap.forEach(doc => {
+            const userData = doc.data();
+            allInvitedUsersMap.set(userData.email, { name: userData.name || userData.email.split('@')[0], email: userData.email });
+        });
+    }
+
 
     // Add any present participants who might not have been in the original invite list (e.g., creator)
      presentParticipantDocs.forEach(p => {
@@ -155,8 +161,8 @@ const summarizeRoomFlow = ai.defineFlow(
 
     const presentEmails = new Set(presentParticipantDocs.map(p => p.email));
     
-    const presentParticipants: ParticipantSchema[] = [];
-    const absentParticipants: ParticipantSchema[] = [];
+    const presentParticipants: {name: string, email: string}[] = [];
+    const absentParticipants: {name: string, email: string}[] = [];
 
     allInvitedUsersMap.forEach((user, email) => {
         if (presentEmails.has(email)) {
@@ -165,15 +171,14 @@ const summarizeRoomFlow = ai.defineFlow(
             absentParticipants.push(user);
         }
     });
+    
+    const meetingDate = (roomData.createdAt as Timestamp).toDate().toISOString().split('T')[0];
 
     const promptData = {
       transcript,
+      meetingDate,
       presentParticipants,
       absentParticipants,
-    };
-    
-    const promptConfig = {
-      custom: { currentDate: new Date().toISOString().split('T')[0] }
     };
 
     let output;
@@ -181,7 +186,6 @@ const summarizeRoomFlow = ai.defineFlow(
       const primaryResult = await ai.generate({
         prompt: summarizeRoomPrompt,
         input: promptData,
-        ...promptConfig,
         model: 'googleai/gemini-1.5-flash-latest'
       });
       output = primaryResult.output;
@@ -191,7 +195,6 @@ const summarizeRoomFlow = ai.defineFlow(
         const fallbackResult = await ai.generate({
            prompt: summarizeRoomPrompt,
            input: promptData,
-           ...promptConfig,
            model: 'googleai/gemini-2.0-flash'
         });
         output = fallbackResult.output;
@@ -207,5 +210,3 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
