@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp } from 'firebase/firestore';
-import { useDocumentData } from 'react-firebase-hooks/firestore';
+import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, BlockedUser, RoomMessage } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzureCodeToLanguageCode } from '@/lib/azure-languages';
@@ -323,7 +323,7 @@ export default function SyncRoomPage() {
 
             const participantData = participantsCollection?.docs.find(p => p.id === user.uid)?.data();
             if (participantData?.joinedAt) {
-                setJoinTimestamp(participantData.joinedAt);
+                handleJoin(participantData.joinedAt as Timestamp);
             }
         }
     }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, toast]);
@@ -331,6 +331,8 @@ export default function SyncRoomPage() {
 
     // This function now also sets up the message listener.
     const handleJoin = (joinTime: Timestamp) => {
+        if(joinTimestamp) return; // Prevent re-running if already joined
+        
         setJoinTimestamp(joinTime);
         setMessagesLoading(true);
         sessionStartTime.current = Date.now();
@@ -794,3 +796,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
