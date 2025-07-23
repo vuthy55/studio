@@ -77,14 +77,20 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     const availableLanguages = useMemo(() => {
         if (!editableSummary) return [];
         const langSet = new Set<string>();
-        editableSummary.presentParticipants.forEach(p => {
-           const lang = languages.find(l => l.label === p.language);
-           if(lang) langSet.add(lang.value);
+        
+        // Combine present and absent participants to get all possible languages
+        const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
+
+        allParticipants.forEach(p => {
+            // The 'language' field from the summary is the Azure format, e.g., "English (United States)"
+            // We need to find our internal language code, e.g., "english"
+            const lang = languages.find(l => l.label.toLowerCase() === p.language.split(' ')[0].toLowerCase());
+            if (lang) {
+                langSet.add(lang.value);
+            }
         });
-        editableSummary.absentParticipants.forEach(p => {
-             const lang = languages.find(l => l.label === p.language);
-           if(lang) langSet.add(lang.value);
-        });
+
+        // Convert the set of language codes back to full language objects
         return Array.from(langSet).map(value => languages.find(l => l.value === value)!);
     }, [editableSummary]);
 
@@ -514,7 +520,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
     
     const handleSummarizeAndEnd = async () => {
         setIsActionLoading(true);
-        const toastId = toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.', duration: 120000 });
+        const { id: toastId } = toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.', duration: 120000 });
         try {
             await summarizeRoom({ roomId: room.id });
             toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
@@ -525,7 +531,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary.' });
         } finally {
              setIsActionLoading(false);
-             if (toastId) dismiss(toastId.id);
+             if (toastId) dismiss(toastId);
         }
     };
 
