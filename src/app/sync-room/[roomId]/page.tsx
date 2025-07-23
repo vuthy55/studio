@@ -52,6 +52,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
+import { Badge } from '@/components/ui/badge';
 
 
 function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: SyncRoom; roomId: string; onJoinSuccess: (joinTime: Timestamp) => void; }) {
@@ -875,7 +876,7 @@ export default function SyncRoomPage() {
                                                 <TooltipTrigger asChild>
                                                     <Button type="button" variant="destructive" onClick={handleEndMeeting}>
                                                         <Trash2 className="mr-2 h-4 w-4" />
-                                                        Delete
+                                                        End & Delete
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
@@ -887,7 +888,10 @@ export default function SyncRoomPage() {
                                          <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button type="button" disabled>Summary</Button>
+                                                    <Button type="button" disabled>
+                                                      Save & End
+                                                      <Badge variant="secondary" className="ml-2">Soon</Badge>
+                                                    </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>Generate an AI summary, then end the meeting. (Coming soon)</p>
@@ -957,3 +961,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
