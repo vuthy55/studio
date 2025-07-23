@@ -211,7 +211,7 @@ export default function SyncRoomPage() {
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const isExiting = useRef(false);
+    const isExiting = useRef(isExiting: false);
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -853,7 +853,7 @@ export default function SyncRoomPage() {
                                     <DialogHeader>
                                         <DialogTitle>End Meeting for All?</DialogTitle>
                                         <DialogDescription>
-                                            This will close the room for all participants.
+                                            Choose how you would like to end this meeting for all participants.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <DialogFooter className="sm:justify-end gap-2 pt-4">
@@ -958,4 +958,5 @@ export default function SyncRoomPage() {
     );
 }
 
+    
     
