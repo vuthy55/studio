@@ -10,7 +10,7 @@ import { LoaderCircle, CheckCircle, XCircle } from 'lucide-react';
 import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
-import { assessPronunciationFromMic, type PronunciationAssessmentResult } from '@/services/speech';
+import { assessPronunciationFromMic, recognizeFromMic, type PronunciationAssessmentResult } from '@/services/speech';
 import { getAzureVoices } from '@/actions/azure';
 import type { VoiceInfo } from '@/actions/azure';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -84,6 +84,58 @@ function AzureVoicesTest() {
   )
 }
 
+function SpeechRecognitionTest() {
+  const [recognizedText, setRecognizedText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const handleTest = async () => {
+    setError('');
+    setRecognizedText('');
+    setIsLoading(true);
+    try {
+      // We use 'en-US' for this general test.
+      const result = await recognizeFromMic('en-US');
+      setRecognizedText(result);
+    } catch (e: any) {
+      console.error('Error during speech recognition test:', e);
+      setError(e.message || 'An unknown error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Azure Speech Recognition Command Test</CardTitle>
+        <CardDescription>
+          This test demonstrates the fundamental `recognizeOnceAsync` command, which listens for a single utterance and returns the recognized text.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+         <Button onClick={handleTest} disabled={isLoading} className="w-full">
+          {isLoading ? <LoaderCircle className="animate-spin" /> : null}
+          {isLoading ? 'Listening...' : 'Start Single Recognition Test'}
+        </Button>
+        {recognizedText && (
+          <div className="p-4 bg-secondary rounded-md space-y-2">
+            <p className="font-semibold">Recognized Text:</p>
+            <p className="italic">"{recognizedText}"</p>
+          </div>
+        )}
+         {error && (
+          <div className="p-4 bg-destructive/20 text-destructive rounded-md">
+            <p className="font-semibold">Error:</p>
+            <p>{error}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+
+}
+
 function SpeechAssessmentTest() {
   const [result, setResult] = useState<PronunciationAssessmentResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -121,7 +173,7 @@ function SpeechAssessmentTest() {
         </p>
         <Button onClick={handleTest} disabled={isLoading} className="w-full">
           {isLoading ? <LoaderCircle className="animate-spin" /> : null}
-          {isLoading ? 'Listening...' : 'Start Test'}
+          {isLoading ? 'Listening...' : 'Start Assessment Test'}
         </Button>
        
         {result && (
@@ -220,6 +272,8 @@ const TestPage = () => {
 
       <AzureVoicesTest />
 
+      <SpeechRecognitionTest />
+      
       <SpeechAssessmentTest />
 
       <Card className="max-w-2xl mx-auto">
