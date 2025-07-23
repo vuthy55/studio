@@ -500,7 +500,7 @@ function UserSearchTest() {
     );
 }
 
-export default function TestPage() {
+const TestPage = () => {
   const [user] = useAuthState(auth);
   const [name, setName] = useState('programmers');
   const [result, setResult] = useState('');
@@ -602,3 +602,5 @@ export default function TestPage() {
     </div>
   );
 }
+
+export default TestPage;
