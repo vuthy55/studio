@@ -895,14 +895,13 @@ function RoomsTabContent() {
       setIsLoading(false);
     }
   };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedRoomIds(rooms.map(r => r.id));
-    } else {
-      setSelectedRoomIds([]);
-    }
-  };
+  
+  const { activeRooms, closedRooms } = useMemo(() => {
+    return {
+      activeRooms: rooms.filter(r => r.status === 'active'),
+      closedRooms: rooms.filter(r => r.status === 'closed'),
+    };
+  }, [rooms]);
 
   const handleSelectRoom = (roomId: string, checked: boolean) => {
     setSelectedRoomIds(prev => {
@@ -911,6 +910,18 @@ function RoomsTabContent() {
       } else {
         return prev.filter(id => id !== roomId);
       }
+    });
+  };
+  
+  const handleSelectAll = (type: 'active' | 'closed', checked: boolean) => {
+    const roomIdsToChange = (type === 'active' ? activeRooms : closedRooms).map(r => r.id);
+    setSelectedRoomIds(prev => {
+        const otherTypeIds = prev.filter(id => !roomIdsToChange.includes(id));
+        if (checked) {
+            return [...new Set([...otherTypeIds, ...roomIdsToChange])];
+        } else {
+            return otherTypeIds;
+        }
     });
   };
 
@@ -931,12 +942,8 @@ function RoomsTabContent() {
     }
   };
 
-  const { activeRooms, closedRooms } = useMemo(() => {
-    return {
-      activeRooms: rooms.filter(r => r.status === 'active'),
-      closedRooms: rooms.filter(r => r.status === 'closed'),
-    };
-  }, [rooms]);
+  const allActiveSelected = useMemo(() => activeRooms.length > 0 && activeRooms.every(r => selectedRoomIds.includes(r.id)), [activeRooms, selectedRoomIds]);
+  const allClosedSelected = useMemo(() => closedRooms.length > 0 && closedRooms.every(r => selectedRoomIds.includes(r.id)), [closedRooms, selectedRoomIds]);
 
   return (
     <Card>
@@ -983,28 +990,30 @@ function RoomsTabContent() {
         )}
         
         {rooms.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2 py-2 border-b">
-                <Checkbox 
-                    id="select-all"
-                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                    checked={rooms.length > 0 && selectedRoomIds.length === rooms.length}
-                />
-                <label htmlFor="select-all" className="text-sm font-medium">Select All ({rooms.length})</label>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                <h4 className="font-semibold">Active Rooms ({activeRooms.length})</h4>
-                 <div className="border rounded-md max-h-60 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-2 border-b">
+                  <h4 className="font-semibold">Active Rooms ({activeRooms.length})</h4>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                        id="select-all-active"
+                        onCheckedChange={(checked) => handleSelectAll('active', !!checked)}
+                        checked={allActiveSelected}
+                        disabled={activeRooms.length === 0}
+                    />
+                    <label htmlFor="select-all-active" className="text-sm font-medium">Select All</label>
+                  </div>
+                </div>
+                <div className="border rounded-md max-h-60 overflow-y-auto">
                     <Table>
                          <TableBody>
                             {activeRooms.map(room => (
                                 <TableRow key={room.id}>
                                     <TableCell className="p-2 w-10">
-                                        <Checkbox id={room.id} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                        <Checkbox id={`cb-active-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
                                     </TableCell>
                                     <TableCell className="p-2">
-                                        <label htmlFor={room.id} className="font-medium">{room.topic}</label>
+                                        <label htmlFor={`cb-active-${room.id}`} className="font-medium">{room.topic}</label>
                                     </TableCell>
                                     <TableCell className="p-2 text-right">
                                         <Badge variant="default">Active</Badge>
@@ -1016,17 +1025,28 @@ function RoomsTabContent() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                <h4 className="font-semibold">Closed Rooms ({closedRooms.length})</h4>
+                  <div className="flex items-center justify-between p-2 border-b">
+                    <h4 className="font-semibold">Closed Rooms ({closedRooms.length})</h4>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                          id="select-all-closed"
+                          onCheckedChange={(checked) => handleSelectAll('closed', !!checked)}
+                          checked={allClosedSelected}
+                          disabled={closedRooms.length === 0}
+                      />
+                      <label htmlFor="select-all-closed" className="text-sm font-medium">Select All</label>
+                    </div>
+                  </div>
                  <div className="border rounded-md max-h-60 overflow-y-auto">
                     <Table>
                         <TableBody>
                         {closedRooms.map(room => (
                              <TableRow key={room.id}>
                                 <TableCell className="p-2 w-10">
-                                    <Checkbox id={room.id} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                    <Checkbox id={`cb-closed-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
                                 </TableCell>
                                 <TableCell className="p-2">
-                                     <label htmlFor={room.id} className="font-medium">{room.topic}</label>
+                                     <label htmlFor={`cb-closed-${room.id}`} className="font-medium">{room.topic}</label>
                                 </TableCell>
                                 <TableCell className="p-2 text-right">
                                     <Badge variant="destructive">Closed</Badge>
@@ -1037,7 +1057,6 @@ function RoomsTabContent() {
                     </Table>
                   </div>
                 </div>
-            </div>
           </div>
         )}
       </CardContent>
