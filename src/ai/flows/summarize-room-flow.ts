@@ -113,7 +113,7 @@ const summarizeRoomPrompt = ai.definePrompt({
 CONTEXT:
 - The meeting was held on {{meetingDate}}.
 - The complete list of ALL invited individuals, along with their selected language for this meeting, is: {{#each allInvitedUsers}}{{this.name}} ({{this.email}}), language: {{this.language}}{{#unless @last}}; {{/unless}}{{/each}}.
-- The emails of users who were PRESENT in the room are: {{#each presentParticipantEmails}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}.
+- The emails of users who were PRESENT in the room (determined by who spoke) are: {{#each presentParticipantEmails}}{{@key}}{{#unless @last}}, {{/unless}}{{/each}}.
 - From this information, you must determine who was present and who was absent and populate the output fields accordingly. Use the language provided in the 'all invited individuals' list for each person.
 
 TRANSCRIPT (This may be empty if no one spoke):
@@ -150,10 +150,10 @@ const summarizeRoomFlow = ai.defineFlow(
     const messagesRef = roomRef.collection('messages').orderBy('createdAt');
     const participantsRef = roomRef.collection('participants');
 
-    const [roomSnap, messagesSnap, participantsSnap] = await Promise.all([
+    const [roomSnap, messagesSnap, participantsHistorySnap] = await Promise.all([
       roomRef.get(),
       messagesRef.get(),
-      participantsRef.get(),
+      participantsRef.get(), // This gets the full history of participants who ever joined
     ]);
 
     if (!roomSnap.exists) {
@@ -163,25 +163,33 @@ const summarizeRoomFlow = ai.defineFlow(
     // 2. Prepare data for the prompt
     const roomData = roomSnap.data()!;
     const messages = messagesSnap.docs.map(doc => doc.data() as RoomMessage);
-    const presentParticipantDocs = participantsSnap.docs.map(doc => doc.data() as Participant);
+    const participantHistory = participantsHistorySnap.docs.map(doc => doc.data() as Participant);
     
+    // Determine who was present by checking who sent messages.
+    // This is more reliable than the real-time participants collection.
+    const speakerUids = new Set(messages.map(msg => msg.speakerUid));
+    const presentParticipantsFromHistory = participantHistory.filter(p => speakerUids.has(p.uid));
+    const presentParticipantEmails = presentParticipantsFromHistory.map(p => p.email);
+
+    // If no one spoke, but people were in the room, consider them present.
+    if (presentParticipantEmails.length === 0 && participantHistory.length > 0) {
+        participantHistory.forEach(p => presentParticipantEmails.push(p.email));
+    }
+
     const transcript = messages.map(msg => `${msg.speakerName}: ${msg.text}`).join('\n');
     
     const allInvitedUsers: { name: string; email: string, language: string }[] = [];
     if (roomData.invitedEmails && roomData.invitedEmails.length > 0) {
-        // Fetch all invited user profiles to get their names
         const usersRef = db.collection('users');
         const invitedUsersQuery = usersRef.where('email', 'in', roomData.invitedEmails);
         const invitedUsersSnap = await invitedUsersQuery.get();
         const userDocsByEmail = new Map(invitedUsersSnap.docs.map(d => [d.data().email, d.data()]));
         
         // This map now contains the chosen language for every participant who was ever present in the room.
-        const allPresentParticipantsEver = (await participantsRef.get()).docs.map(doc => doc.data() as Participant);
-        const participantLanguageMap = new Map(allPresentParticipantsEver.map(p => [p.email, p.selectedLanguage]));
+        const participantLanguageMap = new Map(participantHistory.map(p => [p.email, p.selectedLanguage]));
 
         roomData.invitedEmails.forEach((email: string) => {
             const userData = userDocsByEmail.get(email);
-            // The language is now sourced from any participant record that ever existed, not just the current ones.
             const language = participantLanguageMap.get(email) || 'Not specified'; 
             allInvitedUsers.push({ 
                 name: userData?.name || email.split('@')[0], 
@@ -190,8 +198,6 @@ const summarizeRoomFlow = ai.defineFlow(
             });
         });
     }
-
-    const presentParticipantEmails = presentParticipantDocs.map(p => p.email);
     
     const meetingDate = (roomData.createdAt as Timestamp).toDate().toISOString().split('T')[0];
 
@@ -204,7 +210,6 @@ const summarizeRoomFlow = ai.defineFlow(
 
     let output;
     try {
-      // Call the prompt function directly
       const { output: primaryOutput } = await summarizeRoomPrompt(promptData);
       output = primaryOutput;
     } catch (error: any) {
@@ -232,3 +237,5 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
+
+    
