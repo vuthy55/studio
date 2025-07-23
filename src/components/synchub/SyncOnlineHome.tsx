@@ -68,8 +68,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     }, [user, room]);
 
     const formatDate = (dateString: string) => {
-        // The date comes in as 'YYYY-MM-DD'. Adding a time component and 'Z' treats it as UTC.
-        // This prevents the browser from interpreting it in local time and shifting the date.
         const date = new Date(`${dateString}T12:00:00Z`);
         if(isNaN(date.getTime())) return "Unknown";
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -107,7 +105,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
             if (result.success) {
                 toast({ title: 'Success', description: 'Summary updated successfully.' });
                 setIsEditing(false);
-                onUpdate(); // Trigger a refetch of the room list
+                onUpdate();
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to update summary.' });
             }
@@ -272,7 +270,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.presentParticipants.map((p, i) => (
-                                            <TableRow key={p.email}>
+                                            <TableRow key={`present-${p.email}-${i}`}>
                                                 <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -293,7 +291,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.absentParticipants.map((p, i) => (
-                                            <TableRow key={p.email}>
+                                            <TableRow key={`absent-${p.email}-${i}`}>
                                                 <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
