@@ -33,9 +33,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings } from 'lucide-react';
-import type { SyncRoom } from '@/lib/types';
-import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon } from 'lucide-react';
+import type { SyncRoom, TranslatedContent } from '@/lib/types';
+import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { languages } from '@/lib/data';
+import { translateSummary } from '@/ai/flows/translate-summary-flow';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -58,6 +61,8 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
     const [isSaving, setIsSaving] = useState(false);
+    const [isTranslating, setIsTranslating] = useState(false);
+    const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
     useEffect(() => {
         setEditableSummary(room.summary);
@@ -68,14 +73,27 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         return room.creatorUid === user.uid || (user.email && room.emceeEmails?.includes(user.email));
     }, [user, room]);
 
+    const availableLanguages = useMemo(() => {
+        if (!editableSummary) return [];
+        const langSet = new Set<string>();
+        editableSummary.presentParticipants.forEach(p => {
+           const lang = languages.find(l => l.label === p.language);
+           if(lang) langSet.add(lang.value);
+        });
+        editableSummary.absentParticipants.forEach(p => {
+             const lang = languages.find(l => l.label === p.language);
+           if(lang) langSet.add(lang.value);
+        });
+        return Array.from(langSet).map(value => languages.find(l => l.value === value)!);
+    }, [editableSummary]);
+
     const formatDate = (dateString: string) => {
         if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
             return "Unknown";
         }
         try {
             const date = new Date(dateString);
-             // Check if date is valid, Safari can be tricky with 'YYYY-MM-DD'
-            if (isNaN(date.getTime())) {
+             if (isNaN(date.getTime())) {
                 const parts = dateString.split('-').map(Number);
                 const utcDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
                  if(isNaN(utcDate.getTime())) return "Unknown";
@@ -91,17 +109,17 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         const { name, value } = e.target;
         setEditableSummary(prev => prev ? { ...prev, [name]: value } : null);
     };
-
-    const handleActionItemChange = (index: number, field: string, value: string) => {
+    
+    const handleActionItemChange = (index: number, field: string, value: any) => {
         if (!editableSummary) return;
         const newActionItems = [...editableSummary.actionItems];
-        newActionItems[index] = { ...newActionItems[index], [field]: value };
+        (newActionItems[index] as any)[field] = value;
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
 
     const addActionItem = () => {
         if (!editableSummary) return;
-        const newActionItems = [...editableSummary.actionItems, { task: '', personInCharge: '', dueDate: '' }];
+        const newActionItems = [...editableSummary.actionItems, { task: '', personInCharge: '', dueDate: '', translations: {} }];
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
 
@@ -138,13 +156,22 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         content += `================\n\n`;
         content += `Title: ${editableSummary.title}\n`;
         content += `Date: ${formatDate(editableSummary.date)}\n\n`;
-        content += `Summary:\n${editableSummary.summary}\n\n`;
-        content += `Action Items:\n`;
+        content += `Summary:\n${editableSummary.summary.original}\n\n`;
+        
+        Object.entries(editableSummary.summary.translations || {}).forEach(([lang, text]) => {
+            content += `\n--- Translation (${lang}) ---\n${text}\n`;
+        });
+        
+        content += `\nAction Items:\n`;
         editableSummary.actionItems.forEach((item, index) => {
-            content += `${index + 1}. ${item.task}\n`;
+            content += `${index + 1}. ${item.task.original}\n`;
+             Object.entries(item.task.translations || {}).forEach(([lang, text]) => {
+                content += `   (${lang}): ${text}\n`;
+            });
             content += `   - Assigned to: ${item.personInCharge || 'N/A'}\n`;
             content += `   - Due: ${item.dueDate || 'N/A'}\n`;
         });
+        
         content += `\nParticipants Present:\n`;
          editableSummary.presentParticipants.forEach(p => {
              content += `- ${p.name} (${p.email})\n`;
@@ -165,6 +192,31 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
+
+    const handleTranslate = async () => {
+        if (selectedLanguages.length === 0 || !editableSummary) {
+            toast({ variant: 'destructive', title: 'No Languages Selected', description: 'Please select at least one language to translate to.' });
+            return;
+        }
+        setIsTranslating(true);
+        toast({ title: 'Translating Summary...', description: 'This may take a moment.' });
+        try {
+            const translated = await translateSummary({
+                summary: editableSummary,
+                targetLanguages: selectedLanguages
+            });
+            setEditableSummary(translated);
+            await updateRoomSummary(room.id, translated);
+            toast({ title: 'Success', description: 'Summary translated and saved.' });
+            onUpdate();
+        } catch (error) {
+             console.error(error);
+            toast({ variant: 'destructive', title: 'Translation Failed', description: 'Could not translate the summary.' });
+        } finally {
+            setIsTranslating(false);
+            setSelectedLanguages([]);
+        }
+    }
 
     if (!editableSummary) return null;
 
@@ -198,13 +250,20 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                         <h3 className="font-semibold text-lg mb-2">Summary</h3>
                         {isEditing ? (
                             <Textarea 
-                                name="summary"
-                                value={editableSummary.summary} 
-                                onChange={handleInputChange}
+                                value={editableSummary.summary.original} 
+                                onChange={(e) => setEditableSummary(prev => prev ? { ...prev, summary: { ...prev.summary, original: e.target.value } } : null)}
                                 className="w-full min-h-[150px]"
                             />
                         ) : (
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{editableSummary.summary}</p>
+                            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                <p className="font-semibold text-foreground">{editableSummary.summary.original}</p>
+                                {Object.entries(editableSummary.summary.translations || {}).map(([lang, text]) => (
+                                    <div key={lang} className="mt-2 p-2 border-l-2 border-primary bg-muted/50 rounded-r-md">
+                                        <p className="font-bold text-xs text-primary">{languages.find(l => l.value === lang)?.label}</p>
+                                        <p>{text}</p>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
 
@@ -227,13 +286,21 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                             </TableHeader>
                             <TableBody>
                                 {editableSummary.actionItems.map((item, index) => (
-                                    <TableRow key={`action-${item.task}-${index}`}>
+                                    <TableRow key={`action-${item.task.original}-${index}`}>
                                         <TableCell>{index + 1}</TableCell>
                                         <TableCell>
                                             {isEditing ? (
-                                                <Input value={item.task} onChange={(e) => handleActionItemChange(index, 'task', e.target.value)} />
+                                                <Input value={item.task.original} onChange={(e) => handleActionItemChange(index, 'task', { ...item.task, original: e.target.value })} />
                                             ) : (
-                                                item.task
+                                                 <div className="text-sm whitespace-pre-wrap">
+                                                    <p className="font-semibold">{item.task.original}</p>
+                                                     {Object.entries(item.task.translations || {}).map(([lang, text]) => (
+                                                        <div key={lang} className="mt-1 pl-2 border-l-2">
+                                                            <p className="font-bold text-xs">{languages.find(l => l.value === lang)?.label}</p>
+                                                            <p className="text-muted-foreground">{text}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             )}
                                         </TableCell>
                                         <TableCell>
@@ -271,7 +338,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[30px]">#</TableHead>
                                             <TableHead>Name</TableHead>
                                             <TableHead>Email</TableHead>
                                         </TableRow>
@@ -279,7 +345,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     <TableBody>
                                         {editableSummary.presentParticipants.map((p, i) => (
                                             <TableRow key={`present-${p.email}-${i}`}>
-                                                <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
                                             </TableRow>
@@ -292,7 +357,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[30px]">#</TableHead>
                                             <TableHead>Name</TableHead>
                                             <TableHead>Email</TableHead>
                                         </TableRow>
@@ -300,7 +364,6 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     <TableBody>
                                         {editableSummary.absentParticipants.map((p, i) => (
                                             <TableRow key={`absent-${p.email}-${i}`}>
-                                                <TableCell>{i + 1}</TableCell>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
                                             </TableRow>
@@ -325,6 +388,41 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                          <>
                              <div className="flex-grow flex gap-2">
                                 <Button variant="secondary" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/> Download</Button>
+                                 <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="secondary" disabled={isTranslating || availableLanguages.length === 0}>
+                                            <TranslateIcon className="mr-2 h-4 w-4" /> Translate
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80">
+                                        <div className="grid gap-4">
+                                            <div className="space-y-2">
+                                                <h4 className="font-medium leading-none">Translate Summary</h4>
+                                                <p className="text-sm text-muted-foreground">Select languages to translate into.</p>
+                                            </div>
+                                            <div className="grid gap-2">
+                                                {availableLanguages.map((lang) => (
+                                                    <div key={lang.value} className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id={`lang-${lang.value}`}
+                                                            checked={selectedLanguages.includes(lang.value)}
+                                                            onCheckedChange={(checked) => {
+                                                                return checked
+                                                                    ? setSelectedLanguages([...selectedLanguages, lang.value])
+                                                                    : setSelectedLanguages(selectedLanguages.filter((l) => l !== lang.value));
+                                                            }}
+                                                        />
+                                                        <Label htmlFor={`lang-${lang.value}`}>{lang.label}</Label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <Button onClick={handleTranslate} disabled={isTranslating || selectedLanguages.length === 0}>
+                                                {isTranslating && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                                Confirm Translation
+                                            </Button>
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                             {isEmcee && <Button variant="secondary" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>}
                             <DialogClose asChild>

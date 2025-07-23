@@ -10,7 +10,26 @@ export interface BlockedUser {
 export type SummaryParticipant = {
     name: string;
     email: string;
+    language: string;
 }
+
+export type TranslatedContent = {
+    original: string;
+    translations: Record<string, string>; // key: language code, value: translated text
+}
+
+export type RoomSummary = {
+    title: string;
+    date: string;
+    presentParticipants: SummaryParticipant[];
+    absentParticipants: SummaryParticipant[];
+    summary: TranslatedContent;
+    actionItems: { 
+        task: TranslatedContent;
+        personInCharge?: string;
+        dueDate?: string 
+    }[];
+};
 
 export type SyncRoom = {
     id: string;
@@ -23,14 +42,7 @@ export type SyncRoom = {
     emceeEmails: string[];
     lastActivityAt?: FieldValue;
     blockedUsers?: BlockedUser[];
-    summary?: {
-        title: string;
-        date: string;
-        presentParticipants: SummaryParticipant[];
-        absentParticipants: SummaryParticipant[];
-        summary: string;
-        actionItems: { task: string; personInCharge?: string; dueDate?: string }[];
-    };
+    summary?: RoomSummary;
 }
 
 export type Participant = {
