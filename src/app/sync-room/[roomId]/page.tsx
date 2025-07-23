@@ -151,7 +151,6 @@ export default function SyncRoomPage() {
 
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
-    const [isExiting, setIsExiting] = useState(false);
     
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
     const [emailsToInvite, setEmailsToInvite] = useState('');
@@ -162,6 +161,9 @@ export default function SyncRoomPage() {
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<() => void | null>(null);
     const sessionStartTime = useRef<number | null>(null);
+
+     // State to track if the user is currently exiting to prevent duplicate calls
+    const isExiting = useRef(false);
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -194,8 +196,9 @@ export default function SyncRoomPage() {
     }, [roomData]);
 
     const handleExitRoom = useCallback(async () => {
-        if (!user || isExiting) return;
-        setIsExiting(true);
+        if (!user || isExiting.current) return;
+        isExiting.current = true; // Mark that we are starting the exit process
+
         console.log("[DEBUG] Exit: Exiting process started.");
 
         if (messageListenerUnsubscribe.current) {
@@ -217,18 +220,18 @@ export default function SyncRoomPage() {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
             console.log("[DEBUG] Exit: Participant document deleted.");
-            router.push('/?tab=sync-online');
         } catch (error) {
             console.error("Error leaving room:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Error Exiting',
-                description: 'Could not leave room. Check console for details.',
-                duration: 10000
-            });
-            setIsExiting(false);
+            // Don't show toast here as it might not be visible during page unload.
+            // The error is logged to the console for debugging.
         }
-    }, [user, isExiting, roomId, router, toast, handleSyncOnlineSessionEnd]);
+    }, [user, roomId, handleSyncOnlineSessionEnd]);
+    
+    // A separate function to handle the manual button click for exiting
+    const handleManualExit = async () => {
+        await handleExitRoom();
+        router.push('/?tab=sync-online');
+    };
     
     // This is called ONLY after the user clicks "Join" on the setup screen.
     const handleJoin = useCallback((joinTimestamp: Timestamp) => {
@@ -285,8 +288,6 @@ export default function SyncRoomPage() {
             return () => unsubscribe();
         }
     }, [user, roomId]);
-
-    // Effect 2: This effect has been removed to be replaced by the handleJoin logic
     
     // Listen for mute status
     useEffect(() => {
@@ -303,7 +304,7 @@ export default function SyncRoomPage() {
 
     // Handle being removed from the room
     useEffect(() => {
-        if (isExiting || !currentUserParticipant || participantsLoading) return; 
+        if (isExiting.current || !currentUserParticipant || participantsLoading) return; 
 
         const isStillParticipant = participants?.some(p => p.uid === user?.uid);
 
@@ -316,7 +317,7 @@ export default function SyncRoomPage() {
             });
             handleExitRoom();
         }
-    }, [participants, currentUserParticipant, participantsLoading, user, toast, isExiting, handleExitRoom]);
+    }, [participants, currentUserParticipant, participantsLoading, user, toast, handleExitRoom]);
 
     // Gracefully exit if room is closed or user is blocked
     useEffect(() => {
@@ -400,9 +401,16 @@ export default function SyncRoomPage() {
 
     // Handle leaving on browser close/refresh
     useEffect(() => {
-        window.addEventListener('beforeunload', handleExitRoom);
+        const handleBeforeUnload = () => {
+            handleExitRoom();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
         return () => {
-            window.removeEventListener('beforeunload', handleExitRoom);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // This cleanup function will also run on component unmount (e.g., navigating away)
+            handleExitRoom();
         };
     }, [handleExitRoom]);
 
@@ -702,7 +710,7 @@ export default function SyncRoomPage() {
                     )}
                 </ScrollArea>
                  <footer className="p-4 border-t flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleExitRoom} className="w-full">
+                    <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
                         <LogOut className="mr-2 h-4 w-4"/>
                         Exit Room
                     </Button>
