@@ -140,7 +140,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
             content += `   - Due: ${item.dueDate || 'N/A'}\n`;
         });
         content += `\nParticipants Present:\n`;
-        editableSummary.presentParticipants.forEach(p => {
+         editableSummary.presentParticipants.forEach(p => {
              content += `- ${p.name} (${p.email})\n`;
         });
         content += `\nParticipants Absent:\n`;
@@ -221,7 +221,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                             </TableHeader>
                             <TableBody>
                                 {editableSummary.actionItems.map((item, index) => (
-                                    <TableRow key={index}>
+                                    <TableRow key={`action-${index}`}>
                                         <TableCell>{index + 1}</TableCell>
                                         <TableCell>
                                             {isEditing ? (
@@ -763,5 +763,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
