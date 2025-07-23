@@ -244,17 +244,13 @@ export default function SyncRoomPage() {
         router.push('/?tab=sync-online');
     };
     
-    const handleJoin = useCallback((joinTimestamp: Timestamp) => {
-        console.log("[DEBUG] handleJoin called. Current listener status:", messageListenerUnsubscribe.current ? "Active" : "Inactive");
+    const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
         if (messageListenerUnsubscribe.current) {
-            console.warn("[DEBUG] handleJoin called but a listener is already active. Aborting setup.");
+            console.warn("[DEBUG] Message listener setup aborted: a listener is already active.");
             return;
         }
-        
-        console.log("[DEBUG] Proceeding to join room and set up listener.");
-        sessionStartTime.current = Date.now();
-        setMessagesLoading(true);
 
+        setMessagesLoading(true);
         const messagesQuery = query(
             collection(db, 'syncRooms', roomId, 'messages'),
             where("createdAt", ">", joinTimestamp)
@@ -283,8 +279,12 @@ export default function SyncRoomPage() {
         });
 
         messageListenerUnsubscribe.current = unsubscribe;
-        
-        // Start the visual timer
+    }, [roomId, toast]);
+
+    const onJoin = useCallback((joinTime: Timestamp) => {
+        sessionStartTime.current = Date.now();
+        setupMessageListener(joinTime);
+
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = setInterval(() => {
             if (sessionStartTime.current) {
@@ -295,30 +295,30 @@ export default function SyncRoomPage() {
                 setSessionTimer(`${minutes}:${seconds}`);
             }
         }, 1000);
-        
-        console.log("[DEBUG] Message listener and visual timer attached successfully.");
-        
-    }, [roomId, toast]);
+    }, [setupMessageListener]);
 
+    // Effect to listen for participants and set up message listener for existing participants
     useEffect(() => {
         if (!user || roomLoading) return;
         
-        console.log('[DEBUG] Participant listener effect running.');
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
-            console.log('[DEBUG] Fetched participants:', parts.map(p => p.name));
             setParticipants(parts);
             setParticipantsLoading(false);
+
+            // If the user is already a participant, set up the message listener
+            const self = parts.find(p => p.uid === user.uid);
+            if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
+                onJoin(self.joinedAt);
+            }
         }, (error) => {
             console.error("Error listening to participants:", error);
             setParticipantsLoading(false);
         });
-        return () => {
-             console.log('[DEBUG] Unsubscribing from participants listener.');
-             unsubscribe();
-        }
-    }, [user, roomId, roomLoading]);
+
+        return () => unsubscribe();
+    }, [user, roomId, roomLoading, onJoin]);
     
     
     useEffect(() => {
@@ -578,7 +578,7 @@ export default function SyncRoomPage() {
     }
 
     if (user && !currentUserParticipant) {
-        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={handleJoin} />;
+        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={onJoin} />;
     }
 
     return (
