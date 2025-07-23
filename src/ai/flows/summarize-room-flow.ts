@@ -65,6 +65,7 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
   
   // Adapt the AI output to the RoomSummary structure for Firestore
   const finalSummary: RoomSummary = {
+    // Directly use the participant lists from the AI output
     ...result,
     summary: {
       original: result.summary.original,

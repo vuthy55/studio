@@ -89,20 +89,30 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     }, [editableSummary]);
 
     const formatDate = (dateString: string) => {
+        // A simple check to see if the date string is in YYYY-MM-DD format.
         if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            return "Unknown";
+            return "Unknown Date";
         }
         try {
-            const date = new Date(dateString);
-             if (isNaN(date.getTime())) {
-                const parts = dateString.split('-').map(Number);
-                const utcDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-                 if(isNaN(utcDate.getTime())) return "Unknown";
-                 return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+            // Split the string and create a new Date object.
+            // This is more reliable across browsers than new Date(string).
+            const parts = dateString.split('-').map(Number);
+            const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            
+            // Check if the created date is valid.
+            if (isNaN(date.getTime())) {
+                return "Invalid Date";
             }
-            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+            
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                timeZone: 'UTC' // Important to avoid off-by-one day errors
+            });
         } catch (e) {
-            return "Unknown";
+            console.error("Error formatting date:", e);
+            return "Invalid Date";
         }
     }
 
