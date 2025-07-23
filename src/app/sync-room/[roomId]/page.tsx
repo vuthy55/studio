@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -492,10 +492,12 @@ export default function SyncRoomPage() {
     }, [handleExitRoom]);
 
     const handleEndMeeting = async () => {
+        console.log('[DEBUG] handleEndMeeting called.');
         if (!isCurrentUserEmcee || isExiting.current) return;
         try {
             await handleExitRoom();
             const result = await softDeleteRoom(roomId);
+            console.log('[DEBUG] softDeleteRoom result:', result);
             if (result.success) {
                 router.push('/?tab=sync-online');
             } else {
@@ -846,10 +848,10 @@ export default function SyncRoomPage() {
                                     <DialogHeader>
                                         <DialogTitle>End Meeting for All?</DialogTitle>
                                         <DialogDescription>
-                                            Choose how you want to end this meeting. Ending it will close the room for all participants.
+                                            Choose how you want to end this meeting. This will close the room for all participants.
                                         </DialogDescription>
                                     </DialogHeader>
-                                    <DialogFooter className="sm:justify-around gap-2 pt-4">
+                                    <DialogFooter className="sm:justify-end gap-2 pt-4">
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -866,7 +868,10 @@ export default function SyncRoomPage() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button type="button" variant="destructive" onClick={handleEndMeeting}>Delete</Button>
+                                                    <Button type="button" variant="destructive" onClick={handleEndMeeting}>
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Delete
+                                                    </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>End the meeting and close the room permanently.</p>

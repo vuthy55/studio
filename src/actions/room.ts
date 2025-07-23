@@ -12,6 +12,7 @@ import { db } from '../../workspace/src/lib/firebase-admin';
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
 export async function softDeleteRoom(roomId: string): Promise<{success: boolean, error?: string}> {
+  console.log(`[ACTION] softDeleteRoom invoked for roomId: ${roomId}`);
   if (!roomId) {
     console.error('softDeleteRoom error: No roomId provided.');
     return { success: false, error: 'Room ID is required.' };
@@ -25,9 +26,10 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
       lastActivityAt: serverTimestamp(),
     });
 
+    console.log(`[ACTION] Successfully soft-deleted room ${roomId}`);
     return { success: true };
   } catch (error: any) {
-    console.error(`Failed to soft delete room ${roomId}:`, error);
+    console.error(`[ACTION] Failed to soft delete room ${roomId}:`, error);
     return { success: false, error: 'Failed to close the room on the server.' };
   }
 }
