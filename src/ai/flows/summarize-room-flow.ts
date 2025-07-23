@@ -29,15 +29,19 @@ const ParticipantSchema = z.object({
     language: z.string().describe("The participant's chosen language for the meeting (e.g., 'English (United States)', 'Thai (Thailand)').")
 });
 
+const TranslatedContentSchema = z.object({
+    original: z.string(),
+});
+
 // This schema defines the expected output from the AI.
 const AISummaryOutputSchema = z.object({
   title: z.string().describe('A short, descriptive title for the meeting summary.'),
   date: z.string().describe('The date of the meeting in YYYY-MM-DD format.'),
   presentParticipants: z.array(ParticipantSchema).describe('List of participants who were present.'),
   absentParticipants: z.array(ParticipantSchema).describe('List of participants who were invited but absent.'),
-  summary: z.string().describe('A detailed, multi-paragraph summary of the meeting discussion.'),
+  summary: TranslatedContentSchema,
   actionItems: z.array(z.object({
-    task: z.string().describe('A specific action item or task identified during the meeting.'),
+    task: TranslatedContentSchema,
     personInCharge: z.string().optional().describe('The person or group responsible for the task.'),
     dueDate: z.string().optional().describe('The due date for the task, if mentioned.'),
   })).describe('A list of action items from the meeting.'),
@@ -63,13 +67,13 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
   const finalSummary: RoomSummary = {
     ...result,
     summary: {
-      original: result.summary,
+      original: result.summary.original,
       translations: {},
     },
     actionItems: result.actionItems.map(item => ({
       ...item,
       task: {
-        original: item.task,
+        original: item.task.original,
         translations: {},
       }
     }))
@@ -199,6 +203,7 @@ const summarizeRoomFlow = ai.defineFlow(
 
     let output;
     try {
+      // Call the prompt function directly
       const { output: primaryOutput } = await summarizeRoomPrompt(promptData);
       output = primaryOutput;
     } catch (error: any) {
