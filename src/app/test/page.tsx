@@ -85,13 +85,13 @@ function AzureVoicesTest() {
 }
 
 function SpeechRecognitionTest() {
-  const [recognizedText, setRecognizedText] = useState('');
+  const [recognizedText, setRecognizedText] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
   const handleTest = async () => {
     setError('');
-    setRecognizedText('');
+    setRecognizedText(null);
     setIsLoading(true);
     try {
       // We use 'en-US' for this general test.
@@ -118,10 +118,14 @@ function SpeechRecognitionTest() {
           {isLoading ? <LoaderCircle className="animate-spin" /> : null}
           {isLoading ? 'Listening...' : 'Start Single Recognition Test'}
         </Button>
-        {recognizedText && (
+        {recognizedText !== null && (
           <div className="p-4 bg-secondary rounded-md space-y-2">
             <p className="font-semibold">Recognized Text:</p>
-            <p className="italic">"{recognizedText}"</p>
+            {recognizedText ? (
+                <p className="italic">"{recognizedText}"</p>
+            ) : (
+                <p className="text-muted-foreground">No speech was recognized.</p>
+            )}
           </div>
         )}
          {error && (

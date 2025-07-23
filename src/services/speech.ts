@@ -117,22 +117,26 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     activeRecognizer = recognizer;
 
-
     return new Promise<string>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
-            // --- DEBUGGING START ---
-            console.log("[DEBUG] Raw Azure Result:", JSON.stringify(result, null, 2));
-            if (result.reason === sdk.ResultReason.Canceled) {
-                 const cancellation = sdk.CancellationDetails.fromResult(result);
-                 console.log("[DEBUG] Cancellation Details:", JSON.stringify(cancellation, null, 2));
-            }
-            // --- DEBUGGING END ---
-
             abortRecognition();
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
+            } else if (result.reason === sdk.ResultReason.NoMatch) {
+                // Resolve with an empty string if no speech was matched.
+                // This is a valid outcome (e.g., user didn't speak).
+                resolve('');
+            } else if (result.reason === sdk.ResultReason.Canceled) {
+                const cancellation = sdk.CancellationDetails.fromResult(result);
+                // Provide a more specific error for common issues like permissions.
+                let errorMessage = `Recognition canceled: ${cancellation.errorDetails}`;
+                if (cancellation.errorCode === sdk.CancellationErrorCode.PermissionDenied) {
+                    errorMessage = "Recognition failed: Microphone permissions may not be granted.";
+                }
+                reject(new Error(errorMessage));
             } else {
-                 reject(new Error(`Could not recognize speech. Please try again.`));
+                // Catch-all for other unexpected reasons.
+                reject(new Error(`Could not recognize speech. Reason: ${result.reason}`));
             }
         }, err => {
             abortRecognition();
