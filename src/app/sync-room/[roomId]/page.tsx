@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp } from 'firebase/firestore';
-import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
+import { useDocumentData } from 'react-firebase-hooks/firestore';
 
 import type { SyncRoom, Participant, BlockedUser, RoomMessage } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzureCodeToLanguageCode } from '@/lib/azure-languages';
@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { useUserData } from '@/context/UserDataContext';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: (joinTime: Timestamp) => void }) {
@@ -136,6 +137,7 @@ export default function SyncRoomPage() {
     const router = useRouter();
     const { toast } = useToast();
     const roomId = params.roomId as string;
+    const { handleSyncOnlineSessionEnd } = useUserData();
 
     const [user, authLoading] = useAuthState(auth);
 
@@ -163,6 +165,7 @@ export default function SyncRoomPage() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<() => void | null>(null);
+    const sessionStartTime = useRef<number | null>(null);
 
 
      useEffect(() => {
@@ -185,7 +188,8 @@ export default function SyncRoomPage() {
 
 
     const currentUserParticipant = useMemo(() => {
-        return participantsCollection?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
+        if (!user || !participantsCollection) return undefined;
+        return participantsCollection.docs.find(p => p.id === user.uid)?.data() as Participant | undefined;
     }, [participantsCollection, user]);
 
 
@@ -212,12 +216,12 @@ export default function SyncRoomPage() {
 
     // Handle being removed from the room
     useEffect(() => {
-        if (isExiting || !joinTimestamp) return; // Don't run this logic if the user is exiting voluntarily or hasn't joined
+        if (isExiting || !joinTimestamp || participantsLoading) return; 
 
         const isStillParticipant = participantsCollection?.docs.some(doc => doc.id === user?.uid);
 
-        if (!isStillParticipant && !participantsLoading) {
-            toast({
+        if (joinTimestamp && !isStillParticipant) {
+             toast({
                 variant: 'destructive',
                 title: 'You were removed',
                 description: 'An emcee has removed you from the room.',
@@ -317,12 +321,9 @@ export default function SyncRoomPage() {
                 return;
             }
 
-            const isParticipant = participantsCollection?.docs.some(p => p.id === user.uid);
-            if (isParticipant) {
-                const participantData = participantsCollection?.docs.find(p => p.id === user.uid)?.data();
-                if(participantData?.joinedAt) {
-                    setJoinTimestamp(participantData.joinedAt);
-                }
+            const participantData = participantsCollection?.docs.find(p => p.id === user.uid)?.data();
+            if (participantData?.joinedAt) {
+                setJoinTimestamp(participantData.joinedAt);
             }
         }
     }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, toast]);
@@ -332,6 +333,7 @@ export default function SyncRoomPage() {
     const handleJoin = (joinTime: Timestamp) => {
         setJoinTimestamp(joinTime);
         setMessagesLoading(true);
+        sessionStartTime.current = Date.now();
 
         const q = query(messagesRef, where("createdAt", ">", joinTime));
         
@@ -357,15 +359,25 @@ export default function SyncRoomPage() {
     };
 
 
-    const handleExitRoom = async () => {
-        if (!user) return;
-        setIsExiting(true); // Set the flag to indicate voluntary exit
+    const handleExitRoom = useCallback(async () => {
+        if (!user || isExiting) return;
+        setIsExiting(true);
+        
         if (messageListenerUnsubscribe.current) {
             messageListenerUnsubscribe.current();
+            messageListenerUnsubscribe.current = null;
         }
+
         try {
+            if (sessionStartTime.current) {
+                const sessionDurationMs = Date.now() - sessionStartTime.current;
+                await handleSyncOnlineSessionEnd(sessionDurationMs);
+                sessionStartTime.current = null;
+            }
+            
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
+            
             router.push('/?tab=sync-online');
         } catch (error) {
             console.error("--- DEBUG: Error leaving room ---");
@@ -378,9 +390,23 @@ export default function SyncRoomPage() {
                 description: 'Could not leave room. Check console for details.',
                 duration: 10000
             });
-            setIsExiting(false); // Reset flag on error
+            setIsExiting(false);
         }
-    };
+    }, [user, isExiting, roomId, router, toast, handleSyncOnlineSessionEnd]);
+
+    // Handle leaving on browser close/refresh
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            handleExitRoom();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [handleExitRoom]);
+
     
     const handleEndMeeting = async () => {
         if (!isCurrentUserEmcee) return;
@@ -768,5 +794,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    

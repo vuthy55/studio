@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText } from "lucide-react";
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -114,7 +114,7 @@ export default function UserDetailPage() {
         setIsSaving(true);
         try {
             const userDocRef = doc(db, 'users', userId);
-            const { name, email, country, mobile, role, tokenBalance, syncLiveUsage } = profile;
+            const { name, email, country, mobile, role, tokenBalance, syncLiveUsage, syncOnlineUsage } = profile;
             
             await setDoc(userDocRef, { 
                 name, 
@@ -124,6 +124,7 @@ export default function UserDetailPage() {
                 role, 
                 tokenBalance,
                 syncLiveUsage: syncLiveUsage || 0,
+                syncOnlineUsage: syncOnlineUsage || 0,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (email || '').toLowerCase()
             }, { merge: true });
@@ -145,6 +146,7 @@ export default function UserDetailPage() {
         switch (log.actionType) {
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
+            case 'live_sync_online_spend': return 'Sync Online Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             default: return 'Unknown Action';
@@ -216,6 +218,18 @@ export default function UserDetailPage() {
                                     <Label htmlFor="syncLiveUsage">Sync Live Usage (ms)</Label>
                                     <Input id="syncLiveUsage" type="number" value={profile.syncLiveUsage || 0} onChange={handleInputChange} />
                                 </div>
+                                 <div className="space-y-2">
+                                    <Label htmlFor="syncOnlineUsage">Sync Online Usage (ms)</Label>
+                                    <Input id="syncOnlineUsage" type="number" value={profile.syncOnlineUsage || 0} onChange={handleInputChange} />
+                                </div>
+                                 <div className="space-y-2">
+                                    <Label htmlFor="syncOnlineUsageLastReset">Sync Online Reset</Label>
+                                    <Input 
+                                        id="syncOnlineUsageLastReset" 
+                                        value={profile.syncOnlineUsageLastReset ? format((profile.syncOnlineUsageLastReset as Timestamp).toDate(), 'PPpp') : 'Not set'} 
+                                        disabled
+                                    />
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="country">Country</Label>
                                     <Select value={profile.country || ''} onValueChange={handleCountryChange}>
@@ -285,7 +299,7 @@ export default function UserDetailPage() {
                                                 <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
                                                 <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
                                                 <p className="text-xs text-muted-foreground">
-                                                {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                                {log.timestamp ? formatDistanceToNow((log.timestamp as Timestamp).toDate(), { addSuffix: true }) : 'Just now'}
                                                 </p>
                                             </div>
                                         </div>

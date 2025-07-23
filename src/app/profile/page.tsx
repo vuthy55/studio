@@ -5,7 +5,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins, FileText, Heart, Copy } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,7 +42,9 @@ export interface UserProfile {
   searchableName?: string;
   searchableEmail?: string;
   practiceStats?: PracticeStats;
-  syncLiveUsage?: number; // Total accumulated usage in milliseconds
+  syncLiveUsage?: number;
+  syncOnlineUsage?: number;
+  syncOnlineUsageLastReset?: Timestamp;
 }
 
 function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getInitials, countryOptions, handleCountryChange }: any) {
@@ -172,6 +174,7 @@ function TokenHistorySection() {
         switch (log.actionType) {
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
+            case 'live_sync_online_spend': return 'Sync Online Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
@@ -221,7 +224,7 @@ function TokenHistorySection() {
                                     <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
                                 </div>
                                 <p className="text-xs text-muted-foreground ml-auto">
-                                    {log.timestamp ? formatDistanceToNow(log.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                    {log.timestamp ? formatDistanceToNow((log.timestamp as Timestamp).toDate(), { addSuffix: true }) : 'Just now'}
                                 </p>
                             </div>
                         ))}
@@ -358,3 +361,4 @@ export default function ProfilePage() {
     
 
     
+

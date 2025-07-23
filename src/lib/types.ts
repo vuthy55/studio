@@ -51,7 +51,7 @@ export type TransactionLog = {
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
-    duration?: number; // Optional: duration in minutes for usage-based transactions
+    duration?: number; // Optional: duration in milliseconds for usage-based transactions
 }
 
 export type PaymentLog = {
@@ -62,5 +62,3 @@ export type PaymentLog = {
     tokensPurchased: number;
     createdAt: FieldValue;
 }
-
-    

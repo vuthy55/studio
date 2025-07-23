@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { getAppSettings, type AppSettings } from '@/services/settings';
@@ -22,7 +22,7 @@ export type PracticeHistoryDoc = {
 };
 export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -45,6 +45,7 @@ interface UserDataContextType {
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string) => boolean;
     updateSyncLiveUsage: (durationMs: number) => number;
+    handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
 }
 
 // --- Context ---
@@ -81,7 +82,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (userDocSnap.exists()) {
                 const profileData = userDocSnap.data() as UserProfile;
                 setUserProfile(profileData);
-                setSyncLiveUsage(profileData.syncLiveUsage || 0); // Load persistent usage
+                setSyncLiveUsage(profileData.syncLiveUsage || 0);
             }
         } catch (error) {
             console.error("Error fetching user profile:", error);
@@ -323,6 +324,79 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         return { correct, tokensEarned };
     }, [practiceHistory, settings]);
 
+    const handleSyncOnlineSessionEnd = useCallback(async (durationMs: number) => {
+        if (!user || !settings) return;
+
+        const batch = writeBatch(db);
+        const userDocRef = doc(db, 'users', user.uid);
+        
+        // Fetch the latest user profile to ensure data is current
+        const userDocSnap = await getDoc(userDocRef);
+        const currentProfile = userDocSnap.data() as UserProfile | undefined;
+        if (!currentProfile) return;
+
+        let { syncOnlineUsage = 0, syncOnlineUsageLastReset, tokenBalance = 0 } = currentProfile;
+        
+        const now = new Date();
+        const lastReset = syncOnlineUsageLastReset?.toDate() ?? now;
+
+        // Reset usage if it's a new month
+        if (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
+            syncOnlineUsage = 0;
+            syncOnlineUsageLastReset = Timestamp.fromDate(now);
+        }
+
+        const freeMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const billableMs = Math.max(0, durationMs - Math.max(0, freeMs - syncOnlineUsage));
+        
+        let cost = 0;
+        if (billableMs > 0) {
+            const minutesToBill = Math.ceil(billableMs / 60000);
+            cost = minutesToBill * (settings.costPerSyncOnlineMinute || 1);
+        }
+
+        if (cost > tokenBalance) {
+            cost = tokenBalance; // Don't charge more than they have
+        }
+        
+        // Update payload for Firestore
+        const updatePayload: Record<string, any> = {
+            syncOnlineUsage: increment(durationMs)
+        };
+        if (syncOnlineUsageLastReset) {
+            updatePayload.syncOnlineUsageLastReset = syncOnlineUsageLastReset;
+        }
+        if (cost > 0) {
+            updatePayload.tokenBalance = increment(-cost);
+        }
+
+        batch.update(userDocRef, updatePayload);
+
+        // Add transaction log if a cost was incurred
+        if (cost > 0) {
+            const logRef = doc(collection(userDocRef, 'transactionLogs'));
+            batch.set(logRef, {
+                actionType: 'live_sync_online_spend',
+                tokenChange: -cost,
+                timestamp: serverTimestamp(),
+                description: `Usage charge for ${Math.ceil(billableMs / 60000)} minute(s) of Sync Online.`,
+                duration: durationMs
+            });
+        }
+        
+        try {
+            await batch.commit();
+            // Optimistically update local state after successful commit
+            setUserProfile(p => ({
+                ...p,
+                tokenBalance: (p.tokenBalance || 0) - cost,
+                syncOnlineUsage: (p.syncOnlineUsage || 0) + durationMs,
+            }));
+        } catch (error) {
+            console.error("Error committing Sync Online session end transaction:", error);
+        }
+    }, [user, settings, setUserProfile]);
+
 
     const value = {
         user,
@@ -336,6 +410,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         getTopicStats,
         spendTokensForTranslation,
         updateSyncLiveUsage,
+        handleSyncOnlineSessionEnd,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
