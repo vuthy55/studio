@@ -58,7 +58,7 @@ interface InvitedRoom extends SyncRoom {
 }
 
 function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: any; onUpdate: () => void }) {
-    const { toast } = useToast();
+    const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
     const [isSaving, setIsSaving] = useState(false);
@@ -81,7 +81,10 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
 
         allParticipants.forEach(p => {
+             // Defensive check to prevent crash on bad data from previous versions
             if (p.language && typeof p.language === 'string') {
+                // The 'language' field from the summary is the Azure format, e.g., "English (United States)"
+                // We need to find our internal language code, e.g., "english"
                 const lang = languages.find(l => l.label.toLowerCase() === p.language.split(' ')[0].toLowerCase());
                 if (lang) {
                     langSet.add(lang.value);
@@ -551,13 +554,9 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                     </div>
                 )}
                 
-                {room.status === 'closed' && room.summary && (
+                {room.status === 'closed' && (
                      <div className="py-4 space-y-4">
-                        <p className="text-sm text-muted-foreground">This room is closed. You can re-generate the summary if the previous one was incorrect.</p>
-                         <Button onClick={handleSummarizeAndEnd} disabled={isActionLoading}>
-                            <RefreshCw className="mr-2 h-4 w-4"/>
-                            {isActionLoading ? 'Re-summarizing...' : 'Re-summarize & Overwrite'}
-                        </Button>
+                        <p className="text-sm text-muted-foreground">This room is closed.</p>
                     </div>
                 )}
 
@@ -565,15 +564,11 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                     <div className="py-4 space-y-4">
                         {hasActivity ? (
                             <>
-                                <p className="text-sm text-muted-foreground">This room has had meeting activity. You can close it for all users or generate a final summary.</p>
+                                <p className="text-sm text-muted-foreground">This room has had meeting activity. You can close it for all users.</p>
                                 <div className="flex flex-col gap-2">
                                      <Button onClick={handleSoftDelete} disabled={isActionLoading} variant="destructive">
                                         {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
                                         Close Room
-                                    </Button>
-                                    <Button onClick={handleSummarizeAndEnd} disabled={isActionLoading}>
-                                        {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                        Summarize &amp; Close Room
                                     </Button>
                                 </div>
                             </>

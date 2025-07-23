@@ -906,20 +906,6 @@ export default function SyncRoomPage() {
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
-                                        
-                                         <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                     <Button type="button" onClick={handleSaveAndEndMeeting}>
-                                                        <Save className="mr-2 h-4 w-4" />
-                                                        Save &amp; End
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Generate an AI summary, then end the meeting.</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
                                     </DialogFooter>
                                 </DialogContent>
                             </Dialog>
