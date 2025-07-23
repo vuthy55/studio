@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings } from 'lucide-react';
 import type { SyncRoom } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,7 +45,8 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { updateRoomSummary } from '@/actions/room';
+import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms } from '@/actions/room';
+import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -344,6 +345,152 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     )
 }
 
+function ManageRoomDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [hasCheckedActivity, setHasCheckedActivity] = useState(false);
+    const [participantCount, setParticipantCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+
+    const checkRoomActivity = async () => {
+        setIsLoading(true);
+        try {
+            const participantsRef = collection(db, 'syncRooms', room.id, 'participants');
+            const snapshot = await getDocs(participantsRef);
+            setParticipantCount(snapshot.size);
+        } catch (error) {
+            console.error("Error checking room activity:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not check room activity.' });
+            setParticipantCount(0); // Assume no activity on error
+        } finally {
+            setIsLoading(false);
+            setHasCheckedActivity(true);
+        }
+    };
+    
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open);
+        if (open && !hasCheckedActivity) {
+            checkRoomActivity();
+        }
+        if (!open) {
+            setHasCheckedActivity(false); // Reset for next time
+        }
+    };
+
+    const handleSoftDelete = async () => {
+        setIsActionLoading(true);
+        const result = await softDeleteRoom(room.id);
+        if (result.success) {
+            toast({ title: 'Room Closed', description: 'The room has been closed for all participants.' });
+            onUpdate();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to close room.' });
+        }
+        setIsActionLoading(false);
+    };
+    
+    const handlePermanentDelete = async () => {
+        setIsActionLoading(true);
+        const result = await permanentlyDeleteRooms([room.id]);
+        if (result.success) {
+            toast({ title: 'Room Deleted', description: 'The room has been permanently deleted.' });
+            onUpdate();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete room.' });
+        }
+        setIsActionLoading(false);
+    };
+    
+    const handleSummarizeAndEnd = async () => {
+        setIsActionLoading(true);
+        toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.' });
+        try {
+            await summarizeRoom({ roomId: room.id });
+            toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
+            onUpdate();
+            setIsOpen(false);
+        } catch (error) {
+            console.error("Error summarizing and ending meeting:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary.' });
+        } finally {
+             setIsActionLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="icon"><Settings className="h-4 w-4" /></Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Manage Room: {room.topic}</DialogTitle>
+                    <DialogDescription>
+                        Choose an action to perform on this room.
+                    </DialogDescription>
+                </DialogHeader>
+                {isLoading && (
+                    <div className="flex items-center justify-center h-24">
+                        <LoaderCircle className="animate-spin" />
+                    </div>
+                )}
+
+                {hasCheckedActivity && !isLoading && (
+                    <div className="py-4 space-y-4">
+                        {/* Case 1: Room has had activity (more than just the creator) */}
+                        {participantCount > 1 ? (
+                            <>
+                                <p className="text-sm text-muted-foreground">This room has had meeting activity. You can close it for all users or generate a final summary.</p>
+                                <div className="flex flex-col gap-2">
+                                     <Button onClick={handleSoftDelete} disabled={isActionLoading} variant="destructive">
+                                        {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                        Close Room
+                                    </Button>
+                                    <Button onClick={handleSummarizeAndEnd} disabled={isActionLoading}>
+                                        {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                        Summarize &amp; Close Room
+                                    </Button>
+                                </div>
+                            </>
+                        ) : (
+                             <>
+                                <p className="text-sm text-muted-foreground">This room appears to be empty. You can permanently delete it.</p>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" disabled={isActionLoading}>
+                                            {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                            Permanently Delete Room
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the room and all of its data.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handlePermanentDelete}>Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </>
+                        )}
+                    </div>
+                )}
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function SyncOnlineHome() {
     const [user, loading] = useAuthState(auth);
     const router = useRouter();
@@ -362,7 +509,6 @@ export default function SyncOnlineHome() {
     const [isClient, setIsClient] = useState(false);
     const [settings, setSettings] = useState<AppSettings | null>(null);
     
-    // State for the blocked users dialog, now managed locally per dialog instance
     const [currentlyManagedRoom, setCurrentlyManagedRoom] = useState<InvitedRoom | null>(null);
 
     useEffect(() => {
@@ -475,6 +621,18 @@ export default function SyncOnlineHome() {
                 lastActivityAt: serverTimestamp(),
             };
             batch.set(newRoomRef, newRoom);
+            
+            // Add creator as the first participant
+            const participantRef = doc(db, 'syncRooms', newRoomRef.id, 'participants', user.uid);
+            batch.set(participantRef, {
+                uid: user.uid,
+                name: user.displayName || user.email?.split('@')[0] || 'Creator',
+                email: user.email!,
+                selectedLanguage: creatorLanguage,
+                isMuted: false,
+                joinedAt: serverTimestamp()
+            });
+
 
             await batch.commit();
             
@@ -488,22 +646,6 @@ export default function SyncOnlineHome() {
             toast({ variant: "destructive", title: "error when i tried to create room" });
         } finally {
             setIsCreating(false);
-        }
-    };
-
-    const handleDeleteRoom = async (roomId: string) => {
-        try {
-            const roomRef = doc(db, 'syncRooms', roomId);
-            await updateDoc(roomRef, {
-                status: 'closed',
-                lastActivityAt: serverTimestamp(),
-            });
-            
-            toast({ title: "Room Closed", description: "The room has been closed for all participants." });
-            fetchInvitedRooms();
-        } catch (error) {
-            console.error("Error closing room:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not close the room.' });
         }
     };
 
@@ -736,29 +878,7 @@ export default function SyncOnlineHome() {
                                                 )}
 
                                                 {isCreator && room.status !== 'closed' && (
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button variant="destructive" size="icon">
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    This will close the room for all participants. This action cannot be undone.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                <AlertDialogAction 
-                                                                    onClick={() => handleDeleteRoom(room.id)}
-                                                                >
-                                                                    Close Room
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
+                                                    <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                                 )}
                                             </div>
                                         </li>
