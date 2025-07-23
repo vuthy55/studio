@@ -49,11 +49,13 @@ import {
   DialogClose
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 
 function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
+    const router = useRouter();
     const [name, setName] = useState(user.displayName || user.email?.split('@')[0] || 'Participant');
-    const [language, setLanguage] = useState<AzureLanguageCode | ''>('');
+    const [language, setLanguage] = useLocalStorage<AzureLanguageCode | ''>('preferredSpokenLanguage', '');
     const [isJoining, setIsJoining] = useState(false);
     const { toast } = useToast();
 
@@ -81,6 +83,10 @@ function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom
             setIsJoining(false);
         }
     };
+    
+    const handleCancel = () => {
+        router.push('/?tab=sync-online');
+    }
 
     return (
         <div className="flex items-center justify-center min-h-screen">
@@ -110,11 +116,12 @@ function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom
                         </Select>
                     </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex-col gap-2">
                     <Button className="w-full" onClick={handleJoin} disabled={isJoining}>
                         {isJoining ? <LoaderCircle className="animate-spin" /> : <LogIn className="mr-2" />}
                         Join Room
                     </Button>
+                    <Button className="w-full" variant="ghost" onClick={handleCancel}>Cancel</Button>
                 </CardFooter>
             </Card>
         </div>
@@ -709,3 +716,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
