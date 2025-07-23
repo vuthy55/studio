@@ -53,7 +53,7 @@ import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 
 
-function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: (joinTime: Timestamp) => void }) {
+function SetupScreen({ user, room, roomId }: { user: any; room: SyncRoom; roomId: string; }) {
     const router = useRouter();
     const [name, setName] = useState(user.displayName || user.email?.split('@')[0] || 'Participant');
     const [language, setLanguage] = useLocalStorage<AzureLanguageCode | ''>('preferredSpokenLanguage', '');
@@ -78,7 +78,7 @@ function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom
                 joinedAt: joinTime
             };
             await setDoc(participantRef, participantData);
-            onJoin(joinTime);
+            // The onJoin logic will now be handled exclusively by the useEffect hook in the parent.
         } catch (error) {
             console.error("Error joining room:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room.' });
@@ -312,7 +312,7 @@ export default function SyncRoomPage() {
             setParticipants(parts);
             setParticipantsLoading(false);
 
-            // If the user is already a participant, set up the message listener
+            // If the user is now a participant, and we haven't started listening yet, call onJoin.
             const self = parts.find(p => p.uid === user.uid);
             if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
                 console.log("[DEBUG] Participant Listener: Current user IS a participant. Calling onJoin.");
@@ -591,7 +591,7 @@ export default function SyncRoomPage() {
     }
 
     if (user && !currentUserParticipant) {
-        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={onJoin} />;
+        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} />;
     }
 
     return (
