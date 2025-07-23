@@ -19,7 +19,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
 import { Separator } from '@/components/ui/separator';
-import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry } from '@/services/ledger';
+import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry, getFinancialLedger2, addLedgerEntry2, getLedgerAnalytics2, findUserByEmail2, getTokenAnalytics2, getTokenLedger2 } from '@/services/ledger';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -857,6 +857,540 @@ function TokensTabContent() {
     )
 }
 
+function FinancialTabContent2() {
+    const [user] = useAuthState(auth);
+    const { toast } = useToast();
+    const [ledger, setLedger] = useState<FinancialLedgerEntry[]>([]);
+    const [analytics, setAnalytics] = useState({ revenue: 0, expenses: 0, net: 0 });
+    const [userMap, setUserMap] = useState<Record<string, string>>({});
+    const [isLoading, setIsLoading] = useState(true);
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
+    const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
+
+    const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+    const [detailsDialogContent, setDetailsDialogContent] = useState<{ title: string; data: FinancialLedgerEntry[] }>({ title: '', data: [] });
+
+    const [formState, setFormState] = useState({
+        description: '',
+        amount: '' as number | '',
+        userEmail: '',
+        link: '',
+        source: 'manual'
+    });
+
+    const resetForm = () => {
+        setFormState({ description: '', amount: '', userEmail: user?.email || '', link: '', source: 'manual' });
+    };
+
+    const handleOpenRevenueDialog = () => {
+        resetForm();
+        setIsRevenueDialogOpen(true);
+    };
+
+    const handleOpenExpenseDialog = () => {
+        resetForm();
+        setIsExpenseDialogOpen(true);
+    };
+
+    const openDetailsDialog = (type: 'revenue' | 'expense') => {
+        const data = ledger.filter(item => item.type === type);
+        const title = type === 'revenue' ? 'Revenue Details' : 'Expense Details';
+        setDetailsDialogContent({ title, data });
+        setIsDetailsDialogOpen(true);
+    };
+
+    const fetchData = useCallback(async () => {
+        if (!auth.currentUser) {
+            setLedger([]);
+            setAnalytics({ revenue: 0, expenses: 0, net: 0 });
+            setUserMap({});
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const [ledgerData, analyticsData] = await Promise.all([
+                getFinancialLedger2(),
+                getLedgerAnalytics2()
+            ]);
+            setLedger(ledgerData);
+            setAnalytics(analyticsData);
+
+            const userIds = [...new Set(ledgerData.map(item => item.userId).filter(Boolean))] as string[];
+            if (userIds.length > 0) {
+                const usersRef = collection(db, 'users');
+                const q = query(usersRef, where(documentId(), 'in', userIds));
+                const userSnapshot = await getDocs(q);
+                const fetchedUserMap: Record<string, string> = {};
+                userSnapshot.forEach(doc => {
+                    fetchedUserMap[doc.id] = doc.data().email || 'Unknown User';
+                });
+                setUserMap(fetchedUserMap);
+            }
+        } catch (error) {
+            console.error("Error fetching financial data:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch financial data.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData, user]); // Refetch when user logs in/out
+
+    const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
+        e.preventDefault();
+        const { description, amount, userEmail, link, source } = formState;
+
+        if (!description || !amount || amount <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid description and amount.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            let userId: string | undefined = undefined;
+            if (userEmail) {
+                const foundUser = await findUserByEmail2(userEmail);
+                if (foundUser) {
+                    userId = foundUser.id;
+                } else {
+                    toast({ variant: "destructive", title: "User Not Found", description: `No user found with email: ${userEmail}`});
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+            
+            const newEntry: Omit<FinancialLedgerEntry, 'id'> = {
+                type,
+                description,
+                amount: Number(amount),
+                timestamp: new Date(),
+                source: source || 'manual',
+                userId: userId,
+            };
+
+            if (link) {
+                newEntry.link = link;
+            }
+
+            await addLedgerEntry2(newEntry);
+
+            toast({ title: 'Success', description: `${type.charAt(0).toUpperCase() + type.slice(1)} added to the ledger.` });
+            
+            setIsExpenseDialogOpen(false);
+            setIsRevenueDialogOpen(false);
+            await fetchData();
+
+        } catch (error) {
+            console.error(`Error adding ${type}:`, error);
+            toast({ variant: 'destructive', title: 'Error', description: `Could not add ${type}.` });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle>Financial Ledger 2</CardTitle>
+                        <CardDescription>A record of all revenue and expenses.</CardDescription>
+                    </div>
+                     <div className="flex gap-2">
+                        <Dialog open={isRevenueDialogOpen} onOpenChange={setIsRevenueDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={handleOpenRevenueDialog} variant="outline"><PlusCircle className="mr-2"/> Add Revenue</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add New Revenue</DialogTitle>
+                                    <DialogDescription>Record a new incoming transaction.</DialogDescription>
+                                </DialogHeader>
+                                <form onSubmit={(e) => handleManualEntry(e, 'revenue')}>
+                                    <div className="py-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-amount">Amount (USD)</Label>
+                                            <Input id="revenue-amount" type="number" value={formState.amount} onChange={(e) => setFormState(prev => ({...prev, amount: Number(e.target.value)}))} placeholder="e.g., 100.00" required min="0.01" step="0.01" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-description">Description</Label>
+                                            <Textarea id="revenue-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Angel investment" required />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="revenue-source">Method</Label>
+                                            <Input id="revenue-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="revenue-user-email">User Email (Optional)</Label>
+                                            <Input id="revenue-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="revenue-link">Link (Optional)</Label>
+                                            <Input id="revenue-link" type="url" value={formState.link} onChange={(e) => setFormState(prev => ({...prev, link: e.target.value}))} placeholder="https://example.com/transaction/123" />
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                        <Button type="submit" disabled={isSubmitting}>
+                                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                            Add Revenue
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+
+                        <Dialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={handleOpenExpenseDialog}><PlusCircle className="mr-2"/> Add Expense</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add New Expense</DialogTitle>
+                                    <DialogDescription>Record a new outgoing transaction.</DialogDescription>
+                                </DialogHeader>
+                                <form onSubmit={(e) => handleManualEntry(e, 'expense')}>
+                                    <div className="py-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="expense-amount">Amount (USD)</Label>
+                                            <Input id="expense-amount" type="number" value={formState.amount} onChange={(e) => setFormState(prev => ({...prev, amount: Number(e.target.value)}))} placeholder="e.g., 50.00" required min="0.01" step="0.01" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="expense-description">Description</Label>
+                                            <Textarea id="expense-description" value={formState.description} onChange={(e) => setFormState(prev => ({...prev, description: e.target.value}))} placeholder="e.g., Monthly server costs" required />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="expense-source">Method</Label>
+                                            <Input id="expense-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="expense-user-email">User Email (Optional)</Label>
+                                            <Input id="expense-user-email" type="email" value={formState.userEmail} onChange={(e) => setFormState(prev => ({...prev, userEmail: e.target.value}))} placeholder="user@example.com" />
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="expense-link">Link (Optional)</Label>
+                                            <Input id="expense-link" type="url" value={formState.link} onChange={(e) => setFormState(prev => ({...prev, link: e.target.value}))} placeholder="https://example.com/invoice/456" />
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                        <Button type="submit" disabled={isSubmitting}>
+                                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                            Add Expense
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                     </div>
+                </div>
+                
+                 <Card className="mt-4">
+                    <CardContent className="p-4">
+                         <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x">
+                            {/* Total Revenue */}
+                             <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4 hover:bg-muted rounded-lg cursor-pointer" onClick={() => openDetailsDialog('revenue')}>
+                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                    <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
+                                    Total Revenue:
+                                 </div>
+                                 <div className="text-2xl font-bold text-green-600">${analytics.revenue.toFixed(2)}</div>
+                            </div>
+                            
+                            {/* Total Expenses */}
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4 hover:bg-muted rounded-lg cursor-pointer" onClick={() => openDetailsDialog('expense')}>
+                                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                    <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
+                                    Total Expenses:
+                                </div>
+                                <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
+                            </div>
+
+                            {/* Net Profit */}
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
+                                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                    <DollarSign className="h-4 w-4 mr-1" />
+                                    Net Profit:
+                                </div>
+                                <div className={`text-2xl font-bold ${analytics.net >= 0 ? 'text-foreground' : 'text-red-600'}`}>${analytics.net.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </CardHeader>
+            <CardContent>
+                 <div className="border rounded-md min-h-[200px]">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>#</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead>Type / Method</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>By</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {ledger.length > 0 ? (
+                                ledger.map((item, index) => {
+                                    const runningNumber = String(ledger.length - index).padStart(5, '0');
+                                    return (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-mono text-muted-foreground">{runningNumber}</TableCell>
+                                            <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
+                                            <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        {item.type}
+                                                    </Badge>
+                                                    
+                                                     <span className="text-xs text-muted-foreground capitalize">
+                                                        {item.source === 'manual' && item.link ? (
+                                                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 flex items-center gap-1">
+                                                                {item.source} <ExternalLink className="h-3 w-3" />
+                                                            </a>
+                                                        ) : (
+                                                            item.source
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.source === 'paypal' ? `Token Purchase: ${item.orderId}` : item.description}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.userId ? (
+                                                     <Link href={`/admin/${item.userId}`} className="text-primary underline hover:text-primary/80">
+                                                        {userMap[item.userId] || item.userId}
+                                                    </Link>
+                                                ) : 'System'}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center">No financial records found.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+
+             {/* Details Dialog */}
+            <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>{detailsDialogContent.title}</DialogTitle>
+                        <DialogDescription>A detailed list of all transactions for this category.</DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-[60vh] overflow-y-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>#</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead>Type / Method</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead>By</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {detailsDialogContent.data.map((item, index) => (
+                                    <TableRow key={item.id}>
+                                         <TableCell className="font-mono text-xs text-muted-foreground">
+                                           {String(detailsDialogContent.data.length - index).padStart(5, '0')}
+                                        </TableCell>
+                                        <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
+                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
+                                             {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {item.type}
+                                                </Badge>
+                                                <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{item.source === 'paypal' ? `Token Purchase: ${item.orderId}` : item.description}</TableCell>
+                                        <TableCell>{item.userId ? userMap[item.userId] || 'User' : 'System'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+        </Card>
+    )
+}
+
+function TokensTabContent2() {
+    const [user] = useAuthState(auth);
+    const { toast } = useToast();
+    const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
+    const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const getReasonText = (log: TokenLedgerEntry) => {
+        switch (log.actionType) {
+            case 'purchase': return 'Token Purchase';
+            case 'signup_bonus': return 'Signup Bonus';
+            case 'referral_bonus': return 'Referral Bonus';
+            case 'practice_earn': return 'Practice Reward';
+            case 'translation_spend': return 'Live Translation';
+            case 'live_sync_spend': return 'Live Sync Usage';
+            case 'live_sync_online_spend': return 'Sync Online Usage';
+            default: return 'Unknown Action';
+        }
+    };
+    
+    const formatDuration = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
+    };
+
+     const fetchData = useCallback(async () => {
+        if (!auth.currentUser) {
+            setAnalytics(null);
+            setLedger([]);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const [analyticsData, ledgerData] = await Promise.all([
+                getTokenAnalytics2(),
+                getTokenLedger2()
+            ]);
+            setAnalytics(analyticsData);
+            setLedger(ledgerData);
+        } catch (err: any) {
+             console.error("Error fetching token data:", err);
+            toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData, user]); // Refetch when user logs in/out
+    
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!analytics) {
+        return <p>No token data available.</p>;
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Token Economy 2</CardTitle>
+                <CardDescription>An overview of token distribution and acquisition.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                 <div className="grid gap-4 md:grid-cols-3">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Banknote/> Total Tokens</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
+                             <Separator />
+                            <div className="flex justify-between font-bold text-lg"><span>Total In:</span> <span>{analytics.purchased.toLocaleString()}</span></div>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><MinusCircle className="text-red-500" /> Tokens Distributed</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex justify-between"><span>Signup Bonuses:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>Referral Bonuses:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span>Practice Rewards:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
+                            <Separator />
+                            <div className="flex justify-between font-bold text-lg"><span>Total Out (Free):</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
+                        </CardContent>
+                    </Card>
+                </div>
+                 <div className="border rounded-md min-h-[200px]">
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>#</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>To/From</TableHead>
+                                <TableHead className="text-right">QTY</TableHead>
+                                <TableHead>Reason</TableHead>
+                                <TableHead>Description</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {ledger.map((log, index) => (
+                                <TableRow key={log.id}>
+                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.length - index).padStart(5, '0')}</TableCell>
+                                    <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
+                                    <TableCell>
+                                        <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
+                                            {log.userEmail}
+                                        </Link>
+                                    </TableCell>
+                                    <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                    </TableCell>
+                                    <TableCell>{getReasonText(log)}</TableCell>
+                                    <TableCell>
+                                        {log.description}
+                                        {log.duration && ` (${formatDuration(log.duration)})`}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -892,11 +1426,13 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
                     <TabsTrigger value="financial">Financial</TabsTrigger>
                     <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                    <TabsTrigger value="financial2">Financial 2</TabsTrigger>
+                    <TabsTrigger value="tokens2">Tokens 2</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
@@ -909,6 +1445,12 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
+                </TabsContent>
+                 <TabsContent value="financial2" className="mt-6">
+                    <FinancialTabContent2 />
+                </TabsContent>
+                <TabsContent value="tokens2" className="mt-6">
+                    <TokensTabContent2 />
                 </TabsContent>
             </Tabs>
 
