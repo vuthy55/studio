@@ -152,6 +152,7 @@ export default function SyncRoomPage() {
     const [hasJoined, setHasJoined] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isExiting, setIsExiting] = useState(false);
     
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
     const [emailsToInvite, setEmailsToInvite] = useState('');
@@ -208,6 +209,8 @@ export default function SyncRoomPage() {
 
     // Handle being removed from the room
     useEffect(() => {
+        if (isExiting) return; // Don't run this logic if the user is exiting voluntarily
+
         const wasParticipant = hasJoined;
         const isStillParticipant = participantsCollection?.docs.some(doc => doc.id === user?.uid);
 
@@ -220,7 +223,7 @@ export default function SyncRoomPage() {
             });
             router.push('/?tab=sync-online');
         }
-    }, [participantsCollection, hasJoined, participantsLoading, user, router, toast]);
+    }, [participantsCollection, hasJoined, participantsLoading, user, router, toast, isExiting]);
 
 
     // Gracefully exit if room is closed or user is blocked
@@ -319,6 +322,7 @@ export default function SyncRoomPage() {
 
     const handleExitRoom = async () => {
         if (!user) return;
+        setIsExiting(true); // Set the flag to indicate voluntary exit
         try {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
@@ -326,6 +330,7 @@ export default function SyncRoomPage() {
         } catch (error) {
             console.error("Error leaving room:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not leave the room.' });
+            setIsExiting(false); // Reset flag on error
         }
     };
     
@@ -716,4 +721,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
