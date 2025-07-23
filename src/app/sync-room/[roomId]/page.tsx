@@ -306,33 +306,12 @@ export default function SyncRoomPage() {
     }, [messages, user, currentUserParticipant, toast]);
 
 
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
-        } else if (user && roomData && !participantsLoading) {
-            if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
-                 toast({ variant: 'destructive', title: 'Access Denied', description: 'You have been blocked from this room.' });
-                 router.push('/?tab=sync-online');
-                 return;
-            }
-            if (roomData.status === 'closed') {
-                toast({ title: 'Room Closed', description: 'This room is no longer active.' });
-                router.push('/?tab=sync-online');
-                return;
-            }
-
-            const participantData = participantsCollection?.docs.find(p => p.id === user.uid)?.data();
-            if (participantData?.joinedAt) {
-                handleJoin(participantData.joinedAt as Timestamp);
-            }
-        }
-    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, toast]);
-
-
     // This function now also sets up the message listener.
     const handleJoin = (joinTime: Timestamp) => {
-        if(joinTimestamp) return; // Prevent re-running if already joined
+        console.log("[DEBUG] handleJoin called. Current listener status:", messageListenerUnsubscribe.current ? "Active" : "Inactive");
+        if(messageListenerUnsubscribe.current) return; // Prevent re-running if already joined
         
+        console.log("[DEBUG] Proceeding to join room and set up listener.");
         setJoinTimestamp(joinTime);
         setMessagesLoading(true);
         sessionStartTime.current = Date.now();
@@ -357,17 +336,48 @@ export default function SyncRoomPage() {
             toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
         });
         
+        console.log("[DEBUG] Message listener attached successfully.");
         messageListenerUnsubscribe.current = unsubscribe;
     };
 
 
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        } else if (user && roomData && !participantsLoading) {
+            if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
+                 toast({ variant: 'destructive', title: 'Access Denied', description: 'You have been blocked from this room.' });
+                 router.push('/?tab=sync-online');
+                 return;
+            }
+            if (roomData.status === 'closed') {
+                toast({ title: 'Room Closed', description: 'This room is no longer active.' });
+                router.push('/?tab=sync-online');
+                return;
+            }
+
+            const participantDoc = participantsCollection?.docs.find(p => p.id === user.uid);
+            if (participantDoc) {
+                const participantData = participantDoc.data();
+                if (participantData?.joinedAt && !joinTimestamp) {
+                     handleJoin(participantData.joinedAt as Timestamp);
+                }
+            }
+        }
+    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, toast, joinTimestamp]);
+
+
     const handleExitRoom = useCallback(async () => {
+        console.log("[DEBUG] handleExitRoom triggered. Current status: isExiting =", isExiting);
         if (!user || isExiting) return;
         setIsExiting(true);
         
         if (messageListenerUnsubscribe.current) {
+            console.log("[DEBUG] Unsubscribing from message listener.");
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
+        } else {
+            console.log("[DEBUG] No message listener to unsubscribe from.");
         }
 
         try {
@@ -379,7 +389,7 @@ export default function SyncRoomPage() {
             
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
-            
+            console.log("[DEBUG] Participant document deleted. Redirecting.");
             router.push('/?tab=sync-online');
         } catch (error) {
             console.error("--- DEBUG: Error leaving room ---");
@@ -399,6 +409,9 @@ export default function SyncRoomPage() {
     // Handle leaving on browser close/refresh
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            // This is a synchronous operation on purpose.
+            // We can't do async network requests here reliably.
+            // The cleanup in handleExitRoom handles what needs to be done.
             handleExitRoom();
         };
 
@@ -796,5 +809,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
