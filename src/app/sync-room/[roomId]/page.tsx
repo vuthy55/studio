@@ -196,25 +196,24 @@ export default function SyncRoomPage() {
 
     const freeMinutesRemaining = useMemo(() => {
         if (!settings || !userProfile) return 0;
-    
-        // Check if syncOnlineUsageLastReset is a valid Timestamp, otherwise convert it
-        let lastResetDate: Date | undefined;
+        
+        let lastResetDate: Date;
         const lastResetValue = userProfile.syncOnlineUsageLastReset;
-        if (lastResetValue) {
-            if (typeof lastResetValue.toDate === 'function') {
-                // It's a Firestore Timestamp
-                lastResetDate = lastResetValue.toDate();
-            } else if (typeof lastResetValue === 'object' && 'seconds' in lastResetValue) {
-                // It's a serialized Timestamp from JSON
-                lastResetDate = new Timestamp((lastResetValue as any).seconds, (lastResetValue as any).nanoseconds).toDate();
-            }
+
+        if (lastResetValue instanceof Timestamp) {
+            lastResetDate = lastResetValue.toDate();
+        } else if (lastResetValue && typeof lastResetValue === 'object' && 'seconds' in lastResetValue) {
+            lastResetDate = new Timestamp((lastResetValue as any).seconds, (lastResetValue as any).nanoseconds).toDate();
+        } else {
+            lastResetDate = new Date(0); // If undefined or malformed, treat as epoch
         }
-    
+        
         const now = new Date();
         let currentUsageMs = userProfile.syncOnlineUsage || 0;
     
-        if (lastResetDate && (lastResetDate.getMonth() !== now.getMonth() || lastResetDate.getFullYear() !== now.getFullYear())) {
-            currentUsageMs = 0; // Usage resets every month for this check
+        // Reset usage if the last reset was in a previous month
+        if (lastResetDate.getMonth() !== now.getMonth() || lastResetDate.getFullYear() !== now.getFullYear()) {
+            currentUsageMs = 0;
         }
         
         const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
@@ -229,7 +228,7 @@ export default function SyncRoomPage() {
 
     const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
         if (messageListenerUnsubscribe.current) {
-            console.warn("[DEBUG] Message listener setup aborted: a listener is already active.");
+            console.log("[DEBUG] Message listener setup aborted: a listener is already active.");
             return;
         }
 
@@ -251,7 +250,7 @@ export default function SyncRoomPage() {
             });
 
             if (newMessages.length > 0) {
-                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
+                 setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a,b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
             }
             setMessagesLoading(false);
         }, (error) => {
@@ -336,14 +335,14 @@ export default function SyncRoomPage() {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             console.log(`[DEBUG] Participant Listener: Snapshot received. Found ${parts.length} participants.`);
             
-            // This logic handles re-joining an already-joined room correctly.
-            // It only triggers if the user is a participant AND the message listener isn't already running.
             const self = parts.find(p => p.uid === user.uid);
-            if (self && self.joinedAt && !messageListenerUnsubscribe.current && !participantsLoading) {
-                console.log("[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.");
-                onJoinSuccess(self.joinedAt);
+            // This is the key logic: If the user is a participant AND the message listener isn't running yet, start it.
+            // This handles both initial joins (after SetupScreen) and rejoins (on page load).
+            if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
+                 console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess.`);
+                 onJoinSuccess(self.joinedAt);
             } else if (!self) {
-                console.log("[DEBUG] Participant Listener: Current user is NOT yet a participant.");
+                 console.log(`[DEBUG] Participant Listener: Current user is NOT yet a participant.`);
             }
             
             setParticipants(parts);
@@ -358,7 +357,7 @@ export default function SyncRoomPage() {
             console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
-    }, [user, roomId, roomLoading, onJoinSuccess, participantsLoading]);
+    }, [user, roomId, roomLoading, onJoinSuccess]);
     
     
     useEffect(() => {
