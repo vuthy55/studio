@@ -2,7 +2,7 @@
 'use server';
 
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../workspace/src/lib/firebase-admin';
+import { db } from '@/lib/firebase-admin';
 
 /**
  * Performs a "soft delete" on a room by setting its status to 'closed'.
