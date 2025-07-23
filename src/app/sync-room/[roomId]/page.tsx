@@ -495,8 +495,8 @@ export default function SyncRoomPage() {
 
     const handleEndMeeting = async () => {
         console.log('[DEBUG] handleEndMeeting called.');
-        if (!isCurrentUserEmcee || isExiting.current) {
-             console.log(`[DEBUG] handleEndMeeting aborted. isEmcee: ${isCurrentUserEmcee}, isExiting: ${isExiting.current}`);
+        if (!isCurrentUserEmcee) {
+             console.log(`[DEBUG] handleEndMeeting aborted. isEmcee: ${isCurrentUserEmcee}`);
              return;
         }
         try {
