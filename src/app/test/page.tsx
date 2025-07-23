@@ -24,6 +24,7 @@ import Link from 'next/link';
 import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
 import type { UserProfile } from '../profile/page';
 
+
 function RoomTrackingTest() {
   const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -535,5 +536,3 @@ const TestPage = () => {
 }
 
 export default TestPage;
-
-    
