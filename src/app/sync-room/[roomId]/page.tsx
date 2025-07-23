@@ -196,7 +196,7 @@ export default function SyncRoomPage() {
     
     const [isParticipant, setIsParticipant] = useState<'unknown' | 'yes' | 'no'>('unknown');
 
-    const [isListening, setIsListening] = useState(isListening);
+    const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     
     const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
