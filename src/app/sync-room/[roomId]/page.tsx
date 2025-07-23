@@ -47,7 +47,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose
+  DialogClose,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
@@ -982,5 +983,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
