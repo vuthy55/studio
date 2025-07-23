@@ -182,6 +182,13 @@ function TokenHistorySection() {
             default: return 'Unknown Action';
         }
     }
+    
+    const formatDuration = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
+    };
 
      useEffect(() => {
         if (!user) {
@@ -221,7 +228,10 @@ function TokenHistorySection() {
                                 </div>
                                 <div className="ml-4 flex-grow">
                                     <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
-                                    <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
+                                    <p className="text-sm text-muted-foreground truncate max-w-xs">
+                                        {log.description}
+                                        {log.duration && ` (${formatDuration(log.duration)})`}
+                                    </p>
                                 </div>
                                 <p className="text-xs text-muted-foreground ml-auto">
                                     {log.timestamp ? formatDistanceToNow((log.timestamp as Timestamp).toDate(), { addSuffix: true }) : 'Just now'}
@@ -361,5 +371,6 @@ export default function ProfilePage() {
     
 
     
+
 
 

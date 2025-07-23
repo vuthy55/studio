@@ -149,9 +149,18 @@ export default function UserDetailPage() {
             case 'live_sync_online_spend': return 'Sync Online Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
+            case 'purchase': return 'Token Purchase';
+            case 'referral_bonus': return 'Referral Bonus';
             default: return 'Unknown Action';
         }
     }
+    
+    const formatDuration = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
+    };
 
     if (adminLoading || isFetchingProfile) {
         return (
@@ -290,14 +299,17 @@ export default function UserDetailPage() {
                                 <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                                     {transactions.map(log => (
                                         <div key={log.id} className="flex items-start">
-                                            <div className={`p-3 rounded-full ${log.tokenChange > 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                                                <p className={`font-bold text-sm ${log.tokenChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {log.tokenChange > 0 ? '+' : ''}{log.tokenChange}
+                                            <div className={`p-3 rounded-full ${log.tokenChange >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                <p className={`font-bold text-sm ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange}
                                                 </p>
                                             </div>
                                             <div className="ml-4 space-y-1">
                                                 <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
-                                                <p className="text-sm text-muted-foreground truncate max-w-xs">{log.description}</p>
+                                                <p className="text-sm text-muted-foreground truncate max-w-xs">
+                                                    {log.description}
+                                                    {log.duration && ` (${formatDuration(log.duration)})`}
+                                                </p>
                                                 <p className="text-xs text-muted-foreground">
                                                 {log.timestamp ? formatDistanceToNow((log.timestamp as Timestamp).toDate(), { addSuffix: true }) : 'Just now'}
                                                 </p>

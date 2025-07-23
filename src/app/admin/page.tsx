@@ -726,9 +726,17 @@ function TokensTabContent() {
             case 'referral_bonus': return 'Referral Bonus';
             case 'practice_earn': return 'Practice Reward';
             case 'translation_spend': return 'Live Translation';
-            case 'live_sync_spend': return 'Live Sync';
+            case 'live_sync_spend': return 'Live Sync Usage';
+            case 'live_sync_online_spend': return 'Sync Online Usage';
             default: return 'Unknown Action';
         }
+    };
+    
+    const formatDuration = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
     };
 
      const fetchData = useCallback(async () => {
@@ -835,7 +843,10 @@ function TokensTabContent() {
                                         {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
                                     </TableCell>
                                     <TableCell>{getReasonText(log)}</TableCell>
-                                    <TableCell>{log.description}</TableCell>
+                                    <TableCell>
+                                        {log.description}
+                                        {log.duration && ` (${formatDuration(log.duration)})`}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
