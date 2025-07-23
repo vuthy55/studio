@@ -183,21 +183,21 @@ const summarizeRoomFlow = ai.defineFlow(
 
     let output;
     try {
-      const primaryResult = await ai.generate({
+      const { output: primaryOutput } = await ai.generate({
         prompt: summarizeRoomPrompt,
         input: promptData,
         model: 'googleai/gemini-1.5-flash-latest'
       });
-      output = primaryResult.output;
+      output = primaryOutput;
     } catch (error: any) {
       if (error.message && (error.message.includes('503') || /overloaded/i.test(error.message))) {
         console.warn('SummarizeRoomFlow: Primary model overloaded, switching to fallback.');
-        const fallbackResult = await ai.generate({
+        const { output: fallbackOutput } = await ai.generate({
            prompt: summarizeRoomPrompt,
            input: promptData,
            model: 'googleai/gemini-2.0-flash'
         });
-        output = fallbackResult.output;
+        output = fallbackOutput;
       } else {
         throw error;
       }

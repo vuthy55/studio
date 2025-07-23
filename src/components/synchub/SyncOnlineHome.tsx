@@ -68,8 +68,11 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     }, [user, room]);
 
     const formatDate = (dateString: string) => {
-        const date = new Date(`${dateString}T12:00:00Z`);
-        if(isNaN(date.getTime())) return "Unknown";
+        if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            return "Unknown";
+        }
+        const date = new Date(dateString + 'T00:00:00Z'); // Treat as UTC
+        if (isNaN(date.getTime())) return "Unknown";
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
     }
 
