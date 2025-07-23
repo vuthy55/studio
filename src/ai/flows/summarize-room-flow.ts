@@ -25,7 +25,7 @@ export type SummarizeRoomInput = z.infer<typeof SummarizeRoomInputSchema>;
 
 const ParticipantSchema = z.object({
     name: z.string().describe("The participant's display name."),
-    email: z.string().email().describe("The participant's email address."),
+    email: z.string().describe("The participant's email address."),
 });
 
 const SummarizeRoomOutputSchema = z.object({
