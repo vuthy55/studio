@@ -129,31 +129,43 @@ const summarizeRoomFlow = ai.defineFlow(
       throw new Error(`Room with ID ${roomId} not found.`);
     }
 
+    // 2. Prepare data for the prompt
     const roomData = roomSnap.data()!;
     const messages = messagesSnap.docs.map(doc => doc.data() as RoomMessage);
-    const presentParticipantsData = participantsSnap.docs.map(doc => doc.data() as Participant);
-
-    // 2. Prepare data for the prompt
+    const presentParticipantDocs = participantsSnap.docs.map(doc => doc.data() as Participant);
+    
     const transcript = messages.map(msg => `${msg.speakerName}: ${msg.text}`).join('\n');
     
-    const presentParticipants = presentParticipantsData.map(p => ({ name: p.name, email: p.email }));
-    const presentEmails = new Set(presentParticipants.map(p => p.email));
-    
-    // Create a map of email to name for all invited people for easy lookup
-    const allInvitedPeopleMap = new Map<string, string>();
-    roomData.invitedEmails.forEach((email: string) => {
-        // A user might be invited but not have a formal name yet if they haven't joined anything.
-        // Fallback to a generic name based on their email.
-        allInvitedPeopleMap.set(email, email.split('@')[0]);
+    // Fetch all invited user profiles to get accurate names and emails
+    const usersRef = db.collection('users');
+    const invitedUsersQuery = usersRef.where('email', 'in', roomData.invitedEmails);
+    const invitedUsersSnap = await invitedUsersQuery.get();
+    const allInvitedUsersMap = new Map<string, { name: string; email: string }>();
+    invitedUsersSnap.forEach(doc => {
+        const userData = doc.data();
+        allInvitedUsersMap.set(userData.email, { name: userData.name, email: userData.email });
     });
-    // Add any present participants to the map to ensure we have their most up-to-date name
-    presentParticipants.forEach(p => allInvitedPeopleMap.set(p.email, p.name));
 
-    const absentParticipants = Array.from(allInvitedPeopleMap.entries())
-        .filter(([email, name]) => !presentEmails.has(email))
-        .map(([email, name]) => ({ name, email }));
+    // Add any present participants who might not have been in the original invite list (e.g., creator)
+     presentParticipantDocs.forEach(p => {
+        if (!allInvitedUsersMap.has(p.email)) {
+             allInvitedUsersMap.set(p.email, { name: p.name, email: p.email });
+        }
+    });
 
-    // 3. Generate the summary using the AI prompt
+    const presentEmails = new Set(presentParticipantDocs.map(p => p.email));
+    
+    const presentParticipants: ParticipantSchema[] = [];
+    const absentParticipants: ParticipantSchema[] = [];
+
+    allInvitedUsersMap.forEach((user, email) => {
+        if (presentEmails.has(email)) {
+            presentParticipants.push(user);
+        } else {
+            absentParticipants.push(user);
+        }
+    });
+
     const promptData = {
       transcript,
       presentParticipants,
@@ -166,7 +178,9 @@ const summarizeRoomFlow = ai.defineFlow(
 
     let output;
     try {
-      const primaryResult = await summarizeRoomPrompt(promptData, {
+      const primaryResult = await ai.generate({
+        prompt: summarizeRoomPrompt,
+        input: promptData,
         ...promptConfig,
         model: 'googleai/gemini-1.5-flash-latest'
       });
@@ -174,7 +188,9 @@ const summarizeRoomFlow = ai.defineFlow(
     } catch (error: any) {
       if (error.message && (error.message.includes('503') || /overloaded/i.test(error.message))) {
         console.warn('SummarizeRoomFlow: Primary model overloaded, switching to fallback.');
-        const fallbackResult = await summarizeRoomPrompt(promptData, {
+        const fallbackResult = await ai.generate({
+           prompt: summarizeRoomPrompt,
+           input: promptData,
            ...promptConfig,
            model: 'googleai/gemini-2.0-flash'
         });
