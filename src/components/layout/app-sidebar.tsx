@@ -126,13 +126,6 @@ export function AppSidebar() {
                   </Link>
               </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/test-autodetect'}>
-                <Link href="/test-autodetect" onClick={closeSidebar}>
-                    <RadioTower /> Test Auto-Detect
-                </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
 
         </SidebarMenu>
       </SidebarContent>
