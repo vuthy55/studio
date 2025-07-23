@@ -330,6 +330,7 @@ export default function SyncRoomPage() {
     }, [user, roomId, handleSyncOnlineSessionEnd]);
     
     const handleManualExit = async () => {
+        if (isExiting.current) return;
         await handleExitRoom();
         router.push('/?tab=sync-online');
     };
@@ -397,7 +398,7 @@ export default function SyncRoomPage() {
     }, [participants, isParticipant, participantsLoading, user, toast, handleExitRoom]);
 
     useEffect(() => {
-        if (!roomData || !user) return;
+        if (!roomData || !user || isExiting.current) return;
         if (roomData.status === 'closed') {
             toast({
                 title: 'Meeting Ended',
@@ -415,7 +416,8 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    }, [roomData, user, toast, handleManualExit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roomData, user]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -489,8 +491,9 @@ export default function SyncRoomPage() {
     }, [handleExitRoom]);
 
     const handleEndMeeting = async () => {
-        if (!isCurrentUserEmcee) return;
+        if (!isCurrentUserEmcee || isExiting.current) return;
         try {
+            await handleExitRoom();
             await updateDoc(doc(db, 'syncRooms', roomId), {
                 status: 'closed',
                 lastActivityAt: serverTimestamp(),
@@ -912,5 +915,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
