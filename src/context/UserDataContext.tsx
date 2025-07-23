@@ -327,7 +327,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const handleSyncOnlineSessionEnd = useCallback(async (durationMs: number) => {
         if (!user || !settings) return;
 
-        const batch = writeBatch(db);
         const userDocRef = doc(db, 'users', user.uid);
         
         // Fetch the latest user profile to ensure data is current
@@ -338,7 +337,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         let { syncOnlineUsage = 0, syncOnlineUsageLastReset, tokenBalance = 0 } = currentProfile;
         
         const now = new Date();
-        const lastReset = syncOnlineUsageLastReset?.toDate() ?? now;
+        const lastReset = syncOnlineUsageLastReset?.toDate() ?? new Date(0); // If never reset, use epoch
 
         // Reset usage if it's a new month
         if (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
@@ -359,13 +358,17 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             cost = tokenBalance; // Don't charge more than they have
         }
         
+        const batch = writeBatch(db);
+
         // Update payload for Firestore
         const updatePayload: Record<string, any> = {
             syncOnlineUsage: increment(durationMs)
         };
-        if (syncOnlineUsageLastReset) {
+        // Only set the reset date if it's a new month
+        if (syncOnlineUsage === 0) {
             updatePayload.syncOnlineUsageLastReset = syncOnlineUsageLastReset;
         }
+
         if (cost > 0) {
             updatePayload.tokenBalance = increment(-cost);
         }
@@ -391,6 +394,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 ...p,
                 tokenBalance: (p.tokenBalance || 0) - cost,
                 syncOnlineUsage: (p.syncOnlineUsage || 0) + durationMs,
+                syncOnlineUsageLastReset: syncOnlineUsageLastReset
             }));
         } catch (error) {
             console.error("Error committing Sync Online session end transaction:", error);
