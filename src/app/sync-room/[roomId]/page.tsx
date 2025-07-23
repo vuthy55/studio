@@ -211,7 +211,7 @@ export default function SyncRoomPage() {
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const isExiting = useRef(isExiting: false);
+    const isExiting = useRef(false);
 
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -957,6 +957,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
-    
