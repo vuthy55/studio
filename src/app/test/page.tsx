@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useState, useMemo, useCallback } from 'react';
-import { LoaderCircle, Trash2, Banknote, PlusCircle, MinusCircle, DollarSign, ExternalLink } from 'lucide-react';
+import { LoaderCircle, Trash2, Banknote, PlusCircle, MinusCircle, DollarSign, ExternalLink, Search } from 'lucide-react';
 import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -16,12 +16,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms } from '@/actions/room';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { getTokenAnalytics, getTokenLedger, type TokenAnalytics, type TokenLedgerEntry, getFinancialLedger, getLedgerAnalytics, type FinancialLedgerEntry } from '@/services/ledger';
+import { getTokenAnalytics, getTokenLedger, type TokenAnalytics, type TokenLedgerEntry, getFinancialLedger, getLedgerAnalytics, type FinancialLedgerEntry, searchUsers } from '@/services/ledger';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
+import type { UserProfile } from '../profile/page';
 
 function RoomTrackingTest() {
   const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
@@ -431,6 +432,74 @@ function FinancialLedgerTest() {
      )
 }
 
+function UserSearchTest() {
+    const { toast } = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [results, setResults] = useState<(UserProfile & {id: string})[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setResults([]);
+        try {
+            const users = await searchUsers(searchTerm);
+            setResults(users);
+             if (users.length === 0) {
+                toast({ title: 'No Results', description: 'No users found matching your search term.' });
+            }
+        } catch (error: any) {
+            console.error("Error searching users:", error);
+            toast({ variant: 'destructive', title: 'Search Error', description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+                <CardTitle>Server-Side User Search Test</CardTitle>
+                <CardDescription>
+                    Test the server-side `searchUsers` function. This verifies the logic before it's moved into the main Admin Dashboard.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <form onSubmit={handleSearch} className="flex gap-2">
+                    <Input 
+                        placeholder="Search by name or email..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Button type="submit" disabled={isLoading || !searchTerm}>
+                         {isLoading ? <LoaderCircle className="animate-spin" /> : <Search />}
+                    </Button>
+                </form>
+                {results.length > 0 && (
+                     <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Email</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {results.map(user => (
+                                    <TableRow key={user.id}>
+                                        <TableCell>{user.name}</TableCell>
+                                        <TableCell>{user.email}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function TestPage() {
   const [user] = useAuthState(auth);
   const [name, setName] = useState('programmers');
@@ -463,6 +532,7 @@ export default function TestPage() {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
+      <UserSearchTest />
       <FinancialLedgerTest />
       <TokenAnalyticsTest />
       <RoomTrackingTest />
@@ -521,7 +591,7 @@ export default function TestPage() {
         <CardHeader>
           <CardTitle>Available AI Models</CardTitle>
           <CardDescription>This is a list of known compatible models for this app.</CardDescription>
-        </CardHeader>
+        </Header>
         <CardContent>
           <ul className="list-disc pl-5 space-y-1 bg-secondary p-4 rounded-md">
             {models.map((model) => (
@@ -533,5 +603,3 @@ export default function TestPage() {
     </div>
   );
 }
-
-    

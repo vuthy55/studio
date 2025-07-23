@@ -4,6 +4,7 @@
 import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 import type { TransactionLog } from '@/lib/types';
+import type { UserProfile } from '@/app/profile/page';
 
 
 export interface FinancialLedgerEntry {
@@ -101,6 +102,62 @@ export async function findUserByEmail(email: string): Promise<{id: string, email
     const userDoc = snapshot.docs[0];
     return { id: userDoc.id, email: userDoc.data().email };
 }
+
+/**
+ * Searches for users by name or email. This is a server-side function.
+ * @param {string} searchTerm The term to search for.
+ * @returns {Promise<UserProfile[]>} A list of matching user profiles.
+ */
+export async function searchUsers(searchTerm: string): Promise<(UserProfile & {id: string})[]> {
+    const normalizedSearch = searchTerm.toLowerCase().trim();
+    if (!normalizedSearch) {
+        return [];
+    }
+
+    const usersRef = collection(db, 'users');
+    
+    // Query for email
+    const emailQuery = query(usersRef, 
+        where("searchableEmail", ">=", normalizedSearch),
+        where("searchableEmail", "<=", normalizedSearch + '\uf8ff')
+    );
+    
+    // Query for name
+    const nameQuery = query(usersRef,
+        where("searchableName", ">=", normalizedSearch),
+        where("searchableName", "<=", normalizedSearch + '\uf8ff')
+    );
+    
+    try {
+        const [emailSnapshot, nameSnapshot] = await Promise.all([
+            getDocs(emailQuery),
+            getDocs(nameQuery),
+        ]);
+
+        const foundUsersMap = new Map<string, UserProfile & {id: string}>();
+
+        const processSnapshot = (snapshot: any) => {
+             snapshot.docs.forEach((doc: any) => {
+                if (!foundUsersMap.has(doc.id)) {
+                    foundUsersMap.set(doc.id, { id: doc.id, ...doc.data() });
+                }
+            });
+        }
+
+        processSnapshot(emailSnapshot);
+        processSnapshot(nameSnapshot);
+        
+        return Array.from(foundUsersMap.values());
+
+    } catch (error: any) {
+        console.error("Error in searchUsers:", error);
+        if (error.code === 'failed-precondition') {
+             throw new Error("A Firestore index is required for user search. Please check the browser console for a link to create it.");
+        }
+        throw new Error("Could not fetch users due to a server error.");
+    }
+}
+
 
 /**
  * Fetches and calculates token analytics using a collectionGroup query.
