@@ -236,7 +236,9 @@ export default function SyncRoomPage() {
     }, [participants, user]);
 
     const isCurrentUserEmcee = useMemo(() => {
-        return user?.email && roomData?.emceeEmails?.includes(user.email);
+        if (!user || !roomData) return false;
+        // The creator is always an emcee. Also check the emceeEmails list.
+        return roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
     }, [user, roomData]);
 
     const freeMinutesRemaining = useMemo(() => {
@@ -493,7 +495,10 @@ export default function SyncRoomPage() {
 
     const handleEndMeeting = async () => {
         console.log('[DEBUG] handleEndMeeting called.');
-        if (!isCurrentUserEmcee || isExiting.current) return;
+        if (!isCurrentUserEmcee || isExiting.current) {
+             console.log(`[DEBUG] handleEndMeeting aborted. isEmcee: ${isCurrentUserEmcee}, isExiting: ${isExiting.current}`);
+             return;
+        }
         try {
             await handleExitRoom();
             const result = await softDeleteRoom(roomId);
@@ -848,7 +853,7 @@ export default function SyncRoomPage() {
                                     <DialogHeader>
                                         <DialogTitle>End Meeting for All?</DialogTitle>
                                         <DialogDescription>
-                                            Choose how you want to end this meeting. This will close the room for all participants.
+                                            This will close the room for all participants.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <DialogFooter className="sm:justify-end gap-2 pt-4">
@@ -856,7 +861,7 @@ export default function SyncRoomPage() {
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <DialogClose asChild>
-                                                        <Button type="button" variant="secondary">Cancel</Button>
+                                                        <Button type="button" variant="ghost">Cancel</Button>
                                                     </DialogClose>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
@@ -885,7 +890,7 @@ export default function SyncRoomPage() {
                                                     <Button type="button" disabled>Summary</Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p>Generate an AI summary, then end the meeting.</p>
+                                                    <p>Generate an AI summary, then end the meeting. (Coming soon)</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
@@ -952,3 +957,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
