@@ -77,9 +77,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const fetchUserProfile = useCallback(async () => {
-        if (!auth.currentUser || isLoggingOut.current) {
-            return;
-        }
+        // This final guard is the ultimate safety net.
+        if (!auth.currentUser) return;
         
         try {
             console.log("[DEBUG] UserDataContext: fetchUserProfile running for user:", auth.currentUser.uid);
@@ -96,9 +95,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, [setUserProfile]);
 
     const fetchPracticeHistory = useCallback(async () => {
-         if (!auth.currentUser) {
-             return;
-         }
+         if (!auth.currentUser) return;
         try {
             const historyCollectionRef = collection(db, 'users', auth.currentUser.uid, 'practiceHistory');
             const historySnapshot = await getDocs(historyCollectionRef);
@@ -114,7 +111,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     useEffect(() => {
         const fetchAllData = async () => {
-            if (user && !isLoggingOut.current) {
+             if (user && !isLoggingOut.current) {
                 console.log("[DEBUG] UserDataContext: User detected, fetching data.");
                 setLoading(true);
                 await fetchUserProfile();
@@ -219,6 +216,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setSyncLiveUsage(0);
         
         isLoggingOut.current = false;
+        console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
     }, [debouncedCommitToFirestore, setUserProfile, setPracticeHistory]);
 
     const updateSyncLiveUsage = useCallback((durationMs: number): number => {
