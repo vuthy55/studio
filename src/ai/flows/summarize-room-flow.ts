@@ -105,6 +105,9 @@ Based on the transcript and context, generate the following:
 
 Ensure the output is in the requested JSON format.
 `,
+    config: {
+        temperature: 0.3,
+    }
 });
 
 
@@ -163,19 +166,20 @@ const summarizeRoomFlow = ai.defineFlow(
 
     let output;
     try {
-      const { output: primaryOutput } = await ai.generate({
-        prompt: summarizeRoomPrompt,
-        input: promptData,
-        model: 'googleai/gemini-1.5-flash-latest'
-      });
+      // Call the prompt function directly
+      const { output: primaryOutput } = await summarizeRoomPrompt(promptData);
       output = primaryOutput;
     } catch (error: any) {
       if (error.message && (error.message.includes('503') || /overloaded/i.test(error.message))) {
         console.warn('SummarizeRoomFlow: Primary model overloaded, switching to fallback.');
         const { output: fallbackOutput } = await ai.generate({
-           prompt: summarizeRoomPrompt,
+           prompt: summarizeRoomPrompt.prompt, // Use the raw prompt string for the generic generate call
            input: promptData,
-           model: 'googleai/gemini-2.0-flash'
+           output: { schema: SummarizeRoomOutputSchema },
+           model: 'googleai/gemini-1.5-flash',
+           config: {
+                temperature: 0.3
+           }
         });
         output = fallbackOutput;
       } else {
@@ -190,5 +194,3 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
