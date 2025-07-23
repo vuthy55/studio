@@ -78,19 +78,17 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         if (!editableSummary) return [];
         const langSet = new Set<string>();
         
-        // Combine present and absent participants to get all possible languages
         const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
 
         allParticipants.forEach(p => {
-            // The 'language' field from the summary is the Azure format, e.g., "English (United States)"
-            // We need to find our internal language code, e.g., "english"
-            const lang = languages.find(l => l.label.toLowerCase() === p.language.split(' ')[0].toLowerCase());
-            if (lang) {
-                langSet.add(lang.value);
+            if (p.language && typeof p.language === 'string') {
+                const lang = languages.find(l => l.label.toLowerCase() === p.language.split(' ')[0].toLowerCase());
+                if (lang) {
+                    langSet.add(lang.value);
+                }
             }
         });
 
-        // Convert the set of language codes back to full language objects
         return Array.from(langSet).map(value => languages.find(l => l.value === value)!);
     }, [editableSummary]);
 
