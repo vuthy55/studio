@@ -11,7 +11,78 @@ import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { assessPronunciationFromMic, type PronunciationAssessmentResult } from '@/services/speech';
+import { getAzureVoices } from '@/actions/azure';
+import type { VoiceInfo } from '@/actions/azure';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
+
+function AzureVoicesTest() {
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFetchVoices = async () => {
+    setError('');
+    setVoices([]);
+    setIsLoading(true);
+    try {
+      const fetchedVoices = await getAzureVoices();
+      setVoices(fetchedVoices);
+    } catch (e: any) {
+      console.error('Error fetching Azure voices:', e);
+      setError(e.message || 'An unknown error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Azure Endpoint Service Inquiry</CardTitle>
+        <CardDescription>
+          Click the button to fetch a list of all available Text-to-Speech voices from your configured Azure region. This verifies the endpoint connection and shows available services.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={handleFetchVoices} disabled={isLoading} className="w-full">
+          {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch Azure Voices'}
+        </Button>
+       
+        {error && (
+          <div className="p-4 bg-destructive/20 text-destructive rounded-md">
+            <p className="font-semibold">Error:</p>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {voices.length > 0 && (
+          <ScrollArea className="h-72 w-full rounded-md border">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Language</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Gender</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {voices.map(voice => (
+                        <TableRow key={voice.name}>
+                            <TableCell>{voice.locale}</TableCell>
+                            <TableCell>{voice.name}</TableCell>
+                            <TableCell>{voice.gender}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 function SpeechAssessmentTest() {
   const [result, setResult] = useState<PronunciationAssessmentResult | null>(null);
@@ -146,6 +217,8 @@ const TestPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <AzureVoicesTest />
 
       <SpeechAssessmentTest />
 
