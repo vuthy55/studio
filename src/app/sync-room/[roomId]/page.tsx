@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp, getDoc } from 'firebase/firestore';
 
@@ -232,10 +233,43 @@ export default function SyncRoomPage() {
     }, [user, isExiting, roomId, router, toast, handleSyncOnlineSessionEnd]);
     
     // This is called ONLY after the user clicks "Join" on the setup screen.
-    const handleJoin = useCallback(() => {
-        console.log("[DEBUG] User has explicitly joined. Setting session start time.");
+    const handleJoin = useCallback((joinTimestamp: Timestamp) => {
+        if (messageListenerUnsubscribe.current) {
+            console.log("[DEBUG] handleJoin called, but listener is already active. Aborting.");
+            return;
+        }
+        console.log("[DEBUG] handleJoin called. Current listener status: Inactive");
         sessionStartTime.current = Date.now();
-    }, []);
+        console.log("[DEBUG] Proceeding to join room and set up listener.");
+        setMessagesLoading(true);
+
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'), 
+            where("createdAt", ">", joinTimestamp)
+        );
+        
+        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+            console.log("[DEBUG] Message snapshot received with", snapshot.docChanges().length, "changes.");
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+
+            if (newMessages.length > 0) {
+                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
+            }
+            setMessagesLoading(false);
+        }, (error) => {
+            console.error("Error listening to messages:", error);
+            setMessagesLoading(false);
+            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+        });
+        
+        messageListenerUnsubscribe.current = unsubscribe;
+        console.log("[DEBUG] Message listener attached successfully.");
+    }, [roomId, toast]);
 
     // Effect 1: Listen for participants
     useEffect(() => {
@@ -257,58 +291,6 @@ export default function SyncRoomPage() {
             };
         }
     }, [user, roomId]);
-
-    // Effect 2: Listen for messages, DEPENDS on a valid currentUserParticipant
-    useEffect(() => {
-        if (!currentUserParticipant?.joinedAt) {
-            console.log("[DEBUG] Effect 2: Skipping message listener, currentUserParticipant not ready.");
-            return;
-        }
-
-        // Prevent setting up multiple listeners
-        if (messageListenerUnsubscribe.current) {
-             console.log("[DEBUG] Effect 2: Message listener already active, skipping setup.");
-             return;
-        }
-
-        console.log("[DEBUG] Effect 2: Participant is ready. Setting up message listener.");
-        setMessagesLoading(true);
-
-        const messagesQuery = query(
-            collection(db, 'syncRooms', roomId, 'messages'), 
-            where("createdAt", ">", currentUserParticipant.joinedAt)
-        );
-        
-        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-            console.log("[DEBUG] Effect 2: Received message snapshot with", snapshot.docChanges().length, "changes.");
-            const newMessages: RoomMessage[] = [];
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-                }
-            });
-
-            if (newMessages.length > 0) {
-                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
-            }
-            setMessagesLoading(false);
-        }, (error) => {
-            console.error("[DEBUG] Effect 2: Error listening to messages:", error);
-            setMessagesLoading(false);
-            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
-        });
-        
-        messageListenerUnsubscribe.current = unsubscribe;
-        console.log("[DEBUG] Effect 2: Message listener attached successfully.");
-        
-        return () => {
-            console.log("[DEBUG] Effect 2: Cleaning up message listener.");
-            if (messageListenerUnsubscribe.current) {
-                messageListenerUnsubscribe.current();
-                messageListenerUnsubscribe.current = null;
-            }
-        };
-    }, [currentUserParticipant, roomId, toast]);
     
     // Listen for mute status
     useEffect(() => {
