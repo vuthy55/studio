@@ -23,11 +23,16 @@ const SummarizeRoomInputSchema = z.object({
 export type SummarizeRoomInput = z.infer<typeof SummarizeRoomInputSchema>;
 
 
+const ParticipantSchema = z.object({
+    name: z.string().describe("The participant's display name."),
+    email: z.string().email().describe("The participant's email address."),
+});
+
 const SummarizeRoomOutputSchema = z.object({
   title: z.string().describe('A short, descriptive title for the meeting summary.'),
   date: z.string().describe('The date of the meeting in YYYY-MM-DD format.'),
-  presentParticipants: z.array(z.string()).describe('List of names of participants who were present.'),
-  absentParticipants: z.array(z.string()).describe('List of emails of participants who were invited but absent.'),
+  presentParticipants: z.array(ParticipantSchema).describe('List of participants who were present.'),
+  absentParticipants: z.array(ParticipantSchema).describe('List of participants who were invited but absent.'),
   summary: z.string().describe('A detailed, multi-paragraph summary of the meeting discussion.'),
   actionItems: z.array(z.object({
     task: z.string().describe('A specific action item or task identified during the meeting.'),
@@ -69,8 +74,8 @@ const summarizeRoomPrompt = ai.definePrompt({
   input: {
     schema: z.object({
       transcript: z.string(),
-      presentParticipantNames: z.array(z.string()),
-      absentParticipantEmails: z.array(z.string()),
+      presentParticipants: z.array(ParticipantSchema),
+      absentParticipants: z.array(ParticipantSchema),
     }),
   },
   output: {
@@ -80,8 +85,8 @@ const summarizeRoomPrompt = ai.definePrompt({
 
 CONTEXT:
 - The meeting was held on {{currentDate}}.
-- Participants present: {{{presentParticipantNames}}}.
-- Participants absent: {{{absentParticipantEmails}}}.
+- Participants present: {{#each presentParticipants}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
+- Participants absent: {{#each absentParticipants}}{{this.name}} ({{this.email}}){{#unless @last}}, {{/unless}}{{/each}}.
 
 TRANSCRIPT:
 {{{transcript}}}
@@ -89,8 +94,11 @@ TRANSCRIPT:
 INSTRUCTIONS:
 Based on the transcript and context, generate the following:
 1.  **Title**: A brief, descriptive title for the meeting.
-2.  **Summary**: A detailed, multi-paragraph summary covering the key discussion points, decisions made, and overall outcomes.
-3.  **Action Items**: A list of clear, actionable tasks. For each task, identify the person in charge and any mentioned due dates.
+2.  **Date**: The date of the meeting in YYYY-MM-DD format.
+3.  **Present Participants**: An array of objects for each person who attended, with their name and email.
+4.  **Absent Participants**: An array of objects for each person who was invited but did not attend, with their name and email.
+5.  **Summary**: A detailed, multi-paragraph summary covering the key discussion points, decisions made, and overall outcomes.
+6.  **Action Items**: A list of clear, actionable tasks. For each task, identify the person in charge and any mentioned due dates.
 
 Ensure the output is in the requested JSON format.
 `,
@@ -123,32 +131,41 @@ const summarizeRoomFlow = ai.defineFlow(
 
     const roomData = roomSnap.data()!;
     const messages = messagesSnap.docs.map(doc => doc.data() as RoomMessage);
-    const presentParticipants = participantsSnap.docs.map(doc => doc.data() as Participant);
+    const presentParticipantsData = participantsSnap.docs.map(doc => doc.data() as Participant);
 
     // 2. Prepare data for the prompt
     const transcript = messages.map(msg => `${msg.speakerName}: ${msg.text}`).join('\n');
-    const presentParticipantNames = presentParticipants.map(p => p.name);
-    const presentParticipantEmails = new Set(presentParticipants.map(p => p.email));
     
-    // Correctly identify absent participants
-    const allInvitedEmails = new Set(roomData.invitedEmails || []);
-    const absentParticipantEmails = Array.from(allInvitedEmails).filter(email => !presentParticipantEmails.has(email));
+    const presentParticipants = presentParticipantsData.map(p => ({ name: p.name, email: p.email }));
+    const presentEmails = new Set(presentParticipants.map(p => p.email));
     
+    // Create a map of email to name for all invited people for easy lookup
+    const allInvitedPeopleMap = new Map<string, string>();
+    roomData.invitedEmails.forEach((email: string) => {
+        // A user might be invited but not have a formal name yet if they haven't joined anything.
+        // Fallback to a generic name based on their email.
+        allInvitedPeopleMap.set(email, email.split('@')[0]);
+    });
+    // Add any present participants to the map to ensure we have their most up-to-date name
+    presentParticipants.forEach(p => allInvitedPeopleMap.set(p.email, p.name));
+
+    const absentParticipants = Array.from(allInvitedPeopleMap.entries())
+        .filter(([email, name]) => !presentEmails.has(email))
+        .map(([email, name]) => ({ name, email }));
+
     // 3. Generate the summary using the AI prompt
     const promptData = {
       transcript,
-      presentParticipantNames,
-      absentParticipantEmails,
+      presentParticipants,
+      absentParticipants,
     };
     
-    // Use the custom field in the prompt call instead of pre-formatting the prompt string
     const promptConfig = {
       custom: { currentDate: new Date().toISOString().split('T')[0] }
     };
 
     let output;
     try {
-      // First attempt with the primary model
       const primaryResult = await summarizeRoomPrompt(promptData, {
         ...promptConfig,
         model: 'googleai/gemini-1.5-flash-latest'
@@ -174,3 +191,5 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

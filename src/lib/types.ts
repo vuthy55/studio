@@ -7,6 +7,11 @@ export interface BlockedUser {
     email: string;
 }
 
+export type SummaryParticipant = {
+    name: string;
+    email: string;
+}
+
 export type SyncRoom = {
     id: string;
     topic: string;
@@ -21,8 +26,8 @@ export type SyncRoom = {
     summary?: {
         title: string;
         date: string;
-        presentParticipants: string[];
-        absentParticipants: string[];
+        presentParticipants: SummaryParticipant[];
+        absentParticipants: SummaryParticipant[];
         summary: string;
         actionItems: { task: string; personInCharge?: string; dueDate?: string }[];
     };
@@ -62,3 +67,5 @@ export type PaymentLog = {
     tokensPurchased: number;
     createdAt: FieldValue;
 }
+
+    

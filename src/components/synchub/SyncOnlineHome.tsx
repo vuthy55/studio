@@ -139,9 +139,15 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
             content += `   - Assigned to: ${item.personInCharge || 'N/A'}\n`;
             content += `   - Due: ${item.dueDate || 'N/A'}\n`;
         });
-        content += `\nParticipants:\n`;
-        content += `  Present: ${editableSummary.presentParticipants.join(', ')}\n`;
-        content += `  Absent: ${editableSummary.absentParticipants.join(', ')}\n`;
+        content += `\nParticipants Present:\n`;
+        editableSummary.presentParticipants.forEach(p => {
+             content += `- ${p.name} (${p.email})\n`;
+        });
+        content += `\nParticipants Absent:\n`;
+         editableSummary.absentParticipants.forEach(p => {
+             content += `- ${p.name} (${p.email})\n`;
+        });
+
 
         const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -251,20 +257,50 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                         </Table>
                     </div>
                     
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                         <h3 className="font-semibold text-lg">Participants</h3>
-                        <div className="flex gap-8 text-sm">
-                             <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
                                 <h4 className="font-medium flex items-center gap-1.5 text-green-600"><UserCheck/> Present</h4>
-                                <ul className="list-disc pl-5 mt-1">
-                                    {editableSummary.presentParticipants.map((p, i) => <li key={i}>{p}</li>)}
-                                </ul>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[30px]">#</TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Email</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {editableSummary.presentParticipants.map((p, i) => (
+                                            <TableRow key={p.email}>
+                                                <TableCell>{i + 1}</TableCell>
+                                                <TableCell>{p.name}</TableCell>
+                                                <TableCell>{p.email}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </div>
-                             <div>
+                             <div className="space-y-2">
                                 <h4 className="font-medium flex items-center gap-1.5 text-red-600"><UserX/> Absent</h4>
-                                <ul className="list-disc pl-5 mt-1">
-                                    {editableSummary.absentParticipants.map((p, i) => <li key={i}>{p}</li>)}
-                                </ul>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[30px]">#</TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Email</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {editableSummary.absentParticipants.map((p, i) => (
+                                            <TableRow key={p.email}>
+                                                <TableCell>{i + 1}</TableCell>
+                                                <TableCell>{p.name}</TableCell>
+                                                <TableCell>{p.email}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
                     </div>
@@ -727,3 +763,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
