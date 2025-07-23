@@ -149,6 +149,9 @@ export default function SyncRoomPage() {
     const [messages, setMessages] = useState<RoomMessage[]>([]);
     const [messagesLoading, setMessagesLoading] = useState(true);
     const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+    
+    // Tracks if the current user is a participant. 'unknown' initially, then 'yes' or 'no'.
+    const [isParticipant, setIsParticipant] = useState<'unknown' | 'yes' | 'no'>('unknown');
 
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
@@ -234,9 +237,9 @@ export default function SyncRoomPage() {
 
         console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
         setMessagesLoading(true);
-        // Query for messages created *after* the user joined the room.
         const messagesQuery = query(
             collection(db, 'syncRooms', roomId, 'messages'),
+            orderBy("createdAt"),
             where("createdAt", ">=", joinTimestamp)
         );
 
@@ -269,6 +272,7 @@ export default function SyncRoomPage() {
 
     const onJoinSuccess = useCallback((joinTime: Timestamp) => {
         console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
+        setIsParticipant('yes');
         sessionStartTime.current = Date.now();
         setupMessageListener(joinTime);
 
@@ -325,7 +329,7 @@ export default function SyncRoomPage() {
         router.push('/?tab=sync-online');
     };
 
-    // Effect to listen for participants
+    // Effect to listen for participants and determine join status
     useEffect(() => {
         if (!user || roomLoading) return;
         
@@ -334,20 +338,20 @@ export default function SyncRoomPage() {
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             console.log(`[DEBUG] Participant Listener: Snapshot received. Found ${parts.length} participants.`);
-            
-            const self = parts.find(p => p.uid === user.uid);
-            // This is the key logic: If the user is a participant AND the message listener isn't running yet, start it.
-            // This handles both initial joins (after SetupScreen) and rejoins (on page load).
-            if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
-                 console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess.`);
-                 onJoinSuccess(self.joinedAt);
-            } else if (!self) {
-                 console.log(`[DEBUG] Participant Listener: Current user is NOT yet a participant.`);
-            }
-            
             setParticipants(parts);
             setParticipantsLoading(false);
-
+            
+            const self = parts.find(p => p.uid === user.uid);
+            // This is the key logic for re-entry:
+            // If the user is a participant AND we haven't determined their status yet ('unknown'),
+            // it means they've rejoined. We can safely start the message listener.
+            if (self && self.joinedAt && isParticipant === 'unknown') {
+                 console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.`);
+                 onJoinSuccess(self.joinedAt);
+            } else if (!self && isParticipant !== 'no') {
+                 console.log(`[DEBUG] Participant Listener: Current user is NOT a participant. Showing setup screen.`);
+                 setIsParticipant('no');
+            }
         }, (error) => {
             console.error("[DEBUG] Participant Listener: Firestore error!", error);
             setParticipantsLoading(false);
@@ -357,7 +361,7 @@ export default function SyncRoomPage() {
             console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
-    }, [user, roomId, roomLoading, onJoinSuccess]);
+    }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
     
     
     useEffect(() => {
@@ -377,7 +381,7 @@ export default function SyncRoomPage() {
     
         const isStillParticipant = participants.some(p => p.uid === user.uid);
         
-        if (currentUserParticipant && !isStillParticipant) {
+        if (isParticipant === 'yes' && !isStillParticipant) {
              console.log('[DEBUG] User is no longer in participant list. Exiting.');
              toast({
                 variant: 'destructive',
@@ -387,7 +391,7 @@ export default function SyncRoomPage() {
             });
             handleExitRoom();
         }
-    }, [participants, currentUserParticipant, participantsLoading, user, toast, handleExitRoom]);
+    }, [participants, isParticipant, participantsLoading, user, toast, handleExitRoom]);
 
     useEffect(() => {
         if (!roomData || !user) return;
@@ -602,7 +606,7 @@ export default function SyncRoomPage() {
         }
     };
 
-    if (authLoading || roomLoading || participantsLoading) {
+    if (authLoading || roomLoading || participantsLoading || isParticipant === 'unknown') {
         return <div className="flex h-screen items-center justify-center"><LoaderCircle className="h-10 w-10 animate-spin" /></div>;
     }
 
@@ -615,8 +619,9 @@ export default function SyncRoomPage() {
     if (!roomData) {
         return <div className="flex h-screen items-center justify-center"><p>Room not found.</p></div>;
     }
-
-    if (user && !currentUserParticipant) {
+    
+    // If user is not a participant, show the setup screen.
+    if (user && isParticipant === 'no') {
         return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoinSuccess={onJoinSuccess} />;
     }
 
