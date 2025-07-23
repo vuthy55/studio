@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2 } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -970,7 +970,7 @@ function RoomsTabContent() {
                         <AlertDialogHeader>
                             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s) and all associated data (participants, messages).
+                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s) and all associated data (participants, messages). Rooms with summaries will also be deleted.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -1016,7 +1016,7 @@ function RoomsTabContent() {
                                         <label htmlFor={`cb-active-${room.id}`} className="font-medium">{room.topic}</label>
                                     </TableCell>
                                     <TableCell className="p-2 text-right">
-                                        <Badge variant="default">Active</Badge>
+                                        <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -1049,7 +1049,14 @@ function RoomsTabContent() {
                                      <label htmlFor={`cb-closed-${room.id}`} className="font-medium">{room.topic}</label>
                                 </TableCell>
                                 <TableCell className="p-2 text-right">
-                                    <Badge variant="destructive">Closed</Badge>
+                                    {room.summary ? (
+                                        <Badge variant="secondary" className="flex items-center gap-1">
+                                            <FileText className="h-3 w-3" />
+                                            Summary
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="destructive">Closed</Badge>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
