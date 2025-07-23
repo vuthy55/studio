@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp, getDoc } from 'firebase/firestore';
 
@@ -813,3 +814,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
