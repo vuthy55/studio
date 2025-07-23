@@ -66,7 +66,6 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<Summariz
 
 const summarizeRoomPrompt = ai.definePrompt({
   name: 'summarizeRoomPrompt',
-  model: 'googleai/gemini-1.5-flash-latest',
   input: {
     schema: z.object({
       transcript: z.string(),
@@ -133,14 +132,35 @@ const summarizeRoomFlow = ai.defineFlow(
     const absentParticipantEmails = roomData.invitedEmails.filter((email: string) => !presentParticipantEmails.has(email));
     
     // 3. Generate the summary using the AI prompt
-    const { output } = await summarizeRoomPrompt({
+    const promptData = {
       transcript,
       presentParticipantNames,
       absentParticipantEmails,
-    }, {
-      // Pass the current date to the prompt context, separate from the schema
+    };
+    const promptConfig = {
       custom: { currentDate: new Date().toISOString().split('T')[0] }
-    });
+    };
+
+    let output;
+    try {
+      // First attempt with the primary model
+      const primaryResult = await summarizeRoomPrompt(promptData, {
+        ...promptConfig,
+        model: 'googleai/gemini-1.5-flash-latest'
+      });
+      output = primaryResult.output;
+    } catch (error: any) {
+      if (error.message && (error.message.includes('503') || /overloaded/i.test(error.message))) {
+        console.warn('SummarizeRoomFlow: Primary model overloaded, switching to fallback.');
+        const fallbackResult = await summarizeRoomPrompt(promptData, {
+           ...promptConfig,
+           model: 'googleai/gemini-2.0-flash'
+        });
+        output = fallbackResult.output;
+      } else {
+        throw error;
+      }
+    }
 
     if (!output) {
       throw new Error("Failed to generate a summary from the AI model.");
