@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download } from 'lucide-react';
 import type { SyncRoom } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -117,6 +117,41 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         } finally {
             setIsSaving(false);
         }
+    };
+    
+    const handleShare = () => {
+        const shareLink = `${window.location.origin}/sync-room-summary/${room.id}`;
+        navigator.clipboard.writeText(shareLink);
+        toast({ title: "Link Copied!", description: "A shareable link has been copied to your clipboard." });
+    };
+    
+    const handleDownload = () => {
+        if (!editableSummary) return;
+
+        let content = `Meeting Summary\n`;
+        content += `================\n\n`;
+        content += `Title: ${editableSummary.title}\n`;
+        content += `Date: ${formatDate(editableSummary.date)}\n\n`;
+        content += `Summary:\n${editableSummary.summary}\n\n`;
+        content += `Action Items:\n`;
+        editableSummary.actionItems.forEach((item, index) => {
+            content += `${index + 1}. ${item.task}\n`;
+            content += `   - Assigned to: ${item.personInCharge || 'N/A'}\n`;
+            content += `   - Due: ${item.dueDate || 'N/A'}\n`;
+        });
+        content += `\nParticipants:\n`;
+        content += `  Present: ${editableSummary.presentParticipants.join(', ')}\n`;
+        content += `  Absent: ${editableSummary.absentParticipants.join(', ')}\n`;
+
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${editableSummary.title.replace(/\s+/g, '_')}_summary.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     if (!editableSummary) return null;
@@ -246,6 +281,10 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                         </>
                     ) : (
                          <>
+                             <div className="flex-grow flex gap-2">
+                                <Button variant="secondary" onClick={handleShare}><Share2 className="mr-2 h-4 w-4"/> Share</Button>
+                                <Button variant="secondary" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/> Download</Button>
+                            </div>
                             {isEmcee && <Button variant="secondary" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>}
                             <DialogClose asChild>
                                 <Button variant="outline">Close</Button>
