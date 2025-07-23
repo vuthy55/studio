@@ -45,7 +45,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms } from '@/actions/room';
+import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
@@ -345,7 +345,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     )
 }
 
-function ManageRoomDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () => void }) {
+function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: any; onUpdate: () => void }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [hasCheckedActivity, setHasCheckedActivity] = useState(false);
@@ -353,13 +353,17 @@ function ManageRoomDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () 
     const [isLoading, setIsLoading] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
-    const checkRoomActivity = async () => {
+    const doCheckRoomActivity = async () => {
+        if (!user) return;
         setIsLoading(true);
         try {
-            const messagesRef = collection(db, 'syncRooms', room.id, 'messages');
-            const q = query(messagesRef, limit(1));
-            const snapshot = await getDocs(q);
-            setHasActivity(!snapshot.empty);
+            const result = await checkRoomActivity(room.id, user.uid);
+            if (result.success) {
+                setHasActivity(result.hasActivity ?? false);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+                setHasActivity(false); // Default to safer state on error
+            }
         } catch (error) {
             console.error("Error checking room activity:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not check room activity.' });
@@ -373,7 +377,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () 
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
         if (open && !hasCheckedActivity) {
-            checkRoomActivity();
+            doCheckRoomActivity();
         }
         if (!open) {
             setHasCheckedActivity(false); // Reset for next time
@@ -878,7 +882,7 @@ export default function SyncOnlineHome() {
                                                 )}
 
                                                 {isCreator && room.status !== 'closed' && (
-                                                    <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
+                                                    <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
                                                 )}
                                             </div>
                                         </li>
