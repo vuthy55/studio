@@ -133,6 +133,49 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
 }
 
 
+// Moved outside the component to stabilize its reference
+const setupMessageListener = (
+    roomId: string, 
+    joinTimestamp: Timestamp,
+    setMessagesLoading: (loading: boolean) => void,
+    setMessages: (updater: (prev: RoomMessage[]) => RoomMessage[]) => void,
+    toast: (options: any) => void
+): (() => void) => {
+
+    console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
+    setMessagesLoading(true);
+    const messagesQuery = query(
+        collection(db, 'syncRooms', roomId, 'messages'),
+        orderBy("createdAt"),
+        where("createdAt", ">=", joinTimestamp)
+    );
+
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+        console.log(`[DEBUG] setupMessageListener: Snapshot received with ${snapshot.docChanges().length} changes.`);
+        const newMessages: RoomMessage[] = [];
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+            }
+        });
+
+        if (newMessages.length > 0) {
+             setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a,b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
+        }
+        setMessagesLoading(false);
+    }, (error) => {
+        console.error("[DEBUG] setupMessageListener: Firestore error!", error);
+        setMessagesLoading(false);
+        if (error.code === 'permission-denied') {
+            toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
+        } else {
+            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+        }
+    });
+
+    return unsubscribe;
+};
+
 export default function SyncRoomPage() {
     const params = useParams();
     const router = useRouter();
@@ -165,7 +208,7 @@ export default function SyncRoomPage() {
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
-    const messageListenerUnsubscribe = useRef<() => void | null>(null);
+    const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -229,52 +272,16 @@ export default function SyncRoomPage() {
         return uid === roomData?.creatorUid;
     }, [roomData]);
 
-    const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
+    const onJoinSuccess = useCallback((joinTime: Timestamp) => {
         if (messageListenerUnsubscribe.current) {
-            console.log("[DEBUG] Message listener setup aborted: a listener is already active.");
+            console.log("[DEBUG] onJoinSuccess aborted: a message listener is already active.");
             return;
         }
-
-        console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
-        setMessagesLoading(true);
-        const messagesQuery = query(
-            collection(db, 'syncRooms', roomId, 'messages'),
-            orderBy("createdAt"),
-            where("createdAt", ">=", joinTimestamp)
-        );
-
-        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-            console.log(`[DEBUG] setupMessageListener: Snapshot received with ${snapshot.docChanges().length} changes.`);
-            const newMessages: RoomMessage[] = [];
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-                }
-            });
-
-            if (newMessages.length > 0) {
-                 setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a,b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
-            }
-            setMessagesLoading(false);
-        }, (error) => {
-            console.error("[DEBUG] setupMessageListener: Firestore error!", error);
-            setMessagesLoading(false);
-            if (error.code === 'permission-denied') {
-                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
-            } else {
-                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
-            }
-        });
-
-        messageListenerUnsubscribe.current = unsubscribe;
-    }, [roomId, toast]);
-
-
-    const onJoinSuccess = useCallback((joinTime: Timestamp) => {
         console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
         setIsParticipant('yes');
         sessionStartTime.current = Date.now();
-        setupMessageListener(joinTime);
+        
+        messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
 
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = setInterval(() => {
@@ -286,7 +293,7 @@ export default function SyncRoomPage() {
                 setSessionTimer(`${minutes}:${seconds}`);
             }
         }, 1000);
-    }, [setupMessageListener]);
+    }, [roomId, toast]);
     
 
     const handleExitRoom = useCallback(async () => {
@@ -341,16 +348,16 @@ export default function SyncRoomPage() {
             setParticipants(parts);
             setParticipantsLoading(false);
             
-            const self = parts.find(p => p.uid === user.uid);
-            // This is the key logic for re-entry:
-            // If the user is a participant AND we haven't determined their status yet ('unknown'),
-            // it means they've rejoined. We can safely start the message listener.
-            if (self && self.joinedAt && isParticipant === 'unknown') {
-                 console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.`);
-                 onJoinSuccess(self.joinedAt);
-            } else if (!self && isParticipant !== 'no') {
-                 console.log(`[DEBUG] Participant Listener: Current user is NOT a participant. Showing setup screen.`);
-                 setIsParticipant('no');
+            // This is the key check: it runs only ONCE when isParticipant is 'unknown'
+            if (isParticipant === 'unknown') {
+                const self = parts.find(p => p.uid === user.uid);
+                if (self && self.joinedAt) {
+                     console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.`);
+                     onJoinSuccess(self.joinedAt);
+                } else if (!self) {
+                     console.log(`[DEBUG] Participant Listener: Current user is NOT yet a participant.`);
+                     setIsParticipant('no');
+                }
             }
         }, (error) => {
             console.error("[DEBUG] Participant Listener: Firestore error!", error);
