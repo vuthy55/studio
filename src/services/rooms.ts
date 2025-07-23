@@ -1,9 +1,9 @@
 
 'use server';
 
-import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-admin'; 
 import type { SyncRoom } from '@/lib/types';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 // We create a specific type for returning to the client to avoid serialization issues with Timestamps.
 export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt'> {
@@ -22,9 +22,9 @@ export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'las
 export async function getAllRooms(): Promise<ClientSyncRoom[]> {
   console.log("[SERVER ACTION] getAllRooms invoked.");
   try {
-    const roomsCol = collection(db, 'syncRooms');
-    const q = query(roomsCol, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    const roomsCol = db.collection('syncRooms');
+    const q = roomsCol.orderBy('createdAt', 'desc');
+    const snapshot = await q.get();
 
     if (snapshot.empty) {
         console.log("[SERVER ACTION] No rooms found in 'syncRooms' collection.");
