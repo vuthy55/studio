@@ -66,6 +66,7 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<Summariz
 
 const summarizeRoomPrompt = ai.definePrompt({
   name: 'summarizeRoomPrompt',
+  model: 'googleai/gemini-1.5-flash-latest',
   input: {
     schema: z.object({
       transcript: z.string(),
