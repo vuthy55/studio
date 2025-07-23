@@ -64,6 +64,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [loading, setLoading] = useState(true);
+    const [hasFetched, setHasFetched] = useState(false); // New state to prevent re-fetching
     const isLoggingOut = useRef(false);
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
@@ -71,7 +72,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const pendingUsageSync = useRef<{ duration: number }>({ duration: 0 }).current;
     
     // --- Data Fetching & Main Effect ---
-
     useEffect(() => {
         getAppSettingsAction().then(setSettings);
     }, []);
@@ -93,11 +93,15 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [setUserProfile]);
 
-    useEffect(() => {
-        const fetchPracticeHistory = async () => {
-             if (!auth.currentUser || isLoggingOut.current) return;
+     useEffect(() => {
+        const fetchAllData = async () => {
+            if (!user || isLoggingOut.current) return;
+            console.log("[DEBUG] UserDataContext: User detected, fetching data.");
+            
+            await fetchUserProfile();
+
             try {
-                const historyCollectionRef = collection(db, 'users', auth.currentUser.uid, 'practiceHistory');
+                const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
                 const historySnapshot = await getDocs(historyCollectionRef);
                 const historyData: PracticeHistoryState = {};
                 historySnapshot.forEach(doc => {
@@ -107,30 +111,24 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             } catch (error) {
                 console.error("Error fetching practice history:", error);
             }
+            
+            setHasFetched(true); // Mark initial fetch as complete
+            setLoading(false);
         };
 
-        const fetchAllData = async () => {
-             if (user && !isLoggingOut.current) {
-                console.log("[DEBUG] UserDataContext: User detected, fetching data.");
-                setLoading(true);
-                await fetchUserProfile();
-                await fetchPracticeHistory();
-                setLoading(false);
-            }
-        };
-
-        if (user && !authLoading) {
+        if (user && !authLoading && !hasFetched) {
             fetchAllData();
         } else if (!user && !authLoading) {
-             console.log("[DEBUG] UserDataContext: No user detected, state is being cleared.");
-             setLoading(false);
-             // Note: State clearing is now primarily handled in the `logout` function
-             // to prevent race conditions. This is a fallback for other cases.
-             if (Object.keys(userProfile).length > 0) setUserProfile({});
-             if (Object.keys(practiceHistory).length > 0) setPracticeHistory({});
-             if (syncLiveUsage > 0) setSyncLiveUsage(0);
+            if (hasFetched) { // Reset only if we had previously fetched data
+                 console.log("[DEBUG] UserDataContext: No user detected, clearing local state.");
+                 setUserProfile({});
+                 setPracticeHistory({});
+                 setSyncLiveUsage(0);
+                 setHasFetched(false); // Reset for the next login
+            }
+            setLoading(false);
         }
-    }, [user, authLoading, fetchUserProfile, setPracticeHistory, setUserProfile, userProfile, practiceHistory, syncLiveUsage]);
+    }, [user, authLoading, hasFetched, fetchUserProfile, setPracticeHistory, setUserProfile]);
 
 
     // --- Firestore Synchronization Logic ---
@@ -219,6 +217,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setUserProfile({});
         setPracticeHistory({});
         setSyncLiveUsage(0);
+        setHasFetched(false); // Reset for next login
         
         isLoggingOut.current = false;
         console.log("[DEBUG] UserDataContext: Logout complete and local state cleared.");
@@ -455,5 +454,3 @@ export const useUserData = () => {
     }
     return context;
 };
-
-    
