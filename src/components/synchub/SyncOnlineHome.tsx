@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion, limit } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -349,20 +349,21 @@ function ManageRoomDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () 
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [hasCheckedActivity, setHasCheckedActivity] = useState(false);
-    const [participantCount, setParticipantCount] = useState(0);
+    const [hasActivity, setHasActivity] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     const checkRoomActivity = async () => {
         setIsLoading(true);
         try {
-            const participantsRef = collection(db, 'syncRooms', room.id, 'participants');
-            const snapshot = await getDocs(participantsRef);
-            setParticipantCount(snapshot.size);
+            const messagesRef = collection(db, 'syncRooms', room.id, 'messages');
+            const q = query(messagesRef, limit(1));
+            const snapshot = await getDocs(q);
+            setHasActivity(!snapshot.empty);
         } catch (error) {
             console.error("Error checking room activity:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not check room activity.' });
-            setParticipantCount(0); // Assume no activity on error
+            setHasActivity(false);
         } finally {
             setIsLoading(false);
             setHasCheckedActivity(true);
@@ -441,8 +442,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () 
 
                 {hasCheckedActivity && !isLoading && (
                     <div className="py-4 space-y-4">
-                        {/* Case 1: Room has had activity (more than just the creator) */}
-                        {participantCount > 1 ? (
+                        {hasActivity ? (
                             <>
                                 <p className="text-sm text-muted-foreground">This room has had meeting activity. You can close it for all users or generate a final summary.</p>
                                 <div className="flex flex-col gap-2">
