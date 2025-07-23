@@ -335,16 +335,20 @@ export default function SyncRoomPage() {
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             console.log(`[DEBUG] Participant Listener: Snapshot received. Found ${parts.length} participants.`);
-            setParticipants(parts);
-            setParticipantsLoading(false);
-
+            
             // This logic handles re-joining an already-joined room correctly.
             // It only triggers if the user is a participant AND the message listener isn't already running.
             const self = parts.find(p => p.uid === user.uid);
-            if (self && self.joinedAt && !messageListenerUnsubscribe.current) {
+            if (self && self.joinedAt && !messageListenerUnsubscribe.current && !participantsLoading) {
                 console.log("[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.");
                 onJoinSuccess(self.joinedAt);
+            } else if (!self) {
+                console.log("[DEBUG] Participant Listener: Current user is NOT yet a participant.");
             }
+            
+            setParticipants(parts);
+            setParticipantsLoading(false);
+
         }, (error) => {
             console.error("[DEBUG] Participant Listener: Firestore error!", error);
             setParticipantsLoading(false);
@@ -354,7 +358,7 @@ export default function SyncRoomPage() {
             console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
-    }, [user, roomId, roomLoading, onJoinSuccess]);
+    }, [user, roomId, roomLoading, onJoinSuccess, participantsLoading]);
     
     
     useEffect(() => {
@@ -901,9 +905,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
-
-    
-
-
