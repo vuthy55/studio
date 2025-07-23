@@ -6,21 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useState, useMemo } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, Trash2 } from 'lucide-react';
 import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { permanentlyDeleteRooms } from '@/actions/room';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 function RoomTrackingTest() {
   const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
+  const { toast } = useToast();
 
   const handleFetchRooms = async () => {
     setIsLoading(true);
     setError('');
+    setSelectedRoomIds([]); // Reset selection on fetch
     console.log("Attempting to fetch rooms...");
     try {
       const fetchedRooms = await getAllRooms();
@@ -31,6 +40,41 @@ function RoomTrackingTest() {
       setError(e.message || 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRoomIds(rooms.map(r => r.id));
+    } else {
+      setSelectedRoomIds([]);
+    }
+  };
+
+  const handleSelectRoom = (roomId: string, checked: boolean) => {
+    setSelectedRoomIds(prev => {
+      if (checked) {
+        return [...prev, roomId];
+      } else {
+        return prev.filter(id => id !== roomId);
+      }
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    setIsDeleting(true);
+    try {
+      const result = await permanentlyDeleteRooms(selectedRoomIds);
+      if (result.success) {
+        toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
+        handleFetchRooms(); // Refresh the list
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
+    } catch (e: any) {
+       toast({ variant: 'destructive', title: 'Client Error', description: 'Failed to call the delete action.' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -46,27 +90,65 @@ function RoomTrackingTest() {
       <CardHeader>
         <CardTitle>Room Deletion Tracking Test</CardTitle>
         <CardDescription>
-          This tests the "soft delete" functionality. Click the button to fetch all rooms from Firestore and view their status.
+          This tests the "soft" and "hard" delete functionality. Fetch rooms, select them, and use the delete button to permanently remove them.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Button onClick={handleFetchRooms} disabled={isLoading}>
-          {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch All Rooms'}
-        </Button>
+        <div className="flex justify-between items-center">
+            <Button onClick={handleFetchRooms} disabled={isLoading}>
+                {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch All Rooms'}
+            </Button>
+            {selectedRoomIds.length > 0 && (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isDeleting}>
+                            {isDeleting ? <LoaderCircle className="animate-spin mr-2" /> : <Trash2 className="mr-2" />}
+                            Delete ({selectedRoomIds.length})
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s).
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteSelected}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+        </div>
+
         {error && (
           <div className="p-4 bg-destructive/20 text-destructive rounded-md">
             <p className="font-semibold">Error:</p>
             <p>{error}</p>
           </div>
         )}
+        
+        {rooms.length > 0 && (
+          <div className="flex items-center space-x-2 py-2">
+            <Checkbox 
+                id="select-all"
+                onCheckedChange={handleSelectAll}
+                checked={selectedRoomIds.length === rooms.length && rooms.length > 0}
+            />
+            <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
+          </div>
+        )}
+
         {rooms.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <h4 className="font-semibold">Active Rooms ({activeRooms.length})</h4>
               <ul className="p-2 border rounded-md space-y-1 text-sm">
                 {activeRooms.map(room => (
-                  <li key={room.id} className="flex justify-between items-center">
-                    <span>{room.topic}</span>
+                  <li key={room.id} className="flex items-center gap-3">
+                    <Checkbox id={room.id} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                    <label htmlFor={room.id} className="flex-grow">{room.topic}</label>
                     <Badge variant="default">Active</Badge>
                   </li>
                 ))}
@@ -76,8 +158,9 @@ function RoomTrackingTest() {
               <h4 className="font-semibold">Closed Rooms ({closedRooms.length})</h4>
               <ul className="p-2 border rounded-md space-y-1 text-sm">
                 {closedRooms.map(room => (
-                  <li key={room.id} className="flex justify-between items-center">
-                    <span>{room.topic}</span>
+                  <li key={room.id} className="flex items-center gap-3">
+                    <Checkbox id={room.id} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)} />
+                    <label htmlFor={room.id} className="flex-grow">{room.topic}</label>
                     <Badge variant="destructive">Closed</Badge>
                   </li>
                 ))}
