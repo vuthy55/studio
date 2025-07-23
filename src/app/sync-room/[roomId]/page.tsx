@@ -116,12 +116,12 @@ function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom
                         </Select>
                     </div>
                 </CardContent>
-                <CardFooter className="flex-col gap-2">
-                    <Button className="w-full" onClick={handleJoin} disabled={isJoining}>
+                <CardFooter className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={handleCancel}>Cancel</Button>
+                    <Button onClick={handleJoin} disabled={isJoining}>
                         {isJoining ? <LoaderCircle className="animate-spin" /> : <LogIn className="mr-2" />}
                         Join Room
                     </Button>
-                    <Button className="w-full" variant="ghost" onClick={handleCancel}>Cancel</Button>
                 </CardFooter>
             </Card>
         </div>
