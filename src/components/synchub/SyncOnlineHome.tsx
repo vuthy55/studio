@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -33,7 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw } from 'lucide-react';
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -119,7 +120,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
 
     const addActionItem = () => {
         if (!editableSummary) return;
-        const newActionItems = [...editableSummary.actionItems, { task: '', personInCharge: '', dueDate: '', translations: {} }];
+        const newActionItems = [...editableSummary.actionItems, { task: { original: '' }, personInCharge: '', dueDate: '' }];
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
 
@@ -390,7 +391,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                 <Button variant="secondary" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/> Download</Button>
                                  <Popover>
                                     <PopoverTrigger asChild>
-                                        <Button variant="secondary" disabled={isTranslating || availableLanguages.length === 0}>
+                                        <Button variant="secondary" disabled={isTranslating || availableLanguages.length < 2}>
                                             <TranslateIcon className="mr-2 h-4 w-4" /> Translate
                                         </Button>
                                     </PopoverTrigger>
@@ -467,7 +468,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
     
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
-        if (open && !hasCheckedActivity) {
+        if (open && !hasCheckedActivity && room.status !== 'closed') {
             doCheckRoomActivity();
         }
         if (!open) {
@@ -503,7 +504,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
     
     const handleSummarizeAndEnd = async () => {
         setIsActionLoading(true);
-        toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.' });
+        const toastId = toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.', duration: 120000 });
         try {
             await summarizeRoom({ roomId: room.id });
             toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
@@ -514,6 +515,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary.' });
         } finally {
              setIsActionLoading(false);
+             if (toastId) toast.dismiss(toastId.id);
         }
     };
 
@@ -534,8 +536,18 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                         <LoaderCircle className="animate-spin" />
                     </div>
                 )}
+                
+                {room.status === 'closed' && room.summary && (
+                     <div className="py-4 space-y-4">
+                        <p className="text-sm text-muted-foreground">This room is closed. You can re-generate the summary if the previous one was incorrect.</p>
+                         <Button onClick={handleSummarizeAndEnd} disabled={isActionLoading}>
+                            <RefreshCw className="mr-2 h-4 w-4"/>
+                            {isActionLoading ? 'Re-summarizing...' : 'Re-summarize & Overwrite'}
+                        </Button>
+                    </div>
+                )}
 
-                {hasCheckedActivity && !isLoading && (
+                {hasCheckedActivity && !isLoading && room.status === 'active' && (
                     <div className="py-4 space-y-4">
                         {hasActivity ? (
                             <>
@@ -932,6 +944,10 @@ export default function SyncOnlineHome() {
                                                     <RoomSummaryDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
                                                 )}
                                                 
+                                                {isCreator && (
+                                                     <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                                )}
+
                                                 {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
                                                     <Dialog>
                                                         <TooltipProvider>
@@ -972,9 +988,6 @@ export default function SyncOnlineHome() {
                                                     </Dialog>
                                                 )}
 
-                                                {isCreator && room.status !== 'closed' && (
-                                                    <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
-                                                )}
                                             </div>
                                         </li>
                                     )
