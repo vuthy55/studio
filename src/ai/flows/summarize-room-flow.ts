@@ -93,7 +93,7 @@ const summarizeRoomPrompt = ai.definePrompt({
 
 CONTEXT:
 - The meeting was held on {{meetingDate}}.
-- The complete list of ALL invited individuals, along with their selected language for this meeting, is: {{#each allInvitedUsers}}{{this.name}} ({{this.email}}), language: {{this.language}}{{/unless @last}}; {{/each}}.
+- The complete list of ALL invited individuals, along with their selected language for this meeting, is: {{#each allInvitedUsers}}{{this.name}} ({{this.email}}), language: {{this.language}}{{#unless @last}}; {{/unless}}{{/each}}.
 - The emails of users who were PRESENT in the room are: {{#each presentParticipantEmails}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}.
 - From this information, you must determine who was present and who was absent and populate the output fields accordingly. Use the language provided in the 'all invited individuals' list for each person.
 
@@ -212,3 +212,4 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
+
