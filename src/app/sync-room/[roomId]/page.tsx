@@ -374,8 +374,16 @@ export default function SyncRoomPage() {
             await deleteDoc(participantRef);
             router.push('/?tab=sync-online');
         } catch (error) {
-            console.error("Error leaving room:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not leave the room.' });
+            console.error("--- DEBUG: Error leaving room ---");
+            console.error("User UID:", user.uid);
+            console.error("Room ID:", roomId);
+            console.error("Full Firebase Error Object:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error Exiting',
+                description: 'Could not leave room. Check console for details.',
+                duration: 10000
+            });
             setIsExiting(false); // Reset flag on error
         }
     };
@@ -766,5 +774,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
