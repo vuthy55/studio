@@ -1,8 +1,8 @@
 
 'use server';
 
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * Performs a "soft delete" on a room by setting its status to 'closed'.
@@ -19,11 +19,11 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
   }
 
   try {
-    const roomRef = doc(db, 'syncRooms', roomId);
+    const roomRef = db.collection('syncRooms').doc(roomId);
     
-    await updateDoc(roomRef, {
+    await roomRef.update({
       status: 'closed',
-      lastActivityAt: serverTimestamp(),
+      lastActivityAt: FieldValue.serverTimestamp(),
     });
 
     console.log(`[ACTION] Successfully soft-deleted room ${roomId}`);
