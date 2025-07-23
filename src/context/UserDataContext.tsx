@@ -70,15 +70,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string, duration?: number }>>([]).current;
     const pendingUsageSync = useRef<{ duration: number }>({ duration: 0 }).current;
     
-    // --- Data Fetching ---
+    // --- Data Fetching & Main Effect ---
 
     useEffect(() => {
         getAppSettingsAction().then(setSettings);
     }, []);
 
     const fetchUserProfile = useCallback(async () => {
-        // This final guard is the ultimate safety net.
-        if (!auth.currentUser) return;
+        if (!auth.currentUser || isLoggingOut.current) return;
         
         try {
             console.log("[DEBUG] UserDataContext: fetchUserProfile running for user:", auth.currentUser.uid);
@@ -94,22 +93,22 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [setUserProfile]);
 
-    const fetchPracticeHistory = useCallback(async () => {
-         if (!auth.currentUser) return;
-        try {
-            const historyCollectionRef = collection(db, 'users', auth.currentUser.uid, 'practiceHistory');
-            const historySnapshot = await getDocs(historyCollectionRef);
-            const historyData: PracticeHistoryState = {};
-            historySnapshot.forEach(doc => {
-                historyData[doc.id] = doc.data();
-            });
-            setPracticeHistory(historyData);
-        } catch (error) {
-            console.error("Error fetching practice history:", error);
-        }
-    }, [setPracticeHistory]);
-    
     useEffect(() => {
+        const fetchPracticeHistory = async () => {
+             if (!auth.currentUser || isLoggingOut.current) return;
+            try {
+                const historyCollectionRef = collection(db, 'users', auth.currentUser.uid, 'practiceHistory');
+                const historySnapshot = await getDocs(historyCollectionRef);
+                const historyData: PracticeHistoryState = {};
+                historySnapshot.forEach(doc => {
+                    historyData[doc.id] = doc.data();
+                });
+                setPracticeHistory(historyData);
+            } catch (error) {
+                console.error("Error fetching practice history:", error);
+            }
+        };
+
         const fetchAllData = async () => {
              if (user && !isLoggingOut.current) {
                 console.log("[DEBUG] UserDataContext: User detected, fetching data.");
@@ -123,9 +122,15 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (user && !authLoading) {
             fetchAllData();
         } else if (!user && !authLoading) {
+             console.log("[DEBUG] UserDataContext: No user detected, state is being cleared.");
              setLoading(false);
+             // Note: State clearing is now primarily handled in the `logout` function
+             // to prevent race conditions. This is a fallback for other cases.
+             if (Object.keys(userProfile).length > 0) setUserProfile({});
+             if (Object.keys(practiceHistory).length > 0) setPracticeHistory({});
+             if (syncLiveUsage > 0) setSyncLiveUsage(0);
         }
-    }, [user, authLoading, fetchPracticeHistory, fetchUserProfile]);
+    }, [user, authLoading, fetchUserProfile, setPracticeHistory, setUserProfile, userProfile, practiceHistory, syncLiveUsage]);
 
 
     // --- Firestore Synchronization Logic ---
@@ -216,7 +221,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setSyncLiveUsage(0);
         
         isLoggingOut.current = false;
-        console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
+        console.log("[DEBUG] UserDataContext: Logout complete and local state cleared.");
     }, [debouncedCommitToFirestore, setUserProfile, setPracticeHistory]);
 
     const updateSyncLiveUsage = useCallback((durationMs: number): number => {
@@ -450,3 +455,5 @@ export const useUserData = () => {
     }
     return context;
 };
+
+    
