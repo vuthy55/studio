@@ -111,9 +111,9 @@ const summarizeRoomPrompt = ai.definePrompt({
   prompt: `You are a professional meeting assistant. Your task is to analyze the provided meeting transcript and create a concise, structured summary.
 
 CONTEXT:
-- The meeting was held on {{meetingDate}}.
+- The meeting was held on {{meetingDate}} @ VibeSync.
 - The complete list of ALL invited individuals, along with their selected language for this meeting, is: {{#each allInvitedUsers}}{{this.name}} ({{this.email}}), language: {{this.language}}{{#unless @last}}; {{/unless}}{{/each}}.
-- The emails of users who were PRESENT in the room (determined by who spoke) are: {{#each presentParticipantEmails}}{{@key}}{{#unless @last}}, {{/unless}}{{/each}}.
+- The emails of users who were PRESENT in the room are: {{#if presentParticipantEmails}}{{#each presentParticipantEmails}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}None{{/if}}.
 - From this information, you must determine who was present and who was absent and populate the output fields accordingly. Use the language provided in the 'all invited individuals' list for each person.
 
 TRANSCRIPT (This may be empty if no one spoke):
@@ -168,13 +168,14 @@ const summarizeRoomFlow = ai.defineFlow(
     // Determine who was present by checking who sent messages.
     // This is more reliable than the real-time participants collection.
     const speakerUids = new Set(messages.map(msg => msg.speakerUid));
-    const presentParticipantsFromHistory = participantHistory.filter(p => speakerUids.has(p.uid));
-    const presentParticipantEmails = presentParticipantsFromHistory.map(p => p.email);
-
-    // If no one spoke, but people were in the room, consider them present.
-    if (presentParticipantEmails.length === 0 && participantHistory.length > 0) {
-        participantHistory.forEach(p => presentParticipantEmails.push(p.email));
+    let presentParticipantsFromHistory = participantHistory.filter(p => speakerUids.has(p.uid));
+    
+    // If no one spoke, but people were in the room history, consider them present.
+    if(presentParticipantsFromHistory.length === 0 && participantHistory.length > 0) {
+        presentParticipantsFromHistory = participantHistory;
     }
+
+    const presentParticipantEmails = presentParticipantsFromHistory.map(p => p.email);
 
     const transcript = messages.map(msg => `${msg.speakerName}: ${msg.text}`).join('\n');
     
@@ -210,6 +211,7 @@ const summarizeRoomFlow = ai.defineFlow(
 
     let output;
     try {
+      // Call the prompt function directly
       const { output: primaryOutput } = await summarizeRoomPrompt(promptData);
       output = primaryOutput;
     } catch (error: any) {
@@ -237,5 +239,3 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
