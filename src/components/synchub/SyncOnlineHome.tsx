@@ -438,7 +438,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
 }
 
 function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: any; onUpdate: () => void }) {
-    const { toast } = useToast();
+    const { toast, dismiss } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [hasCheckedActivity, setHasCheckedActivity] = useState(false);
     const [hasActivity, setHasActivity] = useState(false);
@@ -515,7 +515,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary.' });
         } finally {
              setIsActionLoading(false);
-             if (toastId) toast.dismiss(toastId.id);
+             if (toastId) dismiss(toastId.id);
         }
     };
 
