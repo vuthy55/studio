@@ -102,6 +102,7 @@ export default function SyncOnlineHome() {
             const querySnapshot = await getDocs(q);
             const rooms = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
+                .filter(room => room.status === 'active' || room.summary)
                 .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); // Sort by newest first
             
             setInvitedRooms(rooms);
@@ -368,7 +369,11 @@ export default function SyncOnlineHome() {
                                                 <p className="font-semibold">{room.topic}</p>
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-sm text-muted-foreground">{room.createdAt ? new Date(room.createdAt.toDate()).toLocaleString() : ''}</p>
-                                                    {room.status === 'closed' && <Badge variant="destructive">Closed</Badge>}
+                                                    {room.status === 'closed' && (
+                                                        <Badge variant={room.summary ? 'default' : 'destructive'}>
+                                                            {room.summary ? 'Summary Available' : 'Closed'}
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -460,7 +465,7 @@ export default function SyncOnlineHome() {
                                 })}
                             </ul>
                         ) : (
-                            <p className="text-muted-foreground">You have no pending room invitations.</p>
+                            <p className="text-muted-foreground">You have no active room invitations.</p>
                         )}
                     </CardContent>
                 </Card>
