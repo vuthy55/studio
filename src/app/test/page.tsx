@@ -516,7 +516,7 @@ const TestPage = () => {
         <CardHeader>
           <CardTitle>Available AI Models</CardTitle>
           <CardDescription>This is a list of known compatible models for this app.</CardDescription>
-        </Header>
+        </CardHeader>
         <CardContent>
           <ul className="list-disc pl-5 space-y-1 bg-secondary p-4 rounded-md">
             {models.map((model) => (
@@ -530,3 +530,5 @@ const TestPage = () => {
 };
 
 export default TestPage;
+
+    
