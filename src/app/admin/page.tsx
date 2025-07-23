@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettings, updateAppSettings, type AppSettings } from '@/services/settings';
+import { getAppSettingsAction, updateAppSettingsAction } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
 import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry } from '@/services/ledger';
 import { format } from 'date-fns';
@@ -335,6 +336,132 @@ function SettingsTabContent() {
         </Card>
     )
 }
+
+function SettingsTabContent2() {
+    const { toast } = useToast();
+    const [settings, setSettings] = useState<Partial<AppSettings>>({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        getAppSettingsAction().then(data => {
+            setSettings(data);
+            setIsLoading(false);
+        });
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const result = await updateAppSettingsAction(settings);
+            if (result.success) {
+                toast({ title: "Success", description: "Application settings have been updated." });
+            } else {
+                toast({ variant: "destructive", title: "Error", description: result.error || "Could not save settings." });
+            }
+        } catch (error: any) {
+            console.error("Error saving settings:", error);
+            toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { id, value } = e.target;
+        setSettings(prev => ({...prev, [id]: Number(value) }));
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>App Settings 2</CardTitle>
+                <CardDescription>Manage the token economy and other application-wide settings. (Server Action version)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {/* Column 1: Rewards & Freebies */}
+                    <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Freebies</h3>
+                         <Separator />
+                        <div className="space-y-2">
+                            <Label htmlFor="signupBonus">Signup Bonus</Label>
+                            <Input id="signupBonus" type="number" value={settings.signupBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
+                            <p className="text-sm text-muted-foreground">Tokens a new user gets on signup.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="referralBonus">Referral Bonus</Label>
+                            <Input id="referralBonus" type="number" value={settings.referralBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 150" />
+                            <p className="text-sm text-muted-foreground">Tokens a user gets for a successful referral.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="practiceReward">Practice Reward</Label>
+                            <Input id="practiceReward" type="number" value={settings.practiceReward ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                            <p className="text-sm text-muted-foreground">Tokens earned for mastering a phrase.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="practiceThreshold">Practice Threshold</Label>
+                            <Input id="practiceThreshold" type="number" value={settings.practiceThreshold ?? ''} onChange={handleInputChange} placeholder="e.g., 3" />
+                            <p className="text-sm text-muted-foreground">Successful practices to earn reward.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="freeSyncLiveMinutes">Free Sync Live Minutes</Label>
+                            <Input id="freeSyncLiveMinutes" type="number" value={settings.freeSyncLiveMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                            <p className="text-sm text-muted-foreground">Free monthly minutes for Sync Live.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="freeSyncOnlineMinutes">Free Sync Online Minutes</Label>
+                            <Input id="freeSyncOnlineMinutes" type="number" value={settings.freeSyncOnlineMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                            <p className="text-sm text-muted-foreground">Free monthly minutes for Sync Online.</p>
+                        </div>
+                    </div>
+
+                    {/* Column 2: Costs & Limits */}
+                    <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Costs & Limits</h3>
+                         <Separator />
+                        <div className="space-y-2">
+                            <Label htmlFor="translationCost">Translation Cost</Label>
+                            <Input id="translationCost" type="number" value={settings.translationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                            <p className="text-sm text-muted-foreground">Tokens charged for each live translation.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="costPerSyncLiveMinute">Sync Live Cost (per minute)</Label>
+                            <Input id="costPerSyncLiveMinute" type="number" value={settings.costPerSyncLiveMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                            <p className="text-sm text-muted-foreground">Tokens per minute for the 1-on-1 Sync Live feature.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="costPerSyncOnlineMinute">Sync Online Cost (per minute)</Label>
+                            <Input id="costPerSyncOnlineMinute" type="number" value={settings.costPerSyncOnlineMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
+                            <p className="text-sm text-muted-foreground">Tokens per minute for Sync Online group rooms.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="maxUsersPerRoom">Max Users per Sync Room</Label>
+                            <Input id="maxUsersPerRoom" type="number" value={settings.maxUsersPerRoom ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
+                            <p className="text-sm text-muted-foreground">Max users in a Sync Online room.</p>
+                        </div>
+                    </div>
+                 </div>
+
+                 <div className="flex justify-end pt-4">
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Settings
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
 
 function FinancialTabContent() {
     const [user] = useAuthState(auth);
@@ -1077,10 +1204,11 @@ export default function AdminPage() {
             </header>
             
             <Tabs defaultValue="users" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="rooms">Rooms</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
+                    <TabsTrigger value="settings2">App Settings 2</TabsTrigger>
                     <TabsTrigger value="financial">Financial</TabsTrigger>
                     <TabsTrigger value="tokens">Tokens</TabsTrigger>
                 </TabsList>
@@ -1092,6 +1220,9 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
+                </TabsContent>
+                <TabsContent value="settings2" className="mt-6">
+                    <SettingsTabContent2 />
                 </TabsContent>
                  <TabsContent value="financial" className="mt-6">
                     <FinancialTabContent />

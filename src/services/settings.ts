@@ -1,4 +1,5 @@
 
+
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -15,7 +16,7 @@ export interface AppSettings {
   maxUsersPerRoom: number;
 }
 
-const defaultSettings: AppSettings = {
+export const defaultSettings: AppSettings = {
   signupBonus: 100,
   referralBonus: 150,
   practiceReward: 1,
