@@ -290,7 +290,8 @@ export default function SyncRoomPage() {
                 setSessionTimer(`${minutes}:${seconds}`);
             }
         }, 1000);
-    }, [roomId, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roomId]);
     
 
     const handleExitRoom = useCallback(async () => {
@@ -414,7 +415,7 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    }, [roomData, user, toast, handleExitRoom]);
+    }, [roomData, user, toast, handleManualExit]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -494,7 +495,7 @@ export default function SyncRoomPage() {
                 status: 'closed',
                 lastActivityAt: serverTimestamp(),
             });
-            // The useEffect that watches roomData will handle the redirect for all users
+             router.push('/?tab=sync-online');
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
