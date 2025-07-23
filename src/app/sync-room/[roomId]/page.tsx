@@ -5,10 +5,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, where, Timestamp } from 'firebase/firestore';
 import { useDocumentData, useCollection } from 'react-firebase-hooks/firestore';
 
-import type { SyncRoom, Participant, BlockedUser } from '@/lib/types';
+import type { SyncRoom, Participant, BlockedUser, RoomMessage } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzureCodeToLanguageCode } from '@/lib/azure-languages';
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
@@ -52,7 +52,7 @@ import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 
 
-function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: () => void }) {
+function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom; roomId: string; onJoin: (joinTime: Timestamp) => void }) {
     const router = useRouter();
     const [name, setName] = useState(user.displayName || user.email?.split('@')[0] || 'Participant');
     const [language, setLanguage] = useLocalStorage<AzureLanguageCode | ''>('preferredSpokenLanguage', '');
@@ -67,15 +67,17 @@ function SetupScreen({ user, room, roomId, onJoin }: { user: any; room: SyncRoom
         setIsJoining(true);
         try {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            const joinTime = Timestamp.now();
             const participantData: Participant = {
                 uid: user.uid,
                 name: name,
                 email: user.email!,
                 selectedLanguage: language,
                 isMuted: false,
+                joinedAt: joinTime
             };
             await setDoc(participantRef, participantData);
-            onJoin();
+            onJoin(joinTime);
         } catch (error) {
             console.error("Error joining room:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not join the room.' });
@@ -144,12 +146,11 @@ export default function SyncRoomPage() {
     const [participantsCollection, participantsLoading] = useCollection(participantsRef);
 
     const messagesRef = useMemo(() => collection(db, 'syncRooms', roomId, 'messages'), [roomId]);
-    const messagesQuery = useMemo(() => query(messagesRef, orderBy('createdAt', 'asc')), [messagesRef]);
-    const [messages, messagesLoading] = useCollection(messagesQuery);
+    const [messages, setMessages] = useState<RoomMessage[]>([]);
+    const [messagesLoading, setMessagesLoading] = useState(true);
     const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
 
-
-    const [hasJoined, setHasJoined] = useState(false);
+    const [joinTimestamp, setJoinTimestamp] = useState<Timestamp | null>(null);
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
@@ -186,6 +187,14 @@ export default function SyncRoomPage() {
         return participantsCollection?.docs.find(p => p.id === user?.uid)?.data() as Participant | undefined;
     }, [participantsCollection, user]);
 
+    // This effect runs once the user has successfully joined and sets the timestamp.
+    useEffect(() => {
+        if(currentUserParticipant?.joinedAt) {
+            setJoinTimestamp(currentUserParticipant.joinedAt);
+        }
+    }, [currentUserParticipant]);
+
+
     const isCurrentUserEmcee = useMemo(() => {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
@@ -209,12 +218,11 @@ export default function SyncRoomPage() {
 
     // Handle being removed from the room
     useEffect(() => {
-        if (isExiting) return; // Don't run this logic if the user is exiting voluntarily
+        if (isExiting || !joinTimestamp) return; // Don't run this logic if the user is exiting voluntarily or hasn't joined
 
-        const wasParticipant = hasJoined;
         const isStillParticipant = participantsCollection?.docs.some(doc => doc.id === user?.uid);
 
-        if (wasParticipant && !isStillParticipant && !participantsLoading) {
+        if (!isStillParticipant && !participantsLoading) {
             toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -223,7 +231,7 @@ export default function SyncRoomPage() {
             });
             router.push('/?tab=sync-online');
         }
-    }, [participantsCollection, hasJoined, participantsLoading, user, router, toast, isExiting]);
+    }, [participantsCollection, joinTimestamp, participantsLoading, user, router, toast, isExiting]);
 
 
     // Gracefully exit if room is closed or user is blocked
@@ -247,16 +255,48 @@ export default function SyncRoomPage() {
         }
     }, [roomData, user, router, toast]);
 
+    // --- NEW: Manual Message Listener ---
+    useEffect(() => {
+        if (!joinTimestamp) return; // Only listen for messages after we have a join timestamp
+
+        setMessagesLoading(true);
+
+        const q = query(messagesRef, where("createdAt", ">", joinTimestamp));
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+
+            if (newMessages.length > 0) {
+                 setMessages(prevMessages => [...prevMessages, ...newMessages]);
+            }
+            setMessagesLoading(false);
+        }, (error) => {
+            console.error("Error listening to messages:", error);
+            setMessagesLoading(false);
+            // This might indicate a permissions issue still, so we toast
+            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+        });
+
+        // Cleanup function to detach the listener when the component unmounts or joinTimestamp changes
+        return () => unsubscribe();
+
+    }, [joinTimestamp, messagesRef, toast]);
+
+
     // Handle incoming messages for translation and TTS
     useEffect(() => {
-        if (!messages || !user || !currentUserParticipant?.selectedLanguage) return;
+        if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
 
-        const processMessage = async (doc: any) => {
-            const msg = doc.data() as RoomMessage;
-            if (msg.speakerUid === user.uid || processedMessages.current.has(doc.id)) {
+        const processMessage = async (msg: RoomMessage) => {
+            if (msg.speakerUid === user.uid || processedMessages.current.has(msg.id)) {
                 return;
             }
-            processedMessages.current.add(doc.id);
+            processedMessages.current.add(msg.id);
             
             try {
                 setIsSpeaking(true);
@@ -270,7 +310,7 @@ export default function SyncRoomPage() {
                     toLanguage: toLangSimple,
                 });
 
-                setTranslatedMessages(prev => ({...prev, [doc.id]: translated.translatedText}));
+                setTranslatedMessages(prev => ({...prev, [msg.id]: translated.translatedText}));
                 
                 const { audioDataUri } = await generateSpeech({ 
                     text: translated.translatedText, 
@@ -291,8 +331,8 @@ export default function SyncRoomPage() {
         };
         
         const playQueue = async () => {
-             for (const doc of messages.docs) {
-                await processMessage(doc);
+             for (const msg of messages) {
+                await processMessage(msg);
             }
         };
         
@@ -318,10 +358,13 @@ export default function SyncRoomPage() {
 
             const isParticipant = participantsCollection?.docs.some(p => p.id === user.uid);
             if (isParticipant) {
-                setHasJoined(true);
+                const participantData = participantsCollection?.docs.find(p => p.id === user.uid)?.data();
+                if(participantData?.joinedAt) {
+                    setJoinTimestamp(participantData.joinedAt);
+                }
             }
         }
-    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, messages, toast]);
+    }, [user, authLoading, router, roomData, participantsCollection, participantsLoading, toast]);
 
     const handleExitRoom = async () => {
         if (!user) return;
@@ -477,8 +520,8 @@ export default function SyncRoomPage() {
         return <div className="flex h-screen items-center justify-center"><p>Room not found.</p></div>;
     }
 
-    if (user && !hasJoined) {
-        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={() => setHasJoined(true)} />;
+    if (user && !joinTimestamp) {
+        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoin={(joinTime) => setJoinTimestamp(joinTime)} />;
     }
 
     return (
@@ -673,13 +716,12 @@ export default function SyncRoomPage() {
                 <div className="flex-1 flex flex-col p-6 overflow-hidden">
                      <ScrollArea className="flex-grow pr-4 -mr-4">
                         <div className="space-y-4">
-                            {messages?.docs.map(doc => {
-                                const msg = doc.data() as RoomMessage;
+                            {messages.map((msg) => {
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                const displayText = isOwnMessage ? msg.text : (translatedMessages[doc.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage)}...`);
+                                const displayText = isOwnMessage ? msg.text : (translatedMessages[msg.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage)}...`);
 
                                 return (
-                                    <div key={doc.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                                    <div key={msg.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                                         {!isOwnMessage && (
                                             <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{msg.speakerName.charAt(0).toUpperCase()}</AvatarFallback>
@@ -688,7 +730,7 @@ export default function SyncRoomPage() {
                                         <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-background'}`}>
                                             {!isOwnMessage && <p className="text-xs font-bold mb-1">{msg.speakerName}</p>}
                                             <p>{displayText}</p>
-                                            <p className="text-xs opacity-70 mt-1 text-right">{doc.data().createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                            <p className="text-xs opacity-70 mt-1 text-right">{msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                         </div>
                                     </div>
                                 );
@@ -696,7 +738,7 @@ export default function SyncRoomPage() {
                              <div ref={messagesEndRef} />
                         </div>
                          {messagesLoading && <LoaderCircle className="mx-auto my-4 h-6 w-6 animate-spin" />}
-                         {!messagesLoading && messages?.empty && (
+                         {!messagesLoading && messages?.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
                                 <p>No messages yet. Be the first to speak!</p>
                             </div>
@@ -724,3 +766,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    

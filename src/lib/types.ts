@@ -1,5 +1,5 @@
 
-import type { FieldValue } from 'firebase/firestore';
+import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 
 export interface BlockedUser {
@@ -34,6 +34,7 @@ export type Participant = {
     email: string;
     selectedLanguage: AzureLanguageCode | '';
     isMuted?: boolean;
+    joinedAt?: Timestamp;
 }
 
 export type RoomMessage = {
@@ -42,7 +43,7 @@ export type RoomMessage = {
     speakerName: string;
     speakerUid: string;
     speakerLanguage: AzureLanguageCode | '';
-    createdAt: FieldValue;
+    createdAt: Timestamp;
 }
 
 export type TransactionLog = {
@@ -61,3 +62,5 @@ export type PaymentLog = {
     tokensPurchased: number;
     createdAt: FieldValue;
 }
+
+    
