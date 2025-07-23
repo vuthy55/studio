@@ -76,7 +76,10 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const fetchUserProfile = useCallback(async () => {
-        if (!user) return;
+        if (!user) {
+             console.log("[DEBUG] UserDataContext: fetchUserProfile aborted, no user.");
+             return;
+        }
         try {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
@@ -91,7 +94,10 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, [user, setUserProfile]);
 
     const fetchPracticeHistory = useCallback(async () => {
-        if (!user) return;
+         if (!user) {
+             console.log("[DEBUG] UserDataContext: fetchPracticeHistory aborted, no user.");
+             return;
+         }
         try {
             const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
             const historySnapshot = await getDocs(historyCollectionRef);
@@ -107,14 +113,20 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     useEffect(() => {
         const fetchAllData = async () => {
+            // This is the login case
             if (user && !authLoading) {
+                 console.log("[DEBUG] UserDataContext: User detected, fetching data.");
                 setLoading(true);
                 await fetchUserProfile();
+                // Only fetch history if it's not already in local storage
                 if (Object.keys(practiceHistory).length === 0) {
                     await fetchPracticeHistory();
                 }
                 setLoading(false);
-            } else if (!user && !authLoading) {
+            } 
+            // This is the logout case
+            else if (!user && !authLoading) {
+                console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
                 setUserProfile({});
                 setPracticeHistory({});
                 setSyncLiveUsage(0);
@@ -430,3 +442,5 @@ export const useUserData = () => {
     }
     return context;
 };
+
+      
