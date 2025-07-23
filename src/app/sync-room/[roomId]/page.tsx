@@ -196,13 +196,24 @@ export default function SyncRoomPage() {
 
     const freeMinutesRemaining = useMemo(() => {
         if (!settings || !userProfile) return 0;
-
-        // Check if syncOnlineUsageLastReset is in the current month. If not, usage is 0 for this calculation.
+    
+        // Check if syncOnlineUsageLastReset is a valid Timestamp, otherwise convert it
+        let lastResetDate: Date | undefined;
+        const lastResetValue = userProfile.syncOnlineUsageLastReset;
+        if (lastResetValue) {
+            if (typeof lastResetValue.toDate === 'function') {
+                // It's a Firestore Timestamp
+                lastResetDate = lastResetValue.toDate();
+            } else if (typeof lastResetValue === 'object' && 'seconds' in lastResetValue) {
+                // It's a serialized Timestamp from JSON
+                lastResetDate = new Timestamp((lastResetValue as any).seconds, (lastResetValue as any).nanoseconds).toDate();
+            }
+        }
+    
         const now = new Date();
-        const lastReset = userProfile.syncOnlineUsageLastReset?.toDate();
         let currentUsageMs = userProfile.syncOnlineUsage || 0;
-
-        if (lastReset && (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear())) {
+    
+        if (lastResetDate && (lastResetDate.getMonth() !== now.getMonth() || lastResetDate.getFullYear() !== now.getFullYear())) {
             currentUsageMs = 0; // Usage resets every month for this check
         }
         
@@ -894,5 +905,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
