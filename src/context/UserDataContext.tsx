@@ -95,7 +95,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
-    }, [setUserProfile]);
+    }, [setUserProfile, isLoggingOut]);
 
     const fetchPracticeHistory = useCallback(async () => {
          if (!user) {
@@ -117,20 +117,17 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     useEffect(() => {
         const fetchAllData = async () => {
-            // This is the login case
             if (user && !authLoading) {
-                 console.log("[DEBUG] UserDataContext: User detected, fetching data.");
+                console.log("[DEBUG] UserDataContext: User detected, fetching data.");
+                isLoggingOut.current = false; // Reset flag on login
                 setLoading(true);
                 await fetchUserProfile();
-                // Only fetch history if it's not already in local storage
                 if (Object.keys(practiceHistory).length === 0) {
                     await fetchPracticeHistory();
                 }
-                isLoggingOut.current = false; // Reset flag on login
                 setLoading(false);
             } 
-            // This is the logout case
-            else if (!user && !authLoading) {
+            else if (!user && !authLoading && !isLoggingOut.current) {
                 console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
                 setUserProfile({});
                 setPracticeHistory({});
@@ -139,8 +136,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             }
         }
         fetchAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, authLoading]);
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, setUserProfile, setPracticeHistory, practiceHistory]);
 
 
     // --- Firestore Synchronization Logic ---
@@ -220,7 +216,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = async () => {
         console.log("[DEBUG] UserDataContext: Logout initiated.");
-        isLoggingOut.current = true;
+        isLoggingOut.current = true; // Set the guard immediately
         debouncedCommitToFirestore.flush(); // Ensure any pending writes are sent before logout.
         await auth.signOut();
         // The useEffect hook watching `user` will handle the rest of the state cleanup.
@@ -457,5 +453,3 @@ export const useUserData = () => {
     }
     return context;
 };
-
-      
