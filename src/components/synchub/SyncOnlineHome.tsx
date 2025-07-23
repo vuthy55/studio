@@ -33,8 +33,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText } from 'lucide-react';
-import type { SyncRoom, Participant, BlockedUser } from '@/lib/types';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save } from 'lucide-react';
+import type { SyncRoom } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,27 +45,81 @@ import { Separator } from '../ui/separator';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { updateRoomSummary } from '@/actions/room';
 
 
 interface InvitedRoom extends SyncRoom {
     id: string;
 }
 
-function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
-    if (!room.summary) return null;
-    
-    // Fix for Invalid Date: Handle YYYY-MM-DD format safely
+function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: any; onUpdate: () => void }) {
+    const { toast } = useToast();
+    const [isEditing, setIsEditing] = useState(false);
+    const [editableSummary, setEditableSummary] = useState(room.summary);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        setEditableSummary(room.summary);
+    }, [room.summary]);
+
+    const isEmcee = useMemo(() => {
+        if (!user || !room) return false;
+        return room.creatorUid === user.uid || (user.email && room.emceeEmails?.includes(user.email));
+    }, [user, room]);
+
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        // Check if date is valid, if not, maybe the string is already formatted
-        if(isNaN(date.getTime())) {
-            return dateString;
-        }
-        // Add timezone offset to prevent off-by-one-day errors
+        if(isNaN(date.getTime())) return dateString;
         const timezoneOffset = date.getTimezoneOffset() * 60000;
         const adjustedDate = new Date(date.getTime() + timezoneOffset);
         return adjustedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     }
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setEditableSummary(prev => prev ? { ...prev, [name]: value } : null);
+    };
+
+    const handleActionItemChange = (index: number, field: string, value: string) => {
+        if (!editableSummary) return;
+        const newActionItems = [...editableSummary.actionItems];
+        newActionItems[index] = { ...newActionItems[index], [field]: value };
+        setEditableSummary({ ...editableSummary, actionItems: newActionItems });
+    };
+
+    const addActionItem = () => {
+        if (!editableSummary) return;
+        const newActionItems = [...editableSummary.actionItems, { task: '', personInCharge: '', dueDate: '' }];
+        setEditableSummary({ ...editableSummary, actionItems: newActionItems });
+    };
+
+    const removeActionItem = (index: number) => {
+        if (!editableSummary) return;
+        const newActionItems = editableSummary.actionItems.filter((_, i) => i !== index);
+        setEditableSummary({ ...editableSummary, actionItems: newActionItems });
+    };
+
+    const handleSaveChanges = async () => {
+        if (!editableSummary) return;
+        setIsSaving(true);
+        try {
+            const result = await updateRoomSummary(room.id, editableSummary);
+            if (result.success) {
+                toast({ title: 'Success', description: 'Summary updated successfully.' });
+                setIsEditing(false);
+                onUpdate(); // Trigger a refetch of the room list
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to update summary.' });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Error', description: 'An unexpected error occurred.' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (!editableSummary) return null;
 
     return (
         <Dialog>
@@ -75,45 +129,92 @@ function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
                     View Summary
                  </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-4xl">
                 <DialogHeader>
-                    <DialogTitle>{room.summary.title}</DialogTitle>
+                    {isEditing ? (
+                        <Input 
+                            name="title" 
+                            value={editableSummary.title} 
+                            onChange={handleInputChange} 
+                            className="text-lg font-semibold h-auto p-0 border-0 shadow-none focus-visible:ring-0"
+                        />
+                    ) : (
+                        <DialogTitle>{editableSummary.title}</DialogTitle>
+                    )}
                     <DialogDescription>
-                        Meeting held on {formatDate(room.summary.date)}
+                        Meeting held on {formatDate(editableSummary.date)}
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[60vh] p-1">
                 <div className="space-y-6 pr-4">
-                    <div className="space-y-2">
-                        <h3 className="font-semibold text-lg">Summary</h3>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{room.summary.summary}</p>
+                    <div>
+                        <h3 className="font-semibold text-lg mb-2">Summary</h3>
+                        {isEditing ? (
+                            <Textarea 
+                                name="summary"
+                                value={editableSummary.summary} 
+                                onChange={handleInputChange}
+                                className="w-full min-h-[150px]"
+                            />
+                        ) : (
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{editableSummary.summary}</p>
+                        )}
                     </div>
 
-                    {room.summary.actionItems && room.summary.actionItems.length > 0 && (
-                        <div className="space-y-2">
-                            <h3 className="font-semibold text-lg">Action Items</h3>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[50px]">#</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>PIC</TableHead>
-                                        <TableHead>Due</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {room.summary.actionItems.map((item, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{index + 1}</TableCell>
-                                            <TableCell>{item.task}</TableCell>
-                                            <TableCell>{item.personInCharge || 'N/A'}</TableCell>
-                                            <TableCell>{item.dueDate || 'N/A'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                             <h3 className="font-semibold text-lg">Action Items</h3>
+                             {isEditing && (
+                                <Button size="sm" variant="outline" onClick={addActionItem}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
+                             )}
                         </div>
-                    )}
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[50px]">#</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead>PIC</TableHead>
+                                    <TableHead>Due</TableHead>
+                                    {isEditing && <TableHead className="w-[50px]"></TableHead>}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {editableSummary.actionItems.map((item, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{index + 1}</TableCell>
+                                        <TableCell>
+                                            {isEditing ? (
+                                                <Input value={item.task} onChange={(e) => handleActionItemChange(index, 'task', e.target.value)} />
+                                            ) : (
+                                                item.task
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {isEditing ? (
+                                                <Input value={item.personInCharge || ''} onChange={(e) => handleActionItemChange(index, 'personInCharge', e.target.value)} />
+                                            ) : (
+                                                item.personInCharge || 'N/A'
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {isEditing ? (
+                                                <Input value={item.dueDate || ''} onChange={(e) => handleActionItemChange(index, 'dueDate', e.target.value)} />
+                                            ) : (
+                                                item.dueDate || 'N/A'
+                                            )}
+                                        </TableCell>
+                                         {isEditing && (
+                                            <TableCell>
+                                                <Button variant="ghost" size="icon" onClick={() => removeActionItem(index)}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </TableCell>
+                                         )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                     
                     <div className="space-y-2">
                         <h3 className="font-semibold text-lg">Participants</h3>
@@ -121,13 +222,13 @@ function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
                              <div>
                                 <h4 className="font-medium flex items-center gap-1.5 text-green-600"><UserCheck/> Present</h4>
                                 <ul className="list-disc pl-5 mt-1">
-                                    {room.summary.presentParticipants.map((p, i) => <li key={i}>{p}</li>)}
+                                    {editableSummary.presentParticipants.map((p, i) => <li key={i}>{p}</li>)}
                                 </ul>
                             </div>
                              <div>
                                 <h4 className="font-medium flex items-center gap-1.5 text-red-600"><UserX/> Absent</h4>
                                 <ul className="list-disc pl-5 mt-1">
-                                    {room.summary.absentParticipants.map((p, i) => <li key={i}>{p}</li>)}
+                                    {editableSummary.absentParticipants.map((p, i) => <li key={i}>{p}</li>)}
                                 </ul>
                             </div>
                         </div>
@@ -135,9 +236,22 @@ function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
                 </div>
                 </ScrollArea>
                  <DialogFooter>
-                    <DialogClose asChild>
-                        <Button variant="outline">Close</Button>
-                    </DialogClose>
+                    {isEditing ? (
+                        <>
+                            <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                            <Button onClick={handleSaveChanges} disabled={isSaving}>
+                                {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                                Save Changes
+                            </Button>
+                        </>
+                    ) : (
+                         <>
+                            {isEmcee && <Button variant="secondary" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>}
+                            <DialogClose asChild>
+                                <Button variant="outline">Close</Button>
+                            </DialogClose>
+                        </>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -307,7 +421,7 @@ export default function SyncOnlineHome() {
         }
     };
 
-    const handleUnblockUser = useCallback(async (room: InvitedRoom, userToUnblock: BlockedUser) => {
+    const handleUnblockUser = useCallback(async (room: InvitedRoom, userToUnblock: any) => {
         try {
             const roomRef = doc(db, 'syncRooms', room.id);
             await updateDoc(roomRef, {
@@ -463,7 +577,7 @@ export default function SyncOnlineHome() {
                                             <div className="flex-grow">
                                                 <p className="font-semibold">{room.topic}</p>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm text-muted-foreground">{room.createdAt ? new Date(room.createdAt.toDate()).toLocaleString() : ''}</p>
+                                                    <p className="text-sm text-muted-foreground">{room.createdAt ? new Date((room.createdAt as any).toDate()).toLocaleString() : ''}</p>
                                                     {room.status === 'closed' && (
                                                         <Badge variant={room.summary ? 'default' : 'destructive'}>
                                                             {room.summary ? 'Summary Available' : 'Closed'}
@@ -492,7 +606,7 @@ export default function SyncOnlineHome() {
                                                 )}
 
                                                 {room.summary && (
-                                                    <RoomSummaryDialog room={room} />
+                                                    <RoomSummaryDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
                                                 )}
                                                 
                                                 {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
