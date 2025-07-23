@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useState, useMemo, useCallback } from 'react';
-import { LoaderCircle, Trash2, Banknote, PlusCircle, MinusCircle, DollarSign, ExternalLink, Search } from 'lucide-react';
+import { LoaderCircle, Trash2, Banknote, PlusCircle, MinusCircle, DollarSign, ExternalLink } from 'lucide-react';
 import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -22,8 +22,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
-import type { UserProfile } from '../profile/page';
-
 
 function RoomTrackingTest() {
   const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
@@ -36,14 +34,11 @@ function RoomTrackingTest() {
   const handleFetchRooms = async () => {
     setIsLoading(true);
     setError('');
-    setSelectedRoomIds([]); // Reset selection on fetch
-    console.log("Attempting to fetch rooms...");
+    setSelectedRoomIds([]);
     try {
       const fetchedRooms = await getAllRooms();
-      console.log("Fetched rooms from server:", fetchedRooms);
       setRooms(fetchedRooms);
     } catch (e: any) {
-      console.error('Error fetching rooms:', e);
       setError(e.message || 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
@@ -74,7 +69,7 @@ function RoomTrackingTest() {
       const result = await permanentlyDeleteRooms(selectedRoomIds);
       if (result.success) {
         toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
-        handleFetchRooms(); // Refresh the list
+        handleFetchRooms();
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
@@ -327,7 +322,6 @@ function FinancialLedgerTest() {
             setAnalytics(analyticsData);
             setLedger(ledgerData);
 
-            // Fetch user emails for display
             const userIds = [...new Set(ledgerData.map(item => item.userId).filter(Boolean))] as string[];
             if (userIds.length > 0) {
                 const usersRef = collection(db, 'users');
@@ -533,6 +527,6 @@ const TestPage = () => {
       </Card>
     </div>
   );
-}
+};
 
 export default TestPage;
