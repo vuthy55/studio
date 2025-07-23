@@ -44,6 +44,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { getAppSettings, type AppSettings } from '@/services/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -52,6 +53,20 @@ interface InvitedRoom extends SyncRoom {
 
 function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
     if (!room.summary) return null;
+    
+    // Fix for Invalid Date: Handle YYYY-MM-DD format safely
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        // Check if date is valid, if not, maybe the string is already formatted
+        if(isNaN(date.getTime())) {
+            return dateString;
+        }
+        // Add timezone offset to prevent off-by-one-day errors
+        const timezoneOffset = date.getTimezoneOffset() * 60000;
+        const adjustedDate = new Date(date.getTime() + timezoneOffset);
+        return adjustedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -60,52 +75,58 @@ function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
                     View Summary
                  </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>{room.summary.title}</DialogTitle>
                     <DialogDescription>
-                        Meeting held on {new Date(room.summary.date).toLocaleDateString()}
+                        Meeting held on {formatDate(room.summary.date)}
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[60vh] p-1">
                 <div className="space-y-6 pr-4">
                     <div className="space-y-2">
-                        <h3 className="font-semibold">Summary</h3>
+                        <h3 className="font-semibold text-lg">Summary</h3>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{room.summary.summary}</p>
                     </div>
 
                     {room.summary.actionItems && room.summary.actionItems.length > 0 && (
                         <div className="space-y-2">
-                            <h3 className="font-semibold">Action Items</h3>
-                            <ul className="list-disc pl-5 space-y-1 text-sm">
-                                {room.summary.actionItems.map((item, index) => (
-                                    <li key={index}>
-                                        <strong>{item.task}</strong>
-                                        {(item.personInCharge || item.dueDate) && (
-                                            <span className="text-muted-foreground text-xs block">
-                                                {item.personInCharge && `Assigned to: ${item.personInCharge}`}
-                                                {item.personInCharge && item.dueDate && ' | '}
-                                                {item.dueDate && `Due: ${item.dueDate}`}
-                                            </span>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
+                            <h3 className="font-semibold text-lg">Action Items</h3>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[50px]">#</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>PIC</TableHead>
+                                        <TableHead>Due</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {room.summary.actionItems.map((item, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{index + 1}</TableCell>
+                                            <TableCell>{item.task}</TableCell>
+                                            <TableCell>{item.personInCharge || 'N/A'}</TableCell>
+                                            <TableCell>{item.dueDate || 'N/A'}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                         </div>
                     )}
                     
                     <div className="space-y-2">
-                        <h3 className="font-semibold">Participants</h3>
-                        <div className="flex gap-4 text-sm">
+                        <h3 className="font-semibold text-lg">Participants</h3>
+                        <div className="flex gap-8 text-sm">
                              <div>
                                 <h4 className="font-medium flex items-center gap-1.5 text-green-600"><UserCheck/> Present</h4>
-                                <ul className="list-disc pl-5">
+                                <ul className="list-disc pl-5 mt-1">
                                     {room.summary.presentParticipants.map((p, i) => <li key={i}>{p}</li>)}
                                 </ul>
                             </div>
                              <div>
                                 <h4 className="font-medium flex items-center gap-1.5 text-red-600"><UserX/> Absent</h4>
-                                <ul className="list-disc pl-5">
+                                <ul className="list-disc pl-5 mt-1">
                                     {room.summary.absentParticipants.map((p, i) => <li key={i}>{p}</li>)}
                                 </ul>
                             </div>
@@ -113,6 +134,11 @@ function RoomSummaryDialog({ room }: { room: InvitedRoom }) {
                     </div>
                 </div>
                 </ScrollArea>
+                 <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="outline">Close</Button>
+                    </DialogClose>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )

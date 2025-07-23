@@ -129,7 +129,10 @@ const summarizeRoomFlow = ai.defineFlow(
     const transcript = messages.map(msg => `${msg.speakerName}: ${msg.text}`).join('\n');
     const presentParticipantNames = presentParticipants.map(p => p.name);
     const presentParticipantEmails = new Set(presentParticipants.map(p => p.email));
-    const absentParticipantEmails = roomData.invitedEmails.filter((email: string) => !presentParticipantEmails.has(email));
+    
+    // Correctly identify absent participants
+    const allInvitedEmails = new Set(roomData.invitedEmails || []);
+    const absentParticipantEmails = Array.from(allInvitedEmails).filter(email => !presentParticipantEmails.has(email));
     
     // 3. Generate the summary using the AI prompt
     const promptData = {
@@ -137,6 +140,8 @@ const summarizeRoomFlow = ai.defineFlow(
       presentParticipantNames,
       absentParticipantEmails,
     };
+    
+    // Use the custom field in the prompt call instead of pre-formatting the prompt string
     const promptConfig = {
       custom: { currentDate: new Date().toISOString().split('T')[0] }
     };
