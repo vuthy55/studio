@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
-import { getAppSettings, type AppSettings } from '@/services/settings';
+import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 export default function LoginPage() {
@@ -46,7 +46,7 @@ export default function LoginPage() {
   const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
 
   useEffect(() => {
-    getAppSettings().then(setSettings);
+    getAppSettingsAction().then(setSettings);
   }, []);
 
   const countryOptions = useMemo(() => lightweightCountries, []);

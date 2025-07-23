@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { cn } from '@/lib/utils';
-import { getAppSettings, type AppSettings } from '@/services/settings';
+import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 
@@ -48,7 +48,7 @@ function LearnPageContent() {
     const [isFetchingSettings, setIsFetchingSettings] = useState(true);
 
     useEffect(() => {
-        getAppSettings().then(s => {
+        getAppSettingsAction().then(s => {
             setSettings(s)
             setIsFetchingSettings(false);
         });

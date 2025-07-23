@@ -2,7 +2,33 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { defaultSettings, type AppSettings } from '@/services/settings';
+
+export interface AppSettings {
+  signupBonus: number;
+  referralBonus: number;
+  practiceReward: number;
+  practiceThreshold: number;
+  freeSyncLiveMinutes: number;
+  translationCost: number;
+  costPerSyncLiveMinute: number;
+  maxUsersPerRoom: number;
+  freeSyncOnlineMinutes: number;
+  costPerSyncOnlineMinute: number;
+}
+
+export const defaultSettings: AppSettings = {
+  signupBonus: 100,
+  referralBonus: 150,
+  practiceReward: 1,
+  practiceThreshold: 3,
+  freeSyncLiveMinutes: 10,
+  translationCost: 1,
+  costPerSyncLiveMinute: 2,
+  maxUsersPerRoom: 5,
+  freeSyncOnlineMinutes: 10,
+  costPerSyncOnlineMinute: 2,
+};
+
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
 

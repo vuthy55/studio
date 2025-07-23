@@ -42,7 +42,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
-import { getAppSettings, type AppSettings } from '@/services/settings';
+import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { updateRoomSummary } from '@/actions/room';
@@ -370,7 +370,7 @@ export default function SyncOnlineHome() {
         if (user?.email && !emceeEmails.includes(user.email)) {
             setEmceeEmails([user.email]);
         }
-        getAppSettings().then(setSettings);
+        getAppSettingsAction().then(setSettings);
     }, [user, emceeEmails]);
 
     const parsedInviteeEmails = useMemo(() => {
@@ -774,5 +774,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    

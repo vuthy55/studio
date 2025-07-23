@@ -7,7 +7,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode } from '@/lib/data';
-import { getAppSettings, type AppSettings } from '@/services/settings';
+import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import useLocalStorage from '@/hooks/use-local-storage';
 
@@ -31,6 +31,7 @@ interface RecordPracticeAttemptArgs {
     lang: LanguageCode;
     isPass: boolean;
     accuracy: number;
+    settings: AppSettings;
 }
 
 interface UserDataContextType {
@@ -71,7 +72,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     // --- Data Fetching ---
 
     useEffect(() => {
-        getAppSettings().then(setSettings);
+        getAppSettingsAction().then(setSettings);
     }, []);
 
     const fetchUserProfile = useCallback(async () => {
