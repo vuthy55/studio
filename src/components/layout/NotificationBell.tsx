@@ -27,13 +27,15 @@ export default function NotificationBell() {
     const [popoverOpen, setPopoverOpen] = useState(false);
 
     useEffect(() => {
-        // If there's no user or email, clear invitations and do nothing further.
+        // If there's no user or email, we should not attempt to listen.
+        // We also clear any existing invitations from a previous session.
         if (!user || !user.email) {
+            console.log('[DEBUG] NotificationBell: No user, clearing invitations and skipping listener setup.');
             setInvitations([]);
             return;
         }
 
-        // This code now only runs if the user is authenticated.
+        console.log(`[DEBUG] NotificationBell: User detected (${user.email}). Setting up listener.`);
         const roomsRef = collection(db, 'syncRooms');
         const q = query(
             roomsRef, 
@@ -42,6 +44,7 @@ export default function NotificationBell() {
         );
 
         const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+            console.log(`[DEBUG] NotificationBell: Snapshot received with ${querySnapshot.docs.length} documents.`);
             const roomsData = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
                 .sort((a, b) => {
@@ -52,13 +55,15 @@ export default function NotificationBell() {
             
             setInvitations(roomsData);
         }, (error) => {
-            // This error handler will now be less likely to fire on logout.
-            console.error("Error fetching invitations:", error);
+            console.error("[DEBUG] NotificationBell: Error in onSnapshot listener.", error);
         });
 
-        // The returned unsubscribe function is called on component unmount,
-        // which now correctly handles cleanup for an authenticated session.
-        return () => unsubscribe();
+        // The returned unsubscribe function is CRITICAL.
+        // It's called when the component unmounts OR when the dependency array (user) changes.
+        return () => {
+            console.log('[DEBUG] NotificationBell: Cleanup triggered. Unsubscribing from Firestore listener.');
+            unsubscribe();
+        };
 
     }, [user]); // The effect correctly depends on the user object.
 
