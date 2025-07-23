@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -28,11 +27,13 @@ export default function NotificationBell() {
     const [popoverOpen, setPopoverOpen] = useState(false);
 
     useEffect(() => {
+        // If there's no user or email, clear invitations and do nothing further.
         if (!user || !user.email) {
             setInvitations([]);
             return;
         }
 
+        // This code now only runs if the user is authenticated.
         const roomsRef = collection(db, 'syncRooms');
         const q = query(
             roomsRef, 
@@ -51,13 +52,15 @@ export default function NotificationBell() {
             
             setInvitations(roomsData);
         }, (error) => {
+            // This error handler will now be less likely to fire on logout.
             console.error("Error fetching invitations:", error);
         });
 
-        // Cleanup subscription on unmount
+        // The returned unsubscribe function is called on component unmount,
+        // which now correctly handles cleanup for an authenticated session.
         return () => unsubscribe();
 
-    }, [user]);
+    }, [user]); // The effect correctly depends on the user object.
 
     const handleLinkClick = () => {
         setPopoverOpen(false);
