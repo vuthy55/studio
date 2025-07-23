@@ -193,6 +193,24 @@ export default function SyncRoomPage() {
     const isCurrentUserEmcee = useMemo(() => {
         return user?.email && roomData?.emceeEmails?.includes(user.email);
     }, [user, roomData]);
+
+    const freeMinutesRemaining = useMemo(() => {
+        if (!settings || !userProfile) return 0;
+
+        // Check if syncOnlineUsageLastReset is in the current month. If not, usage is 0 for this calculation.
+        const now = new Date();
+        const lastReset = userProfile.syncOnlineUsageLastReset?.toDate();
+        let currentUsageMs = userProfile.syncOnlineUsage || 0;
+
+        if (lastReset && (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear())) {
+            currentUsageMs = 0; // Usage resets every month for this check
+        }
+        
+        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
+        
+        return Math.floor(remainingFreeMs / 60000);
+    }, [settings, userProfile]);
     
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
