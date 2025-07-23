@@ -257,9 +257,12 @@ export default function ProfilePage() {
 
      useEffect(() => {
         if (!authLoading && user) {
-            fetchUserProfile();
+            // Check if profile is empty before fetching to avoid unnecessary fetches
+            if (!userProfile?.email) {
+                 fetchUserProfile();
+            }
         }
-    }, [user, authLoading, fetchUserProfile]);
+    }, [user, authLoading, userProfile, fetchUserProfile]);
 
     useEffect(() => {
         if(userProfile) {
@@ -365,12 +368,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
-
-    
-
-
-
-
-

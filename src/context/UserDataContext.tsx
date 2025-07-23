@@ -31,7 +31,6 @@ interface RecordPracticeAttemptArgs {
     lang: LanguageCode;
     isPass: boolean;
     accuracy: number;
-    settings: AppSettings;
 }
 
 interface UserDataContextType {
@@ -96,7 +95,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
-    }, [setUserProfile]); // Removed unstable dependencies
+    }, [setUserProfile]);
 
     const fetchPracticeHistory = useCallback(async () => {
          if (!user) {
@@ -127,19 +126,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     await fetchPracticeHistory();
                 }
                 setLoading(false);
-            } 
-            else if (!user && !authLoading && !isLoggingOut.current) {
-                console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
-                // Clear local state
-                setUserProfile({});
-                setPracticeHistory({});
-                setSyncLiveUsage(0);
-                setLoading(false);
+            } else if (!user && !authLoading) {
+                 // This block now primarily handles the initial non-logged-in state
+                 setLoading(false);
             }
         }
         fetchAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, authLoading]); // Removed unstable dependencies to break loop
+    }, [user, authLoading, fetchUserProfile, fetchPracticeHistory, practiceHistory]);
 
 
     // --- Firestore Synchronization Logic ---
@@ -219,10 +212,19 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = useCallback(async () => {
         console.log("[DEBUG] UserDataContext: Logout initiated.");
-        isLoggingOut.current = true; 
+        isLoggingOut.current = true;
         debouncedCommitToFirestore.flush(); 
+        
         await auth.signOut();
-    }, [debouncedCommitToFirestore]);
+        
+        // Explicitly clear all local state
+        console.log("[DEBUG] UserDataContext: No user detected (logout), clearing local state.");
+        setUserProfile({});
+        setPracticeHistory({});
+        setSyncLiveUsage(0);
+        
+        isLoggingOut.current = false;
+    }, [debouncedCommitToFirestore, setUserProfile, setPracticeHistory]);
 
     const updateSyncLiveUsage = useCallback((durationMs: number): number => {
         if (!user || !settings) return 0;
