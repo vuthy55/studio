@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock } from 'lucide-react';
+import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -156,11 +156,14 @@ export default function SyncRoomPage() {
     const [emailsToInvite, setEmailsToInvite] = useState('');
     const [isSendingInvites, setIsSendingInvites] = useState(false);
     
+    const [sessionTimer, setSessionTimer] = useState('00:00');
+    
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<() => void | null>(null);
     const sessionStartTime = useRef<number | null>(null);
+    const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const isExiting = useRef(false);
 
@@ -204,6 +207,11 @@ export default function SyncRoomPage() {
     const handleExitRoom = useCallback(async () => {
         if (!user || isExiting.current) return;
         isExiting.current = true;
+        
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+        }
 
         console.log("[DEBUG] Exit: Exiting process started.");
 
@@ -271,7 +279,20 @@ export default function SyncRoomPage() {
         });
 
         messageListenerUnsubscribe.current = unsubscribe;
-        console.log("[DEBUG] Message listener attached successfully.");
+        
+        // Start the visual timer
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = setInterval(() => {
+            if (sessionStartTime.current) {
+                const elapsedMs = Date.now() - sessionStartTime.current;
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                setSessionTimer(`${minutes}:${seconds}`);
+            }
+        }, 1000);
+        
+        console.log("[DEBUG] Message listener and visual timer attached successfully.");
         
     }, [roomId, toast]);
 
@@ -751,10 +772,34 @@ export default function SyncRoomPage() {
                             <Coins className="h-4 w-4 text-amber-500" />
                             <span>Cost: {settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
                         </div>
-                        <div className="flex items-center gap-2" title="Your free minutes remaining for this month">
-                            <Clock className="h-4 w-4 text-primary" />
-                            <span>Free: {freeMinutesRemaining} min left</span>
-                        </div>
+                         <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2" title="Your free minutes remaining for this month">
+                                <Clock className="h-4 w-4 text-primary" />
+                                <span>Free: {freeMinutesRemaining} min left</span>
+                            </div>
+                             <div className="flex items-center gap-2 font-mono" title="Session duration timer">
+                                <span>({sessionTimer})</span>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <Info className="h-4 w-4 cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom" align="start" className="max-w-xs text-sm">
+                                            <p className="font-bold">About the Timer & Billing</p>
+                                            <p className="mt-2">This timer is a visual estimate of your current session duration.</p>
+                                            <p className="mt-1">Final billing is calculated securely on the server when your session ends.</p>
+                                            <p className="mt-2 font-semibold">A session ends if you:</p>
+                                            <ul className="list-disc list-inside mt-1 space-y-1">
+                                                <li>Click "Exit Room" or "End Meeting"</li>
+                                                <li>Navigate to another page in the app</li>
+                                                <li>Close your browser tab/window</li>
+                                                <li>Are removed by an emcee</li>
+                                            </ul>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                             </div>
+                         </div>
                          <div className="flex items-center gap-2" title="Your current token balance">
                             <Coins className="h-4 w-4 text-amber-500" />
                             <span>Balance: {userProfile?.tokenBalance ?? '...'}</span>
@@ -814,5 +859,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
