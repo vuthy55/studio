@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit } from "lucide-react";
+import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 
@@ -212,8 +212,9 @@ export default function UserDetailPage() {
                 
             <div>
                 <Tabs defaultValue="edit" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="edit">Edit Profile</TabsTrigger>
+                        <TabsTrigger value="usage">Usage</TabsTrigger>
                         <TabsTrigger value="logs">Transaction Logs</TabsTrigger>
                     </TabsList>
                     <TabsContent value="edit" className="mt-6">
@@ -253,22 +254,6 @@ export default function UserDetailPage() {
                                         <Label htmlFor="tokenBalance">Token Balance</Label>
                                         <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="syncLiveUsage">Sync Live Usage (ms)</Label>
-                                        <Input id="syncLiveUsage" type="number" value={profile.syncLiveUsage || 0} onChange={handleInputChange} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="syncOnlineUsage">Sync Online Usage (ms)</Label>
-                                        <Input id="syncOnlineUsage" type="number" value={profile.syncOnlineUsage || 0} onChange={handleInputChange} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="syncOnlineUsageLastReset">Sync Online Reset</Label>
-                                        <Input 
-                                            id="syncOnlineUsageLastReset" 
-                                            value={profile.syncOnlineUsageLastReset ? format((profile.syncOnlineUsageLastReset as Timestamp).toDate(), 'PPpp') : 'Not set'} 
-                                            disabled
-                                        />
-                                    </div>
                                     <div className="flex items-center space-x-2 rounded-md border p-4">
                                         <div className="flex-1 space-y-1">
                                             <p className="text-sm font-medium leading-none">Administrator Role</p>
@@ -292,6 +277,30 @@ export default function UserDetailPage() {
                                 </CardContent>
                             </Card>
                         </form>
+                    </TabsContent>
+                    <TabsContent value="usage" className="mt-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Clock /> Feature Usage</CardTitle>
+                                <CardDescription>A summary of the user's feature usage.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
+                                    <Label>Sync Live Usage</Label>
+                                    <span className="font-mono text-sm">{formatDuration(profile.syncLiveUsage || 0)}</span>
+                                </div>
+                                <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
+                                    <Label>Sync Online Usage (Current Cycle)</Label>
+                                    <span className="font-mono text-sm">{formatDuration(profile.syncOnlineUsage || 0)}</span>
+                                </div>
+                                <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
+                                    <Label>Last Usage Reset Date</Label>
+                                    <span className="font-mono text-sm">
+                                        {profile.syncOnlineUsageLastReset ? format((profile.syncOnlineUsageLastReset as Timestamp).toDate(), 'PPpp') : 'Not set'}
+                                    </span>
+                                </div>
+                            </CardContent>
+                        </Card>
                     </TabsContent>
                     <TabsContent value="logs" className="mt-6">
                             <Card>
@@ -346,3 +355,4 @@ export default function UserDetailPage() {
         </div>
     );
 }
+
