@@ -1572,7 +1572,6 @@ export default function AdminPage() {
     const searchParams = useSearchParams();
     const [isClient, setIsClient] = useState(false);
     
-    // Default to 'rooms' or get from URL
     const initialTab = searchParams.get('tab') || 'rooms';
     const [activeTab, setActiveTab] = useState(initialTab);
 
