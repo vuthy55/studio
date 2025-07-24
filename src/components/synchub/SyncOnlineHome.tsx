@@ -34,7 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users } from 'lucide-react';
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -711,11 +711,15 @@ export default function SyncOnlineHome() {
         return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
     }, [inviteeEmails]);
 
+    const allInvitedEmailsForCalc = useMemo(() => {
+        return [...new Set([user?.email, ...parsedInviteeEmails].filter(Boolean) as string[])];
+    }, [parsedInviteeEmails, user?.email]);
+
     const calculatedCost = useMemo(() => {
         if (!settings) return 0;
-        const numParticipants = new Set([user?.email, ...parsedInviteeEmails].filter(Boolean)).size;
+        const numParticipants = allInvitedEmailsForCalc.length;
         return numParticipants * duration * (settings.costPerSyncOnlineMinute || 1);
-    }, [settings, duration, parsedInviteeEmails, user?.email]);
+    }, [settings, duration, allInvitedEmailsForCalc]);
     
      const toggleEmcee = (email: string) => {
         setEmceeEmails(prev => 
@@ -1110,6 +1114,20 @@ export default function SyncOnlineHome() {
                                 <div className="space-y-2">
                                     <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
                                     <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                                </div>
+                                
+                                <div className="space-y-3">
+                                    <Separator/>
+                                    <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
+                                    <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                                        {allInvitedEmailsForCalc.length > 0 ? (
+                                            allInvitedEmailsForCalc.map(email => (
+                                                <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                                            ))
+                                        ) : (
+                                            <p>Just you so far!</p>
+                                        )}
+                                    </div></ScrollArea>
                                 </div>
 
                                 {(parsedInviteeEmails.length > 0 || user?.email) && (
