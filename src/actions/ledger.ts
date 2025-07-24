@@ -47,7 +47,7 @@ export async function transferTokensAction(payload: TransferTokensPayload): Prom
         // 1. Check sender's balance
         const senderDoc = await senderRef.get();
         const senderData = senderDoc.data();
-        if (!senderDoc.exists() || (senderData?.tokenBalance ?? 0) < amount) {
+        if (!senderDoc.exists || (senderData?.tokenBalance ?? 0) < amount) {
             return { success: false, error: "Insufficient balance for this transfer." };
         }
 
