@@ -23,9 +23,10 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
 import ReferralLink from '@/components/ReferralLink';
-import { findUserByEmail, transferTokens } from '@/services/ledger';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { transferTokensAction } from '@/actions/ledger';
+
 
 export interface PracticeStats {
   byLanguage?: {
@@ -82,7 +83,7 @@ function TokenTransferDialog() {
 
         setIsSubmitting(true);
         try {
-            const result = await transferTokens({
+            const result = await transferTokensAction({
                 fromUserId: user.uid,
                 fromUserEmail: user.email,
                 toUserEmail: toEmail,
@@ -477,7 +478,7 @@ export default function ProfilePage() {
                     />
                 </TabsContent>
                 <TabsContent value="tokens" className="mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <TokenWalletCard />
                         <PaymentHistorySection />
                     </div>
