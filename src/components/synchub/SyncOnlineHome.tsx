@@ -602,8 +602,8 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                     <DialogTitle>Manage Room: {room.topic}</DialogTitle>
                     <DialogDescription>
                         Choose an action to perform on this room.
-                         {room.paymentLogId && <div className="text-xs text-muted-foreground pt-2 font-mono">Payment ID: {room.paymentLogId}</div>}
                     </DialogDescription>
+                    {room.paymentLogId && <div className="text-xs text-muted-foreground pt-2 font-mono">Payment ID: {room.paymentLogId}</div>}
                 </DialogHeader>
                 {isLoading ? (
                     <div className="flex items-center justify-center h-24">
