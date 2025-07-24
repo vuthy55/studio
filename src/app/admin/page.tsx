@@ -361,13 +361,15 @@ function FinancialTabContent() {
     const [analytics, setAnalytics] = useState({ revenue: 0, expenses: 0, net: 0 });
     const [userMap, setUserMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
     const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
 
-    const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-    const [detailsDialogContent, setDetailsDialogContent] = useState<{ title: string; data: FinancialLedgerEntry[] }>({ title: '', data: [] });
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const [hasSearched, setHasSearched] = useState(false);
 
     const [formState, setFormState] = useState({
         description: '',
@@ -391,26 +393,16 @@ function FinancialTabContent() {
         setIsExpenseDialogOpen(true);
     };
 
-    const openDetailsDialog = (type: 'revenue' | 'expense') => {
-        const data = ledger.filter(item => item.type === type);
-        const title = type === 'revenue' ? 'Revenue Details' : 'Expense Details';
-        setDetailsDialogContent({ title, data });
-        setIsDetailsDialogOpen(true);
-    };
-
-    const fetchData = useCallback(async () => {
-        if (!auth.currentUser) {
-            setLedger([]);
-            setAnalytics({ revenue: 0, expenses: 0, net: 0 });
-            setUserMap({});
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
+    const fetchData = useCallback(async (searchQuery = '') => {
+        if (!auth.currentUser) return;
+        
+        setIsSearching(true);
+        if (searchQuery) setHasSearched(true);
+        
         try {
             const [ledgerData, analyticsData] = await Promise.all([
-                getFinancialLedger(),
-                getLedgerAnalytics()
+                getFinancialLedger(searchQuery),
+                getLedgerAnalytics() // Analytics should always be total, not filtered
             ]);
             setLedger(ledgerData);
             setAnalytics(analyticsData);
@@ -424,19 +416,35 @@ function FinancialTabContent() {
                 userSnapshot.forEach(doc => {
                     fetchedUserMap[doc.id] = doc.data().email || 'Unknown User';
                 });
-                setUserMap(fetchedUserMap);
+                setUserMap(prev => ({...prev, ...fetchedUserMap}));
             }
         } catch (error) {
             console.error("Error fetching financial data:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch financial data.' });
         } finally {
             setIsLoading(false);
+            setIsSearching(false);
         }
     }, [toast]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData, user]); // Refetch when user logs in/out
+        if (!user) {
+            setIsLoading(false);
+            return;
+        }
+        // Initial fetch for analytics only
+        getLedgerAnalytics().then(setAnalytics).finally(() => setIsLoading(false));
+    }, [user]);
+
+     useEffect(() => {
+        if (debouncedSearchTerm) {
+            fetchData(debouncedSearchTerm);
+        } else {
+            setLedger([]);
+            setHasSearched(false);
+        }
+    }, [debouncedSearchTerm, fetchData]);
+    
 
     const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
         e.preventDefault();
@@ -480,7 +488,7 @@ function FinancialTabContent() {
             
             setIsExpenseDialogOpen(false);
             setIsRevenueDialogOpen(false);
-            await fetchData();
+            await fetchData(debouncedSearchTerm);
 
         } catch (error) {
             console.error(`Error adding ${type}:`, error);
@@ -488,6 +496,33 @@ function FinancialTabContent() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+    
+    const downloadCsv = () => {
+        if (ledger.length === 0) return;
+        const headers = ["ID", "Date", "Type", "Amount", "Source", "Description", "User Email", "Link"];
+        const rows = ledger.map(item => [
+            item.id,
+            format(item.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+            item.type,
+            item.amount,
+            item.source || 'N/A',
+            item.description,
+            item.userId ? (userMap[item.userId] || item.userId) : 'System',
+            item.link || 'N/A'
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8," 
+            + headers.join(",") + "\n" 
+            + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "financial_ledger.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
     
     if (isLoading) {
@@ -599,7 +634,7 @@ function FinancialTabContent() {
                     <CardContent className="p-4">
                          <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x">
                             {/* Total Revenue */}
-                             <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4 hover:bg-muted rounded-lg cursor-pointer" onClick={() => openDetailsDialog('revenue')}>
+                             <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
                                  <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <PlusCircle className="h-4 w-4 mr-1 text-green-500" />
                                     Total Revenue:
@@ -608,7 +643,7 @@ function FinancialTabContent() {
                             </div>
                             
                             {/* Total Expenses */}
-                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4 hover:bg-muted rounded-lg cursor-pointer" onClick={() => openDetailsDialog('expense')}>
+                            <div className="flex flex-col items-center justify-center p-2 gap-1 md:flex-row md:gap-4">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
                                     Total Expenses:
@@ -629,6 +664,21 @@ function FinancialTabContent() {
                 </Card>
             </CardHeader>
             <CardContent>
+                <div className="flex justify-between items-center mb-4">
+                    <div className="relative flex-grow">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by email or use * for all"
+                            className="pl-10"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0} className="ml-4">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download CSV
+                    </Button>
+                </div>
                  <div className="border rounded-md min-h-[200px]">
                     <Table>
                         <TableHeader>
@@ -642,7 +692,13 @@ function FinancialTabContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {ledger.length > 0 ? (
+                            {isSearching ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center">
+                                         <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : ledger.length > 0 ? (
                                 ledger.map((item, index) => {
                                     const runningNumber = String(ledger.length - index).padStart(5, '0');
                                     return (
@@ -689,64 +745,15 @@ function FinancialTabContent() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">No financial records found.</TableCell>
+                                    <TableCell colSpan={6} className="h-24 text-center">
+                                       {hasSearched ? "No records match your search." : "Enter a search term to begin."}
+                                    </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
                     </Table>
                 </div>
             </CardContent>
-
-             {/* Details Dialog */}
-            <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>{detailsDialogContent.title}</DialogTitle>
-                        <DialogDescription>A detailed list of all transactions for this category.</DialogDescription>
-                    </DialogHeader>
-                    <div className="max-h-[60vh] overflow-y-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>#</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    <TableHead>Type / Method</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead>By</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {detailsDialogContent.data.map((item, index) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <span className="font-mono text-xs text-muted-foreground">{String(detailsDialogContent.data.length - index).padStart(5, '0')}</span>
-                                                <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={item.id}>{item.id}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
-                                        <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
-                                             {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <Badge variant={item.type === 'revenue' ? 'default' : 'destructive'} className={`w-fit ${item.type === 'revenue' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                    {item.type}
-                                                </Badge>
-                                                <span className="text-xs text-muted-foreground capitalize">{item.source}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>{item.source === 'paypal' ? `Token Purchase: ${item.orderId}` : item.description}</TableCell>
-                                        <TableCell>{item.userId ? userMap[item.userId] || 'User' : 'System'}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
         </Card>
     )
 }
@@ -849,9 +856,11 @@ function TokensTabContent() {
     const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
     const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [filteredLedger, setFilteredLedger] = useState<TokenLedgerEntry[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    
     const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const [hasSearched, setHasSearched] = useState(false);
 
     const getReasonText = (log: TokenLedgerEntry) => {
         if (log.actionType === 'admin_issue') return log.reason || 'Admin Issue';
@@ -876,54 +885,53 @@ function TokensTabContent() {
         return `${minutes}m ${remainingSeconds}s`;
     };
 
-    const fetchData = useCallback(async () => {
-        if (!auth.currentUser) {
-            setAnalytics(null);
-            setLedger([]);
-            setFilteredLedger([]);
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
+    const fetchData = useCallback(async (searchQuery = '') => {
+        if (!auth.currentUser) return;
+
+        setIsSearching(true);
+        if (searchQuery) setHasSearched(true);
+        
         try {
             const [analyticsData, ledgerData] = await Promise.all([
                 getTokenAnalytics(),
-                getTokenLedger()
+                getTokenLedger(searchQuery)
             ]);
             setAnalytics(analyticsData);
             setLedger(ledgerData);
-            setFilteredLedger(ledgerData);
         } catch (err: any) {
              console.error("Error fetching token data:", err);
             toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
         } finally {
             setIsLoading(false);
+            setIsSearching(false);
         }
     }, [toast]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData, user]);
+        if (!user) {
+            setIsLoading(false);
+            return;
+        }
+        // Initial fetch for analytics only
+        getTokenAnalytics().then(setAnalytics).finally(() => setIsLoading(false));
+    }, [user]);
 
     useEffect(() => {
         if (debouncedSearchTerm) {
-            const lowercasedFilter = debouncedSearchTerm.toLowerCase();
-            const results = ledger.filter(log =>
-                log.userEmail.toLowerCase().includes(lowercasedFilter) ||
-                log.fromUserEmail?.toLowerCase().includes(lowercasedFilter) ||
-                log.toUserEmail?.toLowerCase().includes(lowercasedFilter)
-            );
-            setFilteredLedger(results);
+            fetchData(debouncedSearchTerm);
         } else {
-            setFilteredLedger(ledger);
+            setLedger([]);
+            setHasSearched(false);
         }
-    }, [debouncedSearchTerm, ledger]);
+    }, [debouncedSearchTerm, fetchData]);
     
     const downloadCsv = () => {
-        const headers = ["#", "Date", "From/To", "QTY", "Reason", "Description"];
-        const rows = filteredLedger.map((log, index) => [
-            String(ledger.length - ledger.findIndex(l => l.id === log.id)).padStart(5, '0'),
-            format(log.timestamp, 'd MMM yyyy, HH:mm'),
+        if (ledger.length === 0) return;
+
+        const headers = ["ID", "Date", "From/To", "QTY", "Reason", "Description"];
+        const rows = ledger.map((log) => [
+            log.id,
+            format(log.timestamp, 'yyyy-MM-dd HH:mm:ss'),
             getFromToCell(log),
             log.tokenChange,
             getReasonText(log),
@@ -994,7 +1002,7 @@ function TokensTabContent() {
                         <TabsTrigger value="ledger">Ledger</TabsTrigger>
                     </TabsList>
                     <TabsContent value="issue" className="py-4">
-                        <IssueTokensContent onIssueSuccess={fetchData} />
+                        <IssueTokensContent onIssueSuccess={() => fetchData(debouncedSearchTerm)} />
                     </TabsContent>
                     <TabsContent value="acquired" className="py-4">
                         <Card>
@@ -1042,7 +1050,7 @@ function TokensTabContent() {
                                         <CardTitle>Token Ledger</CardTitle>
                                         <CardDescription>A log of all token transactions in the system.</CardDescription>
                                     </div>
-                                    <Button onClick={downloadCsv} variant="outline" size="sm" disabled={filteredLedger.length === 0}>
+                                    <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0}>
                                         <Download className="mr-2 h-4 w-4" />
                                         Download CSV
                                     </Button>
@@ -1050,7 +1058,7 @@ function TokensTabContent() {
                                 <div className="relative pt-2">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                     <Input
-                                        placeholder="Search by email..."
+                                        placeholder="Search by email or use * for all"
                                         className="pl-10"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -1071,8 +1079,14 @@ function TokensTabContent() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {filteredLedger.length > 0 ? (
-                                                filteredLedger.map((log) => (
+                                            {isSearching ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="h-24 text-center">
+                                                         <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : ledger.length > 0 ? (
+                                                ledger.map((log) => (
                                                 <TableRow key={log.id}>
                                                     <TableCell>
                                                         <div className="flex flex-col">
@@ -1099,7 +1113,7 @@ function TokensTabContent() {
                                             ) : (
                                                 <TableRow>
                                                     <TableCell colSpan={6} className="h-24 text-center">
-                                                        {searchTerm ? 'No logs match your search.' : 'No token logs found.'}
+                                                        {hasSearched ? 'No logs match your search.' : 'Enter a search term to begin.'}
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -1572,3 +1586,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    

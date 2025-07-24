@@ -12,7 +12,7 @@ export interface FinancialLedgerEntry {
   description: string;
   amount: number;
   timestamp: Date | Timestamp;
-  source?: 'paypal' | 'manual';
+  source?: 'paypal' | 'manual' | 'paypal-donation';
   orderId?: string;
   userId?: string;
   link?: string;
@@ -61,12 +61,28 @@ export interface TransferTokensPayload {
 
 
 /**
- * Fetches all entries from the financial ledger, ordered by date.
+ * Fetches entries from the financial ledger, with optional filtering.
  */
-export async function getFinancialLedger(): Promise<FinancialLedgerEntry[]> {
+export async function getFinancialLedger(emailFilter: string = ''): Promise<FinancialLedgerEntry[]> {
     const ledgerCol = collection(db, 'financialLedger');
-    const q = query(ledgerCol, orderBy('timestamp', 'desc'));
-    const snapshot = await getDocs(q);
+    let finalQuery;
+
+    if (emailFilter && emailFilter !== '*') {
+        const usersRef = collection(db, 'users');
+        const userQuery = query(usersRef, where('email', '==', emailFilter.toLowerCase()));
+        const userSnapshot = await getDocs(userQuery);
+
+        if (userSnapshot.empty) {
+            return []; // No user found, so no ledger entries
+        }
+        const userId = userSnapshot.docs[0].id;
+        finalQuery = query(ledgerCol, where('userId', '==', userId), orderBy('timestamp', 'desc'));
+
+    } else { // Handles empty string and '*'
+        finalQuery = query(ledgerCol, orderBy('timestamp', 'desc'));
+    }
+
+    const snapshot = await getDocs(finalQuery);
     
     return snapshot.docs.map(doc => ({
         id: doc.id,
@@ -79,7 +95,7 @@ export async function getFinancialLedger(): Promise<FinancialLedgerEntry[]> {
  * Calculates analytics from the ledger.
  */
 export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses: number, net: number }> {
-    const entries = await getFinancialLedger();
+    const entries = await getFinancialLedger('*'); // Always calculate on the full ledger
     let revenue = 0;
     let expenses = 0;
 
@@ -198,16 +214,31 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
 
 
 /**
- * Fetches all token transaction logs across all users by iterating through users.
- * This avoids a complex collectionGroup query that requires a custom index.
+ * Fetches token transaction logs, optionally filtering by user email.
  */
-export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
+export async function getTokenLedger(emailFilter: string = ''): Promise<TokenLedgerEntry[]> {
   try {
-    const usersRef = collection(db, 'users');
-    const usersSnapshot = await getDocs(usersRef);
     let allLogs: TokenLedgerEntry[] = [];
+    const lowercasedFilter = emailFilter.toLowerCase().trim();
 
-    // Create an array of promises to fetch logs for all users in parallel
+    if (!lowercasedFilter) {
+        return [];
+    }
+
+    let usersSnapshot;
+    const usersRef = collection(db, 'users');
+
+    if (lowercasedFilter === '*') {
+        usersSnapshot = await getDocs(usersRef);
+    } else {
+        const userQuery = query(usersRef, where('email', '==', lowercasedFilter));
+        usersSnapshot = await getDocs(userQuery);
+    }
+    
+    if (usersSnapshot.empty && lowercasedFilter !== '*') {
+        return []; // No user found for the specific email filter
+    }
+
     const logFetchPromises = usersSnapshot.docs.map(async (userDoc) => {
       const userId = userDoc.id;
       const userEmail = userDoc.data().email || 'Unknown';
@@ -217,7 +248,6 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
       const userLogs: TokenLedgerEntry[] = [];
       logsSnapshot.forEach((logDoc) => {
         const logData = logDoc.data() as TransactionLog;
-        // Include all logs, even those with zero token change if they are transfers
         if(logData.tokenChange !== 0 || logData.actionType === 'p2p_transfer') {
             userLogs.push({
             ...logData,
@@ -231,20 +261,14 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
       return userLogs;
     });
 
-    // Wait for all log fetching promises to resolve
     const userLogArrays = await Promise.all(logFetchPromises);
-    
-    // Flatten the array of arrays into a single array
     allLogs = userLogArrays.flat();
-    
-    // Sort the combined logs by timestamp in descending order
     allLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     
     return allLogs;
 
   } catch (error) {
     console.error('Error fetching token ledger:', error);
-    // Re-throw the error to be caught by the calling component
     throw error;
   }
 }
@@ -289,3 +313,5 @@ export async function issueTokens(payload: IssueTokensPayload): Promise<{success
         return { success: false, error: "An unexpected server error occurred." };
     }
 }
+
+    
