@@ -136,7 +136,12 @@ function TokenHistoryDialog() {
                                 <TableBody>
                                     {transactions.map((log, index) => (
                                         <TableRow key={log.id}>
-                                            <TableCell className="font-mono text-xs text-muted-foreground">{String(transactions.length - index).padStart(5, '0')}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono text-xs text-muted-foreground">{String(transactions.length - index).padStart(5, '0')}</span>
+                                                    <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={log.id}>{log.id}</span>
+                                                </div>
+                                            </TableCell>
                                             <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
                                             <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                 {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}

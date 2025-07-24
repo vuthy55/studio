@@ -602,6 +602,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                     <DialogTitle>Manage Room: {room.topic}</DialogTitle>
                     <DialogDescription>
                         Choose an action to perform on this room.
+                         {room.paymentLogId && <p className="text-xs text-muted-foreground pt-2 font-mono">Payment ID: {room.paymentLogId}</p>}
                     </DialogDescription>
                 </DialogHeader>
                 {isLoading ? (

@@ -97,7 +97,7 @@ function UsersTabContent() {
                 
                 const [emailSnapshot, nameSnapshot] = await Promise.all([
                     getDocs(emailQuery),
-                    getDocs(nameQuery),
+                    getDocs(nameSnapshot),
                 ]);
 
                 const foundUsersMap = new Map<string, UserWithId>();
@@ -646,7 +646,12 @@ function FinancialTabContent() {
                                     const runningNumber = String(ledger.length - index).padStart(5, '0');
                                     return (
                                         <TableRow key={item.id}>
-                                            <TableCell className="font-mono text-muted-foreground">{runningNumber}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono text-xs text-muted-foreground">{runningNumber}</span>
+                                                    <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={item.id}>{item.id}</span>
+                                                </div>
+                                            </TableCell>
                                             <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                             <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                                 {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
@@ -713,8 +718,11 @@ function FinancialTabContent() {
                             <TableBody>
                                 {detailsDialogContent.data.map((item, index) => (
                                     <TableRow key={item.id}>
-                                         <TableCell className="font-mono text-xs text-muted-foreground">
-                                           {String(detailsDialogContent.data.length - index).padStart(5, '0')}
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <span className="font-mono text-xs text-muted-foreground">{String(detailsDialogContent.data.length - index).padStart(5, '0')}</span>
+                                                <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={item.id}>{item.id}</span>
+                                            </div>
                                         </TableCell>
                                         <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                         <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
@@ -1065,7 +1073,12 @@ function TokensTabContent() {
                                             {filteredLedger.length > 0 ? (
                                                 filteredLedger.map((log) => (
                                                 <TableRow key={log.id}>
-                                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.length - ledger.findIndex(l => l.id === log.id)).padStart(5, '0')}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-mono text-xs text-muted-foreground">{String(ledger.length - ledger.findIndex(l => l.id === log.id)).padStart(5, '0')}</span>
+                                                            <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={log.id}>{log.id}</span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                                     <TableCell className="whitespace-pre-line">
                                                         <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
