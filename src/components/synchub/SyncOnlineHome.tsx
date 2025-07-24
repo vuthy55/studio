@@ -719,10 +719,11 @@ export default function SyncOnlineHome() {
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
             
-            const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
+             const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
                 ? new Date(editingRoom.scheduledAt)
                 : new Date();
             setScheduledDate(validDate);
+
         } else {
             setRoomTopic('');
             setCreatorLanguage('');
@@ -747,6 +748,11 @@ export default function SyncOnlineHome() {
         const numParticipants = allInvitedEmailsForCalc.length;
         return numParticipants * duration * (settings.costPerSyncOnlineMinute || 1);
     }, [settings, duration, allInvitedEmailsForCalc]);
+
+    const costDifference = useMemo(() => {
+        if (!isEditMode || !editingRoom) return 0;
+        return calculatedCost - (editingRoom.initialCost || 0);
+    }, [isEditMode, editingRoom, calculatedCost]);
     
      const toggleEmcee = (email: string) => {
         setEmceeEmails(prev => 
@@ -768,11 +774,11 @@ export default function SyncOnlineHome() {
             const rooms = querySnapshot.docs
                 .map(doc => {
                     const data = doc.data();
-                    const toISO = (ts: any): string | undefined => {
-                        if (ts && ts instanceof Timestamp) {
+                     const toISO = (ts: any): string | undefined => {
+                        if (ts instanceof Timestamp) {
                             return ts.toDate().toISOString();
                         }
-                        if (typeof ts === 'string') return ts;
+                        if (typeof ts === 'string') return ts; // Already a string
                         return undefined;
                     };
 
@@ -854,21 +860,14 @@ export default function SyncOnlineHome() {
             return;
         }
 
-        const costDifference = calculatedCost - (editingRoom?.initialCost || 0);
-        
-        if (!isEditMode && (userProfile.tokenBalance || 0) < calculatedCost) {
-            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
-            return;
-        }
-         if (isEditMode && (userProfile.tokenBalance || 0) < costDifference) {
-            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${costDifference} more tokens for these changes.`});
-            return;
-        }
-        
         setIsSubmitting(true);
         try {
             if (isEditMode && editingRoom) {
-                // Handle Update
+                 if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
+                    toast({ variant: "destructive", title: "Insufficient Tokens", description: `You need ${calculatedCost - ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0))} more tokens.` });
+                    setIsSubmitting(false);
+                    return;
+                }
                 const result = await updateScheduledRoom({
                     roomId: editingRoom.id,
                     userId: user.uid,
@@ -887,9 +886,15 @@ export default function SyncOnlineHome() {
                      toast({ variant: "destructive", title: "Update Failed", description: result.error });
                 }
             } else {
-                // Handle Create
+                 if ((userProfile.tokenBalance || 0) < calculatedCost) {
+                    toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
+                    setIsSubmitting(false);
+                    return;
+                }
                 const batch = writeBatch(db);
                 const newRoomRef = doc(collection(db, 'syncRooms'));
+                const newPaymentLogRef = doc(collection(db, 'users', user.uid, 'transactionLogs'));
+                
                 const newRoom: Omit<SyncRoom, 'id'> = {
                     topic: roomTopic,
                     creatorUid: user.uid,
@@ -903,15 +908,14 @@ export default function SyncOnlineHome() {
                     scheduledAt: Timestamp.fromDate(scheduledDate),
                     durationMinutes: duration,
                     initialCost: calculatedCost,
+                    paymentLogId: newPaymentLogRef.id,
                     hasStarted: false,
                 };
                 batch.set(newRoomRef, newRoom);
                 
-                const userRef = doc(db, 'users', user.uid);
-                batch.update(userRef, { tokenBalance: increment(-calculatedCost) });
+                batch.update(doc(db, 'users', user.uid), { tokenBalance: increment(-calculatedCost) });
                 
-                const logRef = doc(collection(userRef, 'transactionLogs'));
-                batch.set(logRef, {
+                batch.set(newPaymentLogRef, {
                     actionType: 'live_sync_online_spend',
                     tokenChange: -calculatedCost,
                     timestamp: serverTimestamp(),
@@ -1129,15 +1133,15 @@ export default function SyncOnlineHome() {
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                         <DialogContent className="max-w-lg h-[90vh] flex flex-col">
-                            <DialogHeader>
+                             <DialogHeader>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="flex-grow overflow-hidden">
-                                <ScrollArea className="h-full">
-                                    <form id="create-room-form" onSubmit={handleSubmitRoom} className="px-4 py-2 space-y-4">
+                                <ScrollArea className="h-full pr-6">
+                                    <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -1228,10 +1232,22 @@ export default function SyncOnlineHome() {
                                             </div>
                                         )}
                                         <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
-                                            <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                            {isEditMode ? (
+                                                <>
+                                                    <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
+                                                    <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
+                                                    <Separator/>
+                                                    <div className="flex justify-between font-bold">
+                                                        <span>{costDifference > 0 ? "Additional Charge:" : "Refund:"}</span>
+                                                        <span className={costDifference > 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                            )}
+                                            
                                             <p className="text-xs text-muted-foreground">
                                                 Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
-                                                Your balance will be adjusted upon saving.
                                             </p>
                                             <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                         </div>
@@ -1240,7 +1256,7 @@ export default function SyncOnlineHome() {
                             </div>
                             <DialogFooter>
                                 <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-                                {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
+                                 {(userProfile?.tokenBalance || 0) < costDifference ? (
                                     <div className="flex flex-col items-end gap-2">
                                         <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
                                         <BuyTokens />
@@ -1248,7 +1264,9 @@ export default function SyncOnlineHome() {
                                 ) : (
                                     <Button type="submit" form="create-room-form" disabled={isSubmitting}>
                                         {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        { isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : (isEditMode ? 'Save Changes' : `Confirm & Pay ${calculatedCost} Tokens`) }
+                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                        }
                                     </Button>
                                 )}
                             </DialogFooter>

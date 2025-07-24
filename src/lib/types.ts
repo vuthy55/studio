@@ -70,6 +70,7 @@ export type SyncRoom = {
     scheduledAt?: Timestamp;
     durationMinutes?: number;
     initialCost?: number;
+    paymentLogId?: string; // ID of the transaction log for the current cost
     hasStarted?: boolean;
 }
 
@@ -102,6 +103,7 @@ export type TransactionLog = {
     fromUserEmail?: string;
     toUserId?: string;
     toUserEmail?: string;
+    refundsTransactionId?: string; // Links a refund to the original transaction
 }
 
 export type PaymentLog = {

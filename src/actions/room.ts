@@ -331,7 +331,7 @@ type RoomUpdatePayload = Omit<Partial<Pick<SyncRoom, 'topic' | 'durationMinutes'
 interface UpdateScheduledRoomPayload {
     roomId: string;
     userId: string;
-    updates: RoomUpdatePayload,
+    updates: RoomUpdatePayload;
     newCost: number;
 }
 
@@ -353,19 +353,45 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
             if (roomData.status !== 'scheduled') throw new Error("Only scheduled rooms can be edited.");
 
             const oldCost = roomData.initialCost || 0;
-            const costDifference = newCost - oldCost;
 
             const userDoc = await transaction.get(userRef);
             const userBalance = userDoc.data()?.tokenBalance || 0;
             
-            if (userBalance < costDifference) {
-                throw new Error(`Insufficient tokens. You need ${costDifference} more tokens for this change.`);
+            // Check if user has enough for the *new* cost after refunding the old one
+            if ((userBalance + oldCost) < newCost) {
+                const needed = newCost - (userBalance + oldCost);
+                throw new Error(`Insufficient tokens. You need ${needed} more tokens for this change.`);
             }
 
+            // 1. Refund the original cost
+            if (oldCost > 0 && roomData.paymentLogId) {
+                const refundLogRef = userRef.collection('transactionLogs').doc();
+                transaction.set(refundLogRef, {
+                    actionType: 'sync_online_refund',
+                    tokenChange: oldCost,
+                    timestamp: FieldValue.serverTimestamp(),
+                    description: `Refund for edited room: "${roomData.topic}"`,
+                    refundsTransactionId: roomData.paymentLogId,
+                });
+                transaction.update(userRef, { tokenBalance: FieldValue.increment(oldCost) });
+            }
+
+            // 2. Charge the new cost
+            const newPaymentLogRef = userRef.collection('transactionLogs').doc();
+            transaction.set(newPaymentLogRef, {
+                actionType: 'live_sync_online_spend',
+                tokenChange: -newCost,
+                timestamp: FieldValue.serverTimestamp(),
+                description: `New charge for edited room: "${roomData.topic}"`
+            });
+            transaction.update(userRef, { tokenBalance: FieldValue.increment(-newCost) });
+
+            // 3. Update the room document
             const { scheduledAt, ...otherUpdates } = updates;
             const updatePayload: Record<string, any> = {
                 ...otherUpdates,
                 initialCost: newCost,
+                paymentLogId: newPaymentLogRef.id, // Store the new payment log ID
                 lastActivityAt: FieldValue.serverTimestamp()
             };
 
@@ -375,18 +401,6 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
             }
 
             transaction.update(roomRef, updatePayload);
-            
-            if (costDifference !== 0) {
-                transaction.update(userRef, { tokenBalance: FieldValue.increment(-costDifference) });
-                
-                const logRef = userRef.collection('transactionLogs').doc();
-                transaction.set(logRef, {
-                    actionType: 'live_sync_online_spend',
-                    tokenChange: -costDifference,
-                    timestamp: FieldValue.serverTimestamp(),
-                    description: `Cost adjustment for editing scheduled room: "${roomData.topic}"`
-                });
-            }
         });
         return { success: true };
     } catch (error: any) {
