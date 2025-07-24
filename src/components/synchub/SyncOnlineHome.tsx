@@ -714,7 +714,7 @@ export default function SyncOnlineHome() {
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
-            setScheduledDate(editingRoom.scheduledAt ? (editingRoom.scheduledAt as unknown as Timestamp).toDate() : new Date());
+            setScheduledDate(editingRoom.scheduledAt ? new Date(editingRoom.scheduledAt) : new Date());
         } else {
             // Reset for create mode
             setRoomTopic('');
@@ -761,9 +761,9 @@ export default function SyncOnlineHome() {
             const rooms = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
                 .filter(room => room.status === 'active' || room.status === 'scheduled' || room.summary)
-                .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                .sort((a, b) => (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis());
             
-            setInvitedRooms(rooms);
+            setInvitedRooms(rooms as any);
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
             if (error.code === 'failed-precondition') {
@@ -944,7 +944,7 @@ export default function SyncOnlineHome() {
     const canJoinRoom = (room: InvitedRoom) => {
         if (!room.scheduledAt) return true; // For older rooms without schedule
         const now = Date.now();
-        const scheduledTime = (room.scheduledAt as unknown as Timestamp).toMillis();
+        const scheduledTime = new Date(room.scheduledAt as any).getTime();
         const gracePeriod = 5 * 60 * 1000; // 5 minutes
         return now >= scheduledTime - gracePeriod;
     };
@@ -984,8 +984,8 @@ export default function SyncOnlineHome() {
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
                                              {room.status === 'scheduled' && room.scheduledAt 
-                                                ? format((room.scheduledAt as any).toDate(), 'PPpp')
-                                                : `Created: ${format((room.createdAt as any).toDate(), 'PPp')}`
+                                                ? format(new Date(room.scheduledAt as any), 'PPpp')
+                                                : `Created: ${format(new Date((room.createdAt as any).seconds * 1000), 'PPp')}`
                                              }
                                         </p>
                                         {room.status === 'closed' && (
@@ -1018,7 +1018,7 @@ export default function SyncOnlineHome() {
                                         </Button>
                                     )}
 
-                                    {isCreator && room.status === 'scheduled' && (
+                                    {isCreator && room.status === 'scheduled' && !canJoin && (
                                         <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
@@ -1089,7 +1089,7 @@ export default function SyncOnlineHome() {
                     <CardDescription>Schedule a private room and invite others for a real-time, multi-language voice conversation.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Dialog open={isRoomDialogOpen} onOpenChange={setIsRoomDialogOpen}>
+                     <Dialog open={isRoomDialogOpen} onOpenChange={resetAndClose}>
                         <DialogTrigger asChild>
                              <Button disabled={!user} onClick={handleOpenCreateDialog}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -1105,9 +1105,9 @@ export default function SyncOnlineHome() {
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
-                            <form id="create-room-form" onSubmit={handleSubmitRoom}>
-                                <ScrollArea className="h-full">
-                                    <div className="space-y-4 px-6 pb-6">
+                             <form id="create-room-form" onSubmit={handleSubmitRoom}>
+                                <ScrollArea className="h-full px-6 pb-6">
+                                    <div className="space-y-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -1208,7 +1208,7 @@ export default function SyncOnlineHome() {
                                     </div>
                                 </ScrollArea>
                             </form>
-                            <DialogFooter className="p-6 pt-0">
+                            <DialogFooter className="p-6 pt-0 border-t">
                                     <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                                     {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
                                         <div className="flex flex-col items-end gap-2">
