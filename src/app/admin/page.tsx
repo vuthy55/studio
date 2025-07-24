@@ -33,6 +33,7 @@ import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 
 interface UserWithId extends UserProfile {
@@ -1623,25 +1624,29 @@ export default function AdminPage() {
                 </Button>
             </div>
 
-            <Tabs defaultValue={initialTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TooltipProvider>
-                    <TabsList className="grid w-full grid-cols-7">
-                        {adminTabs.map(tab => (
-                            <Tooltip key={tab.value}>
-                                <TooltipTrigger asChild>
-                                    <TabsTrigger value={tab.value} className="h-12 flex-1">
-                                        <tab.icon className="h-5 w-5" />
-                                    </TabsTrigger>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{tab.label}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        ))}
-                    </TabsList>
-                </TooltipProvider>
+            <div className="p-1 bg-muted rounded-md grid grid-cols-7 gap-1">
+                {adminTabs.map(tab => (
+                    <TooltipProvider key={tab.value}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant={activeTab === tab.value ? 'default' : 'ghost'}
+                                    onClick={() => setActiveTab(tab.value)}
+                                    className="h-12 flex-1"
+                                >
+                                    <tab.icon className="h-5 w-5" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{tab.label}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                ))}
+            </div>
 
-                <TabsContent value="rooms" className="mt-6">
+            <Tabs value={activeTab}>
+                 <TabsContent value="rooms" className="mt-6">
                     <RoomsTabContent />
                 </TabsContent>
                 <TabsContent value="users" className="mt-6">
@@ -1667,5 +1672,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
