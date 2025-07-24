@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1056,15 +1055,13 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
+                        <DialogContent className="sm:max-w-lg">
                             <DialogHeader>
                                 <DialogTitle>Schedule a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be deducted from your token balance upon creation.
                                 </DialogDescription>
                             </DialogHeader>
-                             <div style={{ backgroundColor: 'red', color: 'white', padding: '8px', textAlign: 'center' }}>DEBUG: FORM AREA</div>
-                            <ScrollArea className="flex-grow pr-6 -mr-6">
                             <form id="create-room-form" onSubmit={handleCreateRoom} className="space-y-4 py-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="topic">Room Topic</Label>
@@ -1162,7 +1159,6 @@ export default function SyncOnlineHome() {
                                 </div>
                                 
                             </form>
-                            </ScrollArea>
                             <DialogFooter>
                                 <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                                 {calculatedCost > (userProfile?.tokenBalance || 0) ? (
@@ -1204,5 +1200,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
