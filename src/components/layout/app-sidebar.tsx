@@ -145,12 +145,11 @@ export function AppSidebar() {
                           <TooltipContent side="top"><p>Copy Referral Link</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-
                     <BuyTokens variant="icon" />
                     <DonateButton variant="icon" />
                  </>
             ) : (
-                 <DonateButton />
+                 <DonateButton variant="icon" />
             )}
         </div>
       </SidebarFooter>
