@@ -26,6 +26,7 @@ import ReferralLink from '@/components/ReferralLink';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { transferTokensAction } from '@/actions/ledger';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
 export interface PracticeStats {
@@ -291,7 +292,11 @@ function TokenHistorySection() {
     const [isLoading, setIsLoading] = useState(true);
 
      const getActionText = (log: TransactionLog) => {
+        if (log.actionType === 'p2p_transfer') {
+            return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
+        }
         switch (log.actionType) {
+            case 'admin_issue': return log.reason || 'Admin Issue';
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
             case 'live_sync_online_spend': return 'Sync Online Usage';
@@ -299,8 +304,6 @@ function TokenHistorySection() {
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
-            case 'p2p_transfer':
-                return log.tokenChange > 0 ? 'Received from User' : 'Sent to User';
             default: return 'Unknown Action';
         }
     }
@@ -322,7 +325,7 @@ function TokenHistorySection() {
         const transRef = collection(db, 'users', user.uid, 'transactionLogs');
         const q = query(transRef, orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => doc.data() as TransactionLog);
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLog & { id: string }));
             setTransactions(data);
             setIsLoading(false);
         }, (error) => {
@@ -339,29 +342,39 @@ function TokenHistorySection() {
                 <CardDescription>A complete log of your token earnings and spending.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading ? <LoaderCircle className="animate-spin" /> : transactions.length > 0 ? (
-                     <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                        {transactions.map((log, index) => (
-                            <div key={index} className="flex items-center">
-                                <div className="p-3 rounded-full bg-secondary">
-                                    <div className={`font-bold text-sm ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange}
-                                    </div>
-                                </div>
-                                <div className="ml-4 flex-grow">
-                                    <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
-                                    <p className="text-sm text-muted-foreground truncate max-w-xs">
-                                        {log.description}
-                                        {log.duration && ` (${formatDuration(log.duration)})`}
-                                    </p>
-                                </div>
-                                <p className="text-xs text-muted-foreground ml-auto text-right">
-                                    {log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'Just now'}
-                                </p>
-                            </div>
-                        ))}
+                {isLoading ? (
+                    <div className="flex justify-center items-center py-8">
+                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : <p className="text-muted-foreground">No token history found.</p>}
+                ) : transactions.length > 0 ? (
+                    <div className="border rounded-md min-h-[200px]">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead>Reason</TableHead>
+                                    <TableHead>Description</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {transactions.map((log, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                        <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                        </TableCell>
+                                        <TableCell>{getActionText(log)}</TableCell>
+                                        <TableCell className="max-w-xs truncate">
+                                            {log.description}
+                                            {log.duration && ` (${formatDuration(log.duration)})`}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                ) : <p className="text-center text-muted-foreground py-8">No token history found.</p>}
             </CardContent>
         </Card>
     )
