@@ -38,7 +38,7 @@ import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSq
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
@@ -56,6 +56,7 @@ import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import BuyTokens from '../BuyTokens';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -707,7 +708,9 @@ export default function SyncOnlineHome() {
     const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
     const [inviteeEmails, setInviteeEmails] = useState('');
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
-    const [isRoomDialogOpen, setIsRoomDialogOpen] = useState(false);
+    
+    const [isScheduling, setIsScheduling] = useState(false);
+
     const [duration, setDuration] = useState(30);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
     const [reminderMinutes, setReminderMinutes] = useState<number>(30);
@@ -723,14 +726,31 @@ export default function SyncOnlineHome() {
 
     useEffect(() => {
         setIsClient(true);
-        const initialDate = new Date();
-        initialDate.setMinutes(initialDate.getMinutes() + 30); // Default to 30 mins in the future
-        initialDate.setSeconds(0);
-        initialDate.setMilliseconds(0);
-        setScheduledDate(initialDate);
     }, []);
 
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
+
+     const resetForm = useCallback(() => {
+        const defaultDate = new Date();
+        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+        defaultDate.setSeconds(0);
+        defaultDate.setMilliseconds(0);
+        
+        setRoomTopic('');
+        setCreatorLanguage('');
+        setInviteeEmails('');
+        setEmceeEmails(user?.email ? [user.email] : []);
+        setDuration(30);
+        setScheduledDate(defaultDate);
+        setReminderMinutes(30);
+        setEditingRoom(null);
+    }, [user?.email]);
+
+     useEffect(() => {
+        if (isScheduling && !isEditMode) {
+             resetForm();
+        }
+    }, [isScheduling, isEditMode, resetForm]);
 
      useEffect(() => {
         if (isEditMode && editingRoom) {
@@ -744,19 +764,6 @@ export default function SyncOnlineHome() {
                 ? new Date(editingRoom.scheduledAt)
                 : new Date();
             setScheduledDate(validDate);
-
-        } else {
-            const defaultDate = new Date();
-             defaultDate.setMinutes(defaultDate.getMinutes() + 30);
-             defaultDate.setSeconds(0);
-             defaultDate.setMilliseconds(0);
-            setRoomTopic('');
-            setCreatorLanguage('');
-            setInviteeEmails('');
-            setEmceeEmails(user?.email ? [user.email] : []);
-            setDuration(30);
-            setScheduledDate(defaultDate);
-            setReminderMinutes(30);
         }
     }, [editingRoom, isEditMode, user?.email]);
 
@@ -852,20 +859,15 @@ export default function SyncOnlineHome() {
         }
     }, [user, loading, fetchInvitedRooms]);
     
-    const handleOpenCreateDialog = () => {
-        setEditingRoom(null);
-        setIsRoomDialogOpen(true);
-    };
-
     const handleOpenEditDialog = (room: InvitedRoom) => {
         setEditingRoom(room);
-        setIsRoomDialogOpen(true);
+        setIsScheduling(true);
     };
     
-    const resetAndClose = () => {
+    const handleCancelScheduling = () => {
+        setIsScheduling(false);
         setEditingRoom(null);
-        setIsRoomDialogOpen(false);
-    };
+    }
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -961,7 +963,7 @@ export default function SyncOnlineHome() {
             }
             
             fetchInvitedRooms();
-            resetAndClose();
+            handleCancelScheduling();
 
         } catch (error) {
             console.error("Error submitting room:", error);
@@ -1156,24 +1158,22 @@ export default function SyncOnlineHome() {
                     <CardDescription>Schedule a private room and invite others for a real-time, multi-language voice conversation.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Dialog open={isRoomDialogOpen} onOpenChange={setIsRoomDialogOpen}>
-                        <DialogTrigger asChild>
-                             <Button disabled={!user} onClick={handleOpenCreateDialog}>
+                     <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
+                        <CollapsibleTrigger asChild>
+                             <Button disabled={!user}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
-                                Schedule New Room
+                                {isEditMode ? 'Editing Room...' : 'Schedule New Room'}
                             </Button>
-                        </DialogTrigger>
+                        </CollapsibleTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="max-w-lg h-[90vh] flex flex-col">
-                             <DialogHeader>
-                                <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
-                                <DialogDescription>
-                                    Set the details for your meeting. The cost will be calculated and displayed below.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="flex-grow overflow-hidden">
-                                <ScrollArea className="h-full pr-6">
+                        <CollapsibleContent>
+                        <Card className="mt-4">
+                                <CardHeader>
+                                    <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
+                                    <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
                                     <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
@@ -1302,26 +1302,26 @@ export default function SyncOnlineHome() {
                                             <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                         </div>
                                     </form>
-                                </ScrollArea>
-                            </div>
-                            <DialogFooter>
-                                <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-                                 {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                    <div className="flex flex-col items-end gap-2">
-                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                        <BuyTokens />
-                                    </div>
-                                ) : (
-                                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                        }
-                                    </Button>
-                                )}
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                </CardContent>
+                                <CardFooter className="flex justify-end gap-2">
+                                    <Button type="button" variant="ghost" onClick={handleCancelScheduling}>Cancel</Button>
+                                    {(userProfile?.tokenBalance || 0) < costDifference ? (
+                                        <div className="flex flex-col items-end gap-2">
+                                            <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                            <BuyTokens />
+                                        </div>
+                                    ) : (
+                                        <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                            {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                            {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                                isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                            }
+                                        </Button>
+                                    )}
+                                </CardFooter>
+                            </Card>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </CardContent>
             </Card>
 
