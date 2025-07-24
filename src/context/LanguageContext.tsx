@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, ReactNode } from 'react';
@@ -17,7 +16,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [fromLanguage, setFromLanguage] = useLocalStorage<LanguageCode>('fromLanguage', 'english');
-  const [toLanguage, setToLanguage] = useLocalStorage<LanguageCode>('toLanguage', 'thai');
+  const [toLanguage, setToLanguage] = useLocalStorage<LanguageCode>('toLanguage', 'khmer');
 
   const swapLanguages = () => {
     const temp = fromLanguage;
