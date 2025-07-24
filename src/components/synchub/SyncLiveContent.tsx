@@ -17,6 +17,7 @@ import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { Separator } from '../ui/separator';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
@@ -167,11 +168,6 @@ export default function SyncLiveContent() {
     return `${mins}:${secs}`;
   };
 
-  const totalTokensSpent = useMemo(() => {
-    return calculateCostForDuration(syncLiveUsage || 0);
-  }, [syncLiveUsage, calculateCostForDuration]);
-
-  
   useEffect(() => {
       const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
       
@@ -192,28 +188,46 @@ export default function SyncLiveContent() {
             <CardDescription>
                 Tap the mic to talk. Your speech will be translated and spoken aloud for the group. This is a 1-to-many solo translation feature.
             </CardDescription>
-             {user && settings && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pt-2 text-muted-foreground">
-                   <div className="flex items-center gap-1.5" title="Your token balance">
-                      <Coins className="h-4 w-4 text-amber-500" />
-                      <span>Balance: <strong>{userProfile?.tokenBalance ?? '...'}</strong></span>
-                  </div>
-                   <div className="flex items-center gap-1.5" title="Total tokens spent on this feature across all sessions">
-                      <Coins className="h-4 w-4 text-red-500" />
-                      <span>Total Used: <strong>{totalTokensSpent}</strong></span>
-                   </div>
-                   <div className="flex items-center gap-1.5" title="Active usage time this session">
-                      <Clock className="h-4 w-4" />
-                      <span>Time (Session): <strong>{formatTime(sessionUsage)}</strong></span>
-                   </div>
-                   <div className="flex items-center gap-1.5" title="Tokens used this session">
-                      <Coins className="h-4 w-4 text-red-500" />
-                      <span>Tokens (Session): <strong>{sessionTokensUsed}</strong></span>
-                   </div>
-                </div>
-            )}
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
+        
+        {user && settings && (
+            <Card className="w-full bg-muted/50">
+                <CardContent className="p-4">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Your Token Balance</Label>
+                            <div className="flex items-center gap-2">
+                                <Coins className="h-5 w-5 text-amber-500" />
+                                <p className="text-lg font-bold">{userProfile?.tokenBalance ?? '...'}</p>
+                            </div>
+                        </div>
+                         <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Free Time Left</Label>
+                            <div className="flex items-center gap-2">
+                                <Clock className="h-5 w-5 text-primary" />
+                                <p className="text-lg font-bold">{formatTime(Math.max(0, freeMinutesMs - (syncLiveUsage || 0)))}</p>
+                            </div>
+                        </div>
+                         <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Session Usage</Label>
+                             <div className="flex items-center gap-2">
+                                <Clock className="h-5 w-5 text-muted-foreground" />
+                                <p className="font-mono text-base">{formatTime(sessionUsage)}</p>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Session Tokens</Label>
+                             <div className="flex items-center gap-2">
+                                <Coins className="h-5 w-5 text-red-500" />
+                                <p className="font-mono text-base">{sessionTokensUsed}</p>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
+
         <div className="w-full space-y-4">
             <Label className="flex items-center gap-2 font-semibold"><Languages className="h-5 w-5"/> Conversation Languages ({selectedLanguages.length}/4)</Label>
             <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
@@ -260,7 +274,7 @@ export default function SyncLiveContent() {
           {status === 'disabled' && <X className="h-10 w-10"/>}
         </Button>
 
-        <div className="text-center h-24 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center">
+        <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center">
              {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
              {status === 'listening' && <p className="font-semibold text-muted-foreground text-sm">Listening...</p>}
              {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
