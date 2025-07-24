@@ -32,7 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
 import { Switch } from '@/components/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface UserWithId extends UserProfile {
@@ -1654,5 +1654,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
