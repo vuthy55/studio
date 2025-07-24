@@ -1632,7 +1632,9 @@ export default function AdminPage() {
                                 <Button
                                     variant={activeTab === tab.value ? 'default' : 'ghost'}
                                     onClick={() => setActiveTab(tab.value)}
-                                    className="h-12 flex-1"
+                                    className={cn("h-12 flex-1", 
+                                        activeTab === tab.value && "bg-background text-foreground shadow-sm"
+                                    )}
                                 >
                                     <tab.icon className="h-5 w-5" />
                                 </Button>
@@ -1645,7 +1647,12 @@ export default function AdminPage() {
                 ))}
             </div>
 
-            <Tabs value={activeTab}>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="hidden">
+                    {adminTabs.map(tab => (
+                        <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+                    ))}
+                </TabsList>
                  <TabsContent value="rooms" className="mt-6">
                     <RoomsTabContent />
                 </TabsContent>
@@ -1672,3 +1679,4 @@ export default function AdminPage() {
         </div>
     );
 }
+
