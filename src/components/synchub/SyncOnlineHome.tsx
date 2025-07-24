@@ -1056,15 +1056,15 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="sm:max-w-lg">
+                        <DialogContent className="sm:max-w-lg max-h-[90vh]">
                             <DialogHeader>
                                 <DialogTitle>Schedule a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be deducted from your token balance upon creation.
                                 </DialogDescription>
                             </DialogHeader>
-                             <div className="py-4">
-                                <ScrollArea className="max-h-[60vh] pr-6">
+                            <div className="grid gap-4 py-4">
+                                <ScrollArea className="h-full max-h-[calc(90vh-14rem)] pr-6">
                                     <form id="create-room-form" onSubmit={handleCreateRoom} className="space-y-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
