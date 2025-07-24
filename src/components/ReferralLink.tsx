@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Copy } from 'lucide-react';
+import { Copy, Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
@@ -37,24 +37,16 @@ export default function ReferralLink({ variant = 'card' }: ReferralLinkProps) {
 
     if (variant === 'sidebar') {
         return (
-            <div className="px-2 py-1 space-y-1">
-                <Label className="text-xs font-semibold text-sidebar-foreground/70 px-2">Referral Link</Label>
-                <div className="flex items-center space-x-2">
-                    <Input 
-                        value={referralLink} 
-                        readOnly 
-                        className="h-8 text-xs bg-sidebar-accent border-sidebar-border"
-                    />
-                    <Button 
-                        variant="default"
-                        size="icon" 
-                        onClick={copyToClipboard} 
-                        disabled={!referralLink}
-                        className="h-8 w-8 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-accent-foreground"
-                    >
-                        <Copy className="h-4 w-4" />
-                    </Button>
-                </div>
+             <div className="px-2">
+                <Button 
+                    variant="outline" 
+                    className="w-full border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
+                    onClick={copyToClipboard}
+                    disabled={!referralLink}
+                >
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Copy Referral Link
+                </Button>
             </div>
         )
     }
