@@ -50,3 +50,33 @@ export async function resetLanguageStats(userId: string, languageCode: LanguageC
         return { success: false, error: 'An unexpected server error occurred while resetting stats.' };
     }
 }
+
+
+/**
+ * Resets the usage statistics for a specific user to zero.
+ * @param {string} userId - The ID of the user whose usage is to be reset.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function resetUsageStats(userId: string): Promise<{success: boolean, error?: string}> {
+    if (!userId) {
+        return { success: false, error: 'User ID is required.' };
+    }
+
+    try {
+        const userRef = db.collection('users').doc(userId);
+        
+        // This will reset the counters to zero and remove the last reset date.
+        // The last reset date will be set again on the next session usage.
+        await userRef.update({
+            syncLiveUsage: 0,
+            syncOnlineUsage: 0,
+            syncOnlineUsageLastReset: FieldValue.delete()
+        });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error resetting usage stats for user ${userId}:`, error);
+        return { success: false, error: 'An unexpected server error occurred while resetting usage stats.' };
+    }
+}

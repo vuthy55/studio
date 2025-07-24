@@ -5,12 +5,12 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock, Check, X, Languages, RefreshCw } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp, onSnapshot } from 'firebase/firestore';
+import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock, Check, X, Languages, RefreshCw, Trash2, Wallet, CreditCard, Users as UsersIcon, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
-import type { TransactionLog, PracticeHistoryState, DetailedHistory, SavedPhrase } from '@/lib/types';
+import type { TransactionLog, PracticeHistoryState, DetailedHistory, SavedPhrase, PaymentLog } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,8 +31,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { resetLanguageStats } from '@/actions/stats';
+import { resetLanguageStats, resetUsageStats } from '@/actions/stats';
+import { deleteUsers } from '@/actions/admin';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { getReferredUsers, ReferredUser } from '@/actions/referrals';
 
 
 interface TransactionLogWithId extends TransactionLog {
@@ -48,28 +50,33 @@ export default function UserDetailPage() {
 
     const [profile, setProfile] = useState<Partial<UserProfile>>({});
     const [transactions, setTransactions] = useState<TransactionLogWithId[]>([]);
+    const [payments, setPayments] = useState<PaymentLog[]>([]);
+    const [referrals, setReferrals] = useState<ReferredUser[]>([]);
     const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
     const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
     const [isFetchingLogs, setIsFetchingLogs] = useState(true);
+    const [isFetchingPayments, setIsFetchingPayments] = useState(true);
+    const [isFetchingReferrals, setIsFetchingReferrals] = useState(false);
     const [isFetchingStats, setIsFetchingStats] = useState(true);
+    const [hasFetchedReferrals, setHasFetchedReferrals] = useState(false);
 
     const [selectedLanguageForDialog, setSelectedLanguageForDialog] = useState<LanguageCode | null>(null);
     const [detailedHistoryForDialog, setDetailedHistoryForDialog] = useState<DetailedHistory[]>([]);
     const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
 
-    const [isResettingStats, setIsResettingStats] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
 
     const countryOptions = useMemo(() => lightweightCountries, []);
     
     const allPhrases = useMemo(() => phrasebook.flatMap(topic => topic.phrases), []);
 
-    const fetchAllUserData = useCallback(async (uid: string) => {
+    const fetchUserProfileData = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);
-        setIsFetchingLogs(true);
-        setIsFetchingStats(true);
         try {
             const userDocRef = doc(db, 'users', uid);
             const userDocSnap = await getDoc(userDocRef);
@@ -78,7 +85,6 @@ export default function UserDetailPage() {
             } else {
                 toast({ variant: "destructive", title: "Not Found", description: "This user does not exist." });
                 router.push('/admin');
-                return;
             }
         } catch (fetchError) {
              console.error("Error fetching user profile:", fetchError);
@@ -86,22 +92,6 @@ export default function UserDetailPage() {
         } finally {
             setIsFetchingProfile(false);
         }
-
-        try {
-            const transRef = collection(db, 'users', uid, 'transactionLogs');
-            const q = query(transRef, orderBy('timestamp', 'desc'));
-            const transSnapshot = await getDocs(q);
-            const transData = transSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLogWithId));
-            setTransactions(transData);
-        } catch (fetchError) {
-            console.error("Error fetching transaction logs:", fetchError);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch transaction logs." });
-        } finally {
-            setIsFetchingLogs(false);
-        }
-
-        await fetchPracticeHistory(uid);
-       
     }, [router, toast]);
     
     const fetchPracticeHistory = useCallback(async (uid: string) => {
@@ -122,19 +112,64 @@ export default function UserDetailPage() {
          }
     }, [toast]);
 
+    const handleFetchReferrals = useCallback(async () => {
+        if (!userId || hasFetchedReferrals) return;
+        setIsFetchingReferrals(true);
+        try {
+            const referredUsers = await getReferredUsers(userId);
+            setReferrals(referredUsers);
+        } catch (error) {
+            console.error("Error fetching referrals:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load referrals for this user.' });
+        } finally {
+            setIsFetchingReferrals(false);
+            setHasFetchedReferrals(true);
+        }
+    }, [userId, toast, hasFetchedReferrals]);
 
     useEffect(() => {
         if (adminLoading) return;
         if (!adminUser) {
             setProfile({});
             setTransactions([]);
+            setPayments([]);
             router.push('/login');
             return;
         }
         if (userId) {
-            fetchAllUserData(userId);
+            fetchUserProfileData(userId);
+            fetchPracticeHistory(userId);
+            
+            const transUnsubscribe = onSnapshot(query(collection(db, 'users', userId, 'transactionLogs'), orderBy('timestamp', 'desc')), 
+                (snapshot) => {
+                    setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TransactionLogWithId)));
+                    setIsFetchingLogs(false);
+                }, 
+                (error) => {
+                    console.error("Error fetching transaction logs:", error);
+                    toast({ variant: "destructive", title: "Log Error", description: "Could not fetch transaction logs." });
+                    setIsFetchingLogs(false);
+                }
+            );
+
+            const paymentsUnsubscribe = onSnapshot(query(collection(db, 'users', userId, 'paymentHistory'), orderBy('createdAt', 'desc')),
+                (snapshot) => {
+                    setPayments(snapshot.docs.map(d => d.data() as PaymentLog));
+                    setIsFetchingPayments(false);
+                },
+                (error) => {
+                    console.error("Error fetching payment history:", error);
+                    toast({ variant: "destructive", title: "Payment Error", description: "Could not fetch payment history." });
+                    setIsFetchingPayments(false);
+                }
+            );
+            
+            return () => {
+                transUnsubscribe();
+                paymentsUnsubscribe();
+            };
         }
-    }, [adminUser, adminLoading, router, userId, fetchAllUserData]);
+    }, [adminUser, adminLoading, router, userId, fetchUserProfileData, fetchPracticeHistory, toast]);
 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,6 +218,23 @@ export default function UserDetailPage() {
             setIsSaving(false);
         }
     };
+
+    const handleDeleteUser = async () => {
+        if (!profile.email || deleteConfirmation !== profile.email) {
+            toast({ variant: 'destructive', title: 'Confirmation failed', description: 'The email address does not match.'});
+            return;
+        }
+
+        setIsDeleting(true);
+        const result = await deleteUsers([userId]);
+        if (result.success) {
+            toast({ title: 'User Deleted', description: `${profile.email} has been permanently deleted.`});
+            router.push('/admin?tab=users');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete user.' });
+            setIsDeleting(false);
+        }
+    }
     
     const getInitials = (name?: string) => {
         return name ? name.charAt(0).toUpperCase() : (profile.email?.charAt(0).toUpperCase() || '?');
@@ -201,6 +253,7 @@ export default function UserDetailPage() {
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
+            case 'sync_online_refund': return 'Sync Online Refund';
             default: return 'Unknown Action';
         }
     }
@@ -269,8 +322,6 @@ export default function UserDetailPage() {
                 if (phraseId.startsWith('saved_')) {
                     const saved = savedPhrases.find(p => p.id === phraseId);
                     if (saved) {
-                        // For saved phrases, we need to know if we're showing the 'from' or 'to' text.
-                        // We assume the practice was on the 'to' language.
                         phraseText = saved.toLang === langCode ? saved.toText : saved.fromText;
                     }
                 } else {
@@ -295,12 +346,12 @@ export default function UserDetailPage() {
     };
 
      const handleResetStats = async (langCode: LanguageCode, langLabel: string) => {
-        setIsResettingStats(true);
+        setIsResetting(true);
         try {
             const result = await resetLanguageStats(userId, langCode);
             if (result.success) {
                 toast({ title: "Stats Reset", description: `Practice history for ${langLabel} has been cleared.`});
-                await fetchPracticeHistory(userId); // Re-fetch the practice history to update the UI
+                await fetchPracticeHistory(userId);
             } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || "Failed to reset stats." });
             }
@@ -308,7 +359,25 @@ export default function UserDetailPage() {
             console.error("Error resetting language stats:", error);
             toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred." });
         } finally {
-            setIsResettingStats(false);
+            setIsResetting(false);
+        }
+    }
+
+    const handleResetUsage = async () => {
+        setIsResetting(true);
+        try {
+            const result = await resetUsageStats(userId);
+            if (result.success) {
+                toast({ title: "Usage Reset", description: "Feature usage stats for this user have been cleared."});
+                await fetchUserProfileData(userId);
+            } else {
+                 toast({ variant: 'destructive', title: 'Error', description: result.error || "Failed to reset usage stats." });
+            }
+        } catch (error) {
+            console.error("Error resetting usage stats:", error);
+            toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred." });
+        } finally {
+            setIsResetting(false);
         }
     }
 
@@ -357,18 +426,20 @@ export default function UserDetailPage() {
             </div>
                 
             <div>
-                <Tabs defaultValue="edit" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="edit">Edit Profile</TabsTrigger>
+                <Tabs defaultValue="profile" className="w-full">
+                    <TabsList className="grid w-full grid-cols-6">
+                        <TabsTrigger value="profile">Profile</TabsTrigger>
                         <TabsTrigger value="usage">Usage</TabsTrigger>
                         <TabsTrigger value="stats">Stats</TabsTrigger>
-                        <TabsTrigger value="logs">Transaction Logs</TabsTrigger>
+                        <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                        <TabsTrigger value="payments">Payments</TabsTrigger>
+                        <TabsTrigger value="referrals">Referrals</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="edit" className="mt-6">
+                    <TabsContent value="profile" className="mt-6">
                         <form onSubmit={handleSaveChanges}>
                             <Card>
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2"><Edit /> Edit Profile</CardTitle>
+                                    <CardTitle className="flex items-center gap-2"><Edit /> Profile Details</CardTitle>
                                     <CardDescription>Modify the user's details below.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
@@ -424,12 +495,73 @@ export default function UserDetailPage() {
                                 </CardContent>
                             </Card>
                         </form>
+                         <Card className="mt-6 border-destructive">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Danger Zone</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive">
+                                            <Trash2 className="mr-2"/> Permanently Delete User
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action is irreversible. It will permanently delete the user <strong className="font-bold">{profile.email}</strong>, their authentication record, and all associated data (transactions, stats, etc.).
+                                                <br/><br/>
+                                                To confirm, please type the user's full email address below.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                         <Input 
+                                            value={deleteConfirmation}
+                                            onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                            placeholder={profile.email}
+                                        />
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteUser} disabled={isDeleting || deleteConfirmation !== profile.email}>
+                                                {isDeleting ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                                Confirm Deletion
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </CardContent>
+                         </Card>
                     </TabsContent>
                     <TabsContent value="usage" className="mt-6">
                         <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><Clock /> Feature Usage</CardTitle>
-                                <CardDescription>A summary of the user's feature usage.</CardDescription>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2"><Clock /> Feature Usage</CardTitle>
+                                    <CardDescription>A summary of the user's feature usage.</CardDescription>
+                                </div>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm" disabled={isResetting}>
+                                            {isResetting ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
+                                            Reset Usage
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Reset Usage Stats?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will reset Sync Live and Sync Online usage counters to zero for this user. This cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleResetUsage} disabled={isResetting}>
+                                                {isResetting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                                Confirm Reset
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
@@ -483,7 +615,7 @@ export default function UserDetailPage() {
                                             </DialogTrigger>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
-                                                     <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled={isResettingStats}>
+                                                     <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled={isResetting}>
                                                         <RefreshCw className="h-4 w-4 text-destructive"/>
                                                     </Button>
                                                 </AlertDialogTrigger>
@@ -496,8 +628,8 @@ export default function UserDetailPage() {
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleResetStats(item.code, item.label)} disabled={isResettingStats}>
-                                                             {isResettingStats && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                                        <AlertDialogAction onClick={() => handleResetStats(item.code, item.label)} disabled={isResetting}>
+                                                             {isResetting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                                                             Confirm Reset
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
@@ -511,12 +643,12 @@ export default function UserDetailPage() {
                             </CardContent>
                         </Card>
                     </TabsContent>
-                    <TabsContent value="logs" className="mt-6">
+                    <TabsContent value="tokens" className="mt-6">
                             <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <FileText />
-                                    Transaction Logs
+                                    <Wallet />
+                                    Token Ledger
                                 </CardTitle>
                                 <CardDescription>A complete history of this user's token activity.</CardDescription>
                             </CardHeader>
@@ -555,6 +687,98 @@ export default function UserDetailPage() {
                                     </div>
                                 ) : (
                                     <p className="text-center text-muted-foreground py-8">No transaction logs found for this user.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="payments" className="mt-6">
+                            <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CreditCard />
+                                    Payment History
+                                </CardTitle>
+                                <CardDescription>A record of this user's PayPal transactions.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {isFetchingPayments ? (
+                                    <div className="flex justify-center items-center py-8">
+                                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                ) : payments.length > 0 ? (
+                                    <div className="border rounded-md min-h-[200px]">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Date</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead className="text-right">Amount</TableHead>
+                                                    <TableHead>Order ID</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {payments.map(p => (
+                                                    <TableRow key={p.orderId}>
+                                                        <TableCell>{p.createdAt ? format((p.createdAt as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                                        <TableCell className="font-medium">{p.tokensPurchased > 0 ? `Purchased ${p.tokensPurchased} Tokens` : 'Donation'}</TableCell>
+                                                        <TableCell className="text-right font-bold">${p.amount.toFixed(2)} {p.currency}</TableCell>
+                                                        <TableCell className="text-muted-foreground">{p.orderId}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                ) : (
+                                    <p className="text-center text-muted-foreground py-8">No payment history found.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="referrals" className="mt-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <UsersIcon />
+                                    Referred Users
+                                </CardTitle>
+                                <CardDescription>A list of users referred by this individual.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Button onClick={handleFetchReferrals} disabled={isFetchingReferrals || hasFetchedReferrals}>
+                                    {isFetchingReferrals ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                    {hasFetchedReferrals ? "Referrals Loaded" : "Load Referrals"}
+                                </Button>
+                                {isFetchingReferrals ? (
+                                     <div className="flex justify-center items-center py-8">
+                                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                ) : hasFetchedReferrals && (
+                                     <div className="border rounded-md min-h-[200px] mt-4">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Name</TableHead>
+                                                    <TableHead>Email</TableHead>
+                                                    <TableHead>Date Joined</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {referrals.length > 0 ? (
+                                                    referrals.map(ref => (
+                                                        <TableRow key={ref.id}>
+                                                            <TableCell>{ref.name || 'N/A'}</TableCell>
+                                                            <TableCell>{ref.email}</TableCell>
+                                                            <TableCell>{ref.createdAt ? format(new Date(ref.createdAt), 'd MMM yyyy') : 'N/A'}</TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={3} className="h-24 text-center">No referred users found.</TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>
@@ -601,5 +825,3 @@ export default function UserDetailPage() {
         </Dialog>
     );
 }
-
-    
