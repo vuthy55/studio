@@ -2,7 +2,7 @@
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
 import type { SyncRoom, Participant, RoomMessage, Transcript, SummaryParticipant } from '@/lib/types';
 
 
@@ -138,7 +138,6 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
       
       if (roomDoc.exists) {
         const roomData = roomDoc.data()!;
-        // Create notifications for admins
         if (adminUids.length > 0) {
           for (const adminId of adminUids) {
             const notificationRef = db.collection('notifications').doc();
@@ -153,7 +152,6 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
           }
         }
       }
-      // Schedule the room for deletion
       batch.delete(roomRef);
     }
     
@@ -199,8 +197,7 @@ export async function generateTranscript(roomId: string, userId: string): Promis
     if (!roomId || !userId) {
         return { success: false, error: 'Room ID and User ID are required.' };
     }
-     // 1. Get settings and user data
-    const settingsRef = db.collection('settings').doc('appConfig');
+     const settingsRef = db.collection('settings').doc('appConfig');
     const userRef = db.collection('users').doc(userId);
 
     const [settingsDoc, userDoc] = await Promise.all([settingsRef.get(), userRef.get()]);
@@ -215,7 +212,6 @@ export async function generateTranscript(roomId: string, userId: string): Promis
         return { success: false, error: 'Insufficient tokens to generate transcript.' };
     }
 
-    // 2. Fetch all required data from Firestore
     const roomRef = db.collection('syncRooms').doc(roomId);
     const messagesRef = roomRef.collection('messages').orderBy('createdAt');
     const participantsRef = roomRef.collection('participants');
@@ -270,16 +266,12 @@ export async function generateTranscript(roomId: string, userId: string): Promis
         }))
     };
 
-    // 3. Perform atomic transaction
     const batch = db.batch();
     
-    // a. Update room with transcript
     batch.update(roomRef, { transcript: transcript, status: 'closed' });
     
-    // b. Deduct tokens from user
     batch.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
     
-    // c. Add transaction log
     const logRef = userRef.collection('transactionLogs').doc();
     batch.set(logRef, {
         actionType: 'live_sync_spend',
@@ -297,12 +289,7 @@ export async function generateTranscript(roomId: string, userId: string): Promis
     }
 }
 
-/**
- * Creates a notification for all admin users.
- * @param {string} message The notification message.
- * @param {string} roomId The ID of the related room.
- * @returns {Promise<void>}
- */
+
 async function notifyAdmins(message: string, roomId: string) {
     const adminUids = await getAdminUids();
     if (adminUids.length > 0) {
@@ -336,17 +323,63 @@ export async function requestSummaryEditAccess(roomId: string, roomTopic: string
     }
 }
 
-export async function setRoomEditability(roomId: string, canEdit: boolean): Promise<{success: boolean, error?: string}> {
-     if (!roomId) {
-        return { success: false, error: "Room ID is required." };
-    }
+interface UpdateScheduledRoomPayload {
+    roomId: string;
+    userId: string;
+    updates: Partial<Pick<SyncRoom, 'topic' | 'scheduledAt' | 'durationMinutes' | 'invitedEmails' | 'emceeEmails'>>;
+    newCost: number;
+}
+
+export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): Promise<{success: boolean, error?: string}> {
+    const { roomId, userId, updates, newCost } = payload;
+    
+    if (!roomId || !userId) return { success: false, error: "Room and User ID are required." };
+
+    const roomRef = db.collection('syncRooms').doc(roomId);
+    const userRef = db.collection('users').doc(userId);
+
     try {
-        const roomRef = db.collection('syncRooms').doc(roomId);
-        await roomRef.update({ 'summary.allowMoreEdits': canEdit });
+        await db.runTransaction(async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists) throw new Error("Room not found.");
+            
+            const roomData = roomDoc.data() as SyncRoom;
+            if (roomData.creatorUid !== userId) throw new Error("Only the room creator can edit a scheduled room.");
+            if (roomData.status !== 'scheduled') throw new Error("Only scheduled rooms can be edited.");
+
+            const oldCost = roomData.initialCost || 0;
+            const costDifference = newCost - oldCost;
+
+            const userDoc = await transaction.get(userRef);
+            const userBalance = userDoc.data()?.tokenBalance || 0;
+            
+            if (userBalance < costDifference) {
+                throw new Error(`Insufficient tokens. You need ${costDifference} more tokens for this change.`);
+            }
+
+            const updatePayload = {
+                ...updates,
+                initialCost: newCost,
+                lastActivityAt: FieldValue.serverTimestamp()
+            };
+            transaction.update(roomRef, updatePayload);
+            
+            if (costDifference !== 0) {
+                transaction.update(userRef, { tokenBalance: FieldValue.increment(-costDifference) });
+                
+                const logRef = userRef.collection('transactionLogs').doc();
+                transaction.set(logRef, {
+                    actionType: 'live_sync_online_spend',
+                    tokenChange: -costDifference,
+                    timestamp: FieldValue.serverTimestamp(),
+                    description: `Cost adjustment for editing scheduled room: "${roomData.topic}"`
+                });
+            }
+        });
         return { success: true };
     } catch (error: any) {
-        console.error("Error setting room editability:", error);
-        return { success: false, error: "Failed to update room editability." };
+        console.error("Error updating scheduled room:", error);
+        return { success: false, error: error.message || "An unexpected server error occurred." };
     }
 }
     
