@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift, LogOut } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -97,6 +97,8 @@ export default function NotificationBell() {
             case 'room_closed':
             case 'room_closed_summary':
                 return <LogOut className="h-4 w-4 text-destructive" />;
+            case 'edit_request':
+                 return <Edit className="h-4 w-4 text-blue-500" />;
             default:
                 return <Bell className="h-4 w-4" />;
         }
@@ -108,7 +110,8 @@ export default function NotificationBell() {
                 return '/profile?tab=tokens';
             case 'room_closed':
             case 'room_closed_summary':
-                return '/admin?tab=rooms';
+            case 'edit_request':
+                return `/admin?tab=rooms&highlight=${notification.roomId}`;
             default:
                 return '#';
         }

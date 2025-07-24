@@ -20,6 +20,13 @@ export type TranslatedContent = {
     translations: Record<string, string>; // key: language code, value: translated text
 }
 
+export type SummaryEdit = {
+    editorUid: string;
+    editorName: string;
+    editorEmail: string;
+    editedAt: FieldValue;
+};
+
 export type RoomSummary = {
     title: string;
     date: string;
@@ -31,6 +38,7 @@ export type RoomSummary = {
         personInCharge?: string;
         dueDate?: string 
     }[];
+    editHistory?: SummaryEdit[];
 };
 
 export type Transcript = {
@@ -51,13 +59,17 @@ export type SyncRoom = {
     creatorUid: string;
     creatorName: string;
     createdAt: FieldValue;
-    status: 'active' | 'closed';
+    status: 'active' | 'closed' | 'scheduled';
     invitedEmails: string[];
     emceeEmails: string[];
     lastActivityAt?: FieldValue;
     blockedUsers?: BlockedUser[];
     summary?: RoomSummary;
     transcript?: Transcript;
+    scheduledAt?: Timestamp;
+    durationMinutes?: number;
+    initialCost?: number;
+    hasStarted?: boolean;
 }
 
 export type Participant = {
@@ -79,7 +91,7 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
@@ -100,7 +112,7 @@ export type PaymentLog = {
     createdAt: FieldValue;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request';
 
 export type Notification = {
     id: string;

@@ -13,6 +13,7 @@ import { z } from 'zod';
 import type { RoomSummary } from '@/lib/types';
 import { db } from '@/lib/firebase-admin';
 import { getAppSettingsAction } from '@/actions/settings';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -32,6 +33,7 @@ const RoomSummarySchemaForInput = z.object({
     personInCharge: z.string().optional(),
     dueDate: z.string().optional(),
   })),
+  editHistory: z.array(z.any()).optional(),
 });
 
 const TranslateSummaryInputSchema = z.object({
@@ -110,16 +112,18 @@ const translateSummaryFlow = ai.defineFlow(
     const userRef = db.collection('users').doc(userId);
     const roomRef = db.collection('syncRooms').doc(roomId);
 
+    // Filter out languages that are already translated
     const languagesToTranslate = targetLanguages.filter(lang => !summary.summary.translations?.[lang]);
     
     if (languagesToTranslate.length === 0) {
-        return summary; // No new translations needed
+        console.log("No new languages to translate. Returning original summary.");
+        return summary;
     }
 
     const totalCost = languagesToTranslate.length * (settings.summaryTranslationCost || 10);
     
     // Create a mutable copy of the summary to update
-    const updatedSummary = JSON.parse(JSON.stringify(summary));
+    const updatedSummary: RoomSummary = JSON.parse(JSON.stringify(summary));
 
     for (const lang of languagesToTranslate) {
         const promptData = {
@@ -135,7 +139,6 @@ const translateSummaryFlow = ai.defineFlow(
             continue; // Skip this language and try the next one
         }
         
-        // Ensure translations object exists before adding to it
         if (!updatedSummary.summary.translations) {
             updatedSummary.summary.translations = {};
         }

@@ -4,14 +4,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, where, orderBy, documentId } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -26,10 +26,11 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
-import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom } from '@/actions/room';
+import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
+import { Switch } from '../ui/switch';
 
 
 interface UserWithId extends UserProfile {
@@ -610,7 +611,7 @@ function FinancialTabContent() {
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                     <MinusCircle className="h-4 w-4 mr-1 text-red-500" />
                                     Total Expenses:
-                                </div>
+                                 </div>
                                 <div className="text-2xl font-bold text-red-600">${analytics.expenses.toFixed(2)}</div>
                             </div>
 
@@ -854,6 +855,7 @@ function TokensTabContent() {
             case 'live_sync_spend': return 'Live Sync Usage';
             case 'live_sync_online_spend': return 'Sync Online Usage';
             case 'p2p_transfer': return 'Peer Transfer';
+            case 'sync_online_refund': return 'Sync Online Refund';
             default: return 'Unknown Action';
         }
     };
@@ -1107,6 +1109,7 @@ function RoomsTabContent() {
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
   const { toast } = useToast();
   const [user] = useAuthState(auth);
+  const [editability, setEditability] = useState<Record<string, boolean>>({});
 
 
   const handleFetchRooms = async () => {
@@ -1116,17 +1119,37 @@ function RoomsTabContent() {
     try {
       const fetchedRooms = await getAllRooms();
       setRooms(fetchedRooms);
+      const initialEditability: Record<string, boolean> = {};
+      fetchedRooms.forEach(room => {
+        if(room.summary) {
+            initialEditability[room.id] = (room.summary as any).allowMoreEdits || false;
+        }
+      });
+      setEditability(initialEditability);
     } catch (e: any) {
       setError(e.message || 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleEditabilityChange = async (roomId: string, canEdit: boolean) => {
+    setEditability(prev => ({ ...prev, [roomId]: canEdit }));
+    const result = await setRoomEditability(roomId, canEdit);
+    if (result.success) {
+        toast({ title: "Success", description: "Room editability updated." });
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+        // Revert UI on failure
+        setEditability(prev => ({ ...prev, [roomId]: !canEdit }));
+    }
+  };
   
-  const { activeRooms, closedRooms } = useMemo(() => {
+  const { activeRooms, closedRooms, scheduledRooms } = useMemo(() => {
     return {
       activeRooms: rooms.filter(r => r.status === 'active'),
-      closedRooms: rooms.filter(r => r.status === 'closed'),
+      closedRooms: rooms.filter(r => r.status === 'closed' && r.summary),
+      scheduledRooms: rooms.filter(r => r.status === 'scheduled'),
     };
   }, [rooms]);
 
@@ -1140,8 +1163,12 @@ function RoomsTabContent() {
     });
   };
   
-  const handleSelectAll = (type: 'active' | 'closed', checked: boolean) => {
-    const roomIdsToChange = (type === 'active' ? activeRooms : closedRooms).map(r => r.id);
+  const handleSelectAll = (type: 'active' | 'closed' | 'scheduled', checked: boolean) => {
+    let roomIdsToChange: string[] = [];
+    if (type === 'active') roomIdsToChange = activeRooms.map(r => r.id);
+    else if (type === 'closed') roomIdsToChange = closedRooms.map(r => r.id);
+    else if (type === 'scheduled') roomIdsToChange = scheduledRooms.map(r => r.id);
+
     setSelectedRoomIds(prev => {
         const otherTypeIds = prev.filter(id => !roomIdsToChange.includes(id));
         if (checked) {
@@ -1173,13 +1200,15 @@ function RoomsTabContent() {
 
   const allActiveSelected = useMemo(() => activeRooms.length > 0 && activeRooms.every(r => selectedRoomIds.includes(r.id)), [activeRooms, selectedRoomIds]);
   const allClosedSelected = useMemo(() => closedRooms.length > 0 && closedRooms.every(r => selectedRoomIds.includes(r.id)), [closedRooms, selectedRoomIds]);
+  const allScheduledSelected = useMemo(() => scheduledRooms.length > 0 && scheduledRooms.every(r => selectedRoomIds.includes(r.id)), [scheduledRooms, selectedRoomIds]);
+
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Room Management</CardTitle>
         <CardDescription>
-          View all rooms in the system. Use this tool to permanently delete rooms that are no longer needed. This action cannot be undone.
+          View all rooms in the system. Use this tool to permanently delete rooms or manage summary edit permissions.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1220,78 +1249,54 @@ function RoomsTabContent() {
         
         {rooms.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 border-b">
-                  <h4 className="font-semibold">Active Rooms ({activeRooms.length})</h4>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                        id="select-all-active"
-                        onCheckedChange={(checked) => handleSelectAll('active', !!checked)}
-                        checked={allActiveSelected}
-                        disabled={activeRooms.length === 0}
-                    />
-                    <label htmlFor="select-all-active" className="text-sm font-medium">Select All</label>
-                  </div>
-                </div>
-                <div className="border rounded-md max-h-60 overflow-y-auto">
-                    <Table>
-                         <TableBody>
-                            {activeRooms.map(room => (
-                                <TableRow key={room.id}>
-                                    <TableCell className="p-2 w-10">
-                                        <Checkbox id={`cb-active-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
-                                    </TableCell>
-                                    <TableCell className="p-2">
-                                        <label htmlFor={`cb-active-${room.id}`} className="font-medium">{room.topic}</label>
-                                    </TableCell>
-                                    <TableCell className="p-2 text-right">
-                                        <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                         </TableBody>
-                    </Table>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 border-b">
-                    <h4 className="font-semibold">Closed Rooms ({closedRooms.length})</h4>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                          id="select-all-closed"
-                          onCheckedChange={(checked) => handleSelectAll('closed', !!checked)}
-                          checked={allClosedSelected}
-                          disabled={closedRooms.length === 0}
-                      />
-                      <label htmlFor="select-all-closed" className="text-sm font-medium">Select All</label>
+               <div>
+                    <h4 className="font-semibold p-2 border-b">Rooms with Summaries ({closedRooms.length})</h4>
+                    <div className="border rounded-md max-h-60 overflow-y-auto">
+                        <Table>
+                             <TableBody>
+                                {closedRooms.map(room => (
+                                    <TableRow key={room.id}>
+                                        <TableCell className="p-2 w-10">
+                                            <Checkbox id={`cb-closed-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                        </TableCell>
+                                        <TableCell className="p-2">
+                                            <label htmlFor={`cb-closed-${room.id}`} className="font-medium">{room.topic}</label>
+                                        </TableCell>
+                                        <TableCell className="p-2 text-right flex items-center justify-end gap-2">
+                                            <Label htmlFor={`edit-switch-${room.id}`} className="text-xs">Allow Edits</Label>
+                                            <Switch 
+                                                id={`edit-switch-${room.id}`}
+                                                checked={editability[room.id] || false}
+                                                onCheckedChange={(checked) => handleEditabilityChange(room.id, checked)}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                             </TableBody>
+                        </Table>
                     </div>
-                  </div>
-                 <div className="border rounded-md max-h-60 overflow-y-auto">
-                    <Table>
-                        <TableBody>
-                        {closedRooms.map(room => (
-                             <TableRow key={room.id}>
-                                <TableCell className="p-2 w-10">
-                                    <Checkbox id={`cb-closed-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
-                                </TableCell>
-                                <TableCell className="p-2">
-                                     <label htmlFor={`cb-closed-${room.id}`} className="font-medium">{room.topic}</label>
-                                </TableCell>
-                                <TableCell className="p-2 text-right">
-                                    {room.summary ? (
-                                        <Badge variant="secondary" className="flex items-center gap-1">
-                                            <FileText className="h-3 w-3" />
-                                            Summary
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="destructive">Closed</Badge>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                        </TableBody>
-                    </Table>
-                  </div>
+                </div>
+                <div>
+                     <h4 className="font-semibold p-2 border-b">Active & Scheduled Rooms ({activeRooms.length + scheduledRooms.length})</h4>
+                     <div className="border rounded-md max-h-60 overflow-y-auto">
+                        <Table>
+                             <TableBody>
+                                {[...activeRooms, ...scheduledRooms].map(room => (
+                                    <TableRow key={room.id}>
+                                        <TableCell className="p-2 w-10">
+                                            <Checkbox id={`cb-active-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                        </TableCell>
+                                        <TableCell className="p-2">
+                                            <label htmlFor={`cb-active-${room.id}`} className="font-medium">{room.topic}</label>
+                                        </TableCell>
+                                        <TableCell className="p-2 text-right">
+                                            <Badge variant="default" className={room.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>{room.status}</Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                             </TableBody>
+                        </Table>
+                      </div>
                 </div>
           </div>
         )}

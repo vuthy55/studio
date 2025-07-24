@@ -54,10 +54,9 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
         // 2. Create notifications for all admins
         const adminUids = await getAdminUids();
         if (adminUids.length > 0) {
-            const batch = db.batch(); // Use a new batch for notifications within the transaction
             for (const adminId of adminUids) {
                 const notificationRef = db.collection('notifications').doc();
-                batch.set(notificationRef, {
+                transaction.set(notificationRef, {
                     userId: adminId,
                     type: 'room_closed',
                     message: `Room "${roomData.topic}" has been closed.`,
@@ -66,7 +65,6 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
                     roomId: roomId,
                 });
             }
-            await batch.commit();
         }
     });
 
@@ -180,26 +178,9 @@ export async function updateRoomSummary(roomId: string, summary: any): Promise<{
   if (!roomId || !summary) {
     return { success: false, error: 'Room ID and summary are required.' };
   }
-  
-  // This is a placeholder for getting the current user's UID.
-  // In a real app, you'd get this from the authenticated session.
-  const user = { uid: "placeholder-uid", email: "user@example.com" }; // Replace with actual auth logic
 
   try {
     const roomRef = db.collection('syncRooms').doc(roomId);
-    const roomDoc = await roomRef.get();
-
-    if (!roomDoc.exists) {
-      return { success: false, error: 'Room not found.' };
-    }
-
-    const roomData = roomDoc.data() as SyncRoom;
-    const isEmcee = roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
-
-    // In a real app with proper auth, you'd uncomment this check
-    // if (!isEmcee) {
-    //   return { success: false, error: 'You do not have permission to edit this summary.' };
-    // }
 
     await roomRef.update({
       summary: summary,
@@ -316,6 +297,56 @@ export async function generateTranscript(roomId: string, userId: string): Promis
     }
 }
 
-    
+/**
+ * Creates a notification for all admin users.
+ * @param {string} message The notification message.
+ * @param {string} roomId The ID of the related room.
+ * @returns {Promise<void>}
+ */
+async function notifyAdmins(message: string, roomId: string) {
+    const adminUids = await getAdminUids();
+    if (adminUids.length > 0) {
+        const batch = db.batch();
+        for (const adminId of adminUids) {
+            const notificationRef = db.collection('notifications').doc();
+            batch.set(notificationRef, {
+                userId: adminId,
+                type: 'edit_request',
+                message: message,
+                createdAt: FieldValue.serverTimestamp(),
+                read: false,
+                roomId: roomId,
+            });
+        }
+        await batch.commit();
+    }
+}
 
+
+export async function requestSummaryEditAccess(roomId: string, roomTopic: string, userName: string): Promise<{success: boolean, error?: string}> {
+    if (!roomId || !userName) {
+        return { success: false, error: "Room ID and user name are required." };
+    }
+    try {
+        await notifyAdmins(`${userName} is requesting to edit the summary for room "${roomTopic}".`, roomId);
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error requesting summary edit access:", error);
+        return { success: false, error: "Failed to send notification to admins." };
+    }
+}
+
+export async function setRoomEditability(roomId: string, canEdit: boolean): Promise<{success: boolean, error?: string}> {
+     if (!roomId) {
+        return { success: false, error: "Room ID is required." };
+    }
+    try {
+        const roomRef = db.collection('syncRooms').doc(roomId);
+        await roomRef.update({ 'summary.allowMoreEdits': canEdit });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error setting room editability:", error);
+        return { success: false, error: "Failed to update room editability." };
+    }
+}
     
