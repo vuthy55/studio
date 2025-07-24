@@ -23,14 +23,17 @@ service cloud.firestore {
       allow read, list: if isOwner() || isAdmin();
 
       // Allow a user to update their own profile, or an admin to update any profile.
-      allow update: if isOwner() || isAdmin();
+      // For P2P transfers, a user can also update another user's token balance.
+      allow update: if isOwner() || isAdmin() || (request.auth != null && request.resource.data.tokenBalance == resource.data.tokenBalance + request.writeFields[0].value);
       
       // Allow a user to create their own user document during signup.
       allow create: if isOwner();
 
       // Transaction Logs: A user can read and create their own logs.
+      // Also allow a user to create a log for another user during a P2P transfer.
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner() || isAdmin();
+        allow read: if isOwner() || isAdmin();
+        allow create: if isOwner() || isAdmin() || (request.auth != null && request.resource.data.toUserId == userId);
         allow update, delete: if false; // Protect logs from modification
       }
 
@@ -146,10 +149,10 @@ service cloud.firestore {
         allow read, write: if false; // Client should not access this at all
     }
 
-    // Notifications: Users can read their own notifications.
     match /notifications/{notificationId} {
-      allow read, update: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create, delete: if false; // Created by server, immutable for client
+      allow create: if request.auth != null; // Allow any authenticated user to create a notification
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }
