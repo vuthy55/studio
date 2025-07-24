@@ -239,7 +239,7 @@ function LearnPageContent() {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <div className="flex items-center justify-center gap-3 rounded-md bg-muted p-1">
+                        <div className="grid grid-cols-5 gap-3 rounded-md bg-muted p-1">
                             {phrasebook.map((topic) => (
                                 <TooltipProvider key={topic.id} delayDuration={100}>
                                 <Tooltip>
@@ -248,7 +248,7 @@ function LearnPageContent() {
                                         variant="ghost"
                                         onClick={() => setSelectedTopicId(topic.id)}
                                         className={cn(
-                                        'h-auto w-auto p-2 transition-all duration-200',
+                                        'h-auto w-full p-2 transition-all duration-200',
                                         selectedTopicId === topic.id
                                             ? 'bg-background text-foreground shadow-sm'
                                             : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
