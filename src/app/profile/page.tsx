@@ -418,8 +418,12 @@ function ProfileSection() {
             <Card className="border-destructive">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Danger Zone</CardTitle>
-                     <CardDescription>
-                        This action will permanently deactivate your account and anonymize your financial history for legal compliance.
+                     <CardDescription className="space-y-1 text-xs">
+                        <p>This action will permanently deactivate your account.</p>
+                        <ul className="list-disc pl-5">
+                            <li><strong className="text-foreground">What will be deleted:</strong> Your login account, personal profile info (name, country, etc.), and all practice history.</li>
+                            <li><strong className="text-foreground">What will be kept (anonymously):</strong> Financial records (token purchases, donations) will be retained without your personal details for legal compliance.</li>
+                        </ul>
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
