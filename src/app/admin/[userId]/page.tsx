@@ -183,8 +183,8 @@ export default function UserDetailPage() {
                 </Button>
             </header>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                 <div className="md:col-span-1 space-y-8">
+            <div className="space-y-8">
+                <div className="w-full max-w-sm mx-auto">
                     <Card>
                         <CardHeader className="items-center text-center">
                             <Avatar className="h-24 w-24 text-4xl">
@@ -204,9 +204,9 @@ export default function UserDetailPage() {
                             }
                         </CardContent>
                     </Card>
-                 </div>
+                </div>
                  
-                 <div className="md:col-span-2">
+                <div>
                     <Tabs defaultValue="edit" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="edit">Edit Profile</TabsTrigger>
@@ -332,10 +332,8 @@ export default function UserDetailPage() {
                             </Card>
                         </TabsContent>
                     </Tabs>
-                 </div>
+                </div>
             </div>
         </div>
     );
 }
-
-    
