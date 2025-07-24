@@ -1145,10 +1145,11 @@ function RoomsTabContent() {
     }
   };
   
-  const { activeRooms, closedRooms, scheduledRooms } = useMemo(() => {
+  const { activeRooms, closedWithSummary, closedWithoutSummary, scheduledRooms } = useMemo(() => {
     return {
       activeRooms: rooms.filter(r => r.status === 'active'),
-      closedRooms: rooms.filter(r => r.status === 'closed' && r.summary),
+      closedWithSummary: rooms.filter(r => r.status === 'closed' && r.summary),
+      closedWithoutSummary: rooms.filter(r => r.status === 'closed' && !r.summary),
       scheduledRooms: rooms.filter(r => r.status === 'scheduled'),
     };
   }, [rooms]);
@@ -1166,7 +1167,7 @@ function RoomsTabContent() {
   const handleSelectAll = (type: 'active' | 'closed' | 'scheduled', checked: boolean) => {
     let roomIdsToChange: string[] = [];
     if (type === 'active') roomIdsToChange = activeRooms.map(r => r.id);
-    else if (type === 'closed') roomIdsToChange = closedRooms.map(r => r.id);
+    else if (type === 'closed') roomIdsToChange = closedWithSummary.map(r => r.id);
     else if (type === 'scheduled') roomIdsToChange = scheduledRooms.map(r => r.id);
 
     setSelectedRoomIds(prev => {
@@ -1197,11 +1198,6 @@ function RoomsTabContent() {
         setIsDeleting(false);
     }
 };
-
-  const allActiveSelected = useMemo(() => activeRooms.length > 0 && activeRooms.every(r => selectedRoomIds.includes(r.id)), [activeRooms, selectedRoomIds]);
-  const allClosedSelected = useMemo(() => closedRooms.length > 0 && closedRooms.every(r => selectedRoomIds.includes(r.id)), [closedRooms, selectedRoomIds]);
-  const allScheduledSelected = useMemo(() => scheduledRooms.length > 0 && scheduledRooms.every(r => selectedRoomIds.includes(r.id)), [scheduledRooms, selectedRoomIds]);
-
 
   return (
     <Card>
@@ -1248,13 +1244,13 @@ function RoomsTabContent() {
         )}
         
         {rooms.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                <div>
-                    <h4 className="font-semibold p-2 border-b">Rooms with Summaries ({closedRooms.length})</h4>
+                    <h4 className="font-semibold p-2 border-b">Rooms with Summaries ({closedWithSummary.length})</h4>
                     <div className="border rounded-md max-h-60 overflow-y-auto">
                         <Table>
                              <TableBody>
-                                {closedRooms.map(room => (
+                                {closedWithSummary.map(room => (
                                     <TableRow key={room.id}>
                                         <TableCell className="p-2 w-10">
                                             <Checkbox id={`cb-closed-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
@@ -1297,6 +1293,28 @@ function RoomsTabContent() {
                              </TableBody>
                         </Table>
                       </div>
+                </div>
+                 <div>
+                    <h4 className="font-semibold p-2 border-b">Closed (No Summary) ({closedWithoutSummary.length})</h4>
+                    <div className="border rounded-md max-h-60 overflow-y-auto">
+                        <Table>
+                             <TableBody>
+                                {closedWithoutSummary.map(room => (
+                                    <TableRow key={room.id}>
+                                        <TableCell className="p-2 w-10">
+                                            <Checkbox id={`cb-closed-ns-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
+                                        </TableCell>
+                                        <TableCell className="p-2">
+                                            <label htmlFor={`cb-closed-ns-${room.id}`} className="font-medium">{room.topic}</label>
+                                        </TableCell>
+                                         <TableCell className="p-2 text-right">
+                                            <Badge variant="destructive">Closed</Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                             </TableBody>
+                        </Table>
+                    </div>
                 </div>
           </div>
         )}
@@ -1362,5 +1380,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
