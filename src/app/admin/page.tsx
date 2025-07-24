@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -1351,7 +1351,7 @@ function RoomsTabContent() {
   );
 }
 
-function ResetTabContent() {
+function BulkDeleteContent() {
     const [currentUser] = useAuthState(auth);
     const { toast } = useToast();
     const [users, setUsers] = useState<UserWithId[]>([]);
@@ -1419,9 +1419,9 @@ function ResetTabContent() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/> Data Reset</CardTitle>
+                <CardTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/> Bulk User Deletion</CardTitle>
                 <CardDescription>
-                    Permanently delete users and all their associated data from both Firestore and Firebase Authentication. This action is irreversible.
+                    Permanently delete multiple users and all their associated data from both Firestore and Firebase Authentication. This action is irreversible.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1520,6 +1520,51 @@ function ResetTabContent() {
     );
 }
 
+function DataPolicyContent() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><BookUser /> Data Deletion Policy</CardTitle>
+                <CardDescription>
+                    This document outlines the different data deletion procedures available in the application to comply with data privacy regulations like GDPR.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="p-4 border rounded-lg">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">1. User-Initiated Account Deletion (Soft Delete & Anonymization)</h3>
+                    <Separator className="my-2" />
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                        <p><strong className="text-foreground">Who:</strong> Performed by the user from their "My Account" page.</p>
+                        <p><strong className="text-foreground">Purpose:</strong> To provide a self-service option for users to close their account while allowing the business to meet legal and financial reporting obligations.</p>
+                        <p className="font-semibold pt-2">What happens:</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li><strong className="text-destructive">DELETED:</strong> The user's authentication account, preventing future logins.</li>
+                            <li><strong className="text-destructive">DELETED:</strong> The user's main profile document (name, email, country, etc.).</li>
+                             <li><strong className="text-destructive">DELETED:</strong> Non-essential history, such as practice logs.</li>
+                            <li><strong className="text-green-600">RETAINED (Anonymized):</strong> Financial records like `paymentHistory` and `transactionLogs` are kept, but all personally identifiable information (`userId`, `userEmail`) is disassociated from them.</li>
+                        </ul>
+                    </div>
+                </div>
+                 <div className="p-4 border rounded-lg">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">2. Administrator-Initiated Deletion (Hard Delete)</h3>
+                    <Separator className="my-2" />
+                    <div className="spacey-y-2 text-sm text-muted-foreground">
+                        <p><strong className="text-foreground">Who:</strong> Performed by a trusted administrator from the Admin Dashboard.</p>
+                        <p><strong className="text-foreground">Purpose:</strong> To fulfill a user's "Right to be Forgotten" under GDPR or for complete data removal when no legal obligation to retain records exists.</p>
+                        <p className="font-semibold pt-2">What happens:</p>
+                         <ul className="list-disc pl-5 space-y-1">
+                            <li><strong className="text-destructive">DELETED:</strong> The user's authentication account.</li>
+                            <li><strong className="text-destructive">DELETED:</strong> The user's main profile document.</li>
+                            <li><strong className="text-destructive">DELETED:</strong> All associated subcollections, including `paymentHistory`, `transactionLogs`, and `practiceHistory`. No data is retained.</li>
+                        </ul>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -1561,7 +1606,8 @@ export default function AdminPage() {
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
                     <TabsTrigger value="financial">Financial</TabsTrigger>
                     <TabsTrigger value="tokens">Tokens</TabsTrigger>
-                    <TabsTrigger value="reset">Reset</TabsTrigger>
+                    <TabsTrigger value="bulk-delete">Bulk Delete</TabsTrigger>
+                    <TabsTrigger value="data-policy">Data Policy</TabsTrigger>
                 </TabsList>
                 <TabsContent value="rooms" className="mt-6">
                     <RoomsTabContent />
@@ -1578,8 +1624,11 @@ export default function AdminPage() {
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
                 </TabsContent>
-                 <TabsContent value="reset" className="mt-6">
-                    <ResetTabContent />
+                 <TabsContent value="bulk-delete" className="mt-6">
+                    <BulkDeleteContent />
+                </TabsContent>
+                <TabsContent value="data-policy" className="mt-6">
+                    <DataPolicyContent />
                 </TabsContent>
             </Tabs>
 

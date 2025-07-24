@@ -6,9 +6,9 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { transferTokensAction } from '@/actions/ledger';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import MainHeader from '@/components/layout/MainHeader';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { anonymizeAndDeactivateUser } from '@/actions/user';
 
 
 export interface PracticeStats {
@@ -285,57 +287,171 @@ function TokenWalletCard() {
     );
 }
 
-function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getInitials, countryOptions, handleCountryChange }: any) {
+function ProfileSection() {
+    const { user, userProfile, fetchUserProfile, logout } = useUserData();
+    const { toast } = useToast();
+    const router = useRouter();
+
+    const [profile, setProfile] = useState<Partial<UserProfile>>({});
+    const [isSaving, setIsSaving] = useState(false);
+    const countryOptions = useMemo(() => lightweightCountries, []);
+    
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    useEffect(() => {
+        if(userProfile) {
+            setProfile(userProfile);
+        }
+    }, [userProfile]);
+
+    const handleCountryChange = (countryCode: string) => {
+        setProfile(prev => ({ ...prev, country: countryCode }));
+        const selected = countryOptions.find(c => c.code === countryCode);
+        if (selected && (!profile.mobile || !profile.mobile.startsWith('+'))) {
+            setProfile(prev => ({ ...prev, mobile: `+${selected.phone} ` }));
+        }
+    };
+
+    const handleSaveProfile = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user) return;
+        setIsSaving(true);
+        try {
+            if (profile.name && profile.name !== user.displayName) {
+                await updateAuthProfile(user, { displayName: profile.name });
+            }
+            
+            const userDocRef = doc(db, 'users', user.uid);
+            const { name, country, mobile } = profile;
+            const dataToSave = {
+                name: name || '',
+                country: country || '',
+                mobile: mobile || '',
+                email: user.email,
+                searchableName: (name || '').toLowerCase(),
+                searchableEmail: (user.email!).toLowerCase(),
+            };
+            await setDoc(userDocRef, dataToSave, { merge: true });
+            toast({ title: 'Success', description: 'Profile updated successfully.' });
+        } catch (error: any) {
+            console.error("Error updating profile: ", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    const getInitials = (name?: string) => {
+        return name ? name.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || '?');
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!user || !user.email || deleteConfirmation !== 'delete my account') {
+            toast({ variant: 'destructive', title: 'Confirmation failed', description: 'The confirmation phrase does not match.'});
+            return;
+        }
+
+        setIsDeleting(true);
+        const result = await anonymizeAndDeactivateUser({ userId: user.uid });
+        if (result.success) {
+            toast({ title: 'Account Deleted', description: "Your account has been deleted. We're sorry to see you go."});
+            // The auth state listener in UserDataContext will handle logout and redirect.
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete your account.' });
+            setIsDeleting(false);
+        }
+    };
+
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex items-center gap-4">
-                    <Avatar className="h-20 w-20 text-3xl">
-                        <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
-                        <CardDescription>{profile.email}</CardDescription>
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-4">
+                        <Avatar className="h-20 w-20 text-3xl">
+                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
+                            <CardDescription>{profile.email}</CardDescription>
+                        </div>
                     </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <form onSubmit={handleSaveProfile} className="space-y-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Name</Label>
-                        <Input id="name" value={profile.name || ''} onChange={(e) => setProfile((p: any) => ({...p, name: e.target.value}))} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" type="email" value={profile.email || ''} disabled />
-                        <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="country">Country</Label>
-                        <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                            <SelectTrigger id="country">
-                                <SelectValue placeholder="Select your country" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {countryOptions.map((country: any) => (
-                                    <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="mobile">Mobile Number</Label>
-                        <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
-                    </div>
-                    <div className="flex justify-end">
-                        <Button type="submit" disabled={isSaving}>
-                            {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            Save Changes
-                        </Button>
-                    </div>
-                </form>
-            </CardContent>
-        </Card>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSaveProfile} className="space-y-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Name</Label>
+                            <Input id="name" value={profile.name || ''} onChange={(e) => setProfile((p: any) => ({...p, name: e.target.value}))} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input id="email" type="email" value={profile.email || ''} disabled />
+                            <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="country">Country</Label>
+                            <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                                <SelectTrigger id="country">
+                                    <SelectValue placeholder="Select your country" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {countryOptions.map((country: any) => (
+                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="mobile">Mobile Number</Label>
+                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
+                        </div>
+                        <div className="flex justify-end">
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Save Changes
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+
+            <Card className="border-destructive">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Danger Zone</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive">
+                                <Trash2 className="mr-2"/> Delete My Account
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action is irreversible. Your account, profile, and practice history will be permanently deleted. Your financial transaction history will be anonymized for legal compliance.
+                                    <br/><br/>
+                                    To confirm, please type <strong className="text-destructive">delete my account</strong> below.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <Input 
+                                value={deleteConfirmation}
+                                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                placeholder="delete my account"
+                            />
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting || deleteConfirmation !== 'delete my account'}>
+                                    {isDeleting ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                    Confirm Deletion
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </CardContent>
+            </Card>
+        </div>
     )
 }
 
@@ -376,7 +492,7 @@ function PaymentHistorySection() {
                     {hasFetched ? 'History Loaded' : 'Load Payment History'}
                 </Button>
 
-                {isLoading && (
+                {isLoading && !hasFetched && (
                     <div className="flex justify-center items-center py-8">
                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                     </div>
@@ -425,76 +541,14 @@ function PaymentHistorySection() {
 }
 
 export default function ProfilePage() {
-    const { user, loading: authLoading, userProfile, fetchUserProfile } = useUserData();
+    const { user, loading: authLoading } = useUserData();
     const router = useRouter();
-    const { toast } = useToast();
-    
-    const [profile, setProfile] = useState<Partial<UserProfile>>({});
-    const [isSaving, setIsSaving] = useState(false);
-
-    const countryOptions = useMemo(() => lightweightCountries, []);
-
-     useEffect(() => {
-        if (!authLoading && user) {
-            // Check if profile is empty before fetching to avoid unnecessary fetches
-            if (!userProfile?.email) {
-                 fetchUserProfile();
-            }
-        }
-    }, [user, authLoading, userProfile, fetchUserProfile]);
-
-    useEffect(() => {
-        if(userProfile) {
-            setProfile(userProfile);
-        }
-    }, [userProfile]);
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
         }
     }, [user, authLoading, router]);
-
-    const handleCountryChange = (countryCode: string) => {
-        setProfile(prev => ({ ...prev, country: countryCode }));
-        const selected = countryOptions.find(c => c.code === countryCode);
-        if (selected && (!profile.mobile || !profile.mobile.startsWith('+'))) {
-            setProfile(prev => ({ ...prev, mobile: `+${selected.phone} ` }));
-        }
-    };
-
-    const handleSaveProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user) return;
-        setIsSaving(true);
-        try {
-            if (profile.name && profile.name !== user.displayName) {
-                await updateAuthProfile(user, { displayName: profile.name });
-            }
-            
-            const userDocRef = doc(db, 'users', user.uid);
-            const { name, country, mobile } = profile;
-            const dataToSave = {
-                name: name || '',
-                country: country || '',
-                mobile: mobile || '',
-                email: user.email,
-                searchableName: (name || '').toLowerCase(),
-                searchableEmail: (user.email!).toLowerCase(),
-            };
-            await setDoc(userDocRef, dataToSave, { merge: true });
-            toast({ title: 'Success', description: 'Profile updated successfully.' });
-        } catch (error: any) {
-            console.error("Error updating profile: ", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
-        } finally {
-            setIsSaving(false);
-        }
-    };
-    
-    const getInitials = (name?: string) => {
-        return name ? name.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || '?');
-    };
 
     if (authLoading || !user) {
         return (
@@ -517,15 +571,7 @@ export default function ProfilePage() {
                 </TabsList>
 
                 <TabsContent value="profile" className="mt-6">
-                    <ProfileSection 
-                        profile={profile} 
-                        setProfile={setProfile} 
-                        isSaving={isSaving}
-                        handleSaveProfile={handleSaveProfile}
-                        getInitials={getInitials}
-                        countryOptions={countryOptions}
-                        handleCountryChange={handleCountryChange}
-                    />
+                    <ProfileSection />
                 </TabsContent>
                  <TabsContent value="wallet" className="mt-6">
                     <TokenWalletCard />
