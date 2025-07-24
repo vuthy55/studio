@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -151,7 +151,7 @@ function TokenWalletCard() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Token Wallet</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Wallet /> Token Wallet</CardTitle>
                 <CardDescription>View your balance and manage your tokens.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -250,7 +250,7 @@ function PaymentHistorySection() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Your Payments</CardTitle>
+                <CardTitle className="flex items-center gap-2"><CreditCard /> Your Payments</CardTitle>
                 <CardDescription>A record of all your token purchases and donations.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -485,9 +485,10 @@ export default function ProfilePage() {
             </header>
             
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
-                    <TabsTrigger value="tokens">Tokens & Billing</TabsTrigger>
+                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                    <TabsTrigger value="billing">Billing</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
@@ -502,19 +503,11 @@ export default function ProfilePage() {
                         handleCountryChange={handleCountryChange}
                     />
                 </TabsContent>
-                <TabsContent value="tokens" className="mt-6">
-                    <Tabs defaultValue="wallet" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
-                            <TabsTrigger value="payments">Payment History</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="wallet" className="mt-6">
-                            <TokenWalletCard />
-                        </TabsContent>
-                        <TabsContent value="payments" className="mt-6">
-                            <PaymentHistorySection />
-                        </TabsContent>
-                    </Tabs>
+                 <TabsContent value="tokens" className="mt-6">
+                    <TokenWalletCard />
+                </TabsContent>
+                <TabsContent value="billing" className="mt-6">
+                    <PaymentHistorySection />
                 </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
                    <ReferralLink />
