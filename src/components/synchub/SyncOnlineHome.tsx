@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -57,6 +56,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -703,38 +703,37 @@ export default function SyncOnlineHome() {
     const router = useRouter();
     const { toast } = useToast();
 
+    const [isScheduling, setIsScheduling] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Form State
     const [roomTopic, setRoomTopic] = useState('');
     const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
     const [inviteeEmails, setInviteeEmails] = useState('');
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
-    
-    const [isScheduling, setIsScheduling] = useState(false);
-
     const [duration, setDuration] = useState(30);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
     const [reminderMinutes, setReminderMinutes] = useState<number>(30);
-    const [editingRoom, setEditingRoom] = useState<InvitedRoom | null>(null);
     
+    // Edit Mode State
+    const [editingRoom, setEditingRoom] = useState<InvitedRoom | null>(null);
+    const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
+
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
-    const [isClient, setIsClient] = useState(false);
     const { settings } = useUserData();
-    
-    const [currentlyManagedRoom, setCurrentlyManagedRoom] = useState<InvitedRoom | null>(null);
 
-     useEffect(() => {
-        setIsClient(true);
-        // Defer date initialization to client-side to avoid hydration mismatch
-        const defaultDate = new Date();
-        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
-        defaultDate.setSeconds(0);
-        defaultDate.setMilliseconds(0);
-        setScheduledDate(defaultDate);
-    }, []);
-
-    const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
+    // Defer date initialization to client-side to avoid hydration mismatch
+    useEffect(() => {
+        if (!scheduledDate) {
+            const defaultDate = new Date();
+            defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+            defaultDate.setSeconds(0);
+            defaultDate.setMilliseconds(0);
+            setScheduledDate(defaultDate);
+        }
+    }, [scheduledDate]);
 
      const resetForm = useCallback(() => {
         const defaultDate = new Date();
@@ -1019,7 +1018,7 @@ export default function SyncOnlineHome() {
     };
 
 
-    if (loading || !isClient) {
+    if (loading || !scheduledDate) {
         return (
              <Card>
                 <CardHeader>
@@ -1038,7 +1037,6 @@ export default function SyncOnlineHome() {
     
     const renderRoomList = (rooms: InvitedRoom[], title: string) => (
          <div className="space-y-4">
-            <h3 className="font-semibold text-lg">{title} ({rooms.length})</h3>
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
                     {rooms.map(room => {
@@ -1151,7 +1149,7 @@ export default function SyncOnlineHome() {
                     })}
                 </ul>
             ) : (
-                <p className="text-muted-foreground">No rooms in this category.</p>
+                <p className="text-muted-foreground text-center py-4">No rooms in this category.</p>
             )}
         </div>
     );
@@ -1205,7 +1203,7 @@ export default function SyncOnlineHome() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Date & Time</Label>
+                                                <Label>Date &amp; Time</Label>
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <Button
@@ -1349,7 +1347,7 @@ export default function SyncOnlineHome() {
                                         <Button type="submit" form="create-room-form" disabled={isSubmitting}>
                                             {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                                             {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                                isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                                isEditMode ? `Confirm &amp; Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm &amp; Pay ${calculatedCost} Tokens`
                                             }
                                         </Button>
                                     )}
@@ -1360,21 +1358,32 @@ export default function SyncOnlineHome() {
                 </CardContent>
             </Card>
 
-            {user && isClient && (
+            {user && (
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><List /> Your Rooms</CardTitle>
                         <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent>
                         {isFetchingRooms ? (
                              <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
                         ) : (
-                            <>
-                                {renderRoomList(scheduled, 'Scheduled')}
-                                {renderRoomList(activeAndInvited, 'Active & Invited')}
-                                {renderRoomList(closedWithSummary, 'Closed with Summary')}
-                            </>
+                            <Tabs defaultValue="scheduled" className="w-full">
+                                <TabsList className="grid w-full grid-cols-3">
+                                    <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                                    <TabsTrigger value="active">Active &amp; Invited ({activeAndInvited.length})</TabsTrigger>
+                                    <TabsTrigger value="summaries">Summaries ({closedWithSummary.length})</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="scheduled" className="mt-4">
+                                    {renderRoomList(scheduled, '')}
+                                </TabsContent>
+                                <TabsContent value="active" className="mt-4">
+                                     {renderRoomList(activeAndInvited, '')}
+                                </TabsContent>
+                                <TabsContent value="summaries" className="mt-4">
+                                     {renderRoomList(closedWithSummary, '')}
+                                </TabsContent>
+                            </Tabs>
                         )}
                     </CardContent>
                 </Card>
