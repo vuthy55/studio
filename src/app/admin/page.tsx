@@ -1338,6 +1338,7 @@ function RoomsTabContent() {
 }
 
 function ResetTabContent() {
+    const [currentUser] = useAuthState(auth);
     const { toast } = useToast();
     const [users, setUsers] = useState<UserWithId[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1372,7 +1373,13 @@ function ResetTabContent() {
     };
 
     const handleSelectAll = (checked: boolean) => {
-        setSelectedUserIds(checked ? users.map(u => u.id) : []);
+        // Prevent admin from deselecting themselves if they are the only one left
+        const nonAdminUsers = users.filter(u => u.id !== currentUser?.uid);
+        if (checked) {
+            setSelectedUserIds(users.map(u => u.id));
+        } else {
+             setSelectedUserIds(selectedUserIds.filter(id => id === currentUser?.uid));
+        }
     };
     
     const handleDelete = async () => {
@@ -1471,6 +1478,7 @@ function ResetTabContent() {
                                                 onCheckedChange={(checked) => handleSelectUser(user.id, !!checked)}
                                                 checked={selectedUserIds.includes(user.id)}
                                                 aria-label={`Select user ${user.name}`}
+                                                disabled={user.id === currentUser?.uid && user.role === 'admin'}
                                             />
                                         </TableCell>
                                         <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>

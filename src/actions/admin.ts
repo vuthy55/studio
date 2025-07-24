@@ -39,6 +39,7 @@ async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?
 
 /**
  * Deletes specified users from Firebase Auth and Firestore, including their subcollections.
+ * Includes a safeguard to prevent deletion of the last administrator.
  * @param {string[]} userIds An array of user IDs to delete.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
@@ -48,6 +49,24 @@ export async function deleteUsers(userIds: string[]): Promise<{success: boolean,
     }
 
     try {
+        // --- Safeguard for last admin deletion ---
+        const adminsQuery = db.collection('users').where('role', '==', 'admin');
+        const adminsSnapshot = await adminsQuery.get();
+        const totalAdmins = adminsSnapshot.size;
+        
+        let adminsToDeleteCount = 0;
+        adminsSnapshot.forEach(doc => {
+            if (userIds.includes(doc.id)) {
+                adminsToDeleteCount++;
+            }
+        });
+
+        if (totalAdmins > 0 && adminsToDeleteCount >= totalAdmins) {
+            return { success: false, error: "Cannot delete the last administrator account." };
+        }
+        // --- End Safeguard ---
+
+
         // Delete from Firebase Authentication
         await auth.deleteUsers(userIds);
 
@@ -70,6 +89,10 @@ export async function deleteUsers(userIds: string[]): Promise<{success: boolean,
 
     } catch (error: any) {
         console.error("Error deleting users:", error);
+        // Provide a more specific error message if possible
+        if (error.code === 'auth/user-not-found') {
+             return { success: false, error: "One or more users were not found in Firebase Authentication and may have already been deleted." };
+        }
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
     }
 }
