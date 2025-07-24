@@ -1149,7 +1149,6 @@ export default function SyncOnlineHome() {
                                                 </div>
                                             ))}
                                         </div></ScrollArea>
-                                        <Separator/>
                                     </div>
                                 )}
                                 <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
@@ -1204,5 +1203,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
