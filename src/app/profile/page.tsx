@@ -418,6 +418,9 @@ function ProfileSection() {
             <Card className="border-destructive">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Danger Zone</CardTitle>
+                     <CardDescription>
+                        This action will permanently deactivate your account and anonymize your financial history for legal compliance.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <AlertDialog>
