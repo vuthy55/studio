@@ -55,12 +55,16 @@ export interface UserProfile {
 
 function TokenHistoryDialog() {
     const [user] = useAuthState(auth);
-    const [transactions, setTransactions] = useState<TransactionLog[]>([]);
+    const [transactions, setTransactions] = useState<(TransactionLog & { id: string })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
      const getActionText = (log: TransactionLog) => {
         if (log.actionType === 'p2p_transfer') {
             return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
+        }
+        // Use a more descriptive reason for refunds
+        if (log.actionType === 'sync_online_refund') {
+            return 'Sync Online Refund';
         }
         switch (log.actionType) {
             case 'admin_issue': return log.reason || 'Admin Issue';
@@ -122,6 +126,7 @@ function TokenHistoryDialog() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead>#</TableHead>
                                         <TableHead>Date</TableHead>
                                         <TableHead className="text-right">Amount</TableHead>
                                         <TableHead>Reason</TableHead>
@@ -130,7 +135,8 @@ function TokenHistoryDialog() {
                                 </TableHeader>
                                 <TableBody>
                                     {transactions.map((log, index) => (
-                                        <TableRow key={index}>
+                                        <TableRow key={log.id}>
+                                            <TableCell className="font-mono text-xs text-muted-foreground">{String(transactions.length - index).padStart(5, '0')}</TableCell>
                                             <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
                                             <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                 {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
