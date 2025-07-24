@@ -93,6 +93,7 @@ export async function transferTokensAction(payload: TransferTokensPayload): Prom
 
     } catch (error: any) {
         console.error("Error transferring tokens (Admin Action):", error);
-        return { success: false, error: "An unexpected server error occurred during the transfer." };
+        // Provide a more detailed error message to the client for debugging
+        return { success: false, error: `An unexpected server error occurred: ${error.message}` };
     }
 }
