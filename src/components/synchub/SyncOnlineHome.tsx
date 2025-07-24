@@ -623,7 +623,11 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        This will permanently delete the room and refund your tokens. This action cannot be undone.
+                                        This will permanently delete the room.
+                                        {(room.initialCost ?? 0) > 0 && 
+                                            <span className="font-bold"> {room.initialCost} tokens will be refunded to your account.</span>
+                                        }
+                                        This action cannot be undone.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
