@@ -1163,7 +1163,6 @@ export default function SyncOnlineHome() {
 
     return (
         <div className="space-y-6">
-            <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: FILE HAS BEEN UPDATED</div>
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
@@ -1180,6 +1179,7 @@ export default function SyncOnlineHome() {
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                         <DialogContent className="max-w-lg h-[90vh] flex flex-col">
+                            <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: DIALOG HAS BEEN UPDATED</div>
                              <DialogHeader>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
