@@ -1052,13 +1052,14 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="sm:max-w-lg">
+                        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
                             <DialogHeader>
                                 <DialogTitle>Schedule a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be deducted from your token balance upon creation.
                                 </DialogDescription>
                             </DialogHeader>
+                            <ScrollArea className="flex-grow pr-6 -mr-6">
                             <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="topic">Room Topic</Label>
@@ -1130,13 +1131,16 @@ export default function SyncOnlineHome() {
                                     <p>Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
                                     <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                 </div>
-                                <DialogFooter>
-                                    <Button type="submit" disabled={isCreating || calculatedCost > (userProfile?.tokenBalance || 0)}>
-                                        {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        { isCreating ? 'Scheduling...' : `Confirm & Pay ${calculatedCost} Tokens`}
-                                    </Button>
-                                </DialogFooter>
+                                
                             </form>
+                            </ScrollArea>
+                            <DialogFooter>
+                                <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                <Button type="submit" form="create-room-form" disabled={isCreating || calculatedCost > (userProfile?.tokenBalance || 0)}>
+                                    {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    { isCreating ? 'Scheduling...' : `Confirm & Pay ${calculatedCost} Tokens`}
+                                </Button>
+                            </DialogFooter>
                         </DialogContent>
                     </Dialog>
                 </CardContent>
