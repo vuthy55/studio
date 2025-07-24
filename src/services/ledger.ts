@@ -30,6 +30,7 @@ export interface TokenAnalytics {
     totalAwarded: number;
     totalSpent: number;
     totalTokensInSystem: number;
+    p2pTotalVolume: number;
 }
 
 export interface TokenLedgerEntry extends TransactionLog {
@@ -141,6 +142,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         totalAwarded: 0,
         totalSpent: 0,
         totalTokensInSystem: 0,
+        p2pTotalVolume: 0,
     };
     
     const logsQuery = collectionGroup(db, 'transactionLogs');
@@ -166,7 +168,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                     analytics.adminIssued += log.tokenChange;
                     break;
                 case 'p2p_transfer':
-                    // In a P2P transfer, the positive change is for the recipient, but it's not "awarded" from the system's perspective
+                    analytics.p2pTotalVolume += log.tokenChange;
                     break;
             }
         } else {
@@ -181,8 +183,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                     analytics.liveSyncOnlineSpend += Math.abs(log.tokenChange);
                     break;
                 case 'p2p_transfer':
-                    // This is the sender's side of the P2P transfer
-                    // It's a spend from the user's perspective, but not from the system's
+                    // This is the sender's side, handled by the receiver's positive log to avoid double counting.
                     break;
              }
         }
