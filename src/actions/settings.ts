@@ -14,6 +14,8 @@ export interface AppSettings {
   maxUsersPerRoom: number;
   freeSyncOnlineMinutes: number;
   costPerSyncOnlineMinute: number;
+  summaryTranslationCost: number;
+  transcriptCost: number;
 }
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
@@ -34,6 +36,8 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         maxUsersPerRoom: 5,
         freeSyncOnlineMinutes: 10,
         costPerSyncOnlineMinute: 2,
+        summaryTranslationCost: 10,
+        transcriptCost: 50,
     };
     
     try {

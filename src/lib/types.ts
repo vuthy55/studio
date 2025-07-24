@@ -31,6 +31,18 @@ export type RoomSummary = {
     }[];
 };
 
+export type Transcript = {
+    title: string;
+    date: string;
+    presentParticipants: SummaryParticipant[];
+    absentParticipants: SummaryParticipant[];
+    log: {
+        speakerName: string;
+        text: string;
+        timestamp: string; // ISO string for client-side display
+    }[];
+};
+
 export type SyncRoom = {
     id: string;
     topic: string;
@@ -43,6 +55,7 @@ export type SyncRoom = {
     lastActivityAt?: FieldValue;
     blockedUsers?: BlockedUser[];
     summary?: RoomSummary;
+    transcript?: Transcript;
 }
 
 export type Participant = {

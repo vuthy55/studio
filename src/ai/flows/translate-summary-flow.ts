@@ -11,6 +11,8 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { RoomSummary } from '@/lib/types';
+import { db } from '@/lib/firebase-admin';
+import { getAppSettingsAction } from '@/actions/settings';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -35,6 +37,8 @@ const RoomSummarySchemaForInput = z.object({
 const TranslateSummaryInputSchema = z.object({
   summary: RoomSummarySchemaForInput,
   targetLanguages: z.array(z.string()).describe("A list of language codes (e.g., 'es', 'fr', 'th') to translate the content into."),
+  roomId: z.string(),
+  userId: z.string(),
 });
 export type TranslateSummaryInput = z.infer<typeof TranslateSummaryInputSchema>;
 
@@ -100,17 +104,24 @@ const translateSummaryFlow = ai.defineFlow(
     inputSchema: TranslateSummaryInputSchema,
     outputSchema: RoomSummarySchemaForOutput,
   },
-  async ({ summary, targetLanguages }) => {
+  async ({ summary, targetLanguages, roomId, userId }) => {
+    
+    const settings = await getAppSettingsAction();
+    const userRef = db.collection('users').doc(userId);
+    const roomRef = db.collection('syncRooms').doc(roomId);
+
+    const languagesToTranslate = targetLanguages.filter(lang => !summary.summary.translations?.[lang]);
+    
+    if (languagesToTranslate.length === 0) {
+        return summary; // No new translations needed
+    }
+
+    const totalCost = languagesToTranslate.length * (settings.summaryTranslationCost || 10);
     
     // Create a mutable copy of the summary to update
     const updatedSummary = JSON.parse(JSON.stringify(summary));
 
-    for (const lang of targetLanguages) {
-        // Skip if translation already exists
-        if (updatedSummary.summary.translations?.[lang]) {
-            continue;
-        }
-
+    for (const lang of languagesToTranslate) {
         const promptData = {
             language: lang,
             summaryText: updatedSummary.summary.original,
@@ -139,6 +150,33 @@ const translateSummaryFlow = ai.defineFlow(
             }
         });
     }
+
+    // Now, run a transaction to charge the user and update the room
+    await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User not found");
+
+        const currentBalance = userDoc.data()?.tokenBalance || 0;
+        if (currentBalance < totalCost) {
+            throw new Error("Insufficient tokens for this translation.");
+        }
+
+        // 1. Update the room with the newly translated summary
+        transaction.update(roomRef, { summary: updatedSummary });
+
+        // 2. Deduct tokens from the user
+        transaction.update(userRef, { tokenBalance: FieldValue.increment(-totalCost) });
+
+        // 3. Add a transaction log
+        const logRef = userRef.collection('transactionLogs').doc();
+        transaction.set(logRef, {
+            actionType: 'translation_spend',
+            tokenChange: -totalCost,
+            timestamp: FieldValue.serverTimestamp(),
+            description: `Translated summary for room "${summary.title}" into ${languagesToTranslate.length} language(s).`
+        });
+    });
+
 
     return updatedSummary;
   }

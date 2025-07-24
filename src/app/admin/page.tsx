@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -307,9 +307,9 @@ function SettingsTabContent() {
                          <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Costs & Limits</h3>
                          <Separator />
                         <div className="space-y-2">
-                            <Label htmlFor="translationCost">Translation Cost</Label>
+                            <Label htmlFor="translationCost">Live Translation Cost</Label>
                             <Input id="translationCost" type="number" value={settings.translationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens charged for each live translation.</p>
+                            <p className="text-sm text-muted-foreground">Tokens for a single live translation.</p>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="costPerSyncLiveMinute">Sync Live Cost (per minute)</Label>
@@ -325,6 +325,16 @@ function SettingsTabContent() {
                             <Label htmlFor="maxUsersPerRoom">Max Users per Sync Room</Label>
                             <Input id="maxUsersPerRoom" type="number" value={settings.maxUsersPerRoom ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
                             <p className="text-sm text-muted-foreground">Max users in a Sync Online room.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="transcriptCost" className="flex items-center gap-1.5"><FileSignature/> Transcript Cost</Label>
+                            <Input id="transcriptCost" type="number" value={settings.transcriptCost ?? ''} onChange={handleInputChange} placeholder="e.g., 50" />
+                            <p className="text-sm text-muted-foreground">One-time token cost to generate a raw meeting transcript.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="summaryTranslationCost" className="flex items-center gap-1.5"><Languages/> Summary Translation Cost</Label>
+                            <Input id="summaryTranslationCost" type="number" value={settings.summaryTranslationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                            <p className="text-sm text-muted-foreground">Token cost to translate a summary into one language.</p>
                         </div>
                     </div>
                  </div>
