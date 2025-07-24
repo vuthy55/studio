@@ -1204,5 +1204,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
