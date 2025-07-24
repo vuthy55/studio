@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 
 interface UserWithId extends UserProfile {
@@ -1594,21 +1595,39 @@ export default function AdminPage() {
             </div>
         );
     }
+
+    const adminTabs = [
+        { value: 'rooms', label: 'Rooms', icon: RadioTower },
+        { value: 'users', label: 'Users', icon: Users },
+        { value: 'settings', label: 'App Settings', icon: Settings },
+        { value: 'financial', label: 'Financial', icon: LineChart },
+        { value: 'tokens', label: 'Tokens', icon: Coins },
+        { value: 'bulk-delete', label: 'Bulk Delete', icon: Trash2 },
+        { value: 'data-policy', label: 'Data Policy', icon: BookUser },
+    ];
     
     return (
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-6">
-                    <TabsTrigger value="rooms">Rooms</TabsTrigger>
-                    <TabsTrigger value="users">Users</TabsTrigger>
-                    <TabsTrigger value="settings">App Settings</TabsTrigger>
-                    <TabsTrigger value="financial">Financial</TabsTrigger>
-                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
-                    <TabsTrigger value="bulk-delete">Bulk Delete</TabsTrigger>
-                    <TabsTrigger value="data-policy">Data Policy</TabsTrigger>
-                </TabsList>
+                <TooltipProvider>
+                    <TabsList className={`grid w-full grid-cols-${adminTabs.length}`}>
+                        {adminTabs.map(tab => (
+                            <Tooltip key={tab.value}>
+                                <TooltipTrigger asChild>
+                                    <TabsTrigger value={tab.value} className="h-12">
+                                        <tab.icon className="h-5 w-5" />
+                                    </TabsTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{tab.label}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        ))}
+                    </TabsList>
+                </TooltipProvider>
+
                 <TabsContent value="rooms" className="mt-6">
                     <RoomsTabContent />
                 </TabsContent>
