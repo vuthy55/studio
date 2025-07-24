@@ -944,7 +944,7 @@ export default function SyncOnlineHome() {
     const canJoinRoom = (room: InvitedRoom) => {
         if (!room.scheduledAt) return true; // For older rooms without schedule
         const now = Date.now();
-        const scheduledTime = new Date(room.scheduledAt as any).getTime();
+        const scheduledTime = new Date(room.scheduledAt).getTime();
         const gracePeriod = 5 * 60 * 1000; // 5 minutes
         return now >= scheduledTime - gracePeriod;
     };
@@ -984,8 +984,8 @@ export default function SyncOnlineHome() {
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
                                              {room.status === 'scheduled' && room.scheduledAt 
-                                                ? format(new Date(room.scheduledAt as any), 'PPpp')
-                                                : `Created: ${format(new Date((room.createdAt as any).seconds * 1000), 'PPp')}`
+                                                ? format(new Date(room.scheduledAt), 'PPpp')
+                                                : `Created: ${format(new Date(room.createdAt as any), 'PPp')}`
                                              }
                                         </p>
                                         {room.status === 'closed' && (
@@ -1018,7 +1018,7 @@ export default function SyncOnlineHome() {
                                         </Button>
                                     )}
 
-                                    {isCreator && room.status === 'scheduled' && !canJoin && (
+                                    {isCreator && room.status === 'scheduled' && (
                                         <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
