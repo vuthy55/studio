@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1062,103 +1063,106 @@ export default function SyncOnlineHome() {
                                     Set the details for your meeting. The cost will be deducted from your token balance upon creation.
                                 </DialogDescription>
                             </DialogHeader>
-                            <form id="create-room-form" onSubmit={handleCreateRoom} className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="topic">Room Topic</Label>
-                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="language">Your Spoken Language</Label>
-                                        <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                                            <SelectTrigger id="language">
-                                                <SelectValue placeholder="Select language..." />
-                                            </SelectTrigger>
-                                            <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="duration">Duration (minutes)</Label>
-                                        <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
-                                            <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
-                                            <SelectContent>{[15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-                                 <div className="space-y-2">
-                                    <Label>Date & Time</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!scheduledDate && "text-muted-foreground")}>
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {scheduledDate ? format(scheduledDate, "PPPp") : <span>Pick a date and time</span>}
-                                        </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0">
-                                            <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
-                                             <div className="p-3 border-t border-border">
-                                                <Input type="time" defaultValue={format(scheduledDate || new Date(), 'HH:mm')} onChange={e => {
-                                                    const [hours, minutes] = e.target.value.split(':').map(Number);
-                                                    setScheduledDate(d => {
-                                                        const newDate = d ? new Date(d) : new Date();
-                                                        newDate.setHours(hours, minutes);
-                                                        return newDate;
-                                                    });
-                                                }}/>
+                             <div className="py-4">
+                                <ScrollArea className="max-h-[60vh] pr-6">
+                                    <form id="create-room-form" onSubmit={handleCreateRoom} className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="topic">Room Topic</Label>
+                                            <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="language">Your Spoken Language</Label>
+                                                <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                                                    <SelectTrigger id="language">
+                                                        <SelectValue placeholder="Select language..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                                                </Select>
                                             </div>
-                                        </PopoverContent>
-                                    </Popover>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
-                                    <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
-                                </div>
-                                
-                                <div className="space-y-3">
-                                    <Separator/>
-                                    <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
-                                    <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
-                                        {allInvitedEmailsForCalc.length > 0 ? (
-                                            allInvitedEmailsForCalc.map(email => (
-                                                <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
-                                            ))
-                                        ) : (
-                                            <p>Just you so far!</p>
-                                        )}
-                                    </div></ScrollArea>
-                                </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="duration">Duration (minutes)</Label>
+                                                <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                                                    <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>{[15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Date & Time</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!scheduledDate && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {scheduledDate ? format(scheduledDate, "PPPp") : <span>Pick a date and time</span>}
+                                                </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
+                                                    <div className="p-3 border-t border-border">
+                                                        <Input type="time" defaultValue={format(scheduledDate || new Date(), 'HH:mm')} onChange={e => {
+                                                            const [hours, minutes] = e.target.value.split(':').map(Number);
+                                                            setScheduledDate(d => {
+                                                                const newDate = d ? new Date(d) : new Date();
+                                                                newDate.setHours(hours, minutes);
+                                                                return newDate;
+                                                            });
+                                                        }}/>
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                                            <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                                        </div>
+                                        
+                                        <div className="space-y-3">
+                                            <Separator/>
+                                            <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
+                                            <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                                                {allInvitedEmailsForCalc.length > 0 ? (
+                                                    allInvitedEmailsForCalc.map(email => (
+                                                        <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                                                    ))
+                                                ) : (
+                                                    <p>Just you so far!</p>
+                                                )}
+                                            </div></ScrollArea>
+                                        </div>
 
-                                {allInvitedEmailsForCalc.length > 1 && (
-                                    <div className="space-y-3">
-                                        <Separator/>
-                                        <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
-                                        <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
-                                            {allInvitedEmailsForCalc.map(email => (
-                                                <div key={email} className="flex items-center space-x-2">
-                                                    <Checkbox 
-                                                        id={email} 
-                                                        checked={emceeEmails.includes(email)} 
-                                                        onCheckedChange={() => toggleEmcee(email)}
-                                                        disabled={email === user?.email}
-                                                    />
-                                                    <Label htmlFor={email} className="font-normal w-full truncate">
-                                                        {email} {email === user?.email && '(Creator)'}
-                                                    </Label>
-                                                </div>
-                                            ))}
-                                        </div></ScrollArea>
-                                    </div>
-                                )}
-                                <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
-                                    <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
-                                        This will be deducted from your balance upon confirmation.
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
-                                </div>
-                                
-                            </form>
+                                        {allInvitedEmailsForCalc.length > 1 && (
+                                            <div className="space-y-3">
+                                                <Separator/>
+                                                <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
+                                                <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                                                    {allInvitedEmailsForCalc.map(email => (
+                                                        <div key={email} className="flex items-center space-x-2">
+                                                            <Checkbox 
+                                                                id={email} 
+                                                                checked={emceeEmails.includes(email)} 
+                                                                onCheckedChange={() => toggleEmcee(email)}
+                                                                disabled={email === user?.email}
+                                                            />
+                                                            <Label htmlFor={email} className="font-normal w-full truncate">
+                                                                {email} {email === user?.email && '(Creator)'}
+                                                            </Label>
+                                                        </div>
+                                                    ))}
+                                                </div></ScrollArea>
+                                            </div>
+                                        )}
+                                        <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                                            <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                                                This will be deducted from your balance upon confirmation.
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                                        </div>
+                                    </form>
+                                </ScrollArea>
+                            </div>
                             <DialogFooter>
                                 <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                                 {calculatedCost > (userProfile?.tokenBalance || 0) ? (
