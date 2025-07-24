@@ -72,6 +72,7 @@ export type SyncRoom = {
     initialCost?: number;
     paymentLogId?: string; // ID of the transaction log for the current cost
     hasStarted?: boolean;
+    reminderMinutes?: number;
 }
 
 export type Participant = {

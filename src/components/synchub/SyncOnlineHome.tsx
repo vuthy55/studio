@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -709,6 +710,7 @@ export default function SyncOnlineHome() {
     const [isRoomDialogOpen, setIsRoomDialogOpen] = useState(false);
     const [duration, setDuration] = useState(30);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+    const [reminderMinutes, setReminderMinutes] = useState<number>(30);
     const [editingRoom, setEditingRoom] = useState<InvitedRoom | null>(null);
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
@@ -721,7 +723,11 @@ export default function SyncOnlineHome() {
 
     useEffect(() => {
         setIsClient(true);
-        setScheduledDate(new Date());
+        const initialDate = new Date();
+        initialDate.setMinutes(initialDate.getMinutes() + 30); // Default to 30 mins in the future
+        initialDate.setSeconds(0);
+        initialDate.setMilliseconds(0);
+        setScheduledDate(initialDate);
     }, []);
 
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
@@ -732,6 +738,7 @@ export default function SyncOnlineHome() {
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
+            setReminderMinutes(editingRoom.reminderMinutes || 30);
             
              const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
                 ? new Date(editingRoom.scheduledAt)
@@ -740,12 +747,16 @@ export default function SyncOnlineHome() {
 
         } else {
             const defaultDate = new Date();
+             defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+             defaultDate.setSeconds(0);
+             defaultDate.setMilliseconds(0);
             setRoomTopic('');
             setCreatorLanguage('');
             setInviteeEmails('');
             setEmceeEmails(user?.email ? [user.email] : []);
             setDuration(30);
             setScheduledDate(defaultDate);
+            setReminderMinutes(30);
         }
     }, [editingRoom, isEditMode, user?.email]);
 
@@ -897,6 +908,7 @@ export default function SyncOnlineHome() {
                         durationMinutes: duration,
                         invitedEmails: allInvitedEmails,
                         emceeEmails: [...new Set(emceeEmails)],
+                        reminderMinutes: reminderMinutes,
                     },
                     newCost: calculatedCost
                 });
@@ -930,6 +942,7 @@ export default function SyncOnlineHome() {
                     initialCost: calculatedCost,
                     paymentLogId: newPaymentLogRef.id,
                     hasStarted: false,
+                    reminderMinutes: reminderMinutes,
                 };
                 batch.set(newRoomRef, newRoom);
                 
@@ -1194,7 +1207,7 @@ export default function SyncOnlineHome() {
                                                             className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
                                                         >
                                                             <CalendarIcon className="mr-2 h-4 w-4" />
-                                                            {scheduledDate ? format(scheduledDate, "PPP p") : <span>Pick a date</span>}
+                                                            {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
                                                         </Button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-auto p-0">
@@ -1219,6 +1232,20 @@ export default function SyncOnlineHome() {
                                             <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
                                         </div>
                                         
+                                        <div className="space-y-2">
+                                            <Label htmlFor="reminder">Reminder</Label>
+                                            <Select onValueChange={(v) => setReminderMinutes(parseInt(v))} value={String(reminderMinutes)}>
+                                                <SelectTrigger id="reminder"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="0">No reminder</SelectItem>
+                                                    <SelectItem value="5">5 minutes before</SelectItem>
+                                                    <SelectItem value="15">15 minutes before</SelectItem>
+                                                    <SelectItem value="30">30 minutes before</SelectItem>
+                                                    <SelectItem value="60">1 hour before</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
                                         <div className="space-y-3">
                                             <Separator/>
                                             <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
