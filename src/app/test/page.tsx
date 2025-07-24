@@ -15,6 +15,7 @@ import { getAzureVoices } from '@/actions/azure';
 import type { VoiceInfo } from '@/actions/azure';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import RoomSchedulerTest from '@/components/synchub/RoomSchedulerTest';
 
 
 function AzureVoicesTest() {
@@ -295,6 +296,8 @@ const TestPage = () => {
             )}
         </CardContent>
       </Card>
+
+      <RoomSchedulerTest />
 
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
