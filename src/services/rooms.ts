@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase-admin'; 
@@ -36,15 +37,23 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
 
     const rooms = snapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
-        // Convert Timestamps to ISO strings for safe serialization to the client.
+
+        // Helper to safely convert a Firestore Timestamp to an ISO string
+        const toISO = (ts: any): string | undefined => {
+            if (ts && ts instanceof Timestamp) {
+                return ts.toDate().toISOString();
+            }
+            return undefined;
+        };
+        
         return {
             ...data,
             id: docSnapshot.id,
             topic: data.topic,
             status: data.status,
-            createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
-            lastActivityAt: (data.lastActivityAt as Timestamp)?.toDate().toISOString() || undefined,
-            scheduledAt: (data.scheduledAt as Timestamp)?.toDate().toISOString() || undefined,
+            createdAt: toISO(data.createdAt)!, // createdAt should always exist
+            lastActivityAt: toISO(data.lastActivityAt),
+            scheduledAt: toISO(data.scheduledAt),
         } as ClientSyncRoom;
     });
 
