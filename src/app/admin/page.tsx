@@ -1612,7 +1612,7 @@ export default function AdminPage() {
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TooltipProvider>
-                    <TabsList className="flex w-full">
+                    <TabsList className="grid w-full grid-cols-7">
                         {adminTabs.map(tab => (
                             <Tooltip key={tab.value}>
                                 <TooltipTrigger asChild>

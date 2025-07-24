@@ -125,7 +125,6 @@ function LearnPageContent() {
                 lang: toLanguage,
                 isPass,
                 accuracy,
-                settings
             });
 
             if (wasRewardable) {
@@ -250,7 +249,7 @@ function LearnPageContent() {
                                         onClick={() => setSelectedTopicId(topic.id)}
                                         className={cn(
                                         'h-auto w-auto p-2 transition-all duration-200',
-                                        selectedTopic.id === topic.id
+                                        selectedTopicId === topic.id
                                             ? 'bg-background text-foreground shadow-sm'
                                             : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                         )}
