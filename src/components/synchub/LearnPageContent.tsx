@@ -87,6 +87,13 @@ function LearnPageContent() {
         }
     };
     
+    const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
+        if (lang === 'english') {
+            return textObj.english;
+        }
+        return textObj.translations[lang] || textObj.english;
+    }
+
     const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
         if (assessingPhraseId) return; // Don't start a new assessment if one is in progress.
         if (!user) {
@@ -113,7 +120,7 @@ function LearnPageContent() {
             
             const { wasRewardable, rewardAmount } = recordPracticeAttempt({
                 phraseId,
-                phraseText: referenceText,
+                phraseText: referenceText, // Pass the correct translated text
                 topicId,
                 lang: toLanguage,
                 isPass,
@@ -142,13 +149,6 @@ function LearnPageContent() {
             setAssessingPhraseId(null);
         }
     };
-    
-    const getTranslation = (textObj: { english: string; translations: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
-        if (lang === 'english') {
-            return textObj.english;
-        }
-        return textObj.translations[lang] || textObj.english;
-    }
     
     const sortedPhrases = useMemo(() => {
         return [...selectedTopic.phrases];

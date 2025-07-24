@@ -53,12 +53,15 @@ export default function StatsPage() {
 
         historySnapshot.forEach(doc => {
             const data = doc.data();
-            if (data.passCountPerLang?.[langCode] || data.failCountPerLang?.[langCode]) {
+            const passCount = data.passCountPerLang?.[langCode] ?? 0;
+            const failCount = data.failCountPerLang?.[langCode] ?? 0;
+            
+            if (passCount > 0 || failCount > 0) {
                 detailedHistory.push({
                     id: doc.id,
                     phraseText: data.phraseText,
-                    passCount: data.passCountPerLang?.[langCode] ?? 0,
-                    failCount: data.failCountPerLang?.[langCode] ?? 0,
+                    passCount: passCount,
+                    failCount: failCount,
                     lastAccuracy: data.lastAccuracyPerLang?.[langCode] ?? 0,
                 });
             }
