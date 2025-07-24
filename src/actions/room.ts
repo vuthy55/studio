@@ -130,12 +130,34 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
   }
 
   try {
+    const adminUids = await getAdminUids();
     const batch = db.batch();
-    
-    roomIds.forEach(id => {
-        const roomRef = db.collection('syncRooms').doc(id);
-        batch.delete(roomRef);
-    });
+    const now = FieldValue.serverTimestamp();
+
+    for (const id of roomIds) {
+      const roomRef = db.collection('syncRooms').doc(id);
+      const roomDoc = await roomRef.get();
+      
+      if (roomDoc.exists) {
+        const roomData = roomDoc.data()!;
+        // Create notifications for admins
+        if (adminUids.length > 0) {
+          for (const adminId of adminUids) {
+            const notificationRef = db.collection('notifications').doc();
+            batch.set(notificationRef, {
+              userId: adminId,
+              type: 'room_closed',
+              message: `Room "${roomData.topic}" was permanently deleted.`,
+              createdAt: now,
+              read: false,
+              roomId: id,
+            });
+          }
+        }
+      }
+      // Schedule the room for deletion
+      batch.delete(roomRef);
+    }
     
     await batch.commit();
 
@@ -293,5 +315,7 @@ export async function generateTranscript(roomId: string, userId: string): Promis
         return { success: false, error: 'Failed to save transcript and update tokens.' };
     }
 }
+
+    
 
     
