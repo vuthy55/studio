@@ -115,7 +115,7 @@ export type PaymentLog = {
     createdAt: FieldValue;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled';
 
 export type Notification = {
     id: string;

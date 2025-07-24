@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift, LogOut, Edit } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut, Edit, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -97,6 +97,8 @@ export default function NotificationBell() {
             case 'room_closed':
             case 'room_closed_summary':
                 return <LogOut className="h-4 w-4 text-destructive" />;
+             case 'room_canceled':
+                return <XCircle className="h-4 w-4 text-destructive" />;
             case 'edit_request':
                  return <Edit className="h-4 w-4 text-blue-500" />;
             default:
@@ -111,6 +113,7 @@ export default function NotificationBell() {
             case 'room_closed':
             case 'room_closed_summary':
             case 'edit_request':
+            case 'room_canceled':
                 return `/admin?tab=rooms&highlight=${notification.roomId}`;
             default:
                 return '#';

@@ -116,6 +116,7 @@ export async function checkRoomActivity(roomId: string, userId: string): Promise
 /**
  * Permanently deletes rooms from Firestore. This is a hard delete and is irreversible.
  * If the room is 'scheduled' and has an initial cost, it will refund the user.
+ * It will also notify all invited participants that the room has been canceled.
  *
  * @param {string[]} roomIds An array of room IDs to delete.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
@@ -139,7 +140,6 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
         const roomData = roomDoc.data() as SyncRoom;
         
         // --- REFUND LOGIC ---
-        // If the room was scheduled and had a cost, refund the creator.
         if (roomData.status === 'scheduled' && roomData.initialCost && roomData.initialCost > 0) {
             const userRef = db.collection('users').doc(roomData.creatorUid);
             const refundLogRef = userRef.collection('transactionLogs').doc();
@@ -153,17 +153,36 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
                 tokenChange: roomData.initialCost,
                 timestamp: now,
                 description: `Refund for canceled room: "${roomData.topic}"`,
-                refundsTransactionId: roomData.paymentLogId, // Link to the original payment
+                refundsTransactionId: roomData.paymentLogId,
             });
         }
-        // --- END REFUND LOGIC ---
+        
+        // --- NOTIFICATION LOGIC ---
+        if (roomData.invitedEmails && roomData.invitedEmails.length > 0) {
+             const usersQuery = db.collection('users').where('email', 'in', roomData.invitedEmails);
+             const usersSnapshot = await usersQuery.get();
+             usersSnapshot.forEach(userDoc => {
+                // Don't notify the creator who is deleting the room
+                if (userDoc.id === roomData.creatorUid) return;
+
+                const notificationRef = db.collection('notifications').doc();
+                batch.set(notificationRef, {
+                  userId: userDoc.id,
+                  type: 'room_canceled',
+                  message: `The room "${roomData.topic}" has been canceled.`,
+                  createdAt: now,
+                  read: false,
+                  roomId: id,
+                });
+             });
+        }
 
         if (adminUids.length > 0) {
           for (const adminId of adminUids) {
             const notificationRef = db.collection('notifications').doc();
             batch.set(notificationRef, {
               userId: adminId,
-              type: 'room_closed',
+              type: 'room_closed', // Re-using this type for simplicity
               message: `Room "${roomData.topic}" was permanently deleted.`,
               createdAt: now,
               read: false,
