@@ -27,7 +27,9 @@ export interface TokenAnalytics {
     adminIssued: number;
     translationSpend: number;
     liveSyncSpend: number;
+    liveSyncOnlineSpend: number;
     totalAwarded: number;
+    totalSpent: number;
     totalTokensInSystem: number;
 }
 
@@ -123,7 +125,9 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         adminIssued: 0,
         translationSpend: 0,
         liveSyncSpend: 0,
+        liveSyncOnlineSpend: 0,
         totalAwarded: 0,
+        totalSpent: 0,
         totalTokensInSystem: 0,
     };
     
@@ -131,8 +135,8 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
     const logsSnapshot = await getDocs(logsQuery);
 
     logsSnapshot.forEach(doc => {
-        const log = doc.data();
-        if (log.tokenChange > 0) { // Only count positive changes for awards/purchases
+        const log = doc.data() as TransactionLog;
+        if (log.tokenChange > 0) {
             switch(log.actionType) {
                 case 'purchase':
                     analytics.purchased += log.tokenChange;
@@ -150,7 +154,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                     analytics.adminIssued += log.tokenChange;
                     break;
             }
-        } else { // Handle spends
+        } else {
              switch(log.actionType) {
                 case 'translation_spend':
                     analytics.translationSpend += Math.abs(log.tokenChange);
@@ -158,11 +162,15 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                 case 'live_sync_spend':
                     analytics.liveSyncSpend += Math.abs(log.tokenChange);
                     break;
+                 case 'live_sync_online_spend':
+                    analytics.liveSyncOnlineSpend += Math.abs(log.tokenChange);
+                    break;
              }
         }
     });
 
     analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn + analytics.adminIssued;
+    analytics.totalSpent = analytics.translationSpend + analytics.liveSyncSpend + analytics.liveSyncOnlineSpend;
     analytics.totalTokensInSystem = analytics.purchased + analytics.totalAwarded;
 
     return analytics;
@@ -258,5 +266,3 @@ export async function issueTokens(payload: IssueTokensPayload): Promise<{success
         return { success: false, error: "An unexpected server error occurred." };
     }
 }
-
-    

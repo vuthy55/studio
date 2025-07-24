@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -26,8 +26,9 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
-import { permanentlyDeleteRooms } from '@/actions/room';
+import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom } from '@/actions/room';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
 interface UserWithId extends UserProfile {
@@ -745,8 +746,8 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
     const [formState, setFormState] = useState({
         email: '',
         amount: '' as number | '',
-        reason: 'Issue by Admin',
-        description: 'Distribution'
+        reason: 'Admin Issuance',
+        description: 'Manual token grant by administrator.'
     });
 
     const handleIssueTokens = async (e: React.FormEvent) => {
@@ -763,7 +764,7 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
             const result = await issueTokens({ email, amount: Number(amount), reason, description });
             if (result.success) {
                 toast({ title: 'Success', description: `Successfully issued ${amount} tokens to ${email}.` });
-                setFormState({ email: '', amount: '', reason: 'Issue by Admin', description: 'Distribution' });
+                setFormState({ email: '', amount: '', reason: 'Admin Issuance', description: 'Manual token grant by administrator.' });
                 onIssueSuccess(); // Callback to refresh parent component data
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -824,11 +825,12 @@ function TokensTabContent() {
     const [analytics, setAnalytics] = useState<TokenAnalytics | null>(null);
     const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [filteredLedger, setFilteredLedger] = useState<TokenLedgerEntry[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const getReasonText = (log: TokenLedgerEntry) => {
-        // Use the 'reason' field for admin-issued tokens, otherwise fall back to actionType.
         if (log.actionType === 'admin_issue') return log.reason || 'Admin Issue';
-
         switch (log.actionType) {
             case 'purchase': return 'Token Purchase';
             case 'signup_bonus': return 'Signup Bonus';
@@ -848,10 +850,11 @@ function TokensTabContent() {
         return `${minutes}m ${remainingSeconds}s`;
     };
 
-     const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!auth.currentUser) {
             setAnalytics(null);
             setLedger([]);
+            setFilteredLedger([]);
             setIsLoading(false);
             return;
         }
@@ -863,6 +866,7 @@ function TokensTabContent() {
             ]);
             setAnalytics(analyticsData);
             setLedger(ledgerData);
+            setFilteredLedger(ledgerData.slice(0, 5));
         } catch (err: any) {
              console.error("Error fetching token data:", err);
             toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
@@ -874,7 +878,43 @@ function TokensTabContent() {
     useEffect(() => {
         fetchData();
     }, [fetchData, user]);
+
+    useEffect(() => {
+        if (debouncedSearchTerm) {
+            const lowercasedFilter = debouncedSearchTerm.toLowerCase();
+            const results = ledger.filter(log =>
+                log.userEmail.toLowerCase().includes(lowercasedFilter)
+            );
+            setFilteredLedger(results);
+        } else {
+            setFilteredLedger(ledger.slice(0, 5));
+        }
+    }, [debouncedSearchTerm, ledger]);
     
+    const downloadCsv = () => {
+        const headers = ["#", "Date", "To/From", "QTY", "Reason", "Description"];
+        const rows = filteredLedger.map((log, index) => [
+            String(ledger.length - index).padStart(5, '0'),
+            format(log.timestamp, 'd MMM yyyy, HH:mm'),
+            log.userEmail,
+            log.tokenChange,
+            getReasonText(log),
+            log.description + (log.duration ? ` (${formatDuration(log.duration)})` : '')
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8," 
+            + headers.join(",") + "\n" 
+            + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "token_ledger.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center py-10">
@@ -895,11 +935,12 @@ function TokensTabContent() {
             </CardHeader>
             <CardContent>
                 <Tabs defaultValue="issue">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="issue">Issue Tokens</TabsTrigger>
                         <TabsTrigger value="total">Total Tokens</TabsTrigger>
                         <TabsTrigger value="acquired">Acquired</TabsTrigger>
                         <TabsTrigger value="distribution">Distribution</TabsTrigger>
+                        <TabsTrigger value="ledger">Ledger</TabsTrigger>
                     </TabsList>
                     <TabsContent value="issue" className="py-4">
                         <IssueTokensContent onIssueSuccess={fetchData} />
@@ -942,42 +983,77 @@ function TokensTabContent() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+                     <TabsContent value="ledger" className="py-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle>Token Ledger</CardTitle>
+                                        <CardDescription>A log of all token transactions in the system.</CardDescription>
+                                    </div>
+                                    <Button onClick={downloadCsv} variant="outline" size="sm" disabled={filteredLedger.length === 0}>
+                                        <Download className="mr-2 h-4 w-4" />
+                                        Download CSV
+                                    </Button>
+                                </div>
+                                <div className="relative pt-2">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search by email..."
+                                        className="pl-10"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="border rounded-md min-h-[200px] mt-6">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>#</TableHead>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>To/From</TableHead>
+                                                <TableHead className="text-right">QTY</TableHead>
+                                                <TableHead>Reason</TableHead>
+                                                <TableHead>Description</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredLedger.length > 0 ? (
+                                                filteredLedger.map((log, index) => (
+                                                <TableRow key={log.id}>
+                                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.findIndex(l => l.id === log.id) + 1).padStart(5, '0')}</TableCell>
+                                                    <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
+                                                    <TableCell>
+                                                        <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
+                                                            {log.userEmail}
+                                                        </Link>
+                                                    </TableCell>
+                                                    <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell>{getReasonText(log)}</TableCell>
+                                                    <TableCell>
+                                                        {log.description}
+                                                        {log.duration && ` (${formatDuration(log.duration)})`}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="h-24 text-center">
+                                                        {searchTerm ? 'No logs match your search.' : 'No token logs found.'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                 </Tabs>
-                 <div className="border rounded-md min-h-[200px] mt-6">
-                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>#</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>To/From</TableHead>
-                                <TableHead className="text-right">QTY</TableHead>
-                                <TableHead>Reason</TableHead>
-                                <TableHead>Description</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {ledger.map((log, index) => (
-                                <TableRow key={log.id}>
-                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.length - index).padStart(5, '0')}</TableCell>
-                                    <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
-                                    <TableCell>
-                                        <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
-                                            {log.userEmail}
-                                        </Link>
-                                    </TableCell>
-                                    <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell>{getReasonText(log)}</TableCell>
-                                    <TableCell>
-                                        {log.description}
-                                        {log.duration && ` (${formatDuration(log.duration)})`}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
             </CardContent>
         </Card>
     )
@@ -990,6 +1066,8 @@ function RoomsTabContent() {
   const [error, setError] = useState('');
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
   const { toast } = useToast();
+  const [user] = useAuthState(auth);
+
 
   const handleFetchRooms = async () => {
     setIsLoading(true);
@@ -1035,21 +1113,35 @@ function RoomsTabContent() {
   };
 
   const handleDeleteSelected = async () => {
+    if (!user) return;
     setIsDeleting(true);
     try {
-      const result = await permanentlyDeleteRooms(selectedRoomIds);
-      if (result.success) {
+        for (const roomId of selectedRoomIds) {
+            const roomRef = doc(db, 'syncRooms', roomId);
+            const messagesRef = collection(roomRef, 'messages');
+            const participantsRef = collection(roomRef, 'participants');
+
+            const [messagesSnap, participantsSnap] = await Promise.all([
+                getDocs(messagesRef),
+                getDocs(participantsRef)
+            ]);
+
+            const batch = writeBatch(db);
+            messagesSnap.forEach(doc => batch.delete(doc.ref));
+            participantsSnap.forEach(doc => batch.delete(doc.ref));
+            batch.delete(roomRef);
+            await batch.commit();
+        }
+
         toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
         handleFetchRooms();
-      } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
-      }
     } catch (e: any) {
-       toast({ variant: 'destructive', title: 'Client Error', description: 'Failed to call the delete action.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete rooms and their subcollections.' });
+        console.error(e);
     } finally {
-      setIsDeleting(false);
+        setIsDeleting(false);
     }
-  };
+};
 
   const allActiveSelected = useMemo(() => activeRooms.length > 0 && activeRooms.every(r => selectedRoomIds.includes(r.id)), [activeRooms, selectedRoomIds]);
   const allClosedSelected = useMemo(() => closedRooms.length > 0 && closedRooms.every(r => selectedRoomIds.includes(r.id)), [closedRooms, selectedRoomIds]);
@@ -1079,7 +1171,7 @@ function RoomsTabContent() {
                         <AlertDialogHeader>
                             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s) and all associated data (participants, messages). Rooms with summaries will also be deleted.
+                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s) and all associated data (participants, messages). Rooms with summaries or transcripts will also be deleted.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -1243,5 +1335,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
