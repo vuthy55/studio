@@ -604,8 +604,8 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                     </DialogDescription>
                 </DialogHeader>
                 
-                <div className="pt-2">
-                    {room.paymentLogId && <div className="text-xs text-muted-foreground pt-2 font-mono">Payment ID: {room.paymentLogId}</div>}
+                <div className="text-xs text-muted-foreground pt-2 font-mono">
+                  {room.paymentLogId && <div>Payment ID: {room.paymentLogId}</div>}
                 </div>
 
 
@@ -1345,5 +1345,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
