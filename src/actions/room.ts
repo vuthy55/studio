@@ -7,6 +7,20 @@ import type { SyncRoom, Participant, RoomMessage, Transcript, SummaryParticipant
 
 
 /**
+ * Fetches all admin user IDs from the 'users' collection.
+ * This is a helper function for creating notifications for all admins.
+ */
+async function getAdminUids(): Promise<string[]> {
+    const adminsQuery = db.collection('users').where('role', '==', 'admin');
+    const snapshot = await adminsQuery.get();
+    if (snapshot.empty) {
+        return [];
+    }
+    return snapshot.docs.map(doc => doc.id);
+}
+
+
+/**
  * Performs a "soft delete" on a room by setting its status to 'closed'.
  * This is a server action and requires Firebase Admin privileges.
  *
@@ -23,9 +37,37 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
   try {
     const roomRef = db.collection('syncRooms').doc(roomId);
     
-    await roomRef.update({
-      status: 'closed',
-      lastActivityAt: FieldValue.serverTimestamp(),
+    // Use a transaction to ensure atomicity
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) {
+            throw new Error('Room not found.');
+        }
+        const roomData = roomDoc.data()!;
+
+        // 1. Update room status
+        transaction.update(roomRef, {
+            status: 'closed',
+            lastActivityAt: FieldValue.serverTimestamp(),
+        });
+        
+        // 2. Create notifications for all admins
+        const adminUids = await getAdminUids();
+        if (adminUids.length > 0) {
+            const batch = db.batch(); // Use a new batch for notifications within the transaction
+            for (const adminId of adminUids) {
+                const notificationRef = db.collection('notifications').doc();
+                batch.set(notificationRef, {
+                    userId: adminId,
+                    type: 'room_closed',
+                    message: `Room "${roomData.topic}" has been closed.`,
+                    createdAt: FieldValue.serverTimestamp(),
+                    read: false,
+                    roomId: roomId,
+                });
+            }
+            await batch.commit();
+        }
     });
 
     console.log(`[ACTION] Successfully soft-deleted room ${roomId}`);
@@ -251,3 +293,5 @@ export async function generateTranscript(roomId: string, userId: string): Promis
         return { success: false, error: 'Failed to save transcript and update tokens.' };
     }
 }
+
+    

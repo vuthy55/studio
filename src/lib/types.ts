@@ -98,16 +98,21 @@ export type PaymentLog = {
     createdAt: FieldValue;
 }
 
-export type P2PNotification = {
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary';
+
+export type Notification = {
     id: string;
-    userId: string; // The user who *receives* the notification
-    fromUserName: string;
-    amount: number;
+    userId: string;
+    type: NotificationType;
     message: string;
+    fromUserName?: string;
+    amount?: number;
+    roomId?: string;
     createdAt: Timestamp;
     read: boolean;
-    type: 'p2p_transfer';
 };
+    
+
     
 
     

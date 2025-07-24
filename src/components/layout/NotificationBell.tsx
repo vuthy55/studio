@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -14,26 +14,27 @@ import {
 } from '@/components/ui/popover';
 import Link from 'next/link';
 import { Separator } from '../ui/separator';
-import type { SyncRoom, P2PNotification } from '@/lib/types';
+import type { Notification } from '@/lib/types';
 
 
-interface InvitedRoom extends SyncRoom {
+interface InvitedRoom {
     id: string;
+    topic: string;
     createdAt: Timestamp;
 }
 
 export default function NotificationBell() {
     const [user] = useAuthState(auth);
     const [invitations, setInvitations] = useState<InvitedRoom[]>([]);
-    const [p2pNotifications, setP2PNotifications] = useState<P2PNotification[]>([]);
+    const [generalNotifications, setGeneralNotifications] = useState<Notification[]>([]);
     const [popoverOpen, setPopoverOpen] = useState(false);
     
-    const unreadCount = invitations.length + p2pNotifications.filter(n => !n.read).length;
+    const unreadCount = invitations.length + generalNotifications.filter(n => !n.read).length;
 
     useEffect(() => {
         if (!user || !user.email) {
             setInvitations([]);
-            setP2PNotifications([]);
+            setGeneralNotifications([]);
             return;
         }
 
@@ -46,23 +47,24 @@ export default function NotificationBell() {
         );
         const roomsUnsubscribe = onSnapshot(roomsQuery, (snapshot) => {
             const roomsData = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
+                .map(doc => ({ id: doc.id, topic: doc.data().topic, createdAt: doc.data().createdAt } as InvitedRoom))
                 .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setInvitations(roomsData);
         });
 
-        // Listener for P2P Transfer Notifications
+        // Listener for General Notifications (P2P, Admin, etc.)
         const notificationsRef = collection(db, 'notifications');
-        // REMOVED ORDERBY TO PREVENT INDEXING ERROR, SORTING IS DONE ON CLIENT
         const p2pQuery = query(
             notificationsRef,
             where("userId", "==", user.uid),
+            orderBy("createdAt", "desc"),
             limit(10) // Limit to the last 10 notifications
         );
         const p2pUnsubscribe = onSnapshot(p2pQuery, (snapshot) => {
-            const p2pData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as P2PNotification))
-                .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-            setP2PNotifications(p2pData);
+            const p2pData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification))
+            setGeneralNotifications(p2pData);
+        }, (error) => {
+            console.error("Error fetching notifications:", error);
         });
 
         return () => {
@@ -85,6 +87,31 @@ export default function NotificationBell() {
         setPopoverOpen(false);
     };
 
+    const getNotificationIcon = (type: Notification['type']) => {
+        switch (type) {
+            case 'p2p_transfer':
+                return <Gift className="h-4 w-4 text-primary" />;
+            case 'room_closed':
+            case 'room_closed_summary':
+                return <LogOut className="h-4 w-4 text-destructive" />;
+            default:
+                return <Bell className="h-4 w-4" />;
+        }
+    };
+
+    const getNotificationLink = (notification: Notification) => {
+        switch (notification.type) {
+            case 'p2p_transfer':
+                return '/profile?tab=history';
+            case 'room_closed':
+            case 'room_closed_summary':
+                return '/admin?tab=rooms';
+            default:
+                return '#';
+        }
+    }
+
+
     return (
         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
             <PopoverTrigger asChild>
@@ -105,25 +132,27 @@ export default function NotificationBell() {
                     </div>
                      <Separator />
                     <div className="grid gap-2">
-                        {invitations.length === 0 && p2pNotifications.length === 0 ? (
+                        {invitations.length === 0 && generalNotifications.length === 0 ? (
                              <p className="text-sm text-center text-muted-foreground py-4">No new notifications.</p>
                         ) : (
                             <>
-                                {p2pNotifications.map(n => (
+                                {generalNotifications.map(n => (
                                      <Link
                                         key={n.id}
-                                        href="/profile?tab=history"
+                                        href={getNotificationLink(n)}
                                         onClick={() => handleLinkClick(n.id)}
                                         className={`flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground ${!n.read ? 'font-bold' : ''}`}
                                     >
                                         <div>
                                             <div className="flex items-center gap-2">
-                                                <Gift className="h-4 w-4 text-primary" />
-                                                <span>{`You received ${n.amount} tokens!`}</span>
+                                                {getNotificationIcon(n.type)}
+                                                <span>{n.message}</span>
                                             </div>
-                                             <p className={`text-xs mt-1 ${!n.read ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                                From {n.fromUserName || 'a user'}
-                                            </p>
+                                             {n.fromUserName && (
+                                                <p className={`text-xs mt-1 ${!n.read ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                                    From {n.fromUserName}
+                                                </p>
+                                             )}
                                         </div>
                                          {!n.read && <span className="h-2 w-2 rounded-full bg-primary mt-1" />}
                                     </Link>
@@ -155,3 +184,5 @@ export default function NotificationBell() {
         </Popover>
     );
 }
+
+    

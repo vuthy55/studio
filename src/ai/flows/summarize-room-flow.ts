@@ -51,6 +51,21 @@ const AISummaryOutputSchema = z.object({
 export type SummarizeRoomOutput = RoomSummary;
 
 
+// --- Helper Function ---
+
+/**
+ * Fetches all admin user IDs from the 'users' collection.
+ */
+async function getAdminUids(): Promise<string[]> {
+    const adminsQuery = db.collection('users').where('role', '==', 'admin');
+    const snapshot = await adminsQuery.get();
+    if (snapshot.empty) {
+        return [];
+    }
+    return snapshot.docs.map(doc => doc.id);
+}
+
+
 // --- Main Exported Function ---
 
 /**
@@ -80,12 +95,32 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
     }))
   };
 
-  // Save the summary to Firestore and close the room
   const roomRef = db.collection('syncRooms').doc(input.roomId);
-  await roomRef.update({
-    summary: finalSummary,
-    status: 'closed',
-    lastActivityAt: FieldValue.serverTimestamp(),
+
+  // Use a transaction to ensure atomicity
+  await db.runTransaction(async (transaction) => {
+    // 1. Update the room with summary and new status
+    transaction.update(roomRef, {
+        summary: finalSummary,
+        status: 'closed',
+        lastActivityAt: FieldValue.serverTimestamp(),
+    });
+
+    // 2. Create notifications for all admins
+    const adminUids = await getAdminUids();
+    if (adminUids.length > 0) {
+        for (const adminId of adminUids) {
+            const notificationRef = db.collection('notifications').doc();
+            transaction.set(notificationRef, {
+                userId: adminId,
+                type: 'room_closed_summary',
+                message: `Summary generated for room "${result.title}".`,
+                createdAt: FieldValue.serverTimestamp(),
+                read: false,
+                roomId: input.roomId,
+            });
+        }
+    }
   });
 
   return finalSummary;
@@ -239,3 +274,5 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
+
+    
