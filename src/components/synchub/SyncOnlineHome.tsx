@@ -604,10 +604,11 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                         Choose an action to perform on this room.
                     </DialogDescription>
                 </DialogHeader>
-
-                <div className="text-xs text-muted-foreground pt-2 font-mono">
-                  {room.paymentLogId && `Payment ID: ${room.paymentLogId}`}
+                
+                <div className="pt-2">
+                    {room.paymentLogId && <p className="text-xs text-muted-foreground font-mono">Payment ID: {room.paymentLogId}</p>}
                 </div>
+
 
                 {isLoading ? (
                     <div className="flex items-center justify-center h-24">
@@ -1180,9 +1181,9 @@ export default function SyncOnlineHome() {
 
                         <DialogContent className="max-w-lg h-[90vh] flex flex-col">
                              <DialogHeader>
+                                <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: DIALOG HAS BEEN UPDATED</div>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
-                                    <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: DIALOG HAS BEEN UPDATED</div>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
