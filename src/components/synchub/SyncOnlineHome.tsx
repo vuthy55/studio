@@ -999,7 +999,7 @@ export default function SyncOnlineHome() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {isBlocked ? (
+                                    {isBlocked && (
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger>
@@ -1010,14 +1010,16 @@ export default function SyncOnlineHome() {
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
-                                    ) : null}
+                                    )}
 
-                                    {canJoin ? (
+                                    {canJoin && (
                                         <Button asChild disabled={isBlocked}>
                                             <Link href={`/sync-room/${room.id}`}>Join Room</Link>
                                         </Button>
-                                    ) : room.status === 'scheduled' && (
-                                         <Button variant="outline" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                    )}
+
+                                    {isCreator && room.status === 'scheduled' && (
+                                        <Button variant="outline" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
                                     {room.summary && (
@@ -1096,16 +1098,16 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="sm:max-w-lg">
+                         <DialogContent className="max-w-lg">
                             <DialogHeader>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
-                             <div className="flex flex-col gap-4">
-                                <ScrollArea className="max-h-[calc(80vh-14rem)] pr-6 -mr-6">
-                                    <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                            <form id="create-room-form" onSubmit={handleSubmitRoom}>
+                                <ScrollArea className="max-h-[60vh] -mx-6">
+                                    <div className="space-y-4 px-6 pb-6">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -1203,10 +1205,10 @@ export default function SyncOnlineHome() {
                                             </p>
                                             <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                         </div>
-                                    </form>
+                                    </div>
                                 </ScrollArea>
-                            
-                                <DialogFooter>
+
+                                <DialogFooter className="pt-4 border-t">
                                     <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                                     {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
                                         <div className="flex flex-col items-end gap-2">
@@ -1220,7 +1222,7 @@ export default function SyncOnlineHome() {
                                         </Button>
                                     )}
                                 </DialogFooter>
-                            </div>
+                            </form>
                         </DialogContent>
                     </Dialog>
                 </CardContent>
