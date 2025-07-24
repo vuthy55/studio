@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
-import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
+import SyncOnlineHomeV2 from '@/components/synchub/SyncOnlineHomeV2';
 import SyncLiveContent from '@/components/synchub/SyncLiveContent';
 import MainHeader from '@/components/layout/MainHeader';
 
@@ -16,7 +16,7 @@ import MainHeader from '@/components/layout/MainHeader';
 const MemoizedLearnPage = memo(LearnPageContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedSyncLive = memo(SyncLiveContent);
-const MemoizedSyncOnline = memo(SyncOnlineHome);
+const MemoizedSyncOnline = memo(SyncOnlineHomeV2);
 
 
 export default function SyncHubPage() {
