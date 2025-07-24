@@ -46,7 +46,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity, requestSummaryEditAccess, updateScheduledRoom, setRoomEditability } from '@/actions/room';
+import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity, requestSummaryEditAccess, updateScheduledRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
@@ -715,7 +715,7 @@ export default function SyncOnlineHome() {
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
-            const validDate = editingRoom.scheduledAt && !isNaN(new Date(editingRoom.scheduledAt).getTime())
+            const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
                 ? new Date(editingRoom.scheduledAt)
                 : new Date();
             setScheduledDate(validDate);
@@ -954,7 +954,7 @@ export default function SyncOnlineHome() {
     }, [invitedRooms]);
 
     const canJoinRoom = (room: InvitedRoom) => {
-        if (!room.scheduledAt) return true; // For older rooms without schedule
+        if (!room.scheduledAt || typeof room.scheduledAt !== 'string') return true; // For older rooms without schedule
         const now = Date.now();
         const scheduledTime = new Date(room.scheduledAt).getTime();
         const gracePeriod = 5 * 60 * 1000; // 5 minutes
@@ -995,9 +995,9 @@ export default function SyncOnlineHome() {
                                     <p className="font-semibold">{room.topic}</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                             {room.status === 'scheduled' && room.scheduledAt 
+                                             {room.status === 'scheduled' && typeof room.scheduledAt === 'string'
                                                 ? format(new Date(room.scheduledAt), 'PPpp')
-                                                : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
+                                                : `Created: ${typeof room.createdAt === 'string' ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                              }
                                         </p>
                                         {room.status === 'closed' && (
