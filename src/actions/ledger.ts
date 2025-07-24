@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, limit, where } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import type { TransferTokensPayload } from '@/services/ledger';
 
 
@@ -13,7 +13,6 @@ import type { TransferTokensPayload } from '@/services/ledger';
 async function findUserByEmailAdmin(email: string): Promise<{id: string; data: any} | null> {
     if (!email) return null;
     const usersRef = db.collection('users');
-    // Corrected query syntax for the Admin SDK
     const q = usersRef.where('email', '==', email.toLowerCase()).limit(1);
     const snapshot = await q.get();
     if (snapshot.empty) {
@@ -40,51 +39,51 @@ export async function transferTokensAction(payload: TransferTokensPayload): Prom
             return { success: false, error: `Recipient with email "${toUserEmail}" not found.` };
         }
         
-        const senderRef = doc(db, 'users', fromUserId);
-        const recipientRef = doc(db, 'users', recipient.id);
+        const senderRef = db.collection('users').doc(fromUserId);
+        const recipientRef = db.collection('users').doc(recipient.id);
 
         const batch = db.batch();
 
         // 1. Check sender's balance
-        const senderDoc = await getDoc(senderRef);
+        const senderDoc = await senderRef.get();
         const senderData = senderDoc.data();
         if (!senderDoc.exists() || (senderData?.tokenBalance ?? 0) < amount) {
             return { success: false, error: "Insufficient balance for this transfer." };
         }
 
         // 2. Debit the sender
-        batch.update(senderRef, { tokenBalance: increment(-amount) });
-        const senderLogRef = doc(collection(senderRef, 'transactionLogs'));
+        batch.update(senderRef, { tokenBalance: FieldValue.increment(-amount) });
+        const senderLogRef = senderRef.collection('transactionLogs').doc();
         batch.set(senderLogRef, {
             actionType: 'p2p_transfer',
             tokenChange: -amount,
-            timestamp: serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             description: description,
             toUserId: recipient.id,
             toUserEmail: recipient.data.email
         });
 
         // 3. Credit the recipient
-        batch.update(recipientRef, { tokenBalance: increment(amount) });
-        const recipientLogRef = doc(collection(recipientRef, 'transactionLogs'));
+        batch.update(recipientRef, { tokenBalance: FieldValue.increment(amount) });
+        const recipientLogRef = recipientRef.collection('transactionLogs').doc();
         batch.set(recipientLogRef, {
             actionType: 'p2p_transfer',
             tokenChange: amount,
-            timestamp: serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             description: description,
             fromUserId: fromUserId,
             fromUserEmail: fromUserEmail,
         });
 
         // 4. Create notification for recipient
-        const notificationRef = doc(collection(db, 'notifications'));
+        const notificationRef = db.collection('notifications').doc();
         batch.set(notificationRef, {
             userId: recipient.id,
             type: 'p2p_transfer',
             fromUserName: senderData?.name || fromUserEmail,
             amount: amount,
             message: description,
-            createdAt: serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             read: false,
         });
 
