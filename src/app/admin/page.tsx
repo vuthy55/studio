@@ -30,7 +30,7 @@ import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDele
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
-import { Switch } from '../ui/switch';
+import { Switch } from '@/components/ui/switch';
 
 
 interface UserWithId extends UserProfile {
@@ -551,7 +551,7 @@ function FinancialTabContent() {
 
                         <Dialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button onClick={handleOpenExpenseDialog}><PlusCircle className="mr-2"/> Add Expense</Button>
+                                <Button><PlusCircle className="mr-2"/> Add Expense</Button>
                             </DialogTrigger>
                             <DialogContent>
                                 <DialogHeader>
@@ -1362,3 +1362,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
