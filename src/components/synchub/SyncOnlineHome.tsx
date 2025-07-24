@@ -708,7 +708,7 @@ export default function SyncOnlineHome() {
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
 
      useEffect(() => {
-        if (isEditMode) {
+        if (isEditMode && editingRoom) {
             setRoomTopic(editingRoom.topic);
             // Assuming creator language doesn't change, might need to store it in room data if it can
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
@@ -808,12 +808,12 @@ export default function SyncOnlineHome() {
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !user.email || !userProfile) {
+        if (!user || !user.email || !userProfile || !scheduledDate) {
             toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create or edit a room.' });
             return;
         }
         
-        const requiredFields = isEditMode ? [roomTopic, scheduledDate] : [roomTopic, scheduledDate, creatorLanguage];
+        const requiredFields = isEditMode ? [roomTopic] : [roomTopic, creatorLanguage];
         if (requiredFields.some(f => !f)) {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
             return;
@@ -850,7 +850,7 @@ export default function SyncOnlineHome() {
                     userId: user.uid,
                     updates: {
                         topic: roomTopic,
-                        scheduledAt: Timestamp.fromDate(scheduledDate!),
+                        scheduledAt: scheduledDate.toISOString(),
                         durationMinutes: duration,
                         invitedEmails: allInvitedEmails,
                         emceeEmails: [...new Set(emceeEmails)],
@@ -876,7 +876,7 @@ export default function SyncOnlineHome() {
                     emceeEmails: [...new Set(emceeEmails)],
                     blockedUsers: [],
                     lastActivityAt: serverTimestamp(),
-                    scheduledAt: Timestamp.fromDate(scheduledDate!),
+                    scheduledAt: Timestamp.fromDate(scheduledDate),
                     durationMinutes: duration,
                     initialCost: calculatedCost,
                     hasStarted: false,
@@ -1019,7 +1019,7 @@ export default function SyncOnlineHome() {
                                     )}
 
                                     {isCreator && room.status === 'scheduled' && (
-                                        <Button variant="outline" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
                                     {room.summary && (
@@ -1098,15 +1098,15 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                         <DialogContent className="max-w-lg">
-                            <DialogHeader>
+                        <DialogContent className="grid grid-rows-[auto,1fr,auto] max-w-lg max-h-[90vh] p-0">
+                            <DialogHeader className="p-6 pb-0">
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
                             <form id="create-room-form" onSubmit={handleSubmitRoom}>
-                                <ScrollArea className="max-h-[60vh] -mx-6">
+                                <ScrollArea className="h-full">
                                     <div className="space-y-4 px-6 pb-6">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
@@ -1207,8 +1207,8 @@ export default function SyncOnlineHome() {
                                         </div>
                                     </div>
                                 </ScrollArea>
-
-                                <DialogFooter className="pt-4 border-t">
+                            </form>
+                            <DialogFooter className="p-6 pt-0">
                                     <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                                     {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
                                         <div className="flex flex-col items-end gap-2">
@@ -1221,8 +1221,7 @@ export default function SyncOnlineHome() {
                                             { isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : (isEditMode ? 'Save Changes' : `Confirm & Pay ${calculatedCost} Tokens`) }
                                         </Button>
                                     )}
-                                </DialogFooter>
-                            </form>
+                            </DialogFooter>
                         </DialogContent>
                     </Dialog>
                 </CardContent>

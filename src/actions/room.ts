@@ -323,10 +323,15 @@ export async function requestSummaryEditAccess(roomId: string, roomTopic: string
     }
 }
 
+// The `updates.scheduledAt` is now an ISO string.
+type RoomUpdatePayload = Omit<Partial<Pick<SyncRoom, 'topic' | 'durationMinutes' | 'invitedEmails' | 'emceeEmails'>>, 'scheduledAt'> & {
+    scheduledAt?: string;
+};
+
 interface UpdateScheduledRoomPayload {
     roomId: string;
     userId: string;
-    updates: Partial<Pick<SyncRoom, 'topic' | 'scheduledAt' | 'durationMinutes' | 'invitedEmails' | 'emceeEmails'>>;
+    updates: RoomUpdatePayload,
     newCost: number;
 }
 
@@ -357,11 +362,18 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
                 throw new Error(`Insufficient tokens. You need ${costDifference} more tokens for this change.`);
             }
 
-            const updatePayload = {
-                ...updates,
+            const { scheduledAt, ...otherUpdates } = updates;
+            const updatePayload: Record<string, any> = {
+                ...otherUpdates,
                 initialCost: newCost,
                 lastActivityAt: FieldValue.serverTimestamp()
             };
+
+            // Convert ISO string back to Firestore Timestamp on the server
+            if (scheduledAt) {
+                updatePayload.scheduledAt = Timestamp.fromDate(new Date(scheduledAt));
+            }
+
             transaction.update(roomRef, updatePayload);
             
             if (costDifference !== 0) {
