@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc } from 'firebase/firestore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -98,7 +98,7 @@ function UsersTabContent() {
                 
                 const [emailSnapshot, nameSnapshot] = await Promise.all([
                     getDocs(emailQuery),
-                    getDocs(nameSnapshot),
+                    getDocs(nameQuery),
                 ]);
 
                 const foundUsersMap = new Map<string, UserWithId>();
@@ -1501,11 +1501,17 @@ function ResetTabContent() {
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [isClient, setIsClient] = useState(false);
+    const [activeTab, setActiveTab] = useState('rooms');
 
     useEffect(() => {
         setIsClient(true);
-    }, []);
+        const tab = searchParams.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -1526,7 +1532,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <Tabs defaultValue="rooms" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="rooms">Rooms</TabsTrigger>
                     <TabsTrigger value="users">Users</TabsTrigger>

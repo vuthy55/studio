@@ -327,7 +327,7 @@ export default function UserDetailPage() {
             <header className="flex items-center gap-4">
                 <SidebarTrigger className="md:hidden"/>
                 <Button variant="ghost" asChild>
-                    <Link href="/admin">
+                    <Link href="/admin?tab=users">
                         <ArrowLeft className="mr-2 h-4 w-4"/>
                         Back to All Users
                     </Link>
