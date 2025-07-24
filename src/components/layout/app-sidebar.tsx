@@ -45,6 +45,15 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>VibeSync</Link>
+         {user && userProfile && (
+          <div className="mt-2 text-center bg-sidebar-accent p-2 rounded-lg border border-sidebar-border">
+              <p className="text-sm font-semibold text-sidebar-foreground truncate">Welcome, {userProfile.name || user.email}</p>
+              <div className="flex items-center justify-center gap-2 text-sm font-bold text-amber-500">
+                <Coins className="h-4 w-4" />
+                <span>{userProfile?.tokenBalance ?? 0}</span>
+              </div>
+          </div>
+        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -128,10 +137,6 @@ export function AppSidebar() {
         {user && (
           <>
             <ReferralLink variant="sidebar" />
-            <div className="flex items-center justify-center gap-2 text-sm font-bold text-amber-500 border rounded-full p-2">
-              <Coins className="h-5 w-5" />
-              <span>{userProfile?.tokenBalance ?? 0}</span>
-            </div>
             <BuyTokens />
           </>
         )}
