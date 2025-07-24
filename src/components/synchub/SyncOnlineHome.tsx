@@ -53,7 +53,7 @@ import { translateSummary } from '@/ai/flows/translate-summary-flow';
 import { useUserData } from '@/context/UserDataContext';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
-import { format, parse } from 'date-fns';
+import { format } from 'date-fns';
 import BuyTokens from '../BuyTokens';
 
 
@@ -708,9 +708,8 @@ export default function SyncOnlineHome() {
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
     const [isRoomDialogOpen, setIsRoomDialogOpen] = useState(false);
     const [duration, setDuration] = useState(30);
-    const [scheduledDate, setScheduledDate] = useState<Date | undefined>(new Date());
+    const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
     const [editingRoom, setEditingRoom] = useState<InvitedRoom | null>(null);
-    const [dateInput, setDateInput] = useState('');
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
@@ -722,6 +721,7 @@ export default function SyncOnlineHome() {
 
     useEffect(() => {
         setIsClient(true);
+        setScheduledDate(new Date());
     }, []);
 
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
@@ -737,7 +737,6 @@ export default function SyncOnlineHome() {
                 ? new Date(editingRoom.scheduledAt)
                 : new Date();
             setScheduledDate(validDate);
-            setDateInput(format(validDate, 'd MMM yyyy, h:mm aa'));
 
         } else {
             const defaultDate = new Date();
@@ -747,7 +746,6 @@ export default function SyncOnlineHome() {
             setEmceeEmails(user?.email ? [user.email] : []);
             setDuration(30);
             setScheduledDate(defaultDate);
-            setDateInput(format(defaultDate, 'd MMM yyyy, h:mm aa'));
         }
     }, [editingRoom, isEditMode, user?.email]);
 
@@ -776,27 +774,6 @@ export default function SyncOnlineHome() {
             prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
         );
     };
-    
-    useEffect(() => {
-        if(scheduledDate) {
-            setDateInput(format(scheduledDate, 'd MMM yyyy, h:mm aa'));
-        }
-    }, [scheduledDate]);
-
-    const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newDateString = e.target.value;
-        setDateInput(newDateString);
-        // Attempt to parse the date string. If valid, update the Date object.
-        try {
-            const parsedDate = parse(newDateString, 'd MMM yyyy, h:mm aa', new Date());
-            if (!isNaN(parsedDate.getTime())) {
-                setScheduledDate(parsedDate);
-            }
-        } catch (error) {
-            // Ignore parse errors while user is typing
-        }
-    };
-
 
     const fetchInvitedRooms = useCallback(async () => {
         if (!user) {
@@ -891,13 +868,6 @@ export default function SyncOnlineHome() {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
             return;
         }
-        
-        // Final validation of the text input for the date
-        const finalParsedDate = parse(dateInput, 'd MMM yyyy, h:mm aa', new Date());
-        if (isNaN(finalParsedDate.getTime())) {
-            toast({ variant: 'destructive', title: 'Invalid Date', description: 'Please enter a valid date and time format (e.g., 25 Dec 2024, 10:30 AM).' });
-            return;
-        }
 
         const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
 
@@ -923,7 +893,7 @@ export default function SyncOnlineHome() {
                     userId: user.uid,
                     updates: {
                         topic: roomTopic,
-                        scheduledAt: finalParsedDate.toISOString(),
+                        scheduledAt: scheduledDate.toISOString(),
                         durationMinutes: duration,
                         invitedEmails: allInvitedEmails,
                         emceeEmails: [...new Set(emceeEmails)],
@@ -955,7 +925,7 @@ export default function SyncOnlineHome() {
                     emceeEmails: [...new Set(emceeEmails)],
                     blockedUsers: [],
                     lastActivityAt: serverTimestamp(),
-                    scheduledAt: Timestamp.fromDate(finalParsedDate),
+                    scheduledAt: Timestamp.fromDate(scheduledDate),
                     durationMinutes: duration,
                     initialCost: calculatedCost,
                     paymentLogId: newPaymentLogRef.id,
@@ -1219,17 +1189,18 @@ export default function SyncOnlineHome() {
                                                 <Label>Date & Time</Label>
                                                 <Popover>
                                                     <PopoverTrigger asChild>
-                                                        <Input
-                                                            value={dateInput}
-                                                            onChange={handleDateInputChange}
-                                                            placeholder="e.g., 25 Dec 2024, 10:30 AM"
-                                                            className="w-full justify-start text-left font-normal"
-                                                        />
+                                                        <Button
+                                                            variant={"outline"}
+                                                            className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                                            {scheduledDate ? format(scheduledDate, "PPP p") : <span>Pick a date</span>}
+                                                        </Button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-auto p-0">
-                                                        <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
+                                                        <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
                                                         <div className="p-3 border-t border-border">
-                                                            <Input type="time" defaultValue={scheduledDate && !isNaN(new Date(scheduledDate).getTime()) ? format(new Date(scheduledDate), 'HH:mm') : ''} onChange={e => {
+                                                            <Input type="time" value={scheduledDate ? format(scheduledDate, 'HH:mm') : ''} onChange={e => {
                                                                 const [hours, minutes] = e.target.value.split(':').map(Number);
                                                                 setScheduledDate(d => {
                                                                     const newDate = d ? new Date(d) : new Date();
