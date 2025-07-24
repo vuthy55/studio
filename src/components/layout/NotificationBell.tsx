@@ -53,14 +53,15 @@ export default function NotificationBell() {
 
         // Listener for P2P Transfer Notifications
         const notificationsRef = collection(db, 'notifications');
+        // REMOVED ORDERBY TO PREVENT INDEXING ERROR, SORTING IS DONE ON CLIENT
         const p2pQuery = query(
             notificationsRef,
             where("userId", "==", user.uid),
-            orderBy("createdAt", "desc"),
             limit(10) // Limit to the last 10 notifications
         );
         const p2pUnsubscribe = onSnapshot(p2pQuery, (snapshot) => {
-            const p2pData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as P2PNotification));
+            const p2pData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as P2PNotification))
+                .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setP2PNotifications(p2pData);
         });
 
