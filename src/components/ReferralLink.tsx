@@ -37,17 +37,14 @@ export default function ReferralLink({ variant = 'card' }: ReferralLinkProps) {
 
     if (variant === 'sidebar') {
         return (
-             <div className="px-2">
-                <Button 
-                    variant="outline" 
-                    className="w-full border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
-                    onClick={copyToClipboard}
-                    disabled={!referralLink}
-                >
-                    <Share2 className="mr-2 h-4 w-4" />
-                    Copy Referral Link
-                </Button>
-            </div>
+            <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={copyToClipboard}
+                disabled={!referralLink}
+            >
+                <Share2 className="h-5 w-5" />
+            </Button>
         )
     }
 

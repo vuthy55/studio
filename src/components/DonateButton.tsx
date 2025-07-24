@@ -21,9 +21,13 @@ import { auth } from '@/lib/firebase';
 import { PayPalScriptProvider, PayPalButtons, OnApproveData, CreateOrderActions } from "@paypal/react-paypal-js";
 import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
+interface DonateButtonProps {
+    variant?: 'button' | 'icon';
+}
 
-export default function DonateButton() {
+export default function DonateButton({ variant = 'button' }: DonateButtonProps) {
   const [user] = useAuthState(auth);
   const { toast } = useToast();
   const [amount, setAmount] = useState(10.00);
@@ -35,7 +39,6 @@ export default function DonateButton() {
 
   if (!paypalClientId) {
     console.error("PayPal Client ID is not configured.");
-    // Render a disabled button or a simple link as a fallback
     return (
        <Button asChild className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled>
           <a href="#" rel="noopener noreferrer">
@@ -94,12 +97,27 @@ export default function DonateButton() {
     setIsProcessing(false);
   }
 
+  const TriggerButton = variant === 'icon' ? (
+    <TooltipProvider>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                    <Heart className="h-5 w-5" />
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Donate</p></TooltipContent>
+        </Tooltip>
+    </TooltipProvider>
+  ) : (
+    <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+        <Heart className="mr-2 h-4 w-4" /> Donate
+    </Button>
+  );
+
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogTrigger asChild>
-            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                <Heart className="mr-2 h-4 w-4" /> Donate
-            </Button>
+           {TriggerButton}
         </DialogTrigger>
         <DialogContent className="sm:max-w-md">
             <DialogHeader>

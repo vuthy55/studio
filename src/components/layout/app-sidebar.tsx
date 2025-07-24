@@ -19,8 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserData } from '@/context/UserDataContext';
 import DonateButton from '../DonateButton';
 import BuyTokens from '../BuyTokens';
-import ReferralLink from '../ReferralLink';
-import NotificationBell from './NotificationBell';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 
 export function AppSidebar() {
@@ -36,6 +35,14 @@ export function AppSidebar() {
       setOpenMobile(false);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
+    }
+  };
+
+  const copyReferralLink = () => {
+    if (user?.uid && typeof window !== 'undefined') {
+      const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+      navigator.clipboard.writeText(referralLink);
+      toast({ title: "Copied!", description: "Referral link copied to clipboard." });
     }
   };
   
@@ -124,21 +131,28 @@ export function AppSidebar() {
 
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="flex-col items-stretch gap-y-2">
-        {user && (
-          <>
-            <ReferralLink variant="sidebar" />
-            <div className="flex items-center gap-2 px-2">
-              <BuyTokens />
-              <DonateButton />
-            </div>
-          </>
-        )}
-        {!user && (
-          <div className="px-2">
-            <DonateButton />
-          </div>
-        )}
+      <SidebarFooter>
+        <div className="flex items-center justify-around w-full">
+            {user ? (
+                 <>
+                    <TooltipProvider>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={copyReferralLink}>
+                                <Share2 className="h-5 w-5" />
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top"><p>Copy Referral Link</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <BuyTokens variant="icon" />
+                    <DonateButton variant="icon" />
+                 </>
+            ) : (
+                 <DonateButton />
+            )}
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

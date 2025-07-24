@@ -20,9 +20,13 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { PayPalScriptProvider, PayPalButtons, OnApproveData, CreateOrderActions } from "@paypal/react-paypal-js";
 import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
+interface BuyTokensProps {
+  variant?: 'button' | 'icon';
+}
 
-export default function BuyTokens() {
+export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [user] = useAuthState(auth);
   const { toast } = useToast();
   const [tokenAmount, setTokenAmount] = useState(500); // Default to 500 tokens ($5.00)
@@ -99,13 +103,28 @@ export default function BuyTokens() {
     setIsProcessing(false);
   }
 
+  const TriggerButton = variant === 'icon' ? (
+    <TooltipProvider>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                    <Wallet className="h-5 w-5" />
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Buy Tokens</p></TooltipContent>
+        </Tooltip>
+    </TooltipProvider>
+  ) : (
+    <Button className="w-full">
+        <Wallet className="mr-2 h-4 w-4" />
+        Buy Tokens
+    </Button>
+  );
+
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogTrigger asChild>
-            <Button className="w-full">
-                <Wallet className="mr-2 h-4 w-4" />
-                Buy Tokens
-            </Button>
+            {TriggerButton}
         </DialogTrigger>
         <DialogContent className="sm:max-w-md">
             <DialogHeader>
