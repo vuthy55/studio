@@ -35,12 +35,12 @@ export default function MainHeader({ title, description }: MainHeaderProps) {
                      <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                 <Button variant="ghost" size="icon">
-                                    <Link href="/profile">
+                                <Link href="/profile">
+                                    <Button variant="ghost" size="icon">
                                         <User className="h-5 w-5" />
                                         <span className="sr-only">My Account</span>
-                                    </Link>
-                                </Button>
+                                    </Button>
+                                </Link>
                             </TooltipTrigger>
                             <TooltipContent>
                                <div className="text-center p-2">
