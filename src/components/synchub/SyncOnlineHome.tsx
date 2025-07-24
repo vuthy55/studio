@@ -1063,6 +1063,7 @@ export default function SyncOnlineHome() {
                                     Set the details for your meeting. The cost will be deducted from your token balance upon creation.
                                 </DialogDescription>
                             </DialogHeader>
+                             <div style={{ backgroundColor: 'red', color: 'white', padding: '8px', textAlign: 'center' }}>DEBUG: FORM AREA</div>
                             <ScrollArea className="flex-grow pr-6 -mr-6">
                             <form id="create-room-form" onSubmit={handleCreateRoom} className="space-y-4 py-4">
                                 <div className="space-y-2">
@@ -1203,3 +1204,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
