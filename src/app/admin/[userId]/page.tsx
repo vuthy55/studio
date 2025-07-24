@@ -230,6 +230,14 @@ export default function UserDetailPage() {
                                         <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
                                     </div>
                                     <div className="space-y-2">
+                                        <Label htmlFor="email">Email</Label>
+                                        <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="mobile">Mobile Number</Label>
+                                        <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
                                         <Label htmlFor="country">Country</Label>
                                         <Select value={profile.country || ''} onValueChange={handleCountryChange}>
                                             <SelectTrigger id="country">
@@ -241,14 +249,6 @@ export default function UserDetailPage() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="mobile">Mobile Number</Label>
-                                        <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="email">Email</Label>
-                                        <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="tokenBalance">Token Balance</Label>
@@ -356,3 +356,4 @@ export default function UserDetailPage() {
     );
 }
 
+    
