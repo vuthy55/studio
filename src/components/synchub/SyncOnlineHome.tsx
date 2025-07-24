@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion, limit } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion, limit, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -46,18 +46,23 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity } from '@/actions/room';
+import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity, requestSummaryEditAccess, setRoomEditability } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
 import { translateSummary } from '@/ai/flows/translate-summary-flow';
+import { useUserData } from '@/context/UserDataContext';
+import { Calendar } from '../ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 
 interface InvitedRoom extends SyncRoom {
     id: string;
 }
 
-function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: any; onUpdate: () => void }) {
+function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () => void }) {
+    const { userProfile, user } = useUserData();
     const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
@@ -73,6 +78,8 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         if (!user || !room) return false;
         return room.creatorUid === user.uid || (user.email && room.emceeEmails?.includes(user.email));
     }, [user, room]);
+    
+    const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
     const availableLanguages = useMemo(() => {
         if (!editableSummary) return [];
@@ -81,10 +88,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
 
         allParticipants.forEach(p => {
-             // Defensive check to prevent crash on bad data from previous versions
             if (p.language && typeof p.language === 'string') {
-                // The 'language' field from the summary is the Azure format, e.g., "English (United States)"
-                // We need to find our internal language code, e.g., "english"
                 const lang = languages.find(l => l.label.toLowerCase() === p.language.split(' ')[0].toLowerCase());
                 if (lang) {
                     langSet.add(lang.value);
@@ -92,31 +96,23 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
             }
         });
 
-        return Array.from(langSet).map(value => languages.find(l => l.value === value)!);
+        // Add all supported languages, prioritizing participant languages
+        const participantLangs = Array.from(langSet);
+        const otherLangs = languages.map(l => l.value).filter(l => !participantLangs.includes(l));
+        
+        return {
+            participantLanguages: participantLangs.map(v => languages.find(l => l.value === v)!),
+            otherLanguages: otherLangs.map(v => languages.find(l => l.value === v)!)
+        };
     }, [editableSummary]);
 
     const formatDate = (dateString: string) => {
-        // A simple check to see if the date string is in YYYY-MM-DD format.
-        if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            return "Unknown Date";
-        }
+        if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return "Unknown Date";
         try {
-            // Split the string and create a new Date object.
-            // This is more reliable across browsers than new Date(string).
             const parts = dateString.split('-').map(Number);
             const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-            
-            // Check if the created date is valid.
-            if (isNaN(date.getTime())) {
-                return "Invalid Date";
-            }
-            
-            return date.toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                timeZone: 'UTC' // Important to avoid off-by-one day errors
-            });
+            if (isNaN(date.getTime())) return "Invalid Date";
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
         } catch (e) {
             console.error("Error formatting date:", e);
             return "Invalid Date";
@@ -125,19 +121,33 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setEditableSummary(prev => prev ? { ...prev, [name]: value } : null);
+        const keys = name.split('.');
+        setEditableSummary(prev => {
+            if (!prev) return null;
+            const newSummary = JSON.parse(JSON.stringify(prev)); // Deep copy
+            let current: any = newSummary;
+            for (let i = 0; i < keys.length - 1; i++) {
+                current = current[keys[i]];
+            }
+            current[keys[keys.length - 1]] = value;
+            return newSummary;
+        });
     };
     
     const handleActionItemChange = (index: number, field: string, value: any) => {
         if (!editableSummary) return;
         const newActionItems = [...editableSummary.actionItems];
-        (newActionItems[index] as any)[field] = value;
+        if (field === 'task') {
+            newActionItems[index].task = { ...newActionItems[index].task, original: value };
+        } else {
+            (newActionItems[index] as any)[field] = value;
+        }
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
 
     const addActionItem = () => {
         if (!editableSummary) return;
-        const newActionItems = [...editableSummary.actionItems, { task: { original: '' }, personInCharge: '', dueDate: '' }];
+        const newActionItems = [...editableSummary.actionItems, { task: { original: '', translations: {} }, personInCharge: '', dueDate: '' }];
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
 
@@ -148,10 +158,16 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     };
 
     const handleSaveChanges = async () => {
-        if (!editableSummary) return;
+        if (!editableSummary || !user) return;
         setIsSaving(true);
         try {
-            const result = await updateRoomSummary(room.id, editableSummary);
+            const editHistory = [
+                ...(editableSummary.editHistory || []),
+                { editorUid: user.uid, editorName: user.displayName || user.email, editorEmail: user.email, editedAt: serverTimestamp() }
+            ];
+            const updatedSummary = { ...editableSummary, editHistory };
+            
+            const result = await updateRoomSummary(room.id, updatedSummary);
             if (result.success) {
                 toast({ title: 'Success', description: 'Summary updated successfully.' });
                 setIsEditing(false);
@@ -166,6 +182,19 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
             setIsSaving(false);
         }
     };
+
+    const handleRequestEditAccess = async () => {
+        if (!user) return;
+        setIsSaving(true);
+        const result = await requestSummaryEditAccess(room.id, room.topic, user.displayName || 'A user');
+        if (result.success) {
+            toast({ title: 'Request Sent', description: 'Admins have been notified of your request.' });
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to send request.' });
+        }
+        setIsSaving(false);
+    };
+
     
     const handleDownload = () => {
         if (!editableSummary) return;
@@ -211,25 +240,28 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
         URL.revokeObjectURL(url);
     };
 
-    const handleTranslate = async () => {
-        if (selectedLanguages.length === 0 || !editableSummary) {
+     const handleTranslate = async () => {
+        if (selectedLanguages.length === 0 || !editableSummary || !user) {
             toast({ variant: 'destructive', title: 'No Languages Selected', description: 'Please select at least one language to translate to.' });
             return;
         }
         setIsTranslating(true);
-        toast({ title: 'Translating Summary...', description: 'This may take a moment.' });
+        const { id: toastId } = toast({ title: 'Translating Summary...', description: 'This may take a moment.' });
         try {
-            const translated = await translateSummary({
+            const result = await translateSummary({
                 summary: editableSummary,
-                targetLanguages: selectedLanguages
+                targetLanguages: selectedLanguages,
+                roomId: room.id,
+                userId: user.uid,
             });
-            setEditableSummary(translated);
-            await updateRoomSummary(room.id, translated);
+            setEditableSummary(result);
+            dismiss(toastId);
             toast({ title: 'Success', description: 'Summary translated and saved.' });
             onUpdate();
-        } catch (error) {
+        } catch (error: any) {
              console.error(error);
-            toast({ variant: 'destructive', title: 'Translation Failed', description: 'Could not translate the summary.' });
+             dismiss(toastId);
+            toast({ variant: 'destructive', title: 'Translation Failed', description: error.message || 'Could not translate the summary.' });
         } finally {
             setIsTranslating(false);
             setSelectedLanguages([]);
@@ -237,6 +269,9 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
     }
 
     if (!editableSummary) return null;
+
+    const editCount = editableSummary.editHistory?.length || 0;
+    const canStillEdit = canEditSummary && editCount < 2;
 
     return (
         <Dialog>
@@ -269,7 +304,8 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                         {isEditing ? (
                             <Textarea 
                                 value={editableSummary.summary.original} 
-                                onChange={(e) => setEditableSummary(prev => prev ? { ...prev, summary: { ...prev.summary, original: e.target.value } } : null)}
+                                name="summary.original"
+                                onChange={handleInputChange}
                                 className="w-full min-h-[150px]"
                             />
                         ) : (
@@ -304,11 +340,11 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                             </TableHeader>
                             <TableBody>
                                 {editableSummary.actionItems.map((item, index) => (
-                                    <TableRow key={`action-${item.task.original}-${index}`}>
+                                    <TableRow key={`action-${index}`}>
                                         <TableCell>{index + 1}</TableCell>
                                         <TableCell>
                                             {isEditing ? (
-                                                <Input value={item.task.original} onChange={(e) => handleActionItemChange(index, 'task', { ...item.task, original: e.target.value })} />
+                                                <Input value={item.task.original} onChange={(e) => handleActionItemChange(index, 'task', e.target.value)} />
                                             ) : (
                                                  <div className="text-sm whitespace-pre-wrap">
                                                     <p className="font-semibold">{item.task.original}</p>
@@ -330,7 +366,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                         </TableCell>
                                         <TableCell>
                                             {isEditing ? (
-                                                <Input value={item.dueDate || ''} onChange={(e) => handleActionItemChange(index, 'dueDate', e.target.value)} />
+                                                <Input value={item.dueDate || ''} type="date" onChange={(e) => handleActionItemChange(index, 'dueDate', e.target.value)} />
                                             ) : (
                                                 item.dueDate || 'N/A'
                                             )}
@@ -362,7 +398,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.presentParticipants.map((p, i) => (
-                                            <TableRow key={`present-${p.email}-${i}`}>
+                                            <TableRow key={`present-${i}`}>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
                                             </TableRow>
@@ -381,7 +417,7 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                     </TableHeader>
                                     <TableBody>
                                         {editableSummary.absentParticipants.map((p, i) => (
-                                            <TableRow key={`absent-${p.email}-${i}`}>
+                                            <TableRow key={`absent-${i}`}>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
                                             </TableRow>
@@ -406,9 +442,9 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                          <>
                              <div className="flex-grow flex gap-2">
                                 <Button variant="secondary" onClick={handleDownload}><Download className="mr-2 h-4 w-4"/> Download</Button>
-                                 <Popover>
+                                <Popover>
                                     <PopoverTrigger asChild>
-                                        <Button variant="secondary" disabled={isTranslating || availableLanguages.length < 2}>
+                                        <Button variant="secondary" disabled={isTranslating}>
                                             <TranslateIcon className="mr-2 h-4 w-4" /> Translate
                                         </Button>
                                     </PopoverTrigger>
@@ -416,33 +452,48 @@ function RoomSummaryDialog({ room, user, onUpdate }: { room: InvitedRoom; user: 
                                         <div className="grid gap-4">
                                             <div className="space-y-2">
                                                 <h4 className="font-medium leading-none">Translate Summary</h4>
-                                                <p className="text-sm text-muted-foreground">Select languages to translate into.</p>
+                                                <p className="text-sm text-muted-foreground">Select languages. Cost is per language.</p>
                                             </div>
-                                            <div className="grid gap-2">
-                                                {availableLanguages.map((lang) => (
-                                                    <div key={lang.value} className="flex items-center space-x-2">
-                                                        <Checkbox
-                                                            id={`lang-${lang.value}`}
-                                                            checked={selectedLanguages.includes(lang.value)}
-                                                            onCheckedChange={(checked) => {
-                                                                return checked
-                                                                    ? setSelectedLanguages([...selectedLanguages, lang.value])
-                                                                    : setSelectedLanguages(selectedLanguages.filter((l) => l !== lang.value));
-                                                            }}
-                                                        />
-                                                        <Label htmlFor={`lang-${lang.value}`}>{lang.label}</Label>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                             <ScrollArea className="max-h-48">
+                                                <div className="grid gap-2 p-1">
+                                                    {availableLanguages.participantLanguages.length > 0 && (
+                                                        <>
+                                                            <p className="font-semibold text-xs text-muted-foreground px-2">Participant Languages</p>
+                                                            {availableLanguages.participantLanguages.map((lang) => (
+                                                                <div key={`pl-${lang.value}`} className="flex items-center space-x-2">
+                                                                    <Checkbox id={`lang-${lang.value}`} checked={selectedLanguages.includes(lang.value)} onCheckedChange={(checked) => setSelectedLanguages(prev => checked ? [...prev, lang.value] : prev.filter(l => l !== lang.value))} />
+                                                                    <Label htmlFor={`lang-${lang.value}`}>{lang.label}</Label>
+                                                                </div>
+                                                            ))}
+                                                            <Separator className="my-2" />
+                                                        </>
+                                                    )}
+                                                     <p className="font-semibold text-xs text-muted-foreground px-2">Other Languages</p>
+                                                    {availableLanguages.otherLanguages.map((lang) => (
+                                                        <div key={`ol-${lang.value}`} className="flex items-center space-x-2">
+                                                            <Checkbox id={`lang-${lang.value}`} checked={selectedLanguages.includes(lang.value)} onCheckedChange={(checked) => setSelectedLanguages(prev => checked ? [...prev, lang.value] : prev.filter(l => l !== lang.value))} />
+                                                            <Label htmlFor={`lang-${lang.value}`}>{lang.label}</Label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
                                             <Button onClick={handleTranslate} disabled={isTranslating || selectedLanguages.length === 0}>
-                                                {isTranslating && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                                Confirm Translation
+                                                {isTranslating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : `Translate for ${userProfile?.settings?.summaryTranslationCost! * selectedLanguages.length} Tokens`}
                                             </Button>
                                         </div>
                                     </PopoverContent>
                                 </Popover>
                             </div>
-                            {isEmcee && <Button variant="secondary" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-4 w-4"/> Edit</Button>}
+                            {canStillEdit ? (
+                                <Button variant="secondary" onClick={() => setIsEditing(true)}>
+                                    <Edit className="mr-2 h-4 w-4"/> Edit ({editCount}/2)
+                                </Button>
+                            ) : isEmcee && (
+                                <Button variant="secondary" onClick={handleRequestEditAccess} disabled={isSaving}>
+                                     {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Share2 className="mr-2 h-4 w-4"/>}
+                                    Request Edit Access
+                                </Button>
+                            )}
                             <DialogClose asChild>
                                 <Button variant="outline">Close</Button>
                             </DialogClose>
@@ -485,7 +536,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
     
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
-        if (open && !hasCheckedActivity && room.status !== 'closed') {
+        if (open && !hasCheckedActivity && room.status !== 'closed' && room.status !== 'scheduled') {
             doCheckRoomActivity();
         }
         if (!open) {
@@ -548,19 +599,39 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                         Choose an action to perform on this room.
                     </DialogDescription>
                 </DialogHeader>
-                {isLoading && (
+                {isLoading ? (
                     <div className="flex items-center justify-center h-24">
                         <LoaderCircle className="animate-spin" />
                     </div>
-                )}
-                
-                {room.status === 'closed' && (
+                ) : room.status === 'scheduled' ? (
+                     <div className="py-4 space-y-4">
+                        <p className="text-sm text-muted-foreground">This room is scheduled. You can cancel and delete it, which will notify participants.</p>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={isActionLoading}>
+                                    {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                    Cancel and Delete Room
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will permanently delete the room and refund your tokens. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Go Back</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handlePermanentDelete}>Confirm Cancellation</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                ) : room.status === 'closed' ? (
                      <div className="py-4 space-y-4">
                         <p className="text-sm text-muted-foreground">This room is closed.</p>
                     </div>
-                )}
-
-                {hasCheckedActivity && !isLoading && room.status === 'active' && (
+                ) : hasCheckedActivity && room.status === 'active' && (
                     <div className="py-4 space-y-4">
                         {hasActivity ? (
                             <>
@@ -608,7 +679,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
 }
 
 export default function SyncOnlineHome() {
-    const [user, loading] = useAuthState(auth);
+    const { user, userProfile, loading } = useUserData();
     const router = useRouter();
     const { toast } = useToast();
 
@@ -618,12 +689,14 @@ export default function SyncOnlineHome() {
     const [inviteeEmails, setInviteeEmails] = useState('');
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
     const [isCreateRoomDialogOpen, setIsCreateRoomDialogOpen] = useState(false);
+    const [duration, setDuration] = useState(30);
+    const [scheduledDate, setScheduledDate] = useState<Date | undefined>(new Date());
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
 
     const [isClient, setIsClient] = useState(false);
-    const [settings, setSettings] = useState<AppSettings | null>(null);
+    const { settings } = useUserData();
     
     const [currentlyManagedRoom, setCurrentlyManagedRoom] = useState<InvitedRoom | null>(null);
 
@@ -632,12 +705,17 @@ export default function SyncOnlineHome() {
         if (user?.email && !emceeEmails.includes(user.email)) {
             setEmceeEmails([user.email]);
         }
-        getAppSettingsAction().then(setSettings);
     }, [user, emceeEmails]);
 
     const parsedInviteeEmails = useMemo(() => {
         return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
     }, [inviteeEmails]);
+
+    const calculatedCost = useMemo(() => {
+        if (!settings) return 0;
+        const numParticipants = new Set([user?.email, ...parsedInviteeEmails].filter(Boolean)).size;
+        return numParticipants * duration * (settings.costPerSyncOnlineMinute || 1);
+    }, [settings, duration, parsedInviteeEmails, user?.email]);
     
      const toggleEmcee = (email: string) => {
         setEmceeEmails(prev => 
@@ -658,8 +736,8 @@ export default function SyncOnlineHome() {
             const querySnapshot = await getDocs(q);
             const rooms = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
-                // Keep active rooms OR closed rooms that have a summary
-                .filter(room => room.status === 'active' || room.summary)
+                // Keep active/scheduled rooms OR closed rooms that have a summary
+                .filter(room => room.status === 'active' || room.status === 'scheduled' || room.summary)
                 .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); // Sort by newest first
             
             setInvitedRooms(rooms);
@@ -695,17 +773,19 @@ export default function SyncOnlineHome() {
         setCreatorLanguage('');
         setInviteeEmails('');
         setEmceeEmails(user?.email ? [user.email] : []);
+        setDuration(30);
+        setScheduledDate(new Date());
         setIsCreateRoomDialogOpen(false);
     };
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !user.email) {
+        if (!user || !user.email || !userProfile) {
             toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create a room.' });
             return;
         }
-        if (!roomTopic || !creatorLanguage) {
-            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide a topic and select your language.' });
+        if (!roomTopic || !creatorLanguage || !scheduledDate) {
+            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
             return;
         }
 
@@ -719,6 +799,11 @@ export default function SyncOnlineHome() {
             });
             return;
         }
+
+        if ((userProfile.tokenBalance || 0) < calculatedCost) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
+            return;
+        }
         
         setIsCreating(true);
         try {
@@ -730,36 +815,40 @@ export default function SyncOnlineHome() {
                 creatorUid: user.uid,
                 creatorName: user.displayName || user.email?.split('@')[0] || 'Creator',
                 createdAt: serverTimestamp(),
-                status: 'active',
+                status: 'scheduled',
                 invitedEmails: allInvitedEmails,
                 emceeEmails: [...new Set(emceeEmails)],
                 blockedUsers: [],
                 lastActivityAt: serverTimestamp(),
+                scheduledAt: Timestamp.fromDate(scheduledDate),
+                durationMinutes: duration,
+                initialCost: calculatedCost,
+                hasStarted: false,
             };
             batch.set(newRoomRef, newRoom);
             
-            // Add creator as the first participant
-            const participantRef = doc(db, 'syncRooms', newRoomRef.id, 'participants', user.uid);
-            batch.set(participantRef, {
-                uid: user.uid,
-                name: user.displayName || user.email?.split('@')[0] || 'Creator',
-                email: user.email!,
-                selectedLanguage: creatorLanguage,
-                isMuted: false,
-                joinedAt: serverTimestamp()
+            // Deduct tokens from creator
+            const userRef = doc(db, 'users', user.uid);
+            batch.update(userRef, { tokenBalance: (userProfile.tokenBalance || 0) - calculatedCost });
+            
+            // Add transaction log
+            const logRef = doc(collection(userRef, 'transactionLogs'));
+            batch.set(logRef, {
+                actionType: 'live_sync_online_spend',
+                tokenChange: -calculatedCost,
+                timestamp: serverTimestamp(),
+                description: `Pre-paid for scheduled room: "${roomTopic}"`
             });
-
 
             await batch.commit();
             
-            toast({ title: "Room Created!", description: "Your new room is available in the list below." });
+            toast({ title: "Room Scheduled!", description: "Your new room is available in the list below." });
             fetchInvitedRooms();
             resetAndClose();
 
-
         } catch (error) {
             console.error("Error creating room:", error);
-            toast({ variant: "destructive", title: "error when i tried to create room" });
+            toast({ variant: "destructive", title: "Error", description: "Could not create the room." });
         } finally {
             setIsCreating(false);
         }
@@ -773,22 +862,46 @@ export default function SyncOnlineHome() {
             });
             toast({ title: 'User Unblocked', description: 'The user can now rejoin the room.' });
             
-            // Refresh the main room list to update its state globally
-            setInvitedRooms(prevRooms => prevRooms.map(r => {
-                if (r.id === room.id) {
-                    return {
-                        ...r,
-                        blockedUsers: r.blockedUsers?.filter(u => u.uid !== userToUnblock.uid)
-                    };
-                }
-                return r;
-            }));
+            setInvitedRooms(prevRooms => prevRooms.map(r => 
+                r.id === room.id ? { ...r, blockedUsers: r.blockedUsers?.filter(u => u.uid !== userToUnblock.uid) } : r
+            ));
 
         } catch (error) {
             console.error('Error unblocking user:', error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not unblock the user.' });
         }
     }, []);
+    
+    const { activeAndInvited, scheduled, closedWithSummary } = useMemo(() => {
+        const now = Date.now();
+        const canJoinGracePeriod = 5 * 60 * 1000; // 5 minutes
+
+        return invitedRooms.reduce((acc, room) => {
+            if (room.status === 'active') {
+                acc.activeAndInvited.push(room);
+            } else if (room.status === 'scheduled') {
+                const scheduledTime = (room.scheduledAt as unknown as Timestamp)?.toMillis() || 0;
+                if (now > scheduledTime + (room.durationMinutes || 0) * 60 * 1000) {
+                     // If it's past its end time, treat as closed for UI purposes
+                    if (room.summary) acc.closedWithSummary.push(room);
+                } else {
+                    acc.scheduled.push(room);
+                }
+            } else if (room.status === 'closed' && room.summary) {
+                acc.closedWithSummary.push(room);
+            }
+            return acc;
+        }, { activeAndInvited: [] as InvitedRoom[], scheduled: [] as InvitedRoom[], closedWithSummary: [] as InvitedRoom[] });
+    }, [invitedRooms]);
+
+    const canJoinRoom = (room: InvitedRoom) => {
+        if (!room.scheduledAt) return true; // For older rooms without schedule
+        const now = Date.now();
+        const scheduledTime = (room.scheduledAt as unknown as Timestamp).toMillis();
+        const gracePeriod = 5 * 60 * 1000; // 5 minutes
+        return now >= scheduledTime - gracePeriod;
+    };
+
 
     if (loading || !isClient) {
         return (
@@ -806,32 +919,144 @@ export default function SyncOnlineHome() {
             </Card>
         );
     }
+    
+    const renderRoomList = (rooms: InvitedRoom[], title: string) => (
+         <div className="space-y-4">
+            <h3 className="font-semibold text-lg">{title} ({rooms.length})</h3>
+            {rooms.length > 0 ? (
+                <ul className="space-y-3">
+                    {rooms.map(room => {
+                        const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
+                        const isCreator = room.creatorUid === user!.uid;
+                        const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
+
+                        return (
+                            <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
+                                <div className="flex-grow">
+                                    <p className="font-semibold">{room.topic}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm text-muted-foreground">
+                                             {room.status === 'scheduled' && room.scheduledAt 
+                                                ? format((room.scheduledAt as any).toDate(), 'PPpp')
+                                                : `Created: ${format((room.createdAt as any).toDate(), 'PPp')}`
+                                             }
+                                        </p>
+                                        {room.status === 'closed' && (
+                                            <Badge variant={room.summary ? 'default' : 'destructive'}>
+                                                {room.summary ? 'Summary Available' : 'Closed'}
+                                            </Badge>
+                                        )}
+                                        {room.status === 'scheduled' && (
+                                             <Badge variant="outline">{room.durationMinutes} min</Badge>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isBlocked ? (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <XCircle className="h-5 w-5 text-destructive" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>You are blocked from this room.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ) : null}
+
+                                    {canJoin ? (
+                                        <Button asChild disabled={isBlocked}>
+                                            <Link href={`/sync-room/${room.id}`}>Join Room</Link>
+                                        </Button>
+                                    ) : room.status === 'scheduled' && (
+                                         <Button variant="outline" disabled>Join Soon</Button>
+                                    )}
+
+                                    {room.summary && (
+                                        <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
+                                    )}
+                                    
+                                    {isCreator && (
+                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                    )}
+
+                                    {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
+                                        <Dialog>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <DialogTrigger asChild>
+                                                        <TooltipTrigger asChild>
+                                                            <Button variant="outline" size="icon">
+                                                                <UserX className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                    </DialogTrigger>
+                                                    <TooltipContent><p>Manage Blocked Users</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            <DialogContent>
+                                                <DialogHeader>
+                                                    <DialogTitle>Manage Blocked Users for "{room.topic}"</DialogTitle>
+                                                    <DialogDescription>
+                                                        You can re-admit users who were previously removed.
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="py-4">
+                                                    {room.blockedUsers && room.blockedUsers.length > 0 ? (
+                                                        <ul className="space-y-2">
+                                                            {room.blockedUsers.map(bu => (
+                                                                <li key={bu.uid} className="flex justify-between items-center">
+                                                                    <span>{bu.email}</span>
+                                                                    <Button variant="secondary" size="sm" onClick={() => handleUnblockUser(room, bu)}>
+                                                                        <UserCheck className="mr-2 h-4 w-4"/>
+                                                                        Re-admit
+                                                                    </Button>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : <p className="text-muted-foreground">No users have been blocked.</p>}
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+
+                                </div>
+                            </li>
+                        )
+                    })}
+                </ul>
+            ) : (
+                <p className="text-muted-foreground">No rooms in this category.</p>
+            )}
+        </div>
+    );
 
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                    <CardDescription>Create a private room and invite others for a real-time, multi-language voice conversation.</CardDescription>
+                    <CardDescription>Schedule a private room and invite others for a real-time, multi-language voice conversation.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      <Dialog open={isCreateRoomDialogOpen} onOpenChange={(open) => {
-                        setIsCreateRoomDialogOpen(open);
                         if (!open) resetAndClose();
+                        setIsCreateRoomDialogOpen(open);
                      }}>
                         <DialogTrigger asChild>
                              <Button disabled={!user}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
-                                Create New Room
+                                Schedule New Room
                             </Button>
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="sm:max-w-md">
+                        <DialogContent className="sm:max-w-lg">
                             <DialogHeader>
-                                <DialogTitle>Create a Sync Room</DialogTitle>
+                                <DialogTitle>Schedule a Sync Room</DialogTitle>
                                 <DialogDescription>
-                                    Fill in the details below. Once created, you'll get a shareable link. The max number of users per room is {settings?.maxUsersPerRoom || 5}.
+                                    Set the details for your meeting. The cost will be deducted from your token balance upon creation.
                                 </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
@@ -839,20 +1064,47 @@ export default function SyncOnlineHome() {
                                     <Label htmlFor="topic">Room Topic</Label>
                                     <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Bali" required />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="language">Your Spoken Language</Label>
-                                    <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                                        <SelectTrigger id="language">
-                                            <SelectValue placeholder="Select your language..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <ScrollArea className="h-72">
-                                            {azureLanguages.map(lang => (
-                                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                            ))}
-                                          </ScrollArea>
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="language">Your Spoken Language</Label>
+                                        <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                                            <SelectTrigger id="language">
+                                                <SelectValue placeholder="Select language..." />
+                                            </SelectTrigger>
+                                            <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="duration">Duration (minutes)</Label>
+                                        <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                                            <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{[15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                 <div className="space-y-2">
+                                    <Label>Date & Time</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!scheduledDate && "text-muted-foreground")}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {scheduledDate ? format(scheduledDate, "PPPp") : <span>Pick a date and time</span>}
+                                        </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
+                                             <div className="p-3 border-t border-border">
+                                                <Input type="time" defaultValue={format(scheduledDate || new Date(), 'HH:mm')} onChange={e => {
+                                                    const [hours, minutes] = e.target.value.split(':').map(Number);
+                                                    setScheduledDate(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setHours(hours, minutes);
+                                                        return newDate;
+                                                    });
+                                                }}/>
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
@@ -862,34 +1114,26 @@ export default function SyncOnlineHome() {
                                 {(parsedInviteeEmails.length > 0 || user?.email) && (
                                     <div className="space-y-3">
                                         <Separator/>
-                                        <Label className="font-semibold flex items-center gap-2">
-                                            <ShieldCheck className="h-5 w-5 text-primary"/>
-                                            Assign Emcees
-                                        </Label>
-                                        <ScrollArea className="max-h-32">
-                                            <div className="space-y-2 pr-4">
-                                                {user?.email && (
-                                                     <div className="flex items-center space-x-2">
-                                                        <Checkbox id={user.email} checked={emceeEmails.includes(user.email)} onCheckedChange={() => toggleEmcee(user.email)} />
-                                                        <Label htmlFor={user.email} className="font-normal w-full truncate">{user.email} (Creator)</Label>
-                                                    </div>
-                                                )}
-                                                {parsedInviteeEmails.map(email => (
-                                                    <div key={email} className="flex items-center space-x-2">
-                                                        <Checkbox id={email} checked={emceeEmails.includes(email)} onCheckedChange={() => toggleEmcee(email)} />
-                                                        <Label htmlFor={email} className="font-normal w-full truncate">{email}</Label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
+                                        <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
+                                        <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                                            {user?.email && (
+                                                <div className="flex items-center space-x-2"><Checkbox id={user.email} checked={emceeEmails.includes(user.email)} onCheckedChange={() => toggleEmcee(user.email)} /><Label htmlFor={user.email} className="font-normal w-full truncate">{user.email} (Creator)</Label></div>
+                                            )}
+                                            {parsedInviteeEmails.map(email => (
+                                                <div key={email} className="flex items-center space-x-2"><Checkbox id={email} checked={emceeEmails.includes(email)} onCheckedChange={() => toggleEmcee(email)} /><Label htmlFor={email} className="font-normal w-full truncate">{email}</Label></div>
+                                            ))}
+                                        </div></ScrollArea>
                                         <Separator/>
                                     </div>
                                 )}
-
+                                <div className="p-3 rounded-lg bg-muted text-center text-sm">
+                                    <p>Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                    <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                                </div>
                                 <DialogFooter>
-                                    <Button type="submit" disabled={isCreating}>
+                                    <Button type="submit" disabled={isCreating || calculatedCost > (userProfile?.tokenBalance || 0)}>
                                         {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        Create Room
+                                        { isCreating ? 'Scheduling...' : `Confirm & Pay ${calculatedCost} Tokens`}
                                     </Button>
                                 </DialogFooter>
                             </form>
@@ -901,109 +1145,18 @@ export default function SyncOnlineHome() {
             {user && isClient && (
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><List /> Your Invited Rooms</CardTitle>
-                        <CardDescription>Rooms you have been invited to or have created.</CardDescription>
+                        <CardTitle className="flex items-center gap-2"><List /> Your Rooms</CardTitle>
+                        <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-6">
                         {isFetchingRooms ? (
-                             <div className="flex items-center gap-2 text-muted-foreground">
-                                <LoaderCircle className="animate-spin h-5 w-5" />
-                                <p>Fetching invitations...</p>
-                            </div>
-                        ) : invitedRooms.length > 0 ? (
-                            <ul className="space-y-3">
-                                {invitedRooms.map(room => {
-                                    const isBlocked = room.blockedUsers?.some(bu => bu.uid === user.uid);
-                                    const isCreator = room.creatorUid === user.uid;
-
-                                    return (
-                                        <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
-                                            <div className="flex-grow">
-                                                <p className="font-semibold">{room.topic}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-sm text-muted-foreground">{room.createdAt ? new Date((room.createdAt as any).toDate()).toLocaleString() : ''}</p>
-                                                    {room.status === 'closed' && (
-                                                        <Badge variant={room.summary ? 'default' : 'destructive'}>
-                                                            {room.summary ? 'Summary Available' : 'Closed'}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {isBlocked ? (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger>
-                                                                <XCircle className="h-5 w-5 text-destructive" />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>You are blocked from this room.</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                ) : null}
-
-                                                {room.status === 'active' && (
-                                                    <Button asChild disabled={isBlocked}>
-                                                        <Link href={`/sync-room/${room.id}`}>Join Room</Link>
-                                                    </Button>
-                                                )}
-
-                                                {room.summary && (
-                                                    <RoomSummaryDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
-                                                )}
-                                                
-                                                {isCreator && (
-                                                     <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
-                                                )}
-
-                                                {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
-                                                    <Dialog>
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <DialogTrigger asChild>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button variant="outline" size="icon">
-                                                                            <UserX className="h-4 w-4" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                </DialogTrigger>
-                                                                <TooltipContent><p>Manage Blocked Users</p></TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
-                                                        <DialogContent>
-                                                            <DialogHeader>
-                                                                <DialogTitle>Manage Blocked Users for "{room.topic}"</DialogTitle>
-                                                                <DialogDescription>
-                                                                    You can re-admit users who were previously removed from this room.
-                                                                </DialogDescription>
-                                                            </DialogHeader>
-                                                            <div className="py-4">
-                                                                {room.blockedUsers && room.blockedUsers.length > 0 ? (
-                                                                    <ul className="space-y-2">
-                                                                        {room.blockedUsers.map(bu => (
-                                                                            <li key={bu.uid} className="flex justify-between items-center">
-                                                                                <span>{bu.email}</span>
-                                                                                <Button variant="secondary" size="sm" onClick={() => handleUnblockUser(room, bu)}>
-                                                                                    <UserCheck className="mr-2 h-4 w-4"/>
-                                                                                    Re-admit
-                                                                                </Button>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                ) : <p className="text-muted-foreground">No users have been blocked from this room.</p>}
-                                                            </div>
-                                                        </DialogContent>
-                                                    </Dialog>
-                                                )}
-
-                                            </div>
-                                        </li>
-                                    )
-                                })}
-                            </ul>
+                             <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
                         ) : (
-                            <p className="text-muted-foreground">You have no active room invitations.</p>
+                            <>
+                                {renderRoomList(scheduled, 'Scheduled')}
+                                {renderRoomList(activeAndInvited, 'Active & Invited')}
+                                {renderRoomList(closedWithSummary, 'Closed with Summary')}
+                            </>
                         )}
                     </CardContent>
                 </Card>
