@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit } from "lucide-react";
 import Link from 'next/link';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import type { TransactionLog } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 
 interface TransactionLogWithId extends TransactionLog {
     id: string;
@@ -145,6 +147,7 @@ export default function UserDetailPage() {
     
      const getActionText = (log: TransactionLog) => {
         switch (log.actionType) {
+            case 'admin_issue': return log.reason || 'Admin Issue';
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
             case 'live_sync_online_spend': return 'Sync Online Usage';
@@ -152,6 +155,8 @@ export default function UserDetailPage() {
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
+            case 'p2p_transfer':
+                return log.tokenChange < 0 ? 'Transfer Sent' : 'Transfer Received';
             default: return 'Unknown Action';
         }
     }
@@ -183,156 +188,160 @@ export default function UserDetailPage() {
                 </Button>
             </header>
             
-            <div className="space-y-8">
-                <div className="w-full max-w-sm mx-auto">
-                    <Card>
-                        <CardHeader className="items-center text-center">
-                            <Avatar className="h-24 w-24 text-4xl">
-                                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                            </Avatar>
-                            <CardTitle className="text-2xl pt-2">{profile.name || 'User Name'}</CardTitle>
-                            <CardDescription>{profile.email}</CardDescription>
-                            <div className="flex items-center gap-2 text-lg font-bold text-amber-500 pt-2">
-                            <Coins className="h-6 w-6" />
-                            <span>{profile.tokenBalance ?? 0}</span>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="text-center">
-                                {profile.role === 'admin' ? 
-                                <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                                <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                            }
-                        </CardContent>
-                    </Card>
-                </div>
-                 
-                <div>
-                    <Tabs defaultValue="edit" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="edit">Edit Profile</TabsTrigger>
-                            <TabsTrigger value="logs">Transaction Logs</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="edit" className="mt-6">
-                            <form onSubmit={handleSaveChanges}>
-                                <Card>
-                                        <CardHeader>
-                                        <CardTitle className="flex items-center gap-2"><Edit /> Edit Profile</CardTitle>
-                                        <CardDescription>Modify the user's details below.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="name">Name</Label>
-                                            <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
-                                        </div>
-                                         <div className="space-y-2">
-                                            <Label htmlFor="country">Country</Label>
-                                            <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                                                <SelectTrigger id="country">
-                                                    <SelectValue placeholder="Select user's country" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {countryOptions.map(country => (
-                                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="mobile">Mobile Number</Label>
-                                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="email">Email</Label>
-                                            <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="tokenBalance">Token Balance</Label>
-                                            <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="syncLiveUsage">Sync Live Usage (ms)</Label>
-                                            <Input id="syncLiveUsage" type="number" value={profile.syncLiveUsage || 0} onChange={handleInputChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="syncOnlineUsage">Sync Online Usage (ms)</Label>
-                                            <Input id="syncOnlineUsage" type="number" value={profile.syncOnlineUsage || 0} onChange={handleInputChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="syncOnlineUsageLastReset">Sync Online Reset</Label>
-                                            <Input 
-                                                id="syncOnlineUsageLastReset" 
-                                                value={profile.syncOnlineUsageLastReset ? format((profile.syncOnlineUsageLastReset as Timestamp).toDate(), 'PPpp') : 'Not set'} 
-                                                disabled
-                                            />
-                                        </div>
-                                        <div className="flex items-center space-x-2 rounded-md border p-4">
-                                            <div className="flex-1 space-y-1">
-                                                <p className="text-sm font-medium leading-none">Administrator Role</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                Admins can manage users and other app settings.
-                                                </p>
-                                            </div>
-                                            <Switch
-                                                checked={profile.role === 'admin'}
-                                                onCheckedChange={handleRoleChange}
-                                                disabled={adminUser?.uid === userId}
-                                                aria-label="Toggle admin role"
-                                            />
-                                        </div>
-                                            <div className="flex justify-end">
-                                            <Button type="submit" disabled={isSaving}>
-                                                {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                                Save Changes
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </form>
-                        </TabsContent>
-                        <TabsContent value="logs" className="mt-6">
-                             <Card>
+            <div className="w-full max-w-sm mx-auto">
+                <Card>
+                    <CardHeader className="items-center text-center">
+                        <Avatar className="h-24 w-24 text-4xl">
+                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                        </Avatar>
+                        <CardTitle className="text-2xl pt-2">{profile.name || 'User Name'}</CardTitle>
+                        <CardDescription>{profile.email}</CardDescription>
+                        <div className="flex items-center gap-2 text-lg font-bold text-amber-500 pt-2">
+                        <Coins className="h-6 w-6" />
+                        <span>{profile.tokenBalance ?? 0}</span>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="text-center">
+                            {profile.role === 'admin' ? 
+                            <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                            <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                        }
+                    </CardContent>
+                </Card>
+            </div>
+                
+            <div>
+                <Tabs defaultValue="edit" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="edit">Edit Profile</TabsTrigger>
+                        <TabsTrigger value="logs">Transaction Logs</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="edit" className="mt-6">
+                        <form onSubmit={handleSaveChanges}>
+                            <Card>
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <FileText />
-                                        Transaction Logs
-                                    </CardTitle>
-                                    <CardDescription>A complete history of this user's token activity.</CardDescription>
+                                    <CardTitle className="flex items-center gap-2"><Edit /> Edit Profile</CardTitle>
+                                    <CardDescription>Modify the user's details below.</CardDescription>
                                 </CardHeader>
-                                <CardContent>
-                                    {isFetchingLogs ? (
-                                        <div className="flex justify-center items-center py-8">
-                                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                <CardContent className="space-y-6">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="name">Name</Label>
+                                        <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="country">Country</Label>
+                                        <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                                            <SelectTrigger id="country">
+                                                <SelectValue placeholder="Select user's country" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {countryOptions.map(country => (
+                                                    <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="mobile">Mobile Number</Label>
+                                        <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="email">Email</Label>
+                                        <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="tokenBalance">Token Balance</Label>
+                                        <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="syncLiveUsage">Sync Live Usage (ms)</Label>
+                                        <Input id="syncLiveUsage" type="number" value={profile.syncLiveUsage || 0} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="syncOnlineUsage">Sync Online Usage (ms)</Label>
+                                        <Input id="syncOnlineUsage" type="number" value={profile.syncOnlineUsage || 0} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="syncOnlineUsageLastReset">Sync Online Reset</Label>
+                                        <Input 
+                                            id="syncOnlineUsageLastReset" 
+                                            value={profile.syncOnlineUsageLastReset ? format((profile.syncOnlineUsageLastReset as Timestamp).toDate(), 'PPpp') : 'Not set'} 
+                                            disabled
+                                        />
+                                    </div>
+                                    <div className="flex items-center space-x-2 rounded-md border p-4">
+                                        <div className="flex-1 space-y-1">
+                                            <p className="text-sm font-medium leading-none">Administrator Role</p>
+                                            <p className="text-sm text-muted-foreground">
+                                            Admins can manage users and other app settings.
+                                            </p>
                                         </div>
-                                    ) : transactions.length > 0 ? (
-                                        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                                            {transactions.map(log => (
-                                                <div key={log.id} className="flex items-start">
-                                                    <div className={`p-3 rounded-full ${log.tokenChange >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                                                        <p className={`font-bold text-sm ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange}
-                                                        </p>
-                                                    </div>
-                                                    <div className="ml-4 space-y-1">
-                                                        <p className="text-sm font-medium leading-none">{getActionText(log)}</p>
-                                                        <p className="text-sm text-muted-foreground truncate max-w-xs">
-                                                            {log.description}
-                                                            {log.duration && ` (${formatDuration(log.duration)})`}
-                                                        </p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                        {log.timestamp ? formatDistanceToNow((log.timestamp as Timestamp).toDate(), { addSuffix: true }) : 'Just now'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-center text-muted-foreground py-8">No transaction logs found for this user.</p>
-                                    )}
+                                        <Switch
+                                            checked={profile.role === 'admin'}
+                                            onCheckedChange={handleRoleChange}
+                                            disabled={adminUser?.uid === userId}
+                                            aria-label="Toggle admin role"
+                                        />
+                                    </div>
+                                        <div className="flex justify-end">
+                                        <Button type="submit" disabled={isSaving}>
+                                            {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                            Save Changes
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
-                        </TabsContent>
-                    </Tabs>
-                </div>
+                        </form>
+                    </TabsContent>
+                    <TabsContent value="logs" className="mt-6">
+                            <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <FileText />
+                                    Transaction Logs
+                                </CardTitle>
+                                <CardDescription>A complete history of this user's token activity.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {isFetchingLogs ? (
+                                    <div className="flex justify-center items-center py-8">
+                                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                ) : transactions.length > 0 ? (
+                                    <div className="border rounded-md min-h-[200px]">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Date</TableHead>
+                                                    <TableHead className="text-right">Amount</TableHead>
+                                                    <TableHead>Reason</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {transactions.map(log => (
+                                                    <TableRow key={log.id}>
+                                                        <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                                        <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell>{getActionText(log)}</TableCell>
+                                                        <TableCell className="max-w-xs truncate">
+                                                             {log.description}
+                                                            {log.duration && ` (${formatDuration(log.duration)})`}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                ) : (
+                                    <p className="text-center text-muted-foreground py-8">No transaction logs found for this user.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );
