@@ -320,9 +320,9 @@ function SettingsTabContent() {
                             <p className="text-sm text-muted-foreground">Tokens per minute for the 1-on-1 Sync Live feature.</p>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="costPerSyncOnlineMinute">Sync Online Cost (per minute)</Label>
+                            <Label htmlFor="costPerSyncOnlineMinute">Sync Online Cost (per person, per minute)</Label>
                             <Input id="costPerSyncOnlineMinute" type="number" value={settings.costPerSyncOnlineMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens per minute for Sync Online group rooms.</p>
+                            <p className="text-sm text-muted-foreground">Token cost for each person in a room for each minute of usage.</p>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="maxUsersPerRoom">Max Users per Sync Room</Label>
