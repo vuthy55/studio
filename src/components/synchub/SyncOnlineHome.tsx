@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion, limit, Timestamp } from 'firebase/firestore';
+import { collection, serverTimestamp, setDoc, doc, query, where, getDocs, deleteDoc, writeBatch, getDocs as getSubCollectionDocs, updateDoc, arrayRemove, arrayUnion, limit, Timestamp, increment } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -833,7 +833,7 @@ export default function SyncOnlineHome() {
             
             // Deduct tokens from creator
             const userRef = doc(db, 'users', user.uid);
-            batch.update(userRef, { tokenBalance: (userProfile.tokenBalance || 0) - calculatedCost });
+            batch.update(userRef, { tokenBalance: increment(-calculatedCost) });
             
             // Add transaction log
             const logRef = doc(collection(userRef, 'transactionLogs'));
@@ -1204,3 +1204,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
