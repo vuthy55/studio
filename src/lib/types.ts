@@ -2,6 +2,7 @@
 
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
+import type { LanguageCode } from './data';
 
 export interface BlockedUser {
     uid: string;
@@ -114,7 +115,6 @@ export type Notification = {
 };
     
 export type PracticeHistoryDoc = {
-    phraseText?: string;
     passCountPerLang?: Record<string, number>;
     failCountPerLang?: Record<string, number>;
     lastAttemptPerLang?: Record<string, any>;
@@ -129,4 +129,12 @@ export interface DetailedHistory {
     passCount: number;
     failCount: number;
     lastAccuracy: number;
+}
+
+export type SavedPhrase = {
+    id: string;
+    fromLang: LanguageCode;
+    toLang: LanguageCode;
+    fromText: string;
+    toText: string;
 }

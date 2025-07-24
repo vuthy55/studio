@@ -16,15 +16,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
+import useLocalStorage from '@/hooks/use-local-storage';
+import type { SavedPhrase, DetailedHistory } from '@/lib/types';
 
-
-interface DetailedHistory {
-    id: string;
-    phraseText: string;
-    passCount: number;
-    failCount: number;
-    lastAccuracy: number;
-}
 
 export default function StatsPage() {
     const { user, loading, practiceHistory, getTopicStats } = useUserData();
@@ -34,6 +28,7 @@ export default function StatsPage() {
     const [selectedLanguageForDialog, setSelectedLanguageForDialog] = useState<LanguageCode | null>(null);
     const [detailedHistoryForDialog, setDetailedHistoryForDialog] = useState<DetailedHistory[]>([]);
     
+    const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     const allPhrases = useMemo(() => phrasebook.flatMap(topic => topic.phrases), []);
 
     useEffect(() => {
@@ -48,7 +43,7 @@ export default function StatsPage() {
         if (lang === 'english') {
             return textObj.english;
         }
-        return textObj.translations[lang] || textObj.english;
+        return (textObj as Phrase).translations[lang] || textObj.english;
     }
 
     const openLanguageDialog = (langCode: LanguageCode) => {
@@ -63,8 +58,19 @@ export default function StatsPage() {
             const hasPracticeData = historyDoc.passCountPerLang?.[langCode] || historyDoc.failCountPerLang?.[langCode];
 
             if (hasPracticeData) {
-                const phrase = allPhrases.find(p => p.id === phraseId);
-                const phraseText = phrase ? getTranslation(phrase, langCode) : "Unknown Phrase";
+                let phraseText = "Unknown Phrase";
+
+                if (phraseId.startsWith('saved_')) {
+                    const saved = savedPhrases.find(p => p.id === phraseId);
+                    if (saved) {
+                        phraseText = saved.toLang === langCode ? saved.toText : saved.fromText;
+                    }
+                } else {
+                    const phrase = allPhrases.find(p => p.id === phraseId);
+                    if (phrase) {
+                        phraseText = getTranslation(phrase, langCode);
+                    }
+                }
 
                 detailedHistory.push({
                     id: phraseId,

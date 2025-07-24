@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
-import type { TransactionLog, PracticeHistoryState, DetailedHistory } from '@/lib/types';
+import type { TransactionLog, PracticeHistoryState, DetailedHistory, SavedPhrase } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -32,6 +32,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { resetLanguageStats } from '@/actions/stats';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 
 interface TransactionLogWithId extends TransactionLog {
@@ -48,6 +49,7 @@ export default function UserDetailPage() {
     const [profile, setProfile] = useState<Partial<UserProfile>>({});
     const [transactions, setTransactions] = useState<TransactionLogWithId[]>([]);
     const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
+    const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
@@ -244,7 +246,7 @@ export default function UserDetailPage() {
         }).sort((a,b) => b.practiced - a.practiced);
     }, [practiceHistory, userId]);
 
-    const getTranslation = (textObj: Phrase | { english: string; translations: Partial<Record<LanguageCode, string>>; pronunciations?: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
+    const getTranslation = (textObj: Phrase, lang: LanguageCode) => {
         if (lang === 'english') {
             return textObj.english;
         }
@@ -262,9 +264,22 @@ export default function UserDetailPage() {
             const hasPracticeData = historyDoc.passCountPerLang?.[langCode] || historyDoc.failCountPerLang?.[langCode];
 
             if (hasPracticeData) {
-                const phrase = allPhrases.find(p => p.id === phraseId);
-                const phraseText = phrase ? getTranslation(phrase, langCode) : "Unknown Phrase";
+                let phraseText = "Unknown Phrase";
 
+                if (phraseId.startsWith('saved_')) {
+                    const saved = savedPhrases.find(p => p.id === phraseId);
+                    if (saved) {
+                        // For saved phrases, we need to know if we're showing the 'from' or 'to' text.
+                        // We assume the practice was on the 'to' language.
+                        phraseText = saved.toLang === langCode ? saved.toText : saved.fromText;
+                    }
+                } else {
+                    const phrase = allPhrases.find(p => p.id === phraseId);
+                    if (phrase) {
+                        phraseText = getTranslation(phrase, langCode);
+                    }
+                }
+                
                 detailedHistory.push({
                     id: phraseId,
                     phraseText: phraseText,

@@ -17,6 +17,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
+import type { SavedPhrase } from '@/lib/types';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -26,14 +27,6 @@ type AssessmentResult = {
   accuracy?: number;
   fluency?: number;
 };
-
-type SavedPhrase = {
-    id: string;
-    fromLang: LanguageCode;
-    toLang: LanguageCode;
-    fromText: string;
-    toText: string;
-}
 
 
 export default function LiveTranslationContent() {
@@ -181,7 +174,6 @@ export default function LiveTranslationContent() {
         
         const { wasRewardable, rewardAmount } = recordPracticeAttempt({
             phraseId,
-            phraseText: referenceText,
             topicId: 'live_translation_saved',
             lang: toLang,
             isPass,
