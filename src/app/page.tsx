@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, memo, useEffect } from 'react';
@@ -7,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
-import SyncOnlineHomeV2 from '@/components/synchub/SyncOnlineHomeV2';
+import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 import SyncLiveContent from '@/components/synchub/SyncLiveContent';
 import MainHeader from '@/components/layout/MainHeader';
 
@@ -16,7 +15,7 @@ import MainHeader from '@/components/layout/MainHeader';
 const MemoizedLearnPage = memo(LearnPageContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedSyncLive = memo(SyncLiveContent);
-const MemoizedSyncOnline = memo(SyncOnlineHomeV2);
+const MemoizedSyncOnline = memo(SyncOnlineHome);
 
 
 export default function SyncHubPage() {

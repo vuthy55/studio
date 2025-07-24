@@ -199,40 +199,44 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
         setIsSaving(false);
     };
 
-    
     const handleDownload = () => {
         if (!editableSummary) return;
 
-        let content = `Meeting Summary\n`;
-        content += `================\n\n`;
-        content += `Title: ${editableSummary.title}\n`;
-        content += `Date: ${formatDate(editableSummary.date)}\n\n`;
-        content += `Summary:\n${editableSummary.summary.original}\n\n`;
-        
+        const contentParts = [
+            'Meeting Summary',
+            '================\n',
+            `Title: ${editableSummary.title}`,
+            `Date: ${formatDate(editableSummary.date)}\n`,
+            'Summary:',
+            `${editableSummary.summary.original}\n`,
+        ];
+
         Object.entries(editableSummary.summary.translations || {}).forEach(([lang, text]) => {
-            content += `\n--- Translation (${lang}) ---\n${text}\n`;
+            contentParts.push(`--- Translation (${lang}) ---`);
+            contentParts.push(`${text}\n`);
         });
-        
-        content += `\nAction Items:\n`;
+
+        contentParts.push('Action Items:');
         editableSummary.actionItems.forEach((item, index) => {
-            content += `${index + 1}. ${item.task.original}\n`;
-             Object.entries(item.task.translations || {}).forEach(([lang, text]) => {
-                content += `   (${lang}): ${text}\n`;
+            contentParts.push(`${index + 1}. ${item.task.original}`);
+            Object.entries(item.task.translations || {}).forEach(([lang, text]) => {
+                contentParts.push(`   (${lang}): ${text}`);
             });
-            content += `   - Assigned to: ${item.personInCharge || 'N/A'}\n`;
-            content += `   - Due: ${item.dueDate || 'N/A'}\n`;
+            contentParts.push(`   - Assigned to: ${item.personInCharge || 'N/A'}`);
+            contentParts.push(`   - Due: ${item.dueDate || 'N/A'}`);
+        });
+
+        contentParts.push('\nParticipants Present:');
+        editableSummary.presentParticipants.forEach(p => {
+            contentParts.push(`- ${p.name} (${p.email})`);
+        });
+
+        contentParts.push('\nParticipants Absent:');
+        editableSummary.absentParticipants.forEach(p => {
+            contentParts.push(`- ${p.name} (${p.email})`);
         });
         
-        content += `\nParticipants Present:\n`;
-         editableSummary.presentParticipants.forEach(p => {
-             content += `- ${p.name} (${p.email})\n`;
-        });
-        content += `\nParticipants Absent:\n`;
-         editableSummary.absentParticipants.forEach(p => {
-             content += `- ${p.name} (${p.email})\n`;
-        });
-
-
+        const content = contentParts.join('\n');
         const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
