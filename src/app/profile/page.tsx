@@ -254,33 +254,45 @@ function PaymentHistorySection() {
                 <CardDescription>A record of all your token purchases and donations.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading ? <LoaderCircle className="animate-spin" /> : payments.length > 0 ? (
-                    <ul className="space-y-4">
-                        {payments.map(p => (
-                            <li key={p.orderId} className="flex justify-between items-center">
-                                <div>
-                                    <p className="font-medium flex items-center gap-2">
-                                        {p.tokensPurchased > 0 ? (
-                                            `Purchased ${p.tokensPurchased} Tokens`
-                                        ) : (
-                                            <>
-                                            <Heart className="h-4 w-4 text-red-500"/>
-                                            Donation
-                                            </>
-                                        )}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {p.createdAt ? formatDistanceToNow(p.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
-                                    </p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-bold">${p.amount.toFixed(2)} {p.currency}</p>
-                                    <p className="text-xs text-muted-foreground">Order ID: {p.orderId}</p>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                ) : <p className="text-muted-foreground">No payment history found.</p>}
+                {isLoading ? (
+                    <div className="flex justify-center items-center py-8">
+                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : payments.length > 0 ? (
+                    <div className="border rounded-md min-h-[200px]">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead>Order ID</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {payments.map(p => (
+                                    <TableRow key={p.orderId}>
+                                        <TableCell>{p.createdAt ? format((p.createdAt as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                        <TableCell>
+                                            <div className="font-medium flex items-center gap-2">
+                                                {p.tokensPurchased > 0 ? (
+                                                    `Purchased ${p.tokensPurchased} Tokens`
+                                                ) : (
+                                                    <>
+                                                    <Heart className="h-4 w-4 text-red-500"/>
+                                                    Donation
+                                                    </>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right font-bold">${p.amount.toFixed(2)} {p.currency}</TableCell>
+                                        <TableCell className="text-muted-foreground">{p.orderId}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                ) : <p className="text-center text-muted-foreground py-8">No payment history found.</p>}
             </CardContent>
         </Card>
     )
