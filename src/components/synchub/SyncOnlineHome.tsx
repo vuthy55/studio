@@ -1179,10 +1179,10 @@ export default function SyncOnlineHome() {
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                         <DialogContent className="max-w-lg h-[90vh] flex flex-col">
-                            <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: DIALOG HAS BEEN UPDATED</div>
                              <DialogHeader>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
+                                    <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: DIALOG HAS BEEN UPDATED</div>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
