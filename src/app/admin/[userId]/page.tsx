@@ -59,11 +59,17 @@ export default function UserDetailPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
-    const [isFetchingLogs, setIsFetchingLogs] = useState(true);
-    const [isFetchingPayments, setIsFetchingPayments] = useState(true);
+    
+    // On-demand loading states
+    const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+    const [hasFetchedLogs, setHasFetchedLogs] = useState(false);
+    const [isFetchingPayments, setIsFetchingPayments] = useState(false);
+    const [hasFetchedPayments, setHasFetchedPayments] = useState(false);
     const [isFetchingReferrals, setIsFetchingReferrals] = useState(false);
-    const [isFetchingStats, setIsFetchingStats] = useState(true);
     const [hasFetchedReferrals, setHasFetchedReferrals] = useState(false);
+    const [isFetchingStats, setIsFetchingStats] = useState(false);
+    const [hasFetchedStats, setHasFetchedStats] = useState(false);
+
 
     const [selectedLanguageForDialog, setSelectedLanguageForDialog] = useState<LanguageCode | null>(null);
     const [detailedHistoryForDialog, setDetailedHistoryForDialog] = useState<DetailedHistory[]>([]);
@@ -94,10 +100,11 @@ export default function UserDetailPage() {
         }
     }, [router, toast]);
     
-    const fetchPracticeHistory = useCallback(async (uid: string) => {
+    const handleFetchPracticeHistory = useCallback(async () => {
+         if (!userId) return;
          setIsFetchingStats(true);
          try {
-            const historyRef = collection(db, 'users', uid, 'practiceHistory');
+            const historyRef = collection(db, 'users', userId, 'practiceHistory');
             const historySnapshot = await getDocs(historyRef);
             const historyData: PracticeHistoryState = {};
             historySnapshot.forEach(doc => {
@@ -109,8 +116,43 @@ export default function UserDetailPage() {
             toast({ variant: "destructive", title: "Error", description: "Could not fetch practice stats." });
          } finally {
             setIsFetchingStats(false);
+            setHasFetchedStats(true);
          }
-    }, [toast]);
+    }, [toast, userId]);
+
+     const handleFetchLogs = useCallback(async () => {
+        if (!userId) return;
+        setIsFetchingLogs(true);
+        const transRef = collection(db, 'users', userId, 'transactionLogs');
+        const q = query(transRef, orderBy('timestamp', 'desc'));
+        try {
+            const snapshot = await getDocs(q);
+            setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TransactionLogWithId)));
+        } catch (error) {
+            console.error("Error fetching transaction logs:", error);
+            toast({ variant: "destructive", title: "Log Error", description: "Could not fetch transaction logs." });
+        } finally {
+            setIsFetchingLogs(false);
+            setHasFetchedLogs(true);
+        }
+    }, [userId, toast]);
+
+    const handleFetchPayments = useCallback(async () => {
+        if (!userId) return;
+        setIsFetchingPayments(true);
+        const paymentsRef = collection(db, 'users', userId, 'paymentHistory');
+        const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+        try {
+            const snapshot = await getDocs(q);
+            setPayments(snapshot.docs.map(d => d.data() as PaymentLog));
+        } catch (error) {
+            console.error("Error fetching payment history:", error);
+            toast({ variant: "destructive", title: "Payment Error", description: "Could not fetch payment history." });
+        } finally {
+            setIsFetchingPayments(false);
+            setHasFetchedPayments(true);
+        }
+    }, [userId, toast]);
 
     const handleFetchReferrals = useCallback(async () => {
         if (!userId || hasFetchedReferrals) return;
@@ -138,38 +180,8 @@ export default function UserDetailPage() {
         }
         if (userId) {
             fetchUserProfileData(userId);
-            fetchPracticeHistory(userId);
-            
-            const transUnsubscribe = onSnapshot(query(collection(db, 'users', userId, 'transactionLogs'), orderBy('timestamp', 'desc')), 
-                (snapshot) => {
-                    setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TransactionLogWithId)));
-                    setIsFetchingLogs(false);
-                }, 
-                (error) => {
-                    console.error("Error fetching transaction logs:", error);
-                    toast({ variant: "destructive", title: "Log Error", description: "Could not fetch transaction logs." });
-                    setIsFetchingLogs(false);
-                }
-            );
-
-            const paymentsUnsubscribe = onSnapshot(query(collection(db, 'users', userId, 'paymentHistory'), orderBy('createdAt', 'desc')),
-                (snapshot) => {
-                    setPayments(snapshot.docs.map(d => d.data() as PaymentLog));
-                    setIsFetchingPayments(false);
-                },
-                (error) => {
-                    console.error("Error fetching payment history:", error);
-                    toast({ variant: "destructive", title: "Payment Error", description: "Could not fetch payment history." });
-                    setIsFetchingPayments(false);
-                }
-            );
-            
-            return () => {
-                transUnsubscribe();
-                paymentsUnsubscribe();
-            };
         }
-    }, [adminUser, adminLoading, router, userId, fetchUserProfileData, fetchPracticeHistory, toast]);
+    }, [adminUser, adminLoading, router, userId, fetchUserProfileData, toast]);
 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -351,7 +363,7 @@ export default function UserDetailPage() {
             const result = await resetLanguageStats(userId, langCode);
             if (result.success) {
                 toast({ title: "Stats Reset", description: `Practice history for ${langLabel} has been cleared.`});
-                await fetchPracticeHistory(userId);
+                await handleFetchPracticeHistory();
             } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || "Failed to reset stats." });
             }
@@ -588,57 +600,63 @@ export default function UserDetailPage() {
                                 <CardDescription>A summary of this user's practice accuracy across languages.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                <Button onClick={handleFetchPracticeHistory} disabled={isFetchingStats || hasFetchedStats}>
+                                    {isFetchingStats ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                    {hasFetchedStats ? "Stats Loaded" : "Load Stats"}
+                                </Button>
                                 {isFetchingStats ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                                     </div>
-                                ) : languageStats.length > 0 ? (
-                                    languageStats.map(item => (
-                                         <div key={item.code} className="group flex items-center gap-2 hover:bg-muted p-2 rounded-lg">
-                                            <DialogTrigger asChild>
-                                                <div className="flex-grow cursor-pointer" onClick={() => openLanguageDialog(item.code)}>
-                                                    <div className="flex justify-between items-center mb-1 text-sm">
-                                                        <p className="font-medium truncate">{item.label}</p>
-                                                        <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct phrases</p>
+                                ) : hasFetchedStats && (
+                                    languageStats.length > 0 ? (
+                                        languageStats.map(item => (
+                                            <div key={item.code} className="group flex items-center gap-2 hover:bg-muted p-2 rounded-lg">
+                                                <DialogTrigger asChild>
+                                                    <div className="flex-grow cursor-pointer" onClick={() => openLanguageDialog(item.code)}>
+                                                        <div className="flex justify-between items-center mb-1 text-sm">
+                                                            <p className="font-medium truncate">{item.label}</p>
+                                                            <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct phrases</p>
+                                                        </div>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger className="w-full">
+                                                                    <Progress value={item.percentage} />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{item.percentage.toFixed(0)}% Correct</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
                                                     </div>
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger className="w-full">
-                                                                <Progress value={item.percentage} />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>{item.percentage.toFixed(0)}% Correct</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                </div>
-                                            </DialogTrigger>
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                     <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled={isResetting}>
-                                                        <RefreshCw className="h-4 w-4 text-destructive"/>
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Reset stats for {item.label}?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            This will permanently delete all practice history (passes, fails, accuracy) for {item.label} for this user. This action cannot be undone and will not affect any tokens the user has already earned.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleResetStats(item.code, item.label)} disabled={isResetting}>
-                                                             {isResetting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                                                            Confirm Reset
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-center text-muted-foreground py-8">No practice stats found for this user.</p>
+                                                </DialogTrigger>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled={isResetting}>
+                                                            <RefreshCw className="h-4 w-4 text-destructive"/>
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Reset stats for {item.label}?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will permanently delete all practice history (passes, fails, accuracy) for {item.label} for this user. This action cannot be undone and will not affect any tokens the user has already earned.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleResetStats(item.code, item.label)} disabled={isResetting}>
+                                                                {isResetting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                                                Confirm Reset
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-muted-foreground py-8">No practice stats found for this user.</p>
+                                    )
                                 )}
                             </CardContent>
                         </Card>
@@ -653,40 +671,46 @@ export default function UserDetailPage() {
                                 <CardDescription>A complete history of this user's token activity.</CardDescription>
                             </CardHeader>
                             <CardContent>
+                                <Button onClick={handleFetchLogs} disabled={isFetchingLogs || hasFetchedLogs} className="mb-4">
+                                    {isFetchingLogs ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                    {hasFetchedLogs ? "Logs Loaded" : "Load Logs"}
+                                </Button>
                                 {isFetchingLogs ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                                     </div>
-                                ) : transactions.length > 0 ? (
-                                    <div className="border rounded-md min-h-[200px]">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Date</TableHead>
-                                                    <TableHead className="text-right">Amount</TableHead>
-                                                    <TableHead>Reason</TableHead>
-                                                    <TableHead>Description</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {transactions.map(log => (
-                                                    <TableRow key={log.id}>
-                                                        <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
-                                                        <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
-                                                        </TableCell>
-                                                        <TableCell>{getActionText(log)}</TableCell>
-                                                        <TableCell className="max-w-xs truncate">
-                                                             {log.description}
-                                                            {log.duration && ` (${formatDuration(log.duration)})`}
-                                                        </TableCell>
+                                ) : hasFetchedLogs && (
+                                    transactions.length > 0 ? (
+                                        <div className="border rounded-md min-h-[200px]">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Date</TableHead>
+                                                        <TableHead className="text-right">Amount</TableHead>
+                                                        <TableHead>Reason</TableHead>
+                                                        <TableHead>Description</TableHead>
                                                     </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                ) : (
-                                    <p className="text-center text-muted-foreground py-8">No transaction logs found for this user.</p>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {transactions.map(log => (
+                                                        <TableRow key={log.id}>
+                                                            <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                                            <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                                            </TableCell>
+                                                            <TableCell>{getActionText(log)}</TableCell>
+                                                            <TableCell className="max-w-xs truncate">
+                                                                {log.description}
+                                                                {log.duration && ` (${formatDuration(log.duration)})`}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-muted-foreground py-8">No transaction logs found for this user.</p>
+                                    )
                                 )}
                             </CardContent>
                         </Card>
@@ -701,35 +725,41 @@ export default function UserDetailPage() {
                                 <CardDescription>A record of this user's PayPal transactions.</CardDescription>
                             </CardHeader>
                             <CardContent>
+                                <Button onClick={handleFetchPayments} disabled={isFetchingPayments || hasFetchedPayments} className="mb-4">
+                                    {isFetchingPayments ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                    {hasFetchedPayments ? "Payments Loaded" : "Load Payments"}
+                                </Button>
                                 {isFetchingPayments ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                                     </div>
-                                ) : payments.length > 0 ? (
-                                    <div className="border rounded-md min-h-[200px]">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Date</TableHead>
-                                                    <TableHead>Description</TableHead>
-                                                    <TableHead className="text-right">Amount</TableHead>
-                                                    <TableHead>Order ID</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {payments.map(p => (
-                                                    <TableRow key={p.orderId}>
-                                                        <TableCell>{p.createdAt ? format((p.createdAt as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
-                                                        <TableCell className="font-medium">{p.tokensPurchased > 0 ? `Purchased ${p.tokensPurchased} Tokens` : 'Donation'}</TableCell>
-                                                        <TableCell className="text-right font-bold">${p.amount.toFixed(2)} {p.currency}</TableCell>
-                                                        <TableCell className="text-muted-foreground">{p.orderId}</TableCell>
+                                ) : hasFetchedPayments && (
+                                    payments.length > 0 ? (
+                                        <div className="border rounded-md min-h-[200px]">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Date</TableHead>
+                                                        <TableHead>Description</TableHead>
+                                                        <TableHead className="text-right">Amount</TableHead>
+                                                        <TableHead>Order ID</TableHead>
                                                     </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                ) : (
-                                    <p className="text-center text-muted-foreground py-8">No payment history found.</p>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {payments.map(p => (
+                                                        <TableRow key={p.orderId}>
+                                                            <TableCell>{p.createdAt ? format((p.createdAt as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                                            <TableCell className="font-medium">{p.tokensPurchased > 0 ? `Purchased ${p.tokensPurchased} Tokens` : 'Donation'}</TableCell>
+                                                            <TableCell className="text-right font-bold">${p.amount.toFixed(2)} {p.currency}</TableCell>
+                                                            <TableCell className="text-muted-foreground">{p.orderId}</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-muted-foreground py-8">No payment history found.</p>
+                                    )
                                 )}
                             </CardContent>
                         </Card>
