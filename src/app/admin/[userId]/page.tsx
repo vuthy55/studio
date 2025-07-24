@@ -224,6 +224,23 @@ export default function UserDetailPage() {
                                             <Label htmlFor="name">Name</Label>
                                             <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
                                         </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="country">Country</Label>
+                                            <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                                                <SelectTrigger id="country">
+                                                    <SelectValue placeholder="Select user's country" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {countryOptions.map(country => (
+                                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="mobile">Mobile Number</Label>
+                                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
+                                        </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="email">Email</Label>
                                             <Input id="email" type="email" value={profile.email || ''} onChange={handleInputChange} />
@@ -247,23 +264,6 @@ export default function UserDetailPage() {
                                                 value={profile.syncOnlineUsageLastReset ? format((profile.syncOnlineUsageLastReset as Timestamp).toDate(), 'PPpp') : 'Not set'} 
                                                 disabled
                                             />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="country">Country</Label>
-                                            <Select value={profile.country || ''} onValueChange={handleCountryChange}>
-                                                <SelectTrigger id="country">
-                                                    <SelectValue placeholder="Select user's country" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {countryOptions.map(country => (
-                                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="mobile">Mobile Number</Label>
-                                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} />
                                         </div>
                                         <div className="flex items-center space-x-2 rounded-md border p-4">
                                             <div className="flex-1 space-y-1">
@@ -337,3 +337,5 @@ export default function UserDetailPage() {
         </div>
     );
 }
+
+    
