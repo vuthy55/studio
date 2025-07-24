@@ -1131,16 +1131,23 @@ export default function SyncOnlineHome() {
                                     </div></ScrollArea>
                                 </div>
 
-                                {(parsedInviteeEmails.length > 0 || user?.email) && (
+                                {allInvitedEmailsForCalc.length > 1 && (
                                     <div className="space-y-3">
                                         <Separator/>
                                         <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
                                         <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
-                                            {user?.email && (
-                                                <div className="flex items-center space-x-2"><Checkbox id={user.email} checked={emceeEmails.includes(user.email)} onCheckedChange={() => toggleEmcee(user.email)} /><Label htmlFor={user.email} className="font-normal w-full truncate">{user.email} (Creator)</Label></div>
-                                            )}
-                                            {parsedInviteeEmails.map(email => (
-                                                <div key={email} className="flex items-center space-x-2"><Checkbox id={email} checked={emceeEmails.includes(email)} onCheckedChange={() => toggleEmcee(email)} /><Label htmlFor={email} className="font-normal w-full truncate">{email}</Label></div>
+                                            {allInvitedEmailsForCalc.map(email => (
+                                                <div key={email} className="flex items-center space-x-2">
+                                                    <Checkbox 
+                                                        id={email} 
+                                                        checked={emceeEmails.includes(email)} 
+                                                        onCheckedChange={() => toggleEmcee(email)}
+                                                        disabled={email === user?.email}
+                                                    />
+                                                    <Label htmlFor={email} className="font-normal w-full truncate">
+                                                        {email} {email === user?.email && '(Creator)'}
+                                                    </Label>
+                                                </div>
                                             ))}
                                         </div></ScrollArea>
                                         <Separator/>
