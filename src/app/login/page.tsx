@@ -82,16 +82,18 @@ export default function LoginPage() {
     
     const docSnap = await getDoc(userDocRef);
     const existingData = docSnap.exists() ? docSnap.data() : {};
+    
+    const lowercasedEmail = user.email!.toLowerCase();
 
     const dataToSave = { 
         ...existingData,
         ...data, 
-        email: user.email!,
+        email: lowercasedEmail,
         role: existingData.role || 'user',
         tokenBalance: existingData.tokenBalance ?? (isNewUser ? signupBonus : 0),
         syncLiveUsage: existingData.syncLiveUsage || 0,
         searchableName: (data.name || '').toLowerCase(),
-        searchableEmail: (user.email!).toLowerCase(),
+        searchableEmail: lowercasedEmail,
     };
 
     await setDoc(userDocRef, dataToSave, { merge: true });
@@ -290,3 +292,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
