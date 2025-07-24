@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, where, getDocs, limit } from 'firebase-admin/firestore';
+import { collection, doc, writeBatch, increment, serverTimestamp, getDoc, query, getDocs, limit, where } from 'firebase-admin/firestore';
 import type { TransferTokensPayload } from '@/services/ledger';
 
 
@@ -13,7 +13,8 @@ import type { TransferTokensPayload } from '@/services/ledger';
 async function findUserByEmailAdmin(email: string): Promise<{id: string; data: any} | null> {
     if (!email) return null;
     const usersRef = db.collection('users');
-    const q = query(usersRef, where('email', '==', email.toLowerCase()), limit(1));
+    // Corrected query syntax for the Admin SDK
+    const q = usersRef.where('email', '==', email.toLowerCase()).limit(1);
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
         return null;
