@@ -1571,15 +1571,18 @@ export default function AdminPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isClient, setIsClient] = useState(false);
-    const [activeTab, setActiveTab] = useState('rooms');
+    
+    // Default to 'rooms' or get from URL
+    const initialTab = searchParams.get('tab') || 'rooms';
+    const [activeTab, setActiveTab] = useState(initialTab);
 
     useEffect(() => {
         setIsClient(true);
         const tab = searchParams.get('tab');
-        if (tab) {
+        if (tab && tab !== activeTab) {
             setActiveTab(tab);
         }
-    }, [searchParams]);
+    }, [searchParams, activeTab]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -1610,7 +1613,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs defaultValue={initialTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TooltipProvider>
                     <TabsList className="grid w-full grid-cols-7">
                         {adminTabs.map(tab => (
