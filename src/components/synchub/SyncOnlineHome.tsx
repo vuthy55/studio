@@ -726,14 +726,18 @@ export default function SyncOnlineHome() {
 
     // Defer date initialization to client-side to avoid hydration mismatch
     useEffect(() => {
-        if (!scheduledDate) {
-            const defaultDate = new Date();
+        if (!isScheduling) return;
+        if (!isEditMode) {
+             const defaultDate = new Date();
             defaultDate.setMinutes(defaultDate.getMinutes() + 30);
             defaultDate.setSeconds(0);
             defaultDate.setMilliseconds(0);
             setScheduledDate(defaultDate);
+        } else if (editingRoom?.scheduledAt) {
+            setScheduledDate(new Date(editingRoom.scheduledAt));
         }
-    }, [scheduledDate]);
+    }, [isScheduling, isEditMode, editingRoom]);
+
 
      const resetForm = useCallback(() => {
         const defaultDate = new Date();
@@ -833,7 +837,6 @@ export default function SyncOnlineHome() {
                         scheduledAt: toISO(data.scheduledAt),
                     } as InvitedRoom;
                 })
-                .filter(room => room.status === 'active' || room.status === 'scheduled' || room.summary)
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
             
             setInvitedRooms(rooms);
@@ -996,17 +999,17 @@ export default function SyncOnlineHome() {
         }
     }, [toast]);
     
-    const { activeAndInvited, scheduled, closedWithSummary } = useMemo(() => {
+    const { active, scheduled, closed } = useMemo(() => {
         return invitedRooms.reduce((acc, room) => {
             if (room.status === 'active') {
-                acc.activeAndInvited.push(room);
+                acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
             } else if (room.status === 'closed' && room.summary) {
-                acc.closedWithSummary.push(room);
+                acc.closed.push(room);
             }
             return acc;
-        }, { activeAndInvited: [] as InvitedRoom[], scheduled: [] as InvitedRoom[], closedWithSummary: [] as InvitedRoom[] });
+        }, { active: [] as InvitedRoom[], scheduled: [] as InvitedRoom[], closed: [] as InvitedRoom[] });
     }, [invitedRooms]);
 
     const canJoinRoom = (room: InvitedRoom) => {
@@ -1018,7 +1021,7 @@ export default function SyncOnlineHome() {
     };
 
 
-    if (loading || !scheduledDate) {
+    if (loading) {
         return (
              <Card>
                 <CardHeader>
@@ -1035,7 +1038,7 @@ export default function SyncOnlineHome() {
         );
     }
     
-    const renderRoomList = (rooms: InvitedRoom[], title: string) => (
+    const renderRoomList = (rooms: InvitedRoom[]) => (
          <div className="space-y-4">
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
@@ -1237,7 +1240,7 @@ export default function SyncOnlineHome() {
                                                                 </Select>
                                                                 :
                                                                 <Select
-                                                                     value={scheduledDate ? String(scheduledDate.getMinutes()).padStart(2, '0') : '00'}
+                                                                     value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
                                                                     onValueChange={(value) => {
                                                                         setScheduledDate(d => {
                                                                             const newDate = d ? new Date(d) : new Date();
@@ -1371,17 +1374,17 @@ export default function SyncOnlineHome() {
                             <Tabs defaultValue="scheduled" className="w-full">
                                 <TabsList className="grid w-full grid-cols-3">
                                     <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                    <TabsTrigger value="active">Active &amp; Invited ({activeAndInvited.length})</TabsTrigger>
-                                    <TabsTrigger value="summaries">Summaries ({closedWithSummary.length})</TabsTrigger>
+                                    <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                                    <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="scheduled" className="mt-4">
-                                    {renderRoomList(scheduled, '')}
+                                    {renderRoomList(scheduled)}
                                 </TabsContent>
                                 <TabsContent value="active" className="mt-4">
-                                     {renderRoomList(activeAndInvited, '')}
+                                     {renderRoomList(active)}
                                 </TabsContent>
-                                <TabsContent value="summaries" className="mt-4">
-                                     {renderRoomList(closedWithSummary, '')}
+                                <TabsContent value="closed" className="mt-4">
+                                     {renderRoomList(closed)}
                                 </TabsContent>
                             </Tabs>
                         )}
