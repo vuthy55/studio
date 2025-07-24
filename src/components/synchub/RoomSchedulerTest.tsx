@@ -12,13 +12,21 @@ import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon } from 'lucide-react';
 
 export default function RoomSchedulerTest() {
-    const [scheduledDate, setScheduledDate] = useState<Date>(new Date());
+    // Initialize with null to prevent server/client mismatch.
+    const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
     const [dateInput, setDateInput] = useState('');
     const [popoverOpen, setPopoverOpen] = useState(false);
 
+    // Set the initial date only on the client side after hydration.
+    useEffect(() => {
+        setScheduledDate(new Date());
+    }, []);
+
     // Effect to initialize or update the text input when the Date object changes.
     useEffect(() => {
-        setDateInput(format(scheduledDate, 'd MMM yyyy, h:mm aa'));
+        if (scheduledDate) {
+            setDateInput(format(scheduledDate, 'd MMM yyyy, h:mm aa'));
+        }
     }, [scheduledDate]);
 
     // Handler for when the user types in the text input.
@@ -39,7 +47,7 @@ export default function RoomSchedulerTest() {
     
     // Handler for when the user selects a date from the calendar.
     const handleCalendarSelect = (date: Date | undefined) => {
-        if (!date) return;
+        if (!date || !scheduledDate) return;
         // Keep the time from the existing state, only change the date part.
         const newDate = new Date(scheduledDate.getTime());
         newDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
@@ -48,6 +56,7 @@ export default function RoomSchedulerTest() {
 
     // Handler for when the user changes the time input.
     const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!scheduledDate) return;
         const [hours, minutes] = e.target.value.split(':').map(Number);
         const newDate = new Date(scheduledDate.getTime());
         if (!isNaN(hours) && !isNaN(minutes)) {
@@ -55,6 +64,11 @@ export default function RoomSchedulerTest() {
             setScheduledDate(newDate);
         }
     };
+
+    // Render a loading state or null until the date is initialized on the client
+    if (!scheduledDate) {
+        return null; 
+    }
 
     return (
         <Card className="max-w-2xl mx-auto">
