@@ -715,7 +715,10 @@ export default function SyncOnlineHome() {
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
-            setScheduledDate(editingRoom.scheduledAt ? new Date(editingRoom.scheduledAt) : new Date());
+            const validDate = editingRoom.scheduledAt && !isNaN(new Date(editingRoom.scheduledAt).getTime())
+                ? new Date(editingRoom.scheduledAt)
+                : new Date();
+            setScheduledDate(validDate);
         } else {
             // Reset for create mode
             setRoomTopic('');
@@ -762,9 +765,17 @@ export default function SyncOnlineHome() {
             const rooms = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
                 .filter(room => room.status === 'active' || room.status === 'scheduled' || room.summary)
-                .sort((a, b) => (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis());
+                .sort((a, b) => ((b.createdAt as any)?.toMillis() || 0) - ((a.createdAt as any)?.toMillis() || 0));
             
-            setInvitedRooms(rooms as any);
+            setInvitedRooms(rooms.map(room => {
+                const data = room as any; // To access properties dynamically
+                return {
+                    ...room,
+                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+                    lastActivityAt: data.lastActivityAt?.toDate ? data.lastActivityAt.toDate().toISOString() : data.lastActivityAt,
+                    scheduledAt: data.scheduledAt?.toDate ? data.scheduledAt.toDate().toISOString() : data.scheduledAt,
+                };
+            }));
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
             if (error.code === 'failed-precondition') {
@@ -984,9 +995,9 @@ export default function SyncOnlineHome() {
                                     <p className="font-semibold">{room.topic}</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                             {room.status === 'scheduled' && room.scheduledAt && typeof room.scheduledAt === 'string'
+                                             {room.status === 'scheduled' && room.scheduledAt 
                                                 ? format(new Date(room.scheduledAt), 'PPpp')
-                                                : `Created: ${typeof room.createdAt === 'string' ? format(new Date(room.createdAt), 'PPp') : '...'}`
+                                                : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                              }
                                         </p>
                                         {room.status === 'closed' && (
@@ -1112,9 +1123,9 @@ export default function SyncOnlineHome() {
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="grid gap-4 py-4">
+                            <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
                                 <ScrollArea className="max-h-[60vh] p-4 -m-4">
-                                    <form id="create-room-form" onSubmit={handleSubmitRoom} className="grid gap-4 pr-6">
+                                    <div className="grid gap-4 pr-6">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -1150,7 +1161,7 @@ export default function SyncOnlineHome() {
                                                     <PopoverContent className="w-auto p-0">
                                                         <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
                                                         <div className="p-3 border-t border-border">
-                                                            <Input type="time" defaultValue={format(scheduledDate || new Date(), 'HH:mm')} onChange={e => {
+                                                            <Input type="time" defaultValue={scheduledDate && !isNaN(scheduledDate.getTime()) ? format(scheduledDate, 'HH:mm') : ''} onChange={e => {
                                                                 const [hours, minutes] = e.target.value.split(':').map(Number);
                                                                 setScheduledDate(d => {
                                                                     const newDate = d ? new Date(d) : new Date();
@@ -1212,23 +1223,23 @@ export default function SyncOnlineHome() {
                                             </p>
                                             <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                         </div>
-                                    </form>
+                                    </div>
                                 </ScrollArea>
-                            </div>
-                            <DialogFooter>
-                                    <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-                                    {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
-                                        <div className="flex flex-col items-end gap-2">
-                                            <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                            <BuyTokens />
-                                        </div>
-                                    ) : (
-                                        <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                            {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                            { isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : (isEditMode ? 'Save Changes' : `Confirm & Pay ${calculatedCost} Tokens`) }
-                                        </Button>
-                                    )}
-                            </DialogFooter>
+                                <DialogFooter>
+                                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                        {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
+                                            <div className="flex flex-col items-end gap-2">
+                                                <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                                <BuyTokens />
+                                            </div>
+                                        ) : (
+                                            <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                                {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                { isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : (isEditMode ? 'Save Changes' : `Confirm & Pay ${calculatedCost} Tokens`) }
+                                            </Button>
+                                        )}
+                                </DialogFooter>
+                            </form>
                         </DialogContent>
                     </Dialog>
                 </CardContent>
