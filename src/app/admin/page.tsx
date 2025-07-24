@@ -964,10 +964,18 @@ function TokensTabContent() {
                 <CardDescription>An overview of token distribution and acquisition.</CardDescription>
             </CardHeader>
             <CardContent>
+                <Card className="mb-6">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-xl"><Banknote/> Total Tokens In System</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-4xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
+                        <p className="text-sm text-muted-foreground">This is the sum of all tokens ever purchased or awarded.</p>
+                    </CardContent>
+                </Card>
                 <Tabs defaultValue="issue">
-                    <TabsList className="grid w-full grid-cols-6">
+                    <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="issue">Issue Tokens</TabsTrigger>
-                        <TabsTrigger value="total">Total Tokens</TabsTrigger>
                         <TabsTrigger value="acquired">Acquired</TabsTrigger>
                         <TabsTrigger value="distribution">Distribution</TabsTrigger>
                         <TabsTrigger value="p2p">P2P Transfers</TabsTrigger>
@@ -975,17 +983,6 @@ function TokensTabContent() {
                     </TabsList>
                     <TabsContent value="issue" className="py-4">
                         <IssueTokensContent onIssueSuccess={fetchData} />
-                    </TabsContent>
-                    <TabsContent value="total" className="py-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><Banknote/> Total Tokens In System</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
-                                <p className="text-sm text-muted-foreground">This is the sum of all tokens ever purchased or awarded.</p>
-                            </CardContent>
-                        </Card>
                     </TabsContent>
                     <TabsContent value="acquired" className="py-4">
                         <Card>
