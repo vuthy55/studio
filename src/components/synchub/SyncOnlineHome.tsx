@@ -55,6 +55,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import BuyTokens from '../BuyTokens';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -874,7 +875,7 @@ export default function SyncOnlineHome() {
             console.error('Error unblocking user:', error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not unblock the user.' });
         }
-    }, []);
+    }, [toast]);
     
     const { activeAndInvited, scheduled, closedWithSummary } = useMemo(() => {
         const now = Date.now();
@@ -1064,7 +1065,7 @@ export default function SyncOnlineHome() {
                                 </DialogDescription>
                             </DialogHeader>
                             <ScrollArea className="flex-grow pr-6 -mr-6">
-                            <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
+                            <form id="create-room-form" onSubmit={handleCreateRoom} className="space-y-4 py-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="topic">Room Topic</Label>
                                     <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -1145,8 +1146,12 @@ export default function SyncOnlineHome() {
                                         <Separator/>
                                     </div>
                                 )}
-                                <div className="p-3 rounded-lg bg-muted text-center text-sm">
-                                    <p>Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                                    <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                                        This will be deducted from your balance upon confirmation.
+                                    </p>
                                     <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                 </div>
                                 
@@ -1154,10 +1159,17 @@ export default function SyncOnlineHome() {
                             </ScrollArea>
                             <DialogFooter>
                                 <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-                                <Button type="submit" form="create-room-form" disabled={isCreating || calculatedCost > (userProfile?.tokenBalance || 0)}>
-                                    {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    { isCreating ? 'Scheduling...' : `Confirm & Pay ${calculatedCost} Tokens`}
-                                </Button>
+                                {calculatedCost > (userProfile?.tokenBalance || 0) ? (
+                                    <div className="flex flex-col items-end gap-2">
+                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                        <BuyTokens />
+                                    </div>
+                                ) : (
+                                     <Button type="submit" form="create-room-form" disabled={isCreating}>
+                                        {isCreating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        { isCreating ? 'Scheduling...' : `Confirm & Pay ${calculatedCost} Tokens`}
+                                    </Button>
+                                )}
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
