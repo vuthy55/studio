@@ -19,7 +19,6 @@ type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus'
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
-    phraseText: string;
     topicId: string;
     lang: LanguageCode;
     isPass: boolean;
@@ -158,7 +157,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                         actionType: 'practice_earn',
                         tokenChange: rewardAmount,
                         timestamp: serverTimestamp(),
-                        description: `Reward for mastering: "${phraseData.phraseText?.substring(0, 50)}..."`
+                        description: `Reward for mastering phrase` // Generic description
                     });
                 }
             }
@@ -257,7 +256,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
         if (!user || !settings) return { wasRewardable: false, rewardAmount: 0 };
-        const { phraseId, phraseText, lang, isPass, accuracy } = args;
+        const { phraseId, lang, isPass, accuracy } = args;
 
         let wasRewardable = false;
         let rewardAmount = 0;
@@ -287,8 +286,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
         
         updatedPhraseHistory.lastAccuracyPerLang![lang] = accuracy;
-        updatedPhraseHistory.phraseText = phraseText;
-
+        
         const updatedHistory = { ...practiceHistory, [phraseId]: updatedPhraseHistory };
         setPracticeHistory(updatedHistory);
 
@@ -447,3 +445,5 @@ export const useUserData = () => {
     }
     return context;
 };
+
+    

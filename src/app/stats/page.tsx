@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { LoaderCircle, Check, X, Languages } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import { type LanguageCode, languages, phrasebook } from '@/lib/data';
+import { type LanguageCode, languages, phrasebook, type Phrase } from '@/lib/data';
 import type { PracticeStats } from '@/app/profile/page';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -33,6 +33,8 @@ export default function StatsPage() {
     const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
     const [selectedLanguageForDialog, setSelectedLanguageForDialog] = useState<LanguageCode | null>(null);
     const [detailedHistoryForDialog, setDetailedHistoryForDialog] = useState<DetailedHistory[]>([]);
+    
+    const allPhrases = useMemo(() => phrasebook.flatMap(topic => topic.phrases), []);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -42,30 +44,37 @@ export default function StatsPage() {
         }
     }, [user, loading, router]);
     
-    const openLanguageDialog = async (langCode: LanguageCode) => {
+    const getTranslation = (textObj: Phrase | { english: string; translations: Partial<Record<LanguageCode, string>>; pronunciations?: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
+        if (lang === 'english') {
+            return textObj.english;
+        }
+        return textObj.translations[lang] || textObj.english;
+    }
+
+    const openLanguageDialog = (langCode: LanguageCode) => {
         if (!user) return;
         setSelectedLanguageForDialog(langCode);
         setIsDialogDataLoading(true);
 
-        const historyRef = collection(db, 'users', user.uid, 'practiceHistory');
-        const historySnapshot = await getDocs(historyRef);
         const detailedHistory: DetailedHistory[] = [];
 
-        historySnapshot.forEach(doc => {
-            const data = doc.data();
-            const passCount = data.passCountPerLang?.[langCode] ?? 0;
-            const failCount = data.failCountPerLang?.[langCode] ?? 0;
-            
-            if (passCount > 0 || failCount > 0) {
+        for (const phraseId in practiceHistory) {
+            const historyDoc = practiceHistory[phraseId];
+            const hasPracticeData = historyDoc.passCountPerLang?.[langCode] || historyDoc.failCountPerLang?.[langCode];
+
+            if (hasPracticeData) {
+                const phrase = allPhrases.find(p => p.id === phraseId);
+                const phraseText = phrase ? getTranslation(phrase, langCode) : "Unknown Phrase";
+
                 detailedHistory.push({
-                    id: doc.id,
-                    phraseText: data.phraseText,
-                    passCount: passCount,
-                    failCount: failCount,
-                    lastAccuracy: data.lastAccuracyPerLang?.[langCode] ?? 0,
+                    id: phraseId,
+                    phraseText: phraseText,
+                    passCount: historyDoc.passCountPerLang?.[langCode] ?? 0,
+                    failCount: historyDoc.failCountPerLang?.[langCode] ?? 0,
+                    lastAccuracy: historyDoc.lastAccuracyPerLang?.[langCode] ?? 0,
                 });
             }
-        });
+        }
         
         setDetailedHistoryForDialog(detailedHistory);
         setIsDialogDataLoading(false);
@@ -198,5 +207,7 @@ export default function StatsPage() {
         </Dialog>
     )
 }
+
+    
 
     

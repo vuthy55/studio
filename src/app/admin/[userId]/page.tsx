@@ -25,7 +25,7 @@ import type { TransactionLog, PracticeHistoryState, DetailedHistory } from '@/li
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { languages as allLanguages, phrasebook, type LanguageCode } from '@/lib/data';
+import { languages as allLanguages, phrasebook, type LanguageCode, type Phrase } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -61,6 +61,8 @@ export default function UserDetailPage() {
     const [isResettingStats, setIsResettingStats] = useState(false);
 
     const countryOptions = useMemo(() => lightweightCountries, []);
+    
+    const allPhrases = useMemo(() => phrasebook.flatMap(topic => topic.phrases), []);
 
     const fetchAllUserData = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);
@@ -242,18 +244,26 @@ export default function UserDetailPage() {
         }).sort((a,b) => b.practiced - a.practiced);
     }, [practiceHistory, userId]);
 
-    const openLanguageDialog = async (langCode: LanguageCode) => {
+    const getTranslation = (textObj: Phrase | { english: string; translations: Partial<Record<LanguageCode, string>>; pronunciations?: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
+        if (lang === 'english') {
+            return textObj.english;
+        }
+        return textObj.translations[lang] || textObj.english;
+    }
+
+    const openLanguageDialog = (langCode: LanguageCode) => {
         setSelectedLanguageForDialog(langCode);
         setIsDialogDataLoading(true);
 
-        const allPhrases = phrasebook.flatMap(topic => topic.phrases);
         const detailedHistory: DetailedHistory[] = [];
 
         for (const phraseId in practiceHistory) {
             const historyDoc = practiceHistory[phraseId];
-            if (historyDoc.passCountPerLang?.[langCode] || historyDoc.failCountPerLang?.[langCode]) {
+            const hasPracticeData = historyDoc.passCountPerLang?.[langCode] || historyDoc.failCountPerLang?.[langCode];
+
+            if (hasPracticeData) {
                 const phrase = allPhrases.find(p => p.id === phraseId);
-                const phraseText = phrase ? phrase.english : "Unknown Phrase";
+                const phraseText = phrase ? getTranslation(phrase, langCode) : "Unknown Phrase";
 
                 detailedHistory.push({
                     id: phraseId,
@@ -576,3 +586,5 @@ export default function UserDetailPage() {
         </Dialog>
     );
 }
+
+    
