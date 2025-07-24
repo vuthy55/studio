@@ -1123,7 +1123,7 @@ export default function SyncOnlineHome() {
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
-                            <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                            <form id="create-room-form" onSubmit={handleSubmitRoom}>
                                 <ScrollArea className="max-h-[60vh] p-4 -m-4">
                                     <div className="grid gap-4 pr-6">
                                         <div className="space-y-2">
