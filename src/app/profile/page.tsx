@@ -491,10 +491,18 @@ export default function ProfilePage() {
                     />
                 </TabsContent>
                 <TabsContent value="tokens" className="mt-6">
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <TokenWalletCard />
-                        <PaymentHistorySection />
-                    </div>
+                    <Tabs defaultValue="wallet" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
+                            <TabsTrigger value="payments">Payment History</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="wallet" className="mt-6">
+                            <TokenWalletCard />
+                        </TabsContent>
+                        <TabsContent value="payments" className="mt-6">
+                            <PaymentHistorySection />
+                        </TabsContent>
+                    </Tabs>
                 </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
                    <ReferralLink />
