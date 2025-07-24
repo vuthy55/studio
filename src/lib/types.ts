@@ -77,12 +77,16 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
     reason?: string; // Optional: for admin-issued tokens
     duration?: number; // Optional: duration in milliseconds for usage-based transactions
+    fromUserId?: string;
+    fromUserEmail?: string;
+    toUserId?: string;
+    toUserEmail?: string;
 }
 
 export type PaymentLog = {

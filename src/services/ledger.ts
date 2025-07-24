@@ -4,7 +4,6 @@
 import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 import type { TransactionLog } from '@/lib/types';
-import type { UserProfile } from '@/app/profile/page';
 
 
 export interface FinancialLedgerEntry {
@@ -44,6 +43,18 @@ export interface IssueTokensPayload {
     email: string;
     amount: number;
     reason: string;
+    description: string;
+    adminUser: {
+      uid: string;
+      email: string;
+    }
+}
+
+export interface TransferTokensPayload {
+    fromUserId: string;
+    fromUserEmail: string;
+    toUserEmail: string;
+    amount: number;
     description: string;
 }
 
@@ -153,6 +164,9 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                 case 'admin_issue':
                     analytics.adminIssued += log.tokenChange;
                     break;
+                case 'p2p_transfer':
+                    // In a P2P transfer, the positive change is for the recipient, but it's not "awarded" from the system's perspective
+                    break;
             }
         } else {
              switch(log.actionType) {
@@ -164,6 +178,10 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                     break;
                  case 'live_sync_online_spend':
                     analytics.liveSyncOnlineSpend += Math.abs(log.tokenChange);
+                    break;
+                case 'p2p_transfer':
+                    // This is the sender's side of the P2P transfer
+                    analytics.totalSpent += Math.abs(log.tokenChange);
                     break;
              }
         }
@@ -197,7 +215,8 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
       const userLogs: TokenLedgerEntry[] = [];
       logsSnapshot.forEach((logDoc) => {
         const logData = logDoc.data() as TransactionLog;
-        if(logData.tokenChange !== 0) { // Only include logs with actual token changes
+        // Include all logs, even those with zero token change if they are transfers
+        if(logData.tokenChange !== 0 || logData.actionType === 'p2p_transfer') {
             userLogs.push({
             ...logData,
             id: logDoc.id,
@@ -229,32 +248,34 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
 }
 
 /**
- * Issues a specified amount of tokens to a user.
+ * Issues a specified amount of tokens to a user from an admin.
  */
 export async function issueTokens(payload: IssueTokensPayload): Promise<{success: boolean, error?: string}> {
-    const { email, amount, reason, description } = payload;
+    const { email, amount, reason, description, adminUser } = payload;
     
     try {
-        const user = await findUserByEmail(email);
-        if (!user) {
+        const recipient = await findUserByEmail(email);
+        if (!recipient) {
             return { success: false, error: `User with email "${email}" not found.` };
         }
 
-        const userRef = doc(db, 'users', user.id);
-        const logRef = doc(collection(userRef, 'transactionLogs'));
+        const recipientRef = doc(db, 'users', recipient.id);
+        const logRef = doc(collection(recipientRef, 'transactionLogs'));
 
         const batch = writeBatch(db);
         
         // Increment user's token balance
-        batch.update(userRef, { tokenBalance: increment(amount) });
+        batch.update(recipientRef, { tokenBalance: increment(amount) });
 
         // Create transaction log
         batch.set(logRef, {
             actionType: 'admin_issue',
             tokenChange: amount,
             timestamp: serverTimestamp(),
-            reason: reason, // New field for the reason
+            reason: reason,
             description: description,
+            fromUserId: adminUser.uid,
+            fromUserEmail: adminUser.email
         });
 
         await batch.commit();
@@ -263,6 +284,69 @@ export async function issueTokens(payload: IssueTokensPayload): Promise<{success
 
     } catch (error: any) {
         console.error("Error issuing tokens:", error);
+        return { success: false, error: "An unexpected server error occurred." };
+    }
+}
+
+
+/**
+ * Transfers tokens from one user to another.
+ * NOTE: This function is a placeholder for a future feature. It is not currently used by any UI component.
+ */
+export async function transferTokens(payload: TransferTokensPayload): Promise<{success: boolean, error?: string}> {
+    const { fromUserId, fromUserEmail, toUserEmail, amount, description } = payload;
+
+    if (fromUserEmail === toUserEmail) {
+        return { success: false, error: "Cannot transfer tokens to yourself." };
+    }
+    
+    try {
+        const recipient = await findUserByEmail(toUserEmail);
+        if (!recipient) {
+            return { success: false, error: `Recipient with email "${toUserEmail}" not found.` };
+        }
+        
+        const senderRef = doc(db, 'users', fromUserId);
+        const recipientRef = doc(db, 'users', recipient.id);
+
+        const batch = writeBatch(db);
+
+        // 1. Check sender's balance
+        const senderDoc = await getDoc(senderRef);
+        if (!senderDoc.exists() || (senderDoc.data()?.tokenBalance ?? 0) < amount) {
+            return { success: false, error: "Insufficient balance for this transfer." };
+        }
+
+        // 2. Debit the sender
+        batch.update(senderRef, { tokenBalance: increment(-amount) });
+        const senderLogRef = doc(collection(senderRef, 'transactionLogs'));
+        batch.set(senderLogRef, {
+            actionType: 'p2p_transfer',
+            tokenChange: -amount,
+            timestamp: serverTimestamp(),
+            description: description,
+            toUserId: recipient.id,
+            toUserEmail: recipient.email
+        });
+
+        // 3. Credit the recipient
+        batch.update(recipientRef, { tokenBalance: increment(amount) });
+        const recipientLogRef = doc(collection(recipientRef, 'transactionLogs'));
+        batch.set(recipientLogRef, {
+            actionType: 'p2p_transfer',
+            tokenChange: amount,
+            timestamp: serverTimestamp(),
+            description: description,
+            fromUserId: fromUserId,
+            fromUserEmail: fromUserEmail,
+        });
+
+        await batch.commit();
+        
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error transferring tokens:", error);
         return { success: false, error: "An unexpected server error occurred." };
     }
 }

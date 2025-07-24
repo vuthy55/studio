@@ -741,6 +741,7 @@ function FinancialTabContent() {
 }
 
 function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) {
+    const [user] = useAuthState(auth);
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formState, setFormState] = useState({
@@ -754,6 +755,11 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
         e.preventDefault();
         const { email, amount, reason, description } = formState;
 
+        if (!user || !user.email) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Admin user not found.' });
+            return;
+        }
+
         if (!email || !amount || amount <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid email and a positive amount.' });
             return;
@@ -761,7 +767,14 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
 
         setIsSubmitting(true);
         try {
-            const result = await issueTokens({ email, amount: Number(amount), reason, description });
+            const result = await issueTokens({ 
+                email, 
+                amount: Number(amount), 
+                reason, 
+                description,
+                adminUser: { uid: user.uid, email: user.email }
+             });
+
             if (result.success) {
                 toast({ title: 'Success', description: `Successfully issued ${amount} tokens to ${email}.` });
                 setFormState({ email: '', amount: '', reason: 'Admin Issuance', description: 'Manual token grant by administrator.' });
@@ -839,6 +852,7 @@ function TokensTabContent() {
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
             case 'live_sync_online_spend': return 'Sync Online Usage';
+            case 'p2p_transfer': return 'Peer Transfer';
             default: return 'Unknown Action';
         }
     };
@@ -866,7 +880,7 @@ function TokensTabContent() {
             ]);
             setAnalytics(analyticsData);
             setLedger(ledgerData);
-            setFilteredLedger(ledgerData.slice(0, 5));
+            setFilteredLedger(ledgerData);
         } catch (err: any) {
              console.error("Error fetching token data:", err);
             toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
@@ -883,20 +897,22 @@ function TokensTabContent() {
         if (debouncedSearchTerm) {
             const lowercasedFilter = debouncedSearchTerm.toLowerCase();
             const results = ledger.filter(log =>
-                log.userEmail.toLowerCase().includes(lowercasedFilter)
+                log.userEmail.toLowerCase().includes(lowercasedFilter) ||
+                log.fromUserEmail?.toLowerCase().includes(lowercasedFilter) ||
+                log.toUserEmail?.toLowerCase().includes(lowercasedFilter)
             );
             setFilteredLedger(results);
         } else {
-            setFilteredLedger(ledger.slice(0, 5));
+            setFilteredLedger(ledger);
         }
     }, [debouncedSearchTerm, ledger]);
     
     const downloadCsv = () => {
-        const headers = ["#", "Date", "To/From", "QTY", "Reason", "Description"];
+        const headers = ["#", "Date", "From/To", "QTY", "Reason", "Description"];
         const rows = filteredLedger.map((log, index) => [
-            String(ledger.length - index).padStart(5, '0'),
+            String(ledger.length - ledger.findIndex(l => l.id === log.id)).padStart(5, '0'),
             format(log.timestamp, 'd MMM yyyy, HH:mm'),
-            log.userEmail,
+            getFromToCell(log),
             log.tokenChange,
             getReasonText(log),
             log.description + (log.duration ? ` (${formatDuration(log.duration)})` : '')
@@ -913,6 +929,20 @@ function TokensTabContent() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const getFromToCell = (log: TokenLedgerEntry) => {
+        if (log.actionType === 'admin_issue' && log.fromUserEmail) {
+            return `From: ${log.fromUserEmail}\nTo: ${log.userEmail}`;
+        }
+         if (log.actionType === 'p2p_transfer') {
+             if (log.tokenChange < 0) { // This is the sender
+                 return `From: ${log.userEmail}\nTo: ${log.toUserEmail}`;
+             } else { // This is the receiver
+                 return `From: ${log.fromUserEmail}\nTo: ${log.userEmail}`;
+             }
+        }
+        return log.userEmail;
     };
 
     if (isLoading) {
@@ -1013,7 +1043,7 @@ function TokensTabContent() {
                                             <TableRow>
                                                 <TableHead>#</TableHead>
                                                 <TableHead>Date</TableHead>
-                                                <TableHead>To/From</TableHead>
+                                                <TableHead>From/To</TableHead>
                                                 <TableHead className="text-right">QTY</TableHead>
                                                 <TableHead>Reason</TableHead>
                                                 <TableHead>Description</TableHead>
@@ -1021,13 +1051,13 @@ function TokensTabContent() {
                                         </TableHeader>
                                         <TableBody>
                                             {filteredLedger.length > 0 ? (
-                                                filteredLedger.map((log, index) => (
+                                                filteredLedger.map((log) => (
                                                 <TableRow key={log.id}>
-                                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.findIndex(l => l.id === log.id) + 1).padStart(5, '0')}</TableCell>
+                                                    <TableCell className="font-mono text-xs text-muted-foreground">{String(ledger.length - ledger.findIndex(l => l.id === log.id)).padStart(5, '0')}</TableCell>
                                                     <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-pre-line">
                                                         <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
-                                                            {log.userEmail}
+                                                            {getFromToCell(log)}
                                                         </Link>
                                                     </TableCell>
                                                     <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1116,25 +1146,13 @@ function RoomsTabContent() {
     if (!user) return;
     setIsDeleting(true);
     try {
-        for (const roomId of selectedRoomIds) {
-            const roomRef = doc(db, 'syncRooms', roomId);
-            const messagesRef = collection(roomRef, 'messages');
-            const participantsRef = collection(roomRef, 'participants');
-
-            const [messagesSnap, participantsSnap] = await Promise.all([
-                getDocs(messagesRef),
-                getDocs(participantsRef)
-            ]);
-
-            const batch = writeBatch(db);
-            messagesSnap.forEach(doc => batch.delete(doc.ref));
-            participantsSnap.forEach(doc => batch.delete(doc.ref));
-            batch.delete(roomRef);
-            await batch.commit();
+        const result = await permanentlyDeleteRooms(selectedRoomIds);
+        if (result.success) {
+            toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
+            handleFetchRooms();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-
-        toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
-        handleFetchRooms();
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete rooms and their subcollections.' });
         console.error(e);
