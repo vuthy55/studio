@@ -1,7 +1,7 @@
 
 'use client';
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 import type { TransactionLog } from '@/lib/types';
 import type { UserProfile } from '@/app/profile/page';
@@ -24,6 +24,7 @@ export interface TokenAnalytics {
     signupBonus: number;
     referralBonus: number;
     practiceEarn: number;
+    adminIssued: number;
     translationSpend: number;
     liveSyncSpend: number;
     totalAwarded: number;
@@ -35,6 +36,13 @@ export interface TokenLedgerEntry extends TransactionLog {
   userId: string;
   userEmail: string;
   timestamp: Date;
+}
+
+export interface IssueTokensPayload {
+    email: string;
+    amount: number;
+    reason: string;
+    description: string;
 }
 
 
@@ -112,6 +120,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         signupBonus: 0,
         referralBonus: 0,
         practiceEarn: 0,
+        adminIssued: 0,
         translationSpend: 0,
         liveSyncSpend: 0,
         totalAwarded: 0,
@@ -123,7 +132,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
 
     logsSnapshot.forEach(doc => {
         const log = doc.data();
-        if (log.actionType) { // Ensure log has an actionType before processing
+        if (log.tokenChange > 0) { // Only count positive changes for awards/purchases
             switch(log.actionType) {
                 case 'purchase':
                     analytics.purchased += log.tokenChange;
@@ -137,17 +146,23 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                 case 'practice_earn':
                     analytics.practiceEarn += log.tokenChange;
                     break;
+                case 'admin_issue':
+                    analytics.adminIssued += log.tokenChange;
+                    break;
+            }
+        } else { // Handle spends
+             switch(log.actionType) {
                 case 'translation_spend':
                     analytics.translationSpend += Math.abs(log.tokenChange);
                     break;
                 case 'live_sync_spend':
                     analytics.liveSyncSpend += Math.abs(log.tokenChange);
                     break;
-            }
+             }
         }
     });
 
-    analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn;
+    analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn + analytics.adminIssued;
     analytics.totalTokensInSystem = analytics.purchased + analytics.totalAwarded;
 
     return analytics;
@@ -203,6 +218,45 @@ export async function getTokenLedger(): Promise<TokenLedgerEntry[]> {
     // Re-throw the error to be caught by the calling component
     throw error;
   }
+}
+
+/**
+ * Issues a specified amount of tokens to a user.
+ */
+export async function issueTokens(payload: IssueTokensPayload): Promise<{success: boolean, error?: string}> {
+    const { email, amount, reason, description } = payload;
+    
+    try {
+        const user = await findUserByEmail(email);
+        if (!user) {
+            return { success: false, error: `User with email "${email}" not found.` };
+        }
+
+        const userRef = doc(db, 'users', user.id);
+        const logRef = doc(collection(userRef, 'transactionLogs'));
+
+        const batch = writeBatch(db);
+        
+        // Increment user's token balance
+        batch.update(userRef, { tokenBalance: increment(amount) });
+
+        // Create transaction log
+        batch.set(logRef, {
+            actionType: 'admin_issue',
+            tokenChange: amount,
+            timestamp: serverTimestamp(),
+            reason: reason, // New field for the reason
+            description: description,
+        });
+
+        await batch.commit();
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error issuing tokens:", error);
+        return { success: false, error: "An unexpected server error occurred." };
+    }
 }
 
     

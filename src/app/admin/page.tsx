@@ -19,7 +19,7 @@ import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
-import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry } from '@/services/ledger';
+import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry, issueTokens } from '@/services/ledger';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -739,6 +739,85 @@ function FinancialTabContent() {
     )
 }
 
+function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) {
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formState, setFormState] = useState({
+        email: '',
+        amount: '' as number | '',
+        reason: 'Issue by Admin',
+        description: 'Distribution'
+    });
+
+    const handleIssueTokens = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const { email, amount, reason, description } = formState;
+
+        if (!email || !amount || amount <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid email and a positive amount.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const result = await issueTokens({ email, amount: Number(amount), reason, description });
+            if (result.success) {
+                toast({ title: 'Success', description: `Successfully issued ${amount} tokens to ${email}.` });
+                setFormState({ email: '', amount: '', reason: 'Issue by Admin', description: 'Distribution' });
+                onIssueSuccess(); // Callback to refresh parent component data
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        } catch (error) {
+            console.error('Error issuing tokens:', error);
+            toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button><PlusCircle className="mr-2"/> Issue Tokens</Button>
+            </DialogTrigger>
+            <DialogContent>
+                 <DialogHeader>
+                    <DialogTitle>Issue Tokens to a User</DialogTitle>
+                    <DialogDescription>Manually grant tokens for rewards, customer support, or other reasons.</DialogDescription>
+                </DialogHeader>
+                 <form onSubmit={handleIssueTokens}>
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="issue-email">Recipient Email</Label>
+                            <Input id="issue-email" type="email" value={formState.email} onChange={e => setFormState(p => ({ ...p, email: e.target.value }))} placeholder="user@example.com" required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="issue-amount">Amount</Label>
+                            <Input id="issue-amount" type="number" value={formState.amount} onChange={e => setFormState(p => ({ ...p, amount: Number(e.target.value) }))} placeholder="e.g., 100" required min="1" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="issue-reason">Reason (for Transaction Log)</Label>
+                            <Input id="issue-reason" value={formState.reason} onChange={e => setFormState(p => ({ ...p, reason: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="issue-description">Description (for Transaction Log)</Label>
+                            <Textarea id="issue-description" value={formState.description} onChange={e => setFormState(p => ({ ...p, description: e.target.value }))} />
+                        </div>
+                    </div>
+                     <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Confirm & Issue Tokens
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function TokensTabContent() {
     const [user] = useAuthState(auth);
     const { toast } = useToast();
@@ -747,6 +826,9 @@ function TokensTabContent() {
     const [isLoading, setIsLoading] = useState(true);
 
     const getReasonText = (log: TokenLedgerEntry) => {
+        // Use the 'reason' field for admin-issued tokens, otherwise fall back to actionType.
+        if (log.actionType === 'admin_issue') return log.reason || 'Admin Issue';
+
         switch (log.actionType) {
             case 'purchase': return 'Token Purchase';
             case 'signup_bonus': return 'Signup Bonus';
@@ -791,7 +873,7 @@ function TokensTabContent() {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData, user]); // Refetch when user logs in/out
+    }, [fetchData, user]);
     
     if (isLoading) {
         return (
@@ -811,40 +893,57 @@ function TokensTabContent() {
                 <CardTitle>Token Economy</CardTitle>
                 <CardDescription>An overview of token distribution and acquisition.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-                 <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Banknote/> Total Tokens</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
-                             <Separator />
-                            <div className="flex justify-between font-bold text-lg"><span>Total In:</span> <span>{analytics.purchased.toLocaleString()}</span></div>
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><MinusCircle className="text-red-500" /> Tokens Distributed</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            <div className="flex justify-between"><span>Signup Bonuses:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>Referral Bonuses:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>Practice Rewards:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
-                            <Separator />
-                            <div className="flex justify-between font-bold text-lg"><span>Total Out (Free):</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
-                        </CardContent>
-                    </Card>
-                </div>
-                 <div className="border rounded-md min-h-[200px]">
+            <CardContent>
+                <Tabs defaultValue="issue">
+                    <TabsList className="grid w-full grid-cols-4">
+                        <TabsTrigger value="issue">Issue Tokens</TabsTrigger>
+                        <TabsTrigger value="total">Total Tokens</TabsTrigger>
+                        <TabsTrigger value="acquired">Acquired</TabsTrigger>
+                        <TabsTrigger value="distribution">Distribution</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="issue" className="py-4">
+                        <IssueTokensContent onIssueSuccess={fetchData} />
+                    </TabsContent>
+                    <TabsContent value="total" className="py-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Banknote/> Total Tokens In System</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
+                                <p className="text-sm text-muted-foreground">This is the sum of all tokens ever purchased or awarded.</p>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="acquired" className="py-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
+                                <Separator />
+                                <div className="flex justify-between font-bold text-lg"><span>Total In:</span> <span>{analytics.purchased.toLocaleString()}</span></div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="distribution" className="py-4">
+                         <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><MinusCircle className="text-red-500" /> Token Distribution (Free)</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                <div className="flex justify-between"><span>Admin-Issued:</span> <span className="font-bold">{analytics.adminIssued.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>Signup Bonuses:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>Referral Bonuses:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>Practice Rewards:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
+                                <Separator />
+                                <div className="flex justify-between font-bold text-lg"><span>Total Distributed:</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+                 <div className="border rounded-md min-h-[200px] mt-6">
                      <Table>
                         <TableHeader>
                             <TableRow>
@@ -1144,3 +1243,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
