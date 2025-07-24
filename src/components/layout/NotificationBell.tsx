@@ -54,14 +54,17 @@ export default function NotificationBell() {
 
         // Listener for General Notifications (P2P, Admin, etc.)
         const notificationsRef = collection(db, 'notifications');
+        // The query is simplified to remove the orderBy clause that requires a composite index.
         const p2pQuery = query(
             notificationsRef,
             where("userId", "==", user.uid),
-            orderBy("createdAt", "desc"),
-            limit(10) // Limit to the last 10 notifications
+            limit(10) 
         );
         const p2pUnsubscribe = onSnapshot(p2pQuery, (snapshot) => {
-            const p2pData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification))
+            const p2pData = snapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() } as Notification))
+              // We now sort the notifications on the client side after fetching them.
+              .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
             setGeneralNotifications(p2pData);
         }, (error) => {
             console.error("Error fetching notifications:", error);
@@ -184,5 +187,3 @@ export default function NotificationBell() {
         </Popover>
     );
 }
-
-    
