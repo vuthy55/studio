@@ -115,8 +115,7 @@ export async function checkRoomActivity(roomId: string, userId: string): Promise
 
 /**
  * Permanently deletes rooms from Firestore. This is a hard delete and is irreversible.
- * Note: For simplicity, this does not recursively delete subcollections like 'participants' or 'messages'.
- * In a production environment, a Cloud Function would be recommended for this task.
+ * If the room is 'scheduled' and has an initial cost, it will refund the user.
  *
  * @param {string[]} roomIds An array of room IDs to delete.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
@@ -137,7 +136,28 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
       const roomDoc = await roomRef.get();
       
       if (roomDoc.exists) {
-        const roomData = roomDoc.data()!;
+        const roomData = roomDoc.data() as SyncRoom;
+        
+        // --- REFUND LOGIC ---
+        // If the room was scheduled and had a cost, refund the creator.
+        if (roomData.status === 'scheduled' && roomData.initialCost && roomData.initialCost > 0) {
+            const userRef = db.collection('users').doc(roomData.creatorUid);
+            const refundLogRef = userRef.collection('transactionLogs').doc();
+            
+            // 1. Credit the user's balance
+            batch.update(userRef, { tokenBalance: FieldValue.increment(roomData.initialCost) });
+            
+            // 2. Create a refund transaction log
+            batch.set(refundLogRef, {
+                actionType: 'sync_online_refund',
+                tokenChange: roomData.initialCost,
+                timestamp: now,
+                description: `Refund for canceled room: "${roomData.topic}"`,
+                refundsTransactionId: roomData.paymentLogId, // Link to the original payment
+            });
+        }
+        // --- END REFUND LOGIC ---
+
         if (adminUids.length > 0) {
           for (const adminId of adminUids) {
             const notificationRef = db.collection('notifications').doc();
@@ -152,6 +172,7 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
           }
         }
       }
+      // Finally, delete the room itself
       batch.delete(roomRef);
     }
     
