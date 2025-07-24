@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -50,6 +50,110 @@ export interface UserProfile {
   syncLiveUsage?: number;
   syncOnlineUsage?: number;
   syncOnlineUsageLastReset?: Timestamp;
+}
+
+function TokenHistoryDialog() {
+    const [user] = useAuthState(auth);
+    const [transactions, setTransactions] = useState<TransactionLog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+     const getActionText = (log: TransactionLog) => {
+        if (log.actionType === 'p2p_transfer') {
+            return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
+        }
+        switch (log.actionType) {
+            case 'admin_issue': return log.reason || 'Admin Issue';
+            case 'translation_spend': return 'Live Translation';
+            case 'live_sync_spend': return 'Live Sync Usage';
+            case 'live_sync_online_spend': return 'Sync Online Usage';
+            case 'practice_earn': return 'Practice Reward';
+            case 'signup_bonus': return 'Welcome Bonus';
+            case 'purchase': return 'Token Purchase';
+            case 'referral_bonus': return 'Referral Bonus';
+            default: return 'Unknown Action';
+        }
+    }
+    
+    const formatDuration = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
+    };
+
+     useEffect(() => {
+        if (!user) {
+            setTransactions([]);
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        const transRef = collection(db, 'users', user.uid, 'transactionLogs');
+        const q = query(transRef, orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLog & { id: string }));
+            setTransactions(data);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching token history:", error);
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [user]);
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline"><History className="mr-2"/> History</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Token Ledger</DialogTitle>
+                    <DialogDescription>A complete log of your token earnings and spending.</DialogDescription>
+                </DialogHeader>
+                 <div className="py-4">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-48">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : transactions.length > 0 ? (
+                        <div className="border rounded-md min-h-[200px] max-h-[60vh] overflow-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead>Reason</TableHead>
+                                        <TableHead>Description</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {transactions.map((log, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                            <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell>{getActionText(log)}</TableCell>
+                                            <TableCell className="max-w-xs truncate">
+                                                {log.description}
+                                                {log.duration && ` (${formatDuration(log.duration)})`}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    ) : <p className="text-center text-muted-foreground py-8">No token history found.</p>}
+                 </div>
+                 <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="outline">Close</Button>
+                    </DialogClose>
+                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 function TokenTransferDialog() {
@@ -159,9 +263,10 @@ function TokenWalletCard() {
                     <Coins className="h-10 w-10" />
                     <span>{userProfile?.tokenBalance ?? 0}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                     <BuyTokens />
                     <TokenTransferDialog />
+                    <TokenHistoryDialog />
                 </div>
             </CardContent>
         </Card>
@@ -298,100 +403,6 @@ function PaymentHistorySection() {
     )
 }
 
-function TokenHistorySection() {
-    const [user] = useAuthState(auth);
-    const [transactions, setTransactions] = useState<TransactionLog[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-     const getActionText = (log: TransactionLog) => {
-        if (log.actionType === 'p2p_transfer') {
-            return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
-        }
-        switch (log.actionType) {
-            case 'admin_issue': return log.reason || 'Admin Issue';
-            case 'translation_spend': return 'Live Translation';
-            case 'live_sync_spend': return 'Live Sync Usage';
-            case 'live_sync_online_spend': return 'Sync Online Usage';
-            case 'practice_earn': return 'Practice Reward';
-            case 'signup_bonus': return 'Welcome Bonus';
-            case 'purchase': return 'Token Purchase';
-            case 'referral_bonus': return 'Referral Bonus';
-            default: return 'Unknown Action';
-        }
-    }
-    
-    const formatDuration = (ms: number) => {
-        const seconds = Math.floor(ms / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return `${minutes}m ${remainingSeconds}s`;
-    };
-
-     useEffect(() => {
-        if (!user) {
-            setTransactions([]);
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
-        const transRef = collection(db, 'users', user.uid, 'transactionLogs');
-        const q = query(transRef, orderBy('timestamp', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLog & { id: string }));
-            setTransactions(data);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching token history:", error);
-            setIsLoading(false);
-        });
-        return () => unsubscribe();
-    }, [user]);
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Token Ledger</CardTitle>
-                <CardDescription>A complete log of your token earnings and spending.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                    <div className="flex justify-center items-center py-8">
-                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : transactions.length > 0 ? (
-                    <div className="border rounded-md min-h-[200px]">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    <TableHead>Reason</TableHead>
-                                    <TableHead>Description</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {transactions.map((log, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell>{log.timestamp ? format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
-                                        <TableCell className={`text-right font-medium ${log.tokenChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {log.tokenChange >= 0 ? '+' : ''}{log.tokenChange.toLocaleString()}
-                                        </TableCell>
-                                        <TableCell>{getActionText(log)}</TableCell>
-                                        <TableCell className="max-w-xs truncate">
-                                            {log.description}
-                                            {log.duration && ` (${formatDuration(log.duration)})`}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                ) : <p className="text-center text-muted-foreground py-8">No token history found.</p>}
-            </CardContent>
-        </Card>
-    )
-}
-
 export default function ProfilePage() {
     const { user, loading: authLoading, userProfile, fetchUserProfile } = useUserData();
     const router = useRouter();
@@ -485,12 +496,11 @@ export default function ProfilePage() {
             </header>
             
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="tokens">Tokens</TabsTrigger>
                     <TabsTrigger value="billing">Billing</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
-                    <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
                 <TabsContent value="profile" className="mt-6">
                     <ProfileSection 
@@ -511,9 +521,6 @@ export default function ProfilePage() {
                 </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
                    <ReferralLink />
-                </TabsContent>
-                 <TabsContent value="history" className="mt-6">
-                    <TokenHistorySection />
                 </TabsContent>
             </Tabs>
         </div>
