@@ -604,8 +604,10 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                         Choose an action to perform on this room.
                     </DialogDescription>
                 </DialogHeader>
-                
-                {room.paymentLogId && <div className="text-xs text-muted-foreground pt-2 font-mono">Payment ID: {room.paymentLogId}</div>}
+
+                <div className="text-xs text-muted-foreground pt-2 font-mono">
+                  {room.paymentLogId && `Payment ID: ${room.paymentLogId}`}
+                </div>
 
                 {isLoading ? (
                     <div className="flex items-center justify-center h-24">
@@ -625,9 +627,9 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        This will permanently delete the room.
+                                        This will permanently delete the room and notify invited participants.
                                         {(room.initialCost ?? 0) > 0 && 
-                                            <span className="font-bold"> {room.initialCost} tokens will be refunded to your account.</span>
+                                            <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
                                         }
                                         This action cannot be undone.
                                     </AlertDialogDescription>
@@ -1161,6 +1163,7 @@ export default function SyncOnlineHome() {
 
     return (
         <div className="space-y-6">
+            <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: FILE HAS BEEN UPDATED</div>
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
