@@ -489,9 +489,10 @@ export default function ProfilePage() {
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
-                    <TabsTrigger value="tokens">Tokens & Billing</TabsTrigger>
+                    <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
+                    <TabsTrigger value="billing">Payment History</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
                 </TabsList>
 
@@ -506,19 +507,11 @@ export default function ProfilePage() {
                         handleCountryChange={handleCountryChange}
                     />
                 </TabsContent>
-                 <TabsContent value="tokens" className="mt-6">
-                    <Tabs defaultValue="wallet" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                           <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
-                           <TabsTrigger value="billing">Payment History</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="wallet" className="mt-6">
-                            <TokenWalletCard />
-                        </TabsContent>
-                         <TabsContent value="billing" className="mt-6">
-                            <PaymentHistorySection />
-                        </TabsContent>
-                    </Tabs>
+                 <TabsContent value="wallet" className="mt-6">
+                    <TokenWalletCard />
+                </TabsContent>
+                 <TabsContent value="billing" className="mt-6">
+                    <PaymentHistorySection />
                 </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
                    <ReferralLink />
@@ -527,5 +520,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
