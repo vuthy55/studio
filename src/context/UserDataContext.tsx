@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -10,17 +11,9 @@ import { phrasebook, type LanguageCode } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import useLocalStorage from '@/hooks/use-local-storage';
+import type { PracticeHistoryDoc, PracticeHistoryState } from '@/lib/types';
 
 // --- Types ---
-
-export type PracticeHistoryDoc = {
-    phraseText?: string;
-    passCountPerLang?: Record<string, number>;
-    failCountPerLang?: Record<string, number>;
-    lastAttemptPerLang?: Record<string, any>;
-    lastAccuracyPerLang?: Record<string, number>;
-};
-export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
 
 type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend';
 

@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock } from "lucide-react";
+import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock, Check, X, Languages } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 
@@ -21,10 +21,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
-import type { TransactionLog } from '@/lib/types';
+import type { TransactionLog, PracticeHistoryState, DetailedHistory } from '@/lib/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { languages as allLanguages, phrasebook, type LanguageCode } from '@/lib/data';
+import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 interface TransactionLogWithId extends TransactionLog {
@@ -40,15 +45,24 @@ export default function UserDetailPage() {
 
     const [profile, setProfile] = useState<Partial<UserProfile>>({});
     const [transactions, setTransactions] = useState<TransactionLogWithId[]>([]);
+    const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
+    
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
     const [isFetchingLogs, setIsFetchingLogs] = useState(true);
+    const [isFetchingStats, setIsFetchingStats] = useState(true);
+
+    const [selectedLanguageForDialog, setSelectedLanguageForDialog] = useState<LanguageCode | null>(null);
+    const [detailedHistoryForDialog, setDetailedHistoryForDialog] = useState<DetailedHistory[]>([]);
+    const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
 
     const countryOptions = useMemo(() => lightweightCountries, []);
 
     const fetchProfileAndLogs = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);
         setIsFetchingLogs(true);
+        setIsFetchingStats(true);
+
         try {
             // Fetch Profile
             const userDocRef = doc(db, 'users', uid);
@@ -69,6 +83,17 @@ export default function UserDetailPage() {
             const transSnapshot = await getDocs(q);
             const transData = transSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLogWithId));
             setTransactions(transData);
+            setIsFetchingLogs(false);
+
+             // Fetch Practice History
+            const historyRef = collection(db, 'users', uid, 'practiceHistory');
+            const historySnapshot = await getDocs(historyRef);
+            const historyData: PracticeHistoryState = {};
+            historySnapshot.forEach(doc => {
+                historyData[doc.id] = doc.data();
+            });
+            setPracticeHistory(historyData);
+            setIsFetchingStats(false);
 
         } catch (fetchError) {
             console.error("Error fetching user data:", fetchError);
@@ -76,13 +101,13 @@ export default function UserDetailPage() {
         } finally {
             setIsFetchingProfile(false);
             setIsFetchingLogs(false);
+            setIsFetchingStats(false);
         }
     }, [router, toast]);
 
     useEffect(() => {
         if (adminLoading) return;
         if (!adminUser) {
-            // Clear sensitive data on logout before redirecting
             setProfile({});
             setTransactions([]);
             router.push('/login');
@@ -168,6 +193,67 @@ export default function UserDetailPage() {
         return `${minutes}m ${remainingSeconds}s`;
     };
 
+    const languageStats = useMemo(() => {
+        if (!practiceHistory || !userId) return [];
+        
+        const langTotals: Record<string, { practiced: number; correct: number }> = {};
+        
+        Object.values(practiceHistory).forEach(phraseDoc => {
+            if(phraseDoc.passCountPerLang) {
+                Object.entries(phraseDoc.passCountPerLang).forEach(([lang, passes]) => {
+                    if (!langTotals[lang]) langTotals[lang] = { practiced: 0, correct: 0};
+                    langTotals[lang].practiced += passes;
+                    langTotals[lang].correct += passes;
+                });
+            }
+            if(phraseDoc.failCountPerLang) {
+                Object.entries(phraseDoc.failCountPerLang).forEach(([lang, fails]) => {
+                    if (!langTotals[lang]) langTotals[lang] = { practiced: 0, correct: 0};
+                    langTotals[lang].practiced += fails;
+                });
+            }
+        });
+
+        return Object.entries(langTotals).map(([langCode, data]) => {
+            const langLabel = allLanguages.find(l => l.value === langCode)?.label || langCode;
+            const correctPercentage = data.practiced > 0 ? (data.correct / data.practiced) * 100 : 0;
+            return {
+                code: langCode as LanguageCode,
+                label: langLabel,
+                practiced: data.practiced,
+                correct: data.correct,
+                percentage: correctPercentage
+            };
+        }).sort((a,b) => b.practiced - a.practiced);
+    }, [practiceHistory, userId]);
+
+    const openLanguageDialog = async (langCode: LanguageCode) => {
+        setSelectedLanguageForDialog(langCode);
+        setIsDialogDataLoading(true);
+
+        const allPhrases = phrasebook.flatMap(topic => topic.phrases);
+        const detailedHistory: DetailedHistory[] = [];
+
+        for (const phraseId in practiceHistory) {
+            const historyDoc = practiceHistory[phraseId];
+            if (historyDoc.passCountPerLang?.[langCode] || historyDoc.failCountPerLang?.[langCode]) {
+                const phrase = allPhrases.find(p => p.id === phraseId);
+                const phraseText = phrase ? phrase.english : "Unknown Phrase";
+
+                detailedHistory.push({
+                    id: phraseId,
+                    phraseText: phraseText,
+                    passCount: historyDoc.passCountPerLang?.[langCode] ?? 0,
+                    failCount: historyDoc.failCountPerLang?.[langCode] ?? 0,
+                    lastAccuracy: historyDoc.lastAccuracyPerLang?.[langCode] ?? 0,
+                });
+            }
+        }
+        
+        setDetailedHistoryForDialog(detailedHistory);
+        setIsDialogDataLoading(false);
+    };
+
     if (adminLoading || isFetchingProfile) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -177,6 +263,7 @@ export default function UserDetailPage() {
     }
     
     return (
+        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLanguageForDialog(null)}>
         <div className="space-y-8">
             <header className="flex items-center gap-4">
                 <SidebarTrigger className="md:hidden"/>
@@ -212,9 +299,10 @@ export default function UserDetailPage() {
                 
             <div>
                 <Tabs defaultValue="edit" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="edit">Edit Profile</TabsTrigger>
                         <TabsTrigger value="usage">Usage</TabsTrigger>
+                        <TabsTrigger value="stats">Stats</TabsTrigger>
                         <TabsTrigger value="logs">Transaction Logs</TabsTrigger>
                     </TabsList>
                     <TabsContent value="edit" className="mt-6">
@@ -302,6 +390,44 @@ export default function UserDetailPage() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+                    <TabsContent value="stats" className="mt-6">
+                         <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Languages /> Language Performance</CardTitle>
+                                <CardDescription>A summary of this user's practice accuracy across languages.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {isFetchingStats ? (
+                                    <div className="flex justify-center items-center py-8">
+                                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                ) : languageStats.length > 0 ? (
+                                    languageStats.map(item => (
+                                        <DialogTrigger key={item.code} asChild>
+                                            <div onClick={() => openLanguageDialog(item.code)} className="cursor-pointer hover:bg-muted p-2 rounded-lg">
+                                                <div className="flex justify-between items-center mb-1 text-sm">
+                                                    <p className="font-medium truncate">{item.label}</p>
+                                                    <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct phrases</p>
+                                                </div>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger className="w-full">
+                                                            <Progress value={item.percentage} />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{item.percentage.toFixed(0)}% Correct</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        </DialogTrigger>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-muted-foreground py-8">No practice stats found for this user.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                     <TabsContent value="logs" className="mt-6">
                             <Card>
                             <CardHeader>
@@ -352,8 +478,43 @@ export default function UserDetailPage() {
                     </TabsContent>
                 </Tabs>
             </div>
+             <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>
+                        Performance Details: {allLanguages.find(l => l.value === selectedLanguageForDialog)?.label}
+                    </DialogTitle>
+                    <DialogDescription>
+                        A detailed breakdown of this user's practice history for this language.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4">
+                    {isDialogDataLoading ? (
+                        <div className="flex justify-center items-center h-48">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : detailedHistoryForDialog.length > 0 ? (
+                        <ScrollArea className="h-72">
+                            <ul className="space-y-3 pr-4">
+                                {detailedHistoryForDialog.map(history => (
+                                    <li key={history.id} className="text-sm border-b pb-2">
+                                        <p className="font-semibold">{history.phraseText}</p>
+                                        <div className="flex items-center justify-between text-muted-foreground mt-1">
+                                            <div className="flex items-center gap-4">
+                                                <span className="flex items-center gap-1.5" title="Correct attempts"><Check className="h-4 w-4 text-green-500" /> {history.passCount}</span>
+                                                <span className="flex items-center gap-1.5" title="Incorrect attempts"><X className="h-4 w-4 text-red-500" /> {history.failCount}</span>
+                                            </div>
+                                            <span>Last Accuracy: {history.lastAccuracy.toFixed(0)}%</span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </ScrollArea>
+                    ) : (
+                        <p className="text-center text-muted-foreground py-8">No specific practice data found for this language.</p>
+                    )}
+                </div>
+            </DialogContent>
         </div>
+        </Dialog>
     );
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 
@@ -112,7 +113,20 @@ export type Notification = {
     read: boolean;
 };
     
+export type PracticeHistoryDoc = {
+    phraseText?: string;
+    passCountPerLang?: Record<string, number>;
+    failCountPerLang?: Record<string, number>;
+    lastAttemptPerLang?: Record<string, any>;
+    lastAccuracyPerLang?: Record<string, number>;
+};
 
-    
+export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
 
-    
+export interface DetailedHistory {
+    id: string;
+    phraseText: string;
+    passCount: number;
+    failCount: number;
+    lastAccuracy: number;
+}
