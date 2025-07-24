@@ -41,8 +41,8 @@ function ReferralList() {
 
     return (
         <CardContent>
-            <Button onClick={handleFetchReferrals} disabled={isLoading || hasFetched} variant="outline" className="mb-4">
-                {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
+            <Button onClick={handleFetchReferrals} disabled={isLoading || hasFetched} className="mb-4">
+                {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                 {hasFetched ? 'Referrals Loaded' : 'Load My Referrals'}
             </Button>
             
