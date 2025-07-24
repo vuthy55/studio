@@ -383,3 +383,25 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
     }
 }
     
+export async function setRoomEditability(roomId: string, canEdit: boolean): Promise<{success: boolean; error?: string}> {
+    if (!roomId) {
+        return { success: false, error: 'Room ID is required.' };
+    }
+
+    try {
+        const roomRef = db.collection('syncRooms').doc(roomId);
+        const roomDoc = await roomRef.get();
+
+        if (!roomDoc.exists || !roomDoc.data()?.summary) {
+            return { success: false, error: 'Room or summary not found.' };
+        }
+
+        // Use dot notation to update a nested field
+        await roomRef.update({ 'summary.allowMoreEdits': canEdit });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Failed to set editability for room ${roomId}:`, error);
+        return { success: false, error: 'Failed to update room editability on the server.' };
+    }
+}

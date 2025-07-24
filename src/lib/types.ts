@@ -39,6 +39,7 @@ export type RoomSummary = {
         dueDate?: string 
     }[];
     editHistory?: SummaryEdit[];
+    allowMoreEdits?: boolean;
 };
 
 export type Transcript = {
