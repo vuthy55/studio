@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -606,7 +605,7 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
                 </DialogHeader>
                 
                 <div className="pt-2">
-                    {room.paymentLogId && <p className="text-xs text-muted-foreground font-mono">Payment ID: {room.paymentLogId}</p>}
+                    {room.paymentLogId && <div className="text-xs text-muted-foreground pt-2 font-mono">Payment ID: {room.paymentLogId}</div>}
                 </div>
 
 
@@ -1181,7 +1180,6 @@ export default function SyncOnlineHome() {
 
                         <DialogContent className="max-w-lg h-[90vh] flex flex-col">
                              <DialogHeader>
-                                <div className="text-center p-4 bg-red-500 text-white font-bold">DEBUG: DIALOG HAS BEEN UPDATED</div>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
@@ -1347,3 +1345,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
