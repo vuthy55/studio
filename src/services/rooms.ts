@@ -11,7 +11,7 @@ export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'las
     id: string;
     topic: string;
     status: 'active' | 'closed' | 'scheduled';
-    createdAt: string; 
+    createdAt?: string; 
     lastActivityAt?: string;
     scheduledAt?: string;
 }
@@ -51,7 +51,7 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
             id: docSnapshot.id,
             topic: data.topic,
             status: data.status,
-            createdAt: toISO(data.createdAt)!, // createdAt should always exist
+            createdAt: toISO(data.createdAt),
             lastActivityAt: toISO(data.lastActivityAt),
             scheduledAt: toISO(data.scheduledAt),
         } as ClientSyncRoom;
