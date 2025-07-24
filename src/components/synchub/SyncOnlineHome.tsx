@@ -108,12 +108,16 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
     }, [editableSummary]);
 
     const formatDate = (dateString: string) => {
-        if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return "Unknown Date";
+        if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(dateString)) return "Unknown Date";
         try {
-            const parts = dateString.split('-').map(Number);
-            const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            const date = new Date(dateString);
             if (isNaN(date.getTime())) return "Invalid Date";
-            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+            return new Intl.DateTimeFormat('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                timeZone: 'UTC' // Important to avoid off-by-one day errors
+            }).format(date);
         } catch (e) {
             console.error("Error formatting date:", e);
             return "Invalid Date";
@@ -711,16 +715,15 @@ export default function SyncOnlineHome() {
      useEffect(() => {
         if (isEditMode && editingRoom) {
             setRoomTopic(editingRoom.topic);
-            // Assuming creator language doesn't change, might need to store it in room data if it can
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
+            
             const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
                 ? new Date(editingRoom.scheduledAt)
                 : new Date();
             setScheduledDate(validDate);
         } else {
-            // Reset for create mode
             setRoomTopic('');
             setCreatorLanguage('');
             setInviteeEmails('');
@@ -763,19 +766,28 @@ export default function SyncOnlineHome() {
             const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
             const querySnapshot = await getDocs(q);
             const rooms = querySnapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as InvitedRoom))
+                .map(doc => {
+                    const data = doc.data();
+                    const toISO = (ts: any): string | undefined => {
+                        if (ts && ts instanceof Timestamp) {
+                            return ts.toDate().toISOString();
+                        }
+                        if (typeof ts === 'string') return ts;
+                        return undefined;
+                    };
+
+                    return { 
+                        id: doc.id, 
+                        ...data,
+                        createdAt: toISO(data.createdAt),
+                        lastActivityAt: toISO(data.lastActivityAt),
+                        scheduledAt: toISO(data.scheduledAt),
+                    } as InvitedRoom;
+                })
                 .filter(room => room.status === 'active' || room.status === 'scheduled' || room.summary)
-                .sort((a, b) => ((b.createdAt as any)?.toMillis() || 0) - ((a.createdAt as any)?.toMillis() || 0));
+                .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
             
-            setInvitedRooms(rooms.map(room => {
-                const data = room as any; // To access properties dynamically
-                return {
-                    ...room,
-                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
-                    lastActivityAt: data.lastActivityAt?.toDate ? data.lastActivityAt.toDate().toISOString() : data.lastActivityAt,
-                    scheduledAt: data.scheduledAt?.toDate ? data.scheduledAt.toDate().toISOString() : data.scheduledAt,
-                };
-            }));
+            setInvitedRooms(rooms);
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
             if (error.code === 'failed-precondition') {
@@ -954,7 +966,7 @@ export default function SyncOnlineHome() {
     }, [invitedRooms]);
 
     const canJoinRoom = (room: InvitedRoom) => {
-        if (!room.scheduledAt || typeof room.scheduledAt !== 'string') return true; // For older rooms without schedule
+        if (!room.scheduledAt || typeof room.scheduledAt !== 'string') return true; 
         const now = Date.now();
         const scheduledTime = new Date(room.scheduledAt).getTime();
         const gracePeriod = 5 * 60 * 1000; // 5 minutes
@@ -995,9 +1007,9 @@ export default function SyncOnlineHome() {
                                     <p className="font-semibold">{room.topic}</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                             {room.status === 'scheduled' && typeof room.scheduledAt === 'string'
+                                             {room.status === 'scheduled' && room.scheduledAt && typeof room.scheduledAt === 'string'
                                                 ? format(new Date(room.scheduledAt), 'PPpp')
-                                                : `Created: ${typeof room.createdAt === 'string' ? format(new Date(room.createdAt), 'PPp') : '...'}`
+                                                : `Created: ${room.createdAt && typeof room.createdAt === 'string' ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                              }
                                         </p>
                                         {room.status === 'closed' && (
@@ -1116,16 +1128,16 @@ export default function SyncOnlineHome() {
                         </DialogTrigger>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                        <DialogContent className="max-w-lg">
+                        <DialogContent className="max-w-lg h-[90vh] flex flex-col">
                             <DialogHeader>
                                 <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
                                 <DialogDescription>
                                     Set the details for your meeting. The cost will be calculated and displayed below.
                                 </DialogDescription>
                             </DialogHeader>
-                            <form id="create-room-form" onSubmit={handleSubmitRoom}>
-                                <ScrollArea className="max-h-[60vh] p-4 -m-4">
-                                    <div className="grid gap-4 pr-6">
+                            <div className="flex-grow overflow-hidden">
+                                <ScrollArea className="h-full">
+                                    <form id="create-room-form" onSubmit={handleSubmitRoom} className="px-4 py-2 space-y-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -1223,23 +1235,23 @@ export default function SyncOnlineHome() {
                                             </p>
                                             <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                         </div>
-                                    </div>
+                                    </form>
                                 </ScrollArea>
-                                <DialogFooter>
-                                        <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-                                        {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
-                                            <div className="flex flex-col items-end gap-2">
-                                                <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                                <BuyTokens />
-                                            </div>
-                                        ) : (
-                                            <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                                {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                                { isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : (isEditMode ? 'Save Changes' : `Confirm & Pay ${calculatedCost} Tokens`) }
-                                            </Button>
-                                        )}
-                                </DialogFooter>
-                            </form>
+                            </div>
+                            <DialogFooter>
+                                <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                                {(isEditMode ? (userProfile?.tokenBalance || 0) < (calculatedCost - (editingRoom?.initialCost || 0)) : (userProfile?.tokenBalance || 0) < calculatedCost) ? (
+                                    <div className="flex flex-col items-end gap-2">
+                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                        <BuyTokens />
+                                    </div>
+                                ) : (
+                                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        { isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : (isEditMode ? 'Save Changes' : `Confirm & Pay ${calculatedCost} Tokens`) }
+                                    </Button>
+                                )}
+                            </DialogFooter>
                         </DialogContent>
                     </Dialog>
                 </CardContent>
