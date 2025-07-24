@@ -27,6 +27,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Textarea } from '@/components/ui/textarea';
 import { transferTokensAction } from '@/actions/ledger';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import MainHeader from '@/components/layout/MainHeader';
 
 
 export interface PracticeStats {
@@ -485,23 +486,15 @@ export default function ProfilePage() {
 
     return (
         <div className="space-y-8">
-            <header className="flex justify-between items-start">
-                <div className="flex items-center gap-4">
-                    <SidebarTrigger />
-                    <div>
-                        <h1 className="text-3xl font-bold font-headline">My Account</h1>
-                        <p className="text-muted-foreground">Manage settings and track your history.</p>
-                    </div>
-                </div>
-            </header>
+            <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
-                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
-                    <TabsTrigger value="billing">Billing</TabsTrigger>
+                    <TabsTrigger value="tokens">Tokens & Billing</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
                 </TabsList>
+
                 <TabsContent value="profile" className="mt-6">
                     <ProfileSection 
                         profile={profile} 
@@ -514,10 +507,18 @@ export default function ProfilePage() {
                     />
                 </TabsContent>
                  <TabsContent value="tokens" className="mt-6">
-                    <TokenWalletCard />
-                </TabsContent>
-                <TabsContent value="billing" className="mt-6">
-                    <PaymentHistorySection />
+                    <Tabs defaultValue="wallet" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                           <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
+                           <TabsTrigger value="billing">Payment History</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="wallet" className="mt-6">
+                            <TokenWalletCard />
+                        </TabsContent>
+                         <TabsContent value="billing" className="mt-6">
+                            <PaymentHistorySection />
+                        </TabsContent>
+                    </Tabs>
                 </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
                    <ReferralLink />

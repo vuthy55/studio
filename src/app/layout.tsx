@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import ClientSidebar from '@/components/layout/client-sidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { UserDataProvider } from '@/context/UserDataContext';
-import NotificationBell from '@/components/layout/NotificationBell';
+import MainHeader from '@/components/layout/MainHeader';
 
 export const metadata: Metadata = {
   title: 'VibeSync',
@@ -34,9 +34,6 @@ export default function RootLayout({
               <ClientSidebar />
               <SidebarInset>
                 <main className="relative flex-1 p-4 sm:p-6 lg:p-8">
-                  <div className="absolute top-4 right-4 z-10">
-                    <NotificationBell />
-                  </div>
                   {children}
                 </main>
               </SidebarInset>

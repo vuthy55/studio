@@ -105,7 +105,7 @@ export default function NotificationBell() {
     const getNotificationLink = (notification: Notification) => {
         switch (notification.type) {
             case 'p2p_transfer':
-                return '/profile?tab=history';
+                return '/profile?tab=tokens';
             case 'room_closed':
             case 'room_closed_summary':
                 return '/admin?tab=rooms';
@@ -187,5 +187,3 @@ export default function NotificationBell() {
         </Popover>
     );
 }
-
-    

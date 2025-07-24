@@ -4,11 +4,12 @@
 import { useState, memo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 import SyncLiveContent from '@/components/synchub/SyncLiveContent';
+import MainHeader from '@/components/layout/MainHeader';
 
 // Memoize the components to prevent unnecessary re-renders when the tab changes.
 // By defining them here as stable constants, we ensure React doesn't unmount them.
@@ -31,16 +32,7 @@ export default function SyncHubPage() {
    
     return (
         <div className="space-y-8">
-             <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <SidebarTrigger />
-                    <div>
-                        <h1 className="text-3xl font-bold font-headline">SyncHub</h1>
-                        <p className="text-muted-foreground">Prepare, practice, and connect.</p>
-                    </div>
-                </div>
-            </header>
-
+            <MainHeader title="SyncHub" description="Prepare, practice, and connect." />
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>

@@ -15,7 +15,7 @@ import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -29,6 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom } from '@/actions/room';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
+import MainHeader from '@/components/layout/MainHeader';
 
 
 interface UserWithId extends UserProfile {
@@ -1326,13 +1327,7 @@ export default function AdminPage() {
     
     return (
         <div className="space-y-8">
-            <header className="flex items-center gap-4">
-                <SidebarTrigger />
-                <div>
-                  <h1 className="text-3xl font-bold font-headline">Admin Dashboard</h1>
-                  <p className="text-muted-foreground">Manage users and app settings.</p>
-                </div>
-            </header>
+            <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
             <Tabs defaultValue="users" className="w-full">
                 <TabsList className="grid w-full grid-cols-5">

@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
 import type { SavedPhrase, DetailedHistory } from '@/lib/types';
+import MainHeader from '@/components/layout/MainHeader';
 
 
 export default function StatsPage() {
@@ -131,13 +132,7 @@ export default function StatsPage() {
     return (
         <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLanguageForDialog(null)}>
             <div className="space-y-8">
-                <header className="flex items-center gap-4">
-                    <SidebarTrigger />
-                    <div>
-                        <h1 className="text-3xl font-bold font-headline flex items-center gap-2"><Languages className="h-8 w-8"/> Language Performance</h1>
-                        <p className="text-muted-foreground">Your accuracy across all languages practiced.</p>
-                    </div>
-                </header>
+                <MainHeader title="Language Performance" description="Your accuracy across all languages practiced." />
 
                 <Card>
                     <CardHeader>
@@ -213,7 +208,3 @@ export default function StatsPage() {
         </Dialog>
     )
 }
-
-    
-
-    
