@@ -102,7 +102,7 @@ export default function BuyTokens() {
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full">
                 <Wallet className="mr-2 h-4 w-4" />
                 Buy Tokens
             </Button>

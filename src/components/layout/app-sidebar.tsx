@@ -137,10 +137,13 @@ export function AppSidebar() {
         {user && (
           <>
             <ReferralLink variant="sidebar" />
-            <BuyTokens />
+            <div className="flex items-center gap-2">
+              <BuyTokens />
+              <DonateButton />
+            </div>
           </>
         )}
-        <DonateButton />
+        {!user && <DonateButton />}
       </SidebarFooter>
     </Sidebar>
   );
