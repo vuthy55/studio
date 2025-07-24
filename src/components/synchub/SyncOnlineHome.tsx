@@ -724,8 +724,14 @@ export default function SyncOnlineHome() {
     
     const [currentlyManagedRoom, setCurrentlyManagedRoom] = useState<InvitedRoom | null>(null);
 
-    useEffect(() => {
+     useEffect(() => {
         setIsClient(true);
+        // Defer date initialization to client-side to avoid hydration mismatch
+        const defaultDate = new Date();
+        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+        defaultDate.setSeconds(0);
+        defaultDate.setMilliseconds(0);
+        setScheduledDate(defaultDate);
     }, []);
 
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
@@ -1213,14 +1219,43 @@ export default function SyncOnlineHome() {
                                                     <PopoverContent className="w-auto p-0">
                                                         <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
                                                         <div className="p-3 border-t border-border">
-                                                            <Input type="time" value={scheduledDate ? format(scheduledDate, 'HH:mm') : ''} onChange={e => {
-                                                                const [hours, minutes] = e.target.value.split(':').map(Number);
-                                                                setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : new Date();
-                                                                    newDate.setHours(hours, minutes);
-                                                                    return newDate;
-                                                                });
-                                                            }}/>
+                                                            <div className="flex items-center gap-2">
+                                                                <Select
+                                                                    value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                                    onValueChange={(value) => {
+                                                                        setScheduledDate(d => {
+                                                                            const newDate = d ? new Date(d) : new Date();
+                                                                            newDate.setHours(parseInt(value));
+                                                                            return newDate;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                    <SelectContent position="popper">
+                                                                        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                                            <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                :
+                                                                <Select
+                                                                     value={scheduledDate ? String(scheduledDate.getMinutes()).padStart(2, '0') : '00'}
+                                                                    onValueChange={(value) => {
+                                                                        setScheduledDate(d => {
+                                                                            const newDate = d ? new Date(d) : new Date();
+                                                                            newDate.setMinutes(parseInt(value));
+                                                                            return newDate;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                    <SelectContent position="popper">
+                                                                        {['00', '15', '30', '45'].map(minute => (
+                                                                            <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
                                                         </div>
                                                     </PopoverContent>
                                                 </Popover>
