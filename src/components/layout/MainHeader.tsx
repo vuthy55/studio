@@ -34,14 +34,14 @@ export default function MainHeader({ title, description }: MainHeaderProps) {
                 {user && userProfile && (
                      <TooltipProvider>
                         <Tooltip>
-                            <Link href="/profile" passHref legacyBehavior>
-                                <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                        <User className="h-5 w-5" />
-                                        <span className="sr-only">My Account</span>
-                                    </Button>
-                                </TooltipTrigger>
-                            </Link>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" asChild>
+                                  <Link href="/profile">
+                                      <User className="h-5 w-5" />
+                                      <span className="sr-only">My Account</span>
+                                  </Link>
+                                </Button>
+                            </TooltipTrigger>
                             <TooltipContent>
                                <div className="text-center p-2">
                                     <p className="font-semibold">Welcome, {userProfile.name || user.email}</p>
