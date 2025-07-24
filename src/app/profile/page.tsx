@@ -4,9 +4,9 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -23,6 +23,9 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
 import ReferralLink from '@/components/ReferralLink';
+import { findUserByEmail, transferTokens } from '@/services/ledger';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 export interface PracticeStats {
   byLanguage?: {
@@ -45,6 +48,122 @@ export interface UserProfile {
   syncLiveUsage?: number;
   syncOnlineUsage?: number;
   syncOnlineUsageLastReset?: Timestamp;
+}
+
+function TokenTransferDialog() {
+    const { user, userProfile } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formState, setFormState] = useState({
+        toEmail: '',
+        amount: '' as number | '',
+        reason: 'A gift from a friend!'
+    });
+
+    const resetForm = () => {
+        setFormState({ toEmail: '', amount: '', reason: 'A gift from a friend!' });
+    };
+
+    const handleTransfer = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email) return;
+
+        const { toEmail, amount, reason } = formState;
+
+        if (!toEmail || !amount || amount <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid recipient email and a positive amount.' });
+            return;
+        }
+        if (toEmail.toLowerCase() === user.email.toLowerCase()) {
+            toast({ variant: 'destructive', title: 'Invalid Recipient', description: 'You cannot transfer tokens to yourself.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const result = await transferTokens({
+                fromUserId: user.uid,
+                fromUserEmail: user.email,
+                toUserEmail: toEmail,
+                amount: Number(amount),
+                description: reason
+            });
+
+            if (result.success) {
+                toast({ title: 'Transfer Successful!', description: 'You are very generous!' });
+                resetForm();
+                setIsOpen(false);
+            } else {
+                toast({ variant: 'destructive', title: 'Transfer Failed', description: result.error });
+            }
+        } catch (error) {
+            console.error('Error transferring tokens:', error);
+            toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline"><Send className="mr-2"/> Transfer</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Transfer Tokens</DialogTitle>
+                    <DialogDescription>Send tokens to another user. This action is irreversible.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleTransfer}>
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="transfer-email">Recipient Email</Label>
+                            <Input id="transfer-email" type="email" value={formState.toEmail} onChange={e => setFormState(p => ({...p, toEmail: e.target.value}))} placeholder="friend@example.com" required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="transfer-amount">Amount</Label>
+                            <Input id="transfer-amount" type="number" value={formState.amount} onChange={e => setFormState(p => ({...p, amount: Number(e.target.value)}))} placeholder="e.g., 50" required min="1" max={userProfile?.tokenBalance || 0} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="transfer-reason">Reason / Message (Optional)</Label>
+                            <Textarea id="transfer-reason" value={formState.reason} onChange={e => setFormState(p => ({...p, reason: e.target.value}))} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="ghost" type="button">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Confirm & Transfer
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function TokenWalletCard() {
+    const { userProfile } = useUserData();
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Token Wallet</CardTitle>
+                <CardDescription>View your balance and manage your tokens.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center justify-center gap-4 text-3xl font-bold text-amber-500 border rounded-lg p-4">
+                    <Coins className="h-10 w-10" />
+                    <span>{userProfile?.tokenBalance ?? 0}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <BuyTokens />
+                    <TokenTransferDialog />
+                </div>
+            </CardContent>
+        </Card>
+    );
 }
 
 function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getInitials, countryOptions, handleCountryChange }: any) {
@@ -179,6 +298,8 @@ function TokenHistorySection() {
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
+            case 'p2p_transfer':
+                return log.tokenChange > 0 ? 'Received from User' : 'Sent to User';
             default: return 'Unknown Action';
         }
     }
@@ -340,9 +461,9 @@ export default function ProfilePage() {
             <Tabs defaultValue="profile" className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
+                    <TabsTrigger value="tokens">Tokens & Billing</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
-                    <TabsTrigger value="payments">Payments</TabsTrigger>
-                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
                 <TabsContent value="profile" className="mt-6">
                     <ProfileSection 
@@ -355,13 +476,16 @@ export default function ProfilePage() {
                         handleCountryChange={handleCountryChange}
                     />
                 </TabsContent>
+                <TabsContent value="tokens" className="mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <TokenWalletCard />
+                        <PaymentHistorySection />
+                    </div>
+                </TabsContent>
                 <TabsContent value="referrals" className="mt-6">
                    <ReferralLink />
                 </TabsContent>
-                <TabsContent value="payments" className="mt-6">
-                    <PaymentHistorySection />
-                </TabsContent>
-                <TabsContent value="tokens" className="mt-6">
+                 <TabsContent value="history" className="mt-6">
                     <TokenHistorySection />
                 </TabsContent>
             </Tabs>

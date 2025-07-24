@@ -110,9 +110,9 @@ export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
 
 /**
  * Finds a user by their email address.
- * @returns {Promise<{id: string, email: string} | null>} The user object or null if not found.
+ * @returns {Promise<{id: string, email: string, name: string} | null>} The user object or null if not found.
  */
-export async function findUserByEmail(email: string): Promise<{id: string, email: string} | null> {
+export async function findUserByEmail(email: string): Promise<{id: string, email: string, name: string} | null> {
     if (!email) return null;
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', email.toLowerCase()), limit(1));
@@ -121,7 +121,8 @@ export async function findUserByEmail(email: string): Promise<{id: string, email
         return null;
     }
     const userDoc = snapshot.docs[0];
-    return { id: userDoc.id, email: userDoc.data().email };
+    const userData = userDoc.data();
+    return { id: userDoc.id, email: userData.email, name: userData.name || 'User' };
 }
 
 /**
@@ -181,7 +182,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                     break;
                 case 'p2p_transfer':
                     // This is the sender's side of the P2P transfer
-                    analytics.totalSpent += Math.abs(log.tokenChange);
+                    // It's a spend from the user's perspective, but not from the system's
                     break;
              }
         }
@@ -291,12 +292,11 @@ export async function issueTokens(payload: IssueTokensPayload): Promise<{success
 
 /**
  * Transfers tokens from one user to another.
- * NOTE: This function is a placeholder for a future feature. It is not currently used by any UI component.
  */
 export async function transferTokens(payload: TransferTokensPayload): Promise<{success: boolean, error?: string}> {
     const { fromUserId, fromUserEmail, toUserEmail, amount, description } = payload;
 
-    if (fromUserEmail === toUserEmail) {
+    if (fromUserEmail.toLowerCase() === toUserEmail.toLowerCase()) {
         return { success: false, error: "Cannot transfer tokens to yourself." };
     }
     
@@ -313,7 +313,8 @@ export async function transferTokens(payload: TransferTokensPayload): Promise<{s
 
         // 1. Check sender's balance
         const senderDoc = await getDoc(senderRef);
-        if (!senderDoc.exists() || (senderDoc.data()?.tokenBalance ?? 0) < amount) {
+        const senderData = senderDoc.data();
+        if (!senderDoc.exists() || (senderData?.tokenBalance ?? 0) < amount) {
             return { success: false, error: "Insufficient balance for this transfer." };
         }
 
@@ -339,6 +340,18 @@ export async function transferTokens(payload: TransferTokensPayload): Promise<{s
             description: description,
             fromUserId: fromUserId,
             fromUserEmail: fromUserEmail,
+        });
+
+        // 4. Create notification for recipient
+        const notificationRef = doc(collection(db, 'notifications'));
+        batch.set(notificationRef, {
+            userId: recipient.id,
+            type: 'p2p_transfer',
+            fromUserName: senderData?.name || fromUserEmail,
+            amount: amount,
+            message: description,
+            createdAt: serverTimestamp(),
+            read: false,
         });
 
         await batch.commit();

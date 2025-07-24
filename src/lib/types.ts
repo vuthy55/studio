@@ -98,6 +98,16 @@ export type PaymentLog = {
     createdAt: FieldValue;
 }
 
+export type P2PNotification = {
+    id: string;
+    userId: string; // The user who *receives* the notification
+    fromUserName: string;
+    amount: number;
+    message: string;
+    createdAt: Timestamp;
+    read: boolean;
+    type: 'p2p_transfer';
+};
     
 
     
