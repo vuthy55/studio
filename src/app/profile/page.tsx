@@ -4,8 +4,8 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState, useMemo } from 'react';
-import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -342,27 +342,27 @@ function ProfileSection({ profile, setProfile, isSaving, handleSaveProfile, getI
 function PaymentHistorySection() {
     const [user] = useAuthState(auth);
     const [payments, setPayments] = useState<PaymentLog[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasFetched, setHasFetched] = useState(false);
+    const { toast } = useToast();
 
-    useEffect(() => {
-        if (!user) {
-            setPayments([]);
-            setIsLoading(false);
-            return;
-        }
+    const fetchPaymentHistory = useCallback(async () => {
+        if (!user || hasFetched) return;
         setIsLoading(true);
-        const paymentsRef = collection(db, 'users', user.uid, 'paymentHistory');
-        const q = query(paymentsRef, orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        try {
+            const paymentsRef = collection(db, 'users', user.uid, 'paymentHistory');
+            const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
             const data = snapshot.docs.map(doc => doc.data() as PaymentLog);
             setPayments(data);
-            setIsLoading(false);
-        }, (error) => {
+        } catch (error) {
             console.error("Error fetching payment history:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch payment history." });
+        } finally {
             setIsLoading(false);
-        });
-        return () => unsubscribe();
-    }, [user]);
+            setHasFetched(true);
+        }
+    }, [user, hasFetched, toast]);
 
     return (
         <Card>
@@ -371,45 +371,54 @@ function PaymentHistorySection() {
                 <CardDescription>A record of all your token purchases and donations.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading ? (
+                <Button onClick={fetchPaymentHistory} disabled={isLoading || hasFetched} className="mb-4">
+                    {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                    {hasFetched ? 'History Loaded' : 'Load Payment History'}
+                </Button>
+
+                {isLoading && (
                     <div className="flex justify-center items-center py-8">
                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : payments.length > 0 ? (
-                    <div className="border rounded-md min-h-[200px]">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    <TableHead>Order ID</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {payments.map(p => (
-                                    <TableRow key={p.orderId}>
-                                        <TableCell>{p.createdAt ? format((p.createdAt as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
-                                        <TableCell>
-                                            <div className="font-medium flex items-center gap-2">
-                                                {p.tokensPurchased > 0 ? (
-                                                    `Purchased ${p.tokensPurchased} Tokens`
-                                                ) : (
-                                                    <>
-                                                    <Heart className="h-4 w-4 text-red-500"/>
-                                                    Donation
-                                                    </>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold">${p.amount.toFixed(2)} {p.currency}</TableCell>
-                                        <TableCell className="text-muted-foreground">{p.orderId}</TableCell>
+                )}
+                
+                {hasFetched && (
+                    payments.length > 0 ? (
+                        <div className="border rounded-md min-h-[200px]">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead>Order ID</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                ) : <p className="text-center text-muted-foreground py-8">No payment history found.</p>}
+                                </TableHeader>
+                                <TableBody>
+                                    {payments.map(p => (
+                                        <TableRow key={p.orderId}>
+                                            <TableCell>{p.createdAt ? format((p.createdAt as Timestamp).toDate(), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                            <TableCell>
+                                                <div className="font-medium flex items-center gap-2">
+                                                    {p.tokensPurchased > 0 ? (
+                                                        `Purchased ${p.tokensPurchased} Tokens`
+                                                    ) : (
+                                                        <>
+                                                        <Heart className="h-4 w-4 text-red-500"/>
+                                                        Donation
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold">${p.amount.toFixed(2)} {p.currency}</TableCell>
+                                            <TableCell className="text-muted-foreground">{p.orderId}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    ) : <p className="text-center text-muted-foreground py-8">No payment history found.</p>
+                )}
             </CardContent>
         </Card>
     )
@@ -531,5 +540,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
