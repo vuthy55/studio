@@ -1062,7 +1062,7 @@ export default function SyncOnlineHome() {
                             <form onSubmit={handleCreateRoom} className="space-y-4 py-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="topic">Room Topic</Label>
-                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Bali" required />
+                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
