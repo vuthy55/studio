@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock, Check, X, Languages } from "lucide-react";
+import { LoaderCircle, Save, Shield, User as UserIcon, ArrowLeft, Coins, FileText, Edit, Clock, Check, X, Languages, RefreshCw } from "lucide-react";
 import Link from 'next/link';
 import { format } from 'date-fns';
 
@@ -30,6 +30,8 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { resetLanguageStats } from '@/actions/stats';
 
 
 interface TransactionLogWithId extends TransactionLog {
@@ -56,18 +58,17 @@ export default function UserDetailPage() {
     const [detailedHistoryForDialog, setDetailedHistoryForDialog] = useState<DetailedHistory[]>([]);
     const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
 
+    const [isResettingStats, setIsResettingStats] = useState(false);
+
     const countryOptions = useMemo(() => lightweightCountries, []);
 
-    const fetchProfileAndLogs = useCallback(async (uid: string) => {
+    const fetchAllUserData = useCallback(async (uid: string) => {
         setIsFetchingProfile(true);
         setIsFetchingLogs(true);
         setIsFetchingStats(true);
-
         try {
-            // Fetch Profile
             const userDocRef = doc(db, 'users', uid);
             const userDocSnap = await getDoc(userDocRef);
-
             if (userDocSnap.exists()) {
                 setProfile({ id: userDocSnap.id, ...userDocSnap.data() } as UserProfile & { id: string });
             } else {
@@ -75,17 +76,33 @@ export default function UserDetailPage() {
                 router.push('/admin');
                 return;
             }
+        } catch (fetchError) {
+             console.error("Error fetching user profile:", fetchError);
+             toast({ variant: "destructive", title: "Error", description: "Could not fetch user profile." });
+        } finally {
             setIsFetchingProfile(false);
+        }
 
-            // Fetch Transaction Logs
+        try {
             const transRef = collection(db, 'users', uid, 'transactionLogs');
             const q = query(transRef, orderBy('timestamp', 'desc'));
             const transSnapshot = await getDocs(q);
             const transData = transSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TransactionLogWithId));
             setTransactions(transData);
+        } catch (fetchError) {
+            console.error("Error fetching transaction logs:", fetchError);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch transaction logs." });
+        } finally {
             setIsFetchingLogs(false);
+        }
 
-             // Fetch Practice History
+        await fetchPracticeHistory(uid);
+       
+    }, [router, toast]);
+    
+    const fetchPracticeHistory = useCallback(async (uid: string) => {
+         setIsFetchingStats(true);
+         try {
             const historyRef = collection(db, 'users', uid, 'practiceHistory');
             const historySnapshot = await getDocs(historyRef);
             const historyData: PracticeHistoryState = {};
@@ -93,17 +110,14 @@ export default function UserDetailPage() {
                 historyData[doc.id] = doc.data();
             });
             setPracticeHistory(historyData);
+         } catch (fetchError) {
+            console.error("Error fetching practice history:", fetchError);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch practice stats." });
+         } finally {
             setIsFetchingStats(false);
+         }
+    }, [toast]);
 
-        } catch (fetchError) {
-            console.error("Error fetching user data:", fetchError);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch user data." });
-        } finally {
-            setIsFetchingProfile(false);
-            setIsFetchingLogs(false);
-            setIsFetchingStats(false);
-        }
-    }, [router, toast]);
 
     useEffect(() => {
         if (adminLoading) return;
@@ -114,9 +128,9 @@ export default function UserDetailPage() {
             return;
         }
         if (userId) {
-            fetchProfileAndLogs(userId);
+            fetchAllUserData(userId);
         }
-    }, [adminUser, adminLoading, router, userId, fetchProfileAndLogs]);
+    }, [adminUser, adminLoading, router, userId, fetchAllUserData]);
 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,6 +185,9 @@ export default function UserDetailPage() {
     };
     
      const getActionText = (log: TransactionLog) => {
+        if (log.actionType === 'p2p_transfer') {
+            return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
+        }
         switch (log.actionType) {
             case 'admin_issue': return log.reason || 'Admin Issue';
             case 'translation_spend': return 'Live Translation';
@@ -180,8 +197,6 @@ export default function UserDetailPage() {
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
-            case 'p2p_transfer':
-                return log.tokenChange < 0 ? 'Transfer Sent' : 'Transfer Received';
             default: return 'Unknown Action';
         }
     }
@@ -254,6 +269,25 @@ export default function UserDetailPage() {
         setIsDialogDataLoading(false);
     };
 
+     const handleResetStats = async (langCode: LanguageCode, langLabel: string) => {
+        setIsResettingStats(true);
+        try {
+            const result = await resetLanguageStats(userId, langCode);
+            if (result.success) {
+                toast({ title: "Stats Reset", description: `Practice history for ${langLabel} has been cleared.`});
+                await fetchPracticeHistory(userId); // Re-fetch the practice history to update the UI
+            } else {
+                 toast({ variant: 'destructive', title: 'Error', description: result.error || "Failed to reset stats." });
+            }
+        } catch (error: any) {
+            console.error("Error resetting language stats:", error);
+            toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred." });
+        } finally {
+            setIsResettingStats(false);
+        }
+    }
+
+
     if (adminLoading || isFetchingProfile) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -313,7 +347,7 @@ export default function UserDetailPage() {
                                     <CardDescription>Modify the user's details below.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
-                                    <div className="space-y-2">
+                                     <div className="space-y-2">
                                         <Label htmlFor="name">Name</Label>
                                         <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
                                     </div>
@@ -403,24 +437,48 @@ export default function UserDetailPage() {
                                     </div>
                                 ) : languageStats.length > 0 ? (
                                     languageStats.map(item => (
-                                        <DialogTrigger key={item.code} asChild>
-                                            <div onClick={() => openLanguageDialog(item.code)} className="cursor-pointer hover:bg-muted p-2 rounded-lg">
-                                                <div className="flex justify-between items-center mb-1 text-sm">
-                                                    <p className="font-medium truncate">{item.label}</p>
-                                                    <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct phrases</p>
+                                         <div key={item.code} className="group flex items-center gap-2 hover:bg-muted p-2 rounded-lg">
+                                            <DialogTrigger asChild>
+                                                <div className="flex-grow cursor-pointer" onClick={() => openLanguageDialog(item.code)}>
+                                                    <div className="flex justify-between items-center mb-1 text-sm">
+                                                        <p className="font-medium truncate">{item.label}</p>
+                                                        <p className="text-xs text-muted-foreground">{item.correct} / {item.practiced} correct phrases</p>
+                                                    </div>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger className="w-full">
+                                                                <Progress value={item.percentage} />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>{item.percentage.toFixed(0)}% Correct</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
                                                 </div>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger className="w-full">
-                                                            <Progress value={item.percentage} />
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>{item.percentage.toFixed(0)}% Correct</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </DialogTrigger>
+                                            </DialogTrigger>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                     <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" disabled={isResettingStats}>
+                                                        <RefreshCw className="h-4 w-4 text-destructive"/>
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Reset stats for {item.label}?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This will permanently delete all practice history (passes, fails, accuracy) for {item.label} for this user. This action cannot be undone and will not affect any tokens the user has already earned.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleResetStats(item.code, item.label)} disabled={isResettingStats}>
+                                                             {isResettingStats && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                                            Confirm Reset
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
                                     ))
                                 ) : (
                                     <p className="text-center text-muted-foreground py-8">No practice stats found for this user.</p>
