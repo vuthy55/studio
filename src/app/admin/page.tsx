@@ -1365,19 +1365,19 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <Tabs defaultValue="users" className="w-full">
+            <Tabs defaultValue="rooms" className="w-full">
                 <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="rooms">Rooms</TabsTrigger>
+                    <TabsTrigger value="users">Users</TabsTrigger>
                     <TabsTrigger value="settings">App Settings</TabsTrigger>
                     <TabsTrigger value="financial">Financial</TabsTrigger>
                     <TabsTrigger value="tokens">Tokens</TabsTrigger>
                 </TabsList>
-                <TabsContent value="users" className="mt-6">
-                    <UsersTabContent />
-                </TabsContent>
                 <TabsContent value="rooms" className="mt-6">
                     <RoomsTabContent />
+                </TabsContent>
+                <TabsContent value="users" className="mt-6">
+                    <UsersTabContent />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
