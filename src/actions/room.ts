@@ -353,6 +353,7 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
             if (roomData.status !== 'scheduled') throw new Error("Only scheduled rooms can be edited.");
 
             const oldCost = roomData.initialCost || 0;
+            const oldPaymentLogId = roomData.paymentLogId;
 
             const userDoc = await transaction.get(userRef);
             const userBalance = userDoc.data()?.tokenBalance || 0;
@@ -363,15 +364,15 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
                 throw new Error(`Insufficient tokens. You need ${needed} more tokens for this change.`);
             }
 
-            // 1. Refund the original cost
-            if (oldCost > 0 && roomData.paymentLogId) {
+            // 1. Refund the original cost, referencing the original transaction
+            if (oldCost > 0 && oldPaymentLogId) {
                 const refundLogRef = userRef.collection('transactionLogs').doc();
                 transaction.set(refundLogRef, {
                     actionType: 'sync_online_refund',
                     tokenChange: oldCost,
                     timestamp: FieldValue.serverTimestamp(),
                     description: `Refund for edited room: "${roomData.topic}"`,
-                    refundsTransactionId: roomData.paymentLogId,
+                    refundsTransactionId: oldPaymentLogId,
                 });
                 transaction.update(userRef, { tokenBalance: FieldValue.increment(oldCost) });
             }
@@ -382,7 +383,7 @@ export async function updateScheduledRoom(payload: UpdateScheduledRoomPayload): 
                 actionType: 'live_sync_online_spend',
                 tokenChange: -newCost,
                 timestamp: FieldValue.serverTimestamp(),
-                description: `New charge for edited room: "${roomData.topic}"`
+                description: `New charge for edited room: "${updates.topic || roomData.topic}"`
             });
             transaction.update(userRef, { tokenBalance: FieldValue.increment(-newCost) });
 

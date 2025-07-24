@@ -778,7 +778,12 @@ export default function SyncOnlineHome() {
                         if (ts instanceof Timestamp) {
                             return ts.toDate().toISOString();
                         }
-                        if (typeof ts === 'string') return ts; // Already a string
+                        if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) {
+                            return ts;
+                        }
+                        if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
+                             return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+                        }
                         return undefined;
                     };
 
@@ -1011,10 +1016,10 @@ export default function SyncOnlineHome() {
                                     <p className="font-semibold">{room.topic}</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                             {room.status === 'scheduled' && room.scheduledAt && typeof room.scheduledAt === 'string'
+                                            {room.status === 'scheduled' && room.scheduledAt && typeof room.scheduledAt === 'string'
                                                 ? format(new Date(room.scheduledAt), 'PPpp')
                                                 : `Created: ${room.createdAt && typeof room.createdAt === 'string' ? format(new Date(room.createdAt), 'PPp') : '...'}`
-                                             }
+                                            }
                                         </p>
                                         {room.status === 'closed' && (
                                             <Badge variant={room.summary ? 'default' : 'destructive'}>
@@ -1177,7 +1182,7 @@ export default function SyncOnlineHome() {
                                                     <PopoverContent className="w-auto p-0">
                                                         <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus />
                                                         <div className="p-3 border-t border-border">
-                                                            <Input type="time" defaultValue={scheduledDate && !isNaN(scheduledDate.getTime()) ? format(scheduledDate, 'HH:mm') : ''} onChange={e => {
+                                                            <Input type="time" defaultValue={scheduledDate && !isNaN(new Date(scheduledDate).getTime()) ? format(new Date(scheduledDate), 'HH:mm') : ''} onChange={e => {
                                                                 const [hours, minutes] = e.target.value.split(':').map(Number);
                                                                 setScheduledDate(d => {
                                                                     const newDate = d ? new Date(d) : new Date();
@@ -1238,8 +1243,8 @@ export default function SyncOnlineHome() {
                                                     <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
                                                     <Separator/>
                                                     <div className="flex justify-between font-bold">
-                                                        <span>{costDifference > 0 ? "Additional Charge:" : "Refund:"}</span>
-                                                        <span className={costDifference > 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                                                        <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
+                                                        <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
                                                     </div>
                                                 </>
                                             ) : (
