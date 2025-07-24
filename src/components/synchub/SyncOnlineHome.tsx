@@ -721,6 +721,7 @@ export default function SyncOnlineHome() {
 
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
+    const [activeRoomTab, setActiveRoomTab] = useState('scheduled');
 
     const { settings } = useUserData();
 
@@ -1371,7 +1372,7 @@ export default function SyncOnlineHome() {
                         {isFetchingRooms ? (
                              <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
                         ) : (
-                            <Tabs defaultValue="scheduled" className="w-full">
+                            <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-3">
                                     <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
                                     <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
