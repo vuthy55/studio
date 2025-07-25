@@ -28,11 +28,13 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { processNewUserAndReferral } from '@/actions/referrals';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useUserData } from '@/context/UserDataContext';
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { forceRefetch } = useUserData();
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -72,13 +74,11 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check if user is new by trying to get their Firestore doc
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       if (!userDoc.exists()) {
         const displayName = user.displayName || user.email?.split('@')[0] || 'New User';
-        // This is a new user, call the server action to create everything
-         const processResult = await processNewUserAndReferral(
+        const processResult = await processNewUserAndReferral(
             { uid: user.uid, name: displayName, email: user.email! },
             { country: '', mobile: user.phoneNumber || '', defaultLanguage: 'en-US' },
             referralId
@@ -86,6 +86,7 @@ export default function LoginPage() {
          if (!processResult.success) {
             throw new Error(processResult.error || "Failed to process new user and referral on the server.");
         }
+        await forceRefetch();
       }
       
       toast({ title: "Success", description: "Logged in successfully." });
@@ -112,7 +113,6 @@ export default function LoginPage() {
       
       await updateAuthProfile(user, { displayName: signupName });
 
-      // Call the robust server action to handle user creation and referral
       const result = await processNewUserAndReferral(
         { uid: user.uid, name: signupName, email: signupEmail },
         { country: signupCountry, mobile: signupMobile, defaultLanguage: signupLanguage },
@@ -120,9 +120,10 @@ export default function LoginPage() {
       );
 
       if (!result.success) {
-        // This will catch errors from the server action, like invalid referrer
         throw new Error(result.error || "Failed to process new user and referral on the server.");
       }
+      
+      await forceRefetch();
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');

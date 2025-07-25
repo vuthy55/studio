@@ -34,6 +34,7 @@ interface UserDataContextType {
     syncLiveUsage: number;
     fetchUserProfile: () => Promise<void>;
     logout: () => Promise<void>;
+    forceRefetch: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string) => boolean;
@@ -68,59 +69,69 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         getAppSettingsAction().then(setSettings);
     }, []);
 
-    const fetchUserProfile = useCallback(async () => {
+    const fetchAllData = useCallback(async () => {
         if (!auth.currentUser || isLoggingOut.current) return;
+        setLoading(true);
+        console.log("[DEBUG] UserDataContext: fetchAllData running for user:", auth.currentUser.uid);
         
         try {
-            console.log("[DEBUG] UserDataContext: fetchUserProfile running for user:", auth.currentUser.uid);
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists()) {
                 const profileData = userDocSnap.data() as UserProfile;
                 setUserProfile(profileData);
                 setSyncLiveUsage(profileData.syncLiveUsage || 0);
+            } else {
+                 console.warn("[DEBUG] UserDataContext: No user document found for uid:", auth.currentUser.uid);
+                 setUserProfile({}); // Clear profile if doc doesn't exist
             }
+
+            const historyCollectionRef = collection(db, 'users', auth.currentUser.uid, 'practiceHistory');
+            const historySnapshot = await getDocs(historyCollectionRef);
+            const historyData: PracticeHistoryState = {};
+            historySnapshot.forEach(doc => {
+                historyData[doc.id] = doc.data();
+            });
+            setPracticeHistory(historyData);
+
         } catch (error) {
-            console.error("Error fetching user profile:", error);
+            console.error("Error fetching user data:", error);
+        } finally {
+            setHasFetched(true);
+            setLoading(false);
         }
-    }, [setUserProfile]);
+    }, [setUserProfile, setPracticeHistory]);
+
 
      useEffect(() => {
-        const fetchAllData = async () => {
-            if (!user || isLoggingOut.current) return;
-            console.log("[DEBUG] UserDataContext: User detected, fetching data.");
-            
-            await fetchUserProfile();
+        if (authLoading) {
+            console.log("[DEBUG] UserDataContext: Auth is loading, waiting...");
+            return;
+        }
 
-            try {
-                const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
-                const historySnapshot = await getDocs(historyCollectionRef);
-                const historyData: PracticeHistoryState = {};
-                historySnapshot.forEach(doc => {
-                    historyData[doc.id] = doc.data();
-                });
-                setPracticeHistory(historyData);
-            } catch (error) {
-                console.error("Error fetching practice history:", error);
+        if (user) {
+            if (!hasFetched) {
+                console.log("[DEBUG] UserDataContext: User detected, hasFetched is false. Fetching all data.");
+                fetchAllData();
+            } else {
+                console.log("[DEBUG] UserDataContext: User detected, but hasFetched is true. Skipping fetch.");
             }
-            
-            setHasFetched(true); // Mark initial fetch as complete
-            setLoading(false);
-        };
-
-        if (user && !authLoading && !hasFetched) {
-            fetchAllData();
-        } else if (!user && !authLoading) {
-            if (hasFetched) { // Reset only if we had previously fetched data
+        } else {
+            if (hasFetched || Object.keys(userProfile).length > 0) {
                  console.log("[DEBUG] UserDataContext: No user detected, clearing local state.");
                  setUserProfile({});
                  setPracticeHistory({});
                  setSyncLiveUsage(0);
-                 setHasFetched(false); // Reset for the next login
+                 setHasFetched(false); 
             }
             setLoading(false);
         }
-    }, [user, authLoading, hasFetched, fetchUserProfile, setPracticeHistory, setUserProfile]);
+    }, [user, authLoading, hasFetched, fetchAllData, userProfile, setUserProfile, setPracticeHistory]);
+    
+    const forceRefetch = useCallback(async () => {
+        console.log("[DEBUG] UserDataContext: forceRefetch called.");
+        setHasFetched(false);
+    }, []);
 
 
     // --- Firestore Synchronization Logic ---
@@ -204,13 +215,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         console.log("[DEBUG] UserDataContext: Logout initiated.");
         isLoggingOut.current = true;
         
-        // Immediately clear local state to prevent any further data fetches for the old user.
         setUserProfile({});
         setPracticeHistory({});
         setSyncLiveUsage(0);
         setHasFetched(false); 
         
-        // Explicitly clear localStorage for a clean slate
         if(typeof window !== 'undefined') {
             window.localStorage.removeItem('userProfile');
             window.localStorage.removeItem('practiceHistory');
@@ -224,6 +233,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         console.log("[DEBUG] UserDataContext: Logout complete and local state cleared.");
     }, [debouncedCommitToFirestore, setUserProfile, setPracticeHistory]);
 
+    const fetchUserProfile = useCallback(async () => {
+        // Renaming this to avoid confusion with the internal fetchAllData
+        await fetchAllData();
+    }, [fetchAllData]);
+
     const updateSyncLiveUsage = useCallback((durationMs: number): number => {
         if (!user || !settings) return 0;
         
@@ -231,7 +245,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const newTotalUsage = currentTotalUsage + durationMs;
         
         pendingUsageSync.duration += durationMs;
-        setSyncLiveUsage(newTotalUsage); // Optimistically update local state for immediate UI feedback
+        setSyncLiveUsage(newTotalUsage);
 
         const freeMinutesMs = (settings.freeSyncLiveMinutes || 0) * 60 * 1000;
         const costPerMinute = settings.costPerSyncLiveMinute || 1;
@@ -353,7 +367,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
         const userDocRef = doc(db, 'users', user.uid);
         
-        // Fetch the latest user profile to ensure data is current
         const userDocSnap = await getDoc(userDocRef);
         const currentProfile = userDocSnap.data() as UserProfile | undefined;
         if (!currentProfile) return;
@@ -361,9 +374,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         let { syncOnlineUsage = 0, syncOnlineUsageLastReset, tokenBalance = 0 } = currentProfile;
         
         const now = new Date();
-        const lastReset = syncOnlineUsageLastReset?.toDate() ?? new Date(0); // If never reset, use epoch
+        const lastReset = syncOnlineUsageLastReset?.toDate() ?? new Date(0);
 
-        // Reset usage if it's a new month
         if (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
             syncOnlineUsage = 0;
             syncOnlineUsageLastReset = Timestamp.fromDate(now);
@@ -379,16 +391,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (cost > tokenBalance) {
-            cost = tokenBalance; // Don't charge more than they have
+            cost = tokenBalance;
         }
         
         const batch = writeBatch(db);
 
-        // Update payload for Firestore
         const updatePayload: Record<string, any> = {
             syncOnlineUsage: increment(durationMs)
         };
-        // Only set the reset date if it's a new month
         if (syncOnlineUsage === 0) {
             updatePayload.syncOnlineUsageLastReset = syncOnlineUsageLastReset;
         }
@@ -399,7 +409,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
         batch.update(userDocRef, updatePayload);
 
-        // Add transaction log if a cost was incurred
         if (cost > 0) {
             const logRef = doc(collection(userDocRef, 'transactionLogs'));
             batch.set(logRef, {
@@ -413,7 +422,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         try {
             await batch.commit();
-            // Optimistically update local state after successful commit
             setUserProfile(p => ({
                 ...p,
                 tokenBalance: (p.tokenBalance || 0) - cost,
@@ -435,6 +443,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         syncLiveUsage,
         fetchUserProfile,
         logout,
+        forceRefetch,
         recordPracticeAttempt,
         getTopicStats,
         spendTokensForTranslation,
@@ -454,5 +463,3 @@ export const useUserData = () => {
     }
     return context;
 };
-
-    
