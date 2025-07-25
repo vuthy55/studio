@@ -29,14 +29,16 @@ export default function NotificationsPage() {
         }
 
         const notificationsRef = collection(db, 'notifications');
+        // The query is now simpler and does not require a custom index.
         const q = query(
             notificationsRef,
-            where("userId", "==", user.uid),
-            orderBy("createdAt", "desc")
+            where("userId", "==", user.uid)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            // We sort the notifications on the client side after fetching.
+            fetchedNotifications.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
             setNotifications(fetchedNotifications);
             setIsLoading(false);
         }, (error) => {
@@ -153,4 +155,3 @@ export default function NotificationsPage() {
         </div>
     );
 }
-
