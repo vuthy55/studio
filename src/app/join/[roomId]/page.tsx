@@ -81,6 +81,16 @@ export default function JoinRoomPage() {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             const userProfileDoc = await getDoc(doc(db, 'users', user.uid));
             const userProfile = userProfileDoc.data();
+            
+            // Handle referral for existing users joining a room via a referral link
+            if (referralId && user.email) {
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists() && !userDoc.data().referredBy) {
+                    await processReferral(referralId, { uid: user.uid, name: user.displayName || 'New User', email: user.email! });
+                    await setDoc(doc(db, 'users', user.uid), { referredBy: referralId }, { merge: true });
+                }
+            }
+
 
             const participantData: Participant = {
                 uid: user.uid,
@@ -100,7 +110,7 @@ export default function JoinRoomPage() {
              toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details or join the room.' });
              setIsSubmitting(false);
         }
-    }, [roomId, router, toast, spokenLanguage]);
+    }, [roomId, router, toast, spokenLanguage, referralId]);
 
 
     useEffect(() => {
