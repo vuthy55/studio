@@ -1,21 +1,41 @@
+
 "use client";
 
-import { useState, memo, useEffect } from 'react';
+import { useState, memo, useEffect, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
-import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
-import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
-import SyncLiveContent from '@/components/synchub/SyncLiveContent';
 import MainHeader from '@/components/layout/MainHeader';
+import { LoaderCircle } from 'lucide-react';
 
-// Memoize the components to prevent unnecessary re-renders when the tab changes.
-// By defining them here as stable constants, we ensure React doesn't unmount them.
+// Default tab is loaded statically for instant display.
 const MemoizedLearnPage = memo(LearnPageContent);
-const MemoizedLiveTranslation = memo(LiveTranslationContent);
-const MemoizedSyncLive = memo(SyncLiveContent);
-const MemoizedSyncOnline = memo(SyncOnlineHome);
+
+// Other tabs are lazy-loaded to speed up the initial page load.
+const LoadingSpinner = () => (
+    <div className="flex justify-center items-center h-64">
+        <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+    </div>
+);
+
+const DynamicSyncLive = dynamic(() => import('@/components/synchub/SyncLiveContent'), {
+    suspense: true,
+    loading: () => <LoadingSpinner />,
+});
+const DynamicLiveTranslation = dynamic(() => import('@/components/synchub/LiveTranslationContent'), {
+    suspense: true,
+    loading: () => <LoadingSpinner />,
+});
+const DynamicSyncOnline = dynamic(() => import('@/components/synchub/SyncOnlineHome'), {
+    suspense: true,
+    loading: () => <LoadingSpinner />,
+});
+
+const MemoizedSyncLive = memo(DynamicSyncLive);
+const MemoizedLiveTranslation = memo(DynamicLiveTranslation);
+const MemoizedSyncOnline = memo(DynamicSyncOnline);
 
 
 export default function SyncHubPage() {
@@ -35,21 +55,27 @@ export default function SyncHubPage() {
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
-                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
+                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
                 <TabsContent value="prep-vibe" className="mt-6">
                     <MemoizedLearnPage />
                 </TabsContent>
-                <TabsContent value="live-translation" className="mt-6">
-                   <MemoizedLiveTranslation />
-                </TabsContent>
                 <TabsContent value="sync-live" className="mt-6">
-                   <MemoizedSyncLive />
+                   <Suspense fallback={<LoadingSpinner />}>
+                        <MemoizedSyncLive />
+                   </Suspense>
+                </TabsContent>
+                <TabsContent value="live-translation" className="mt-6">
+                   <Suspense fallback={<LoadingSpinner />}>
+                        <MemoizedLiveTranslation />
+                   </Suspense>
                 </TabsContent>
                 <TabsContent value="sync-online" className="mt-6">
-                    <MemoizedSyncOnline />
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <MemoizedSyncOnline />
+                    </Suspense>
                 </TabsContent>
             </Tabs>
         </div>
