@@ -58,7 +58,6 @@ import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sendRoomInviteEmail } from '@/actions/email';
-import { runTestAction } from '@/actions/test-action';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -912,9 +911,9 @@ export default function SyncOnlineHome() {
 
         setIsSubmitting(true);
         try {
-            await runTestAction();
             const finalScheduledDate = startNow ? new Date() : scheduledDate!;
-
+            const newRoomRef = doc(collection(db, 'syncRooms'));
+            
             if (isEditMode && editingRoom) {
                  if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
                     toast({ variant: "destructive", title: "Insufficient Tokens", description: `You need ${calculatedCost - ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0))} more tokens.` });
@@ -945,7 +944,6 @@ export default function SyncOnlineHome() {
                     return;
                 }
                 const batch = writeBatch(db);
-                const newRoomRef = doc(collection(db, 'syncRooms'));
                 const newPaymentLogRef = doc(collection(db, 'users', user.uid, 'transactionLogs'));
                 
                 const newRoom: Omit<SyncRoom, 'id'> = {
@@ -976,8 +974,20 @@ export default function SyncOnlineHome() {
                 });
                 
                 await batch.commit();
+
+                // Send email invites
+                if (parsedInviteeEmails.length > 0) {
+                    console.log("[DEBUG] SyncOnlineHome: Calling sendRoomInviteEmail");
+                    await sendRoomInviteEmail({
+                        to: parsedInviteeEmails,
+                        roomTopic: roomTopic,
+                        creatorName: user.displayName || 'A user',
+                        scheduledAt: finalScheduledDate,
+                        joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
+                    });
+                }
                 
-                toast({ title: "Room Scheduled!", description: "Your new room is available and invites will be sent." });
+                toast({ title: "Room Scheduled!", description: "Invites have been sent." });
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
                 }
