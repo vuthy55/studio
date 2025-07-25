@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,7 @@ import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
-import { deleteUsers, clearAllReferralData } from '@/actions/admin';
+import { deleteUsers, clearAllReferralData, clearAllNotifications } from '@/actions/admin';
 import { getReferralLedger, type ReferralLedgerEntry } from '@/actions/referrals';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
@@ -1438,6 +1438,7 @@ function BulkActionsContent() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [clearReferralsOpen, setClearReferralsOpen] = useState(false);
+    const [clearNotificationsOpen, setClearNotificationsOpen] = useState(false);
 
     const handleClearReferrals = async () => {
         setIsLoading(true);
@@ -1449,6 +1450,18 @@ function BulkActionsContent() {
         }
         setIsLoading(false);
         setClearReferralsOpen(false);
+    };
+    
+    const handleClearNotifications = async () => {
+        setIsLoading(true);
+        const result = await clearAllNotifications();
+        if (result.success) {
+            toast({ title: "Success", description: "All notification data has been cleared." });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not clear notification data.' });
+        }
+        setIsLoading(false);
+        setClearNotificationsOpen(false);
     };
 
     return (
@@ -1489,6 +1502,37 @@ function BulkActionsContent() {
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                             <AlertDialogAction onClick={handleClearReferrals} disabled={isLoading}>
+                                                {isLoading && <LoaderCircle className="animate-spin mr-2" />}
+                                                Confirm & Delete
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                     <AccordionItem value="clear-notifications">
+                        <AccordionTrigger>Clear All Notifications</AccordionTrigger>
+                        <AccordionContent>
+                            <div className="p-4 space-y-4">
+                                <p className="text-sm text-muted-foreground">This will permanently delete all records from the `notifications` collection for all users. This action is irreversible.</p>
+                                <AlertDialog open={clearNotificationsOpen} onOpenChange={setClearNotificationsOpen}>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" disabled={isLoading}>
+                                            <BellOff className="mr-2" />
+                                            {isLoading ? 'Clearing...' : 'Clear All Notifications'}
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete all notifications for every user in the system. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleClearNotifications} disabled={isLoading}>
                                                 {isLoading && <LoaderCircle className="animate-spin mr-2" />}
                                                 Confirm & Delete
                                             </AlertDialogAction>
@@ -1732,8 +1776,10 @@ function ReferralsTabContent() {
     }, [toast]);
 
      useEffect(() => {
-        if (debouncedSearchTerm) {
+        if (debouncedSearchTerm && debouncedSearchTerm !== '*' && debouncedSearchTerm.length > 0) {
             fetchLedger(debouncedSearchTerm);
+        } else if (debouncedSearchTerm === '*') {
+            fetchLedger('*');
         } else if (hasSearched) {
             setLedger([]);
             setHasSearched(false);

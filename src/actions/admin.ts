@@ -134,6 +134,21 @@ export async function clearAllReferralData(): Promise<{success: boolean, error?:
 }
 
 /**
+ * Clears all notifications from the 'notifications' collection.
+ * This is a destructive action.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function clearAllNotifications(): Promise<{success: boolean, error?: string}> {
+    try {
+        await deleteCollection('notifications', 100);
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error clearing notification data:", error);
+        return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
+
+/**
  * Resets a user's entire practice history by deleting the subcollection.
  * @param {string} userId The ID of the user whose practice history will be cleared.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
