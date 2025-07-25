@@ -140,17 +140,40 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
  * Fetches all referral records for the admin dashboard ledger.
  * @returns {Promise<ReferralLedgerEntry[]>} A promise resolving to an array of ledger entries.
  */
-export async function getReferralLedger(): Promise<ReferralLedgerEntry[]> {
+export async function getReferralLedger(emailFilter: string = ''): Promise<ReferralLedgerEntry[]> {
     try {
         const referralsRef = db.collection('referrals');
-        const q = referralsRef.where('status', '==', 'complete').orderBy('createdAt', 'desc');
-        const snapshot = await q.get();
+        let querySnapshot;
 
-        if (snapshot.empty) {
+        if (emailFilter && emailFilter !== '*') {
+            const lowercasedEmail = emailFilter.toLowerCase().trim();
+            // Firestore doesn't support OR queries on different fields.
+            // We must perform two separate queries and merge the results.
+            const referrerQuery = referralsRef.where('referrerEmail', '==', lowercasedEmail);
+            const referredQuery = referralsRef.where('referredEmail', '==', lowercasedEmail);
+            
+            const [referrerSnapshot, referredSnapshot] = await Promise.all([
+                getDocs(referrerQuery),
+                getDocs(referredQuery),
+            ]);
+            
+            const combinedDocs = new Map();
+            referrerSnapshot.forEach(doc => combinedDocs.set(doc.id, doc));
+            referredSnapshot.forEach(doc => combinedDocs.set(doc.id, doc));
+            
+            const uniqueDocs = Array.from(combinedDocs.values());
+            querySnapshot = { docs: uniqueDocs, empty: uniqueDocs.length === 0 };
+
+        } else {
+            const q = referralsRef.where('status', '==', 'complete').orderBy('createdAt', 'desc');
+            querySnapshot = await getDocs(q);
+        }
+        
+        if (querySnapshot.empty) {
             return [];
         }
 
-        return snapshot.docs.map(doc => {
+        const entries = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -165,6 +188,14 @@ export async function getReferralLedger(): Promise<ReferralLedgerEntry[]> {
                 createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
             };
         });
+        
+        // Sort manually if we merged queries, as we can't order by creation time in that case.
+        if (emailFilter && emailFilter !== '*') {
+            entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+
+        return entries;
+
     } catch (error) {
         console.error("Error fetching referral ledger:", error);
         return [];

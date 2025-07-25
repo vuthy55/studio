@@ -1740,29 +1740,55 @@ function ReferralsTabContent() {
     const { toast } = useToast();
     const [ledger, setLedger] = useState<ReferralLedgerEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const [hasSearched, setHasSearched] = useState(false);
 
-    const fetchLedger = useCallback(async () => {
-        setIsLoading(true);
+    const fetchLedger = useCallback(async (searchQuery = '') => {
+        setIsSearching(true);
+        if (searchQuery) setHasSearched(true);
+
         try {
-            const data = await getReferralLedger();
+            const data = await getReferralLedger(searchQuery);
             setLedger(data);
         } catch (error) {
             console.error("Error fetching referral ledger:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch the referral ledger.' });
         } finally {
             setIsLoading(false);
+            setIsSearching(false);
         }
     }, [toast]);
 
     useEffect(() => {
-        fetchLedger();
+        // Initial fetch for wildcard
+        fetchLedger('*');
     }, [fetchLedger]);
+
+    useEffect(() => {
+        if (debouncedSearchTerm) {
+            fetchLedger(debouncedSearchTerm);
+        } else {
+            setLedger([]);
+            setHasSearched(false);
+        }
+    }, [debouncedSearchTerm, fetchLedger]);
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Referral Ledger</CardTitle>
                 <CardDescription>A log of all successful referrals and the bonuses awarded.</CardDescription>
+                 <div className="relative pt-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by referrer or new user email, or use * for all"
+                        className="pl-10"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="border rounded-md min-h-[200px]">
@@ -1776,7 +1802,7 @@ function ReferralsTabContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? (
+                            {isSearching ? (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
                                         <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
@@ -1804,7 +1830,7 @@ function ReferralsTabContent() {
                              ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
-                                        No referral records found.
+                                        {hasSearched ? 'No records found for your search.' : 'Enter a search term to begin.'}
                                     </TableCell>
                                 </TableRow>
                             )}
