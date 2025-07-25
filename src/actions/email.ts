@@ -33,7 +33,7 @@ export async function sendRoomInviteEmail({
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'VibeSync <noreply@yourdomain.com>',
+      from: 'VibeSync <onboarding@resend.dev>',
       to: to,
       subject: `You're invited to a VibeSync Room: ${roomTopic}`,
       html: `
