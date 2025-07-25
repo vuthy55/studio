@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon } from 'lucide-react';
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -1021,6 +1021,12 @@ export default function SyncOnlineHome() {
         return now >= scheduledTime - gracePeriod;
     };
 
+    const copyInviteLink = (roomId: string) => {
+        const link = `${window.location.origin}/join/${roomId}`;
+        navigator.clipboard.writeText(link);
+        toast({ title: 'Invite Link Copied!', description: 'You can now share this link with anyone.' });
+    };
+
 
     if (loading) {
         return (
@@ -1096,7 +1102,10 @@ export default function SyncOnlineHome() {
                                     )}
                                     
                                     {isCreator && room.status === 'scheduled' && (
-                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                        <>
+                                            <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id)}><LinkIcon className="h-4 w-4"/></Button>
+                                            <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                        </>
                                     )}
 
                                     {room.summary && (
