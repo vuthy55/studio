@@ -118,16 +118,14 @@ export function AppSidebar() {
              </>
           )}
 
-          {/* Test page, only visible to the specified admin */}
-          {user?.email === 'thegreenhomecommunity@gmail.com' && (
-            <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/test'}>
-                    <Link href="/test" onClick={closeSidebar}>
-                        <TestTube /> Test
-                    </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          {/* Test page, visible to all users */}
+          <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === '/test'}>
+                  <Link href="/test" onClick={closeSidebar}>
+                      <TestTube /> Test
+                  </Link>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
 
         </SidebarMenu>
       </SidebarContent>

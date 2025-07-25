@@ -20,19 +20,17 @@ import { useToast } from '@/hooks/use-toast';
 
 
 function EmailTest() {
-    const [user] = useAuthState(auth);
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSendTestEmail = async () => {
-        if (!user || !user.email) {
-            toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to send a test email.' });
-            return;
-        }
         setIsLoading(true);
         try {
+            // Hardcode the recipient for testing purposes since user might not be logged in.
+            const testRecipient = 'test@example.com'; 
+            
             const result = await sendRoomInviteEmail({
-                to: [user.email],
+                to: [testRecipient],
                 roomTopic: 'Test Room from VibeSync',
                 creatorName: 'VibeSync Test Suite',
                 scheduledAt: new Date(),
@@ -40,7 +38,7 @@ function EmailTest() {
             });
 
             if (result.success) {
-                toast({ title: 'Test Email Sent', description: `An email has been sent to ${user.email}. Check your server logs for details.` });
+                toast({ title: 'Test Email Sent', description: `An email has been sent to ${testRecipient}. Check your server logs for details.` });
             } else {
                 toast({ variant: 'destructive', title: 'Test Failed', description: result.error || 'The email could not be sent. Check server logs.' });
             }
@@ -58,13 +56,13 @@ function EmailTest() {
             <CardHeader>
                 <CardTitle>Resend Email Service Test</CardTitle>
                 <CardDescription>
-                    Click the button to send a test email to your own account. This verifies that the Resend API key and service are configured correctly. Check the server console logs for a detailed output.
+                    Click the button to send a test email. This verifies that the Resend API key and service are configured correctly. Check the server terminal console for a detailed output.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <Button onClick={handleSendTestEmail} disabled={isLoading || !user} className="w-full">
+                <Button onClick={handleSendTestEmail} disabled={isLoading} className="w-full">
                     {isLoading ? <LoaderCircle className="animate-spin" /> : <Send />}
-                    {user ? 'Send Test Email' : 'Log in to send test email'}
+                    Send Test Email
                 </Button>
             </CardContent>
         </Card>
