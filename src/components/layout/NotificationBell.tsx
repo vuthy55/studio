@@ -48,7 +48,9 @@ export default function NotificationBell() {
 
     useEffect(() => {
         // Initialize the Audio object on the client side only
-        audioRef.current = new Audio(notificationSound);
+        if (typeof window !== 'undefined') {
+            audioRef.current = new Audio(notificationSound);
+        }
     }, []);
 
     const unreadCount = invitations.length + generalNotifications.filter(n => !n.read).length;
