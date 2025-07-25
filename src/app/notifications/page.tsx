@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, writeBatch } from 'firebase/firestore';
-import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle } from 'lucide-react';
+import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle, Award } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -69,6 +69,8 @@ export default function NotificationsPage() {
         switch (type) {
             case 'p2p_transfer':
                 return <Gift className="h-5 w-5 text-primary" />;
+            case 'referral_bonus':
+                return <Award className="h-5 w-5 text-amber-500" />;
             case 'buddy_request':
             case 'buddy_request_accepted':
                 return <UserPlus className="h-5 w-5 text-blue-500" />;
@@ -93,6 +95,7 @@ export default function NotificationsPage() {
         }
         switch (notification.type) {
             case 'p2p_transfer':
+            case 'referral_bonus':
                 return { href: '/profile?tab=wallet', isExternal: false };
              case 'buddy_request':
              case 'buddy_request_accepted':

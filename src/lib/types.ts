@@ -141,7 +141,7 @@ export interface UserProfile {
   buddyRequests?: BuddyRequest[];
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request' | 'buddy_request_accepted' | 'buddy_alert';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request' | 'buddy_request_accepted' | 'buddy_alert' | 'referral_bonus';
 
 export type Notification = {
     id: string;

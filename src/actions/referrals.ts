@@ -127,6 +127,17 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
         status: 'complete',
         createdAt: db.FieldValue.serverTimestamp(),
       });
+      
+      // 4. Create notification for the referrer
+      const notificationRef = db.collection('notifications').doc();
+      transaction.set(notificationRef, {
+        userId: referrerUid,
+        type: 'referral_bonus',
+        message: `You earned ${bonusAmount} tokens! ${newUser.name} just signed up with your link.`,
+        fromUserName: 'VibeSync System',
+        createdAt: db.FieldValue.serverTimestamp(),
+        read: false,
+      });
 
 
       return { success: true };

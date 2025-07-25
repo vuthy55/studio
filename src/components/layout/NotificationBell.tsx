@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus, AlertTriangle } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus, AlertTriangle, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -88,6 +88,8 @@ export default function NotificationBell() {
         switch (type) {
             case 'p2p_transfer':
                 return <Gift className="h-4 w-4 text-primary" />;
+            case 'referral_bonus':
+                 return <Award className="h-4 w-4 text-amber-500" />;
             case 'buddy_request':
             case 'buddy_request_accepted':
                 return <UserPlus className="h-4 w-4 text-blue-500" />;
@@ -112,6 +114,7 @@ export default function NotificationBell() {
         }
         switch (notification.type) {
             case 'p2p_transfer':
+            case 'referral_bonus':
                 return '/profile?tab=wallet';
              case 'buddy_request':
              case 'buddy_request_accepted':
