@@ -82,26 +82,25 @@ function BuddyAlertButton() {
 
   return (
     <AlertDialog onOpenChange={(open) => !open && setIsSendingAlert(false)}>
-      <TooltipProvider>
-        <Tooltip>
-          <AlertDialogTrigger asChild>
+      <AlertDialogTrigger asChild>
+        <TooltipProvider>
+          <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                variant="default" 
-                size="icon" 
-                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white" 
+              <Button
+                variant="default"
+                size="icon"
+                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
                 disabled={isSendingAlert}
-                aria-label="Send a Buddy Alert"
               >
                 {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
               </Button>
             </TooltipTrigger>
-          </AlertDialogTrigger>
-          <TooltipContent side="right">
-            <p>Send Buddy Alert</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+            <TooltipContent side="right">
+              <p>Send Buddy Alert</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
@@ -240,7 +239,6 @@ export function AppSidebar() {
         <div className="flex items-center justify-start gap-2 w-full">
             {user ? (
                  <>
-                    <BuddyAlertButton />
                     <TooltipProvider>
                       <Tooltip>
                           <TooltipTrigger asChild>
@@ -253,6 +251,7 @@ export function AppSidebar() {
                     </TooltipProvider>
                     <BuyTokens variant="icon" />
                     <DonateButton variant="icon" />
+                    <BuddyAlertButton />
                  </>
             ) : (
                 <>
