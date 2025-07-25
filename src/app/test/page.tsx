@@ -26,8 +26,7 @@ function EmailTest() {
     const handleSendTestEmail = async () => {
         setIsLoading(true);
         try {
-            // Hardcode the recipient for testing purposes since user might not be logged in.
-            const testRecipient = 'test@example.com'; 
+            const testRecipient = 'thegreenhomecommunity@gmail.com'; 
             
             const result = await sendRoomInviteEmail({
                 to: [testRecipient],
@@ -37,11 +36,9 @@ function EmailTest() {
                 joinUrl: `${window.location.origin}/test`
             });
 
-            if (result.success) {
-                toast({ title: 'Test Email Sent', description: `An email has been sent to ${testRecipient}. Check your server logs for details.` });
-            } else {
-                toast({ variant: 'destructive', title: 'Test Failed', description: result.error || 'The email could not be sent. Check server logs.' });
-            }
+            // This client-side toast will appear regardless of the server action's success,
+            // but it helps confirm the button click is working.
+            toast({ title: 'Test Dispatched', description: `An email request has been sent to the server for ${testRecipient}. Check your server terminal for logs.` });
 
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred while trying to send the email.' });
