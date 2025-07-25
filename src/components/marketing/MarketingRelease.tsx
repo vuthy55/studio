@@ -28,11 +28,11 @@ export default function MarketingRelease() {
         </div>
         <div>
             <Image 
-                src="https://placehold.co/600x400.png"
-                alt="Backpackers using VibeSync"
+                src="https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=2073&auto=format&fit=crop"
+                alt="Backpackers enjoying a scenic view"
                 width={600}
                 height={400}
-                className="rounded-lg shadow-xl"
+                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
                 data-ai-hint="backpackers travel"
             />
         </div>
