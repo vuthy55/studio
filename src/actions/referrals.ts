@@ -41,8 +41,8 @@ export async function processNewUserAndReferral(
   console.log('[DEBUG] processNewUserAndReferral: Triggered.');
   console.log(`[DEBUG] New User: ${JSON.stringify(newUser)}, Referrer UID: ${referrerUid}`);
 
-  if (!newUser?.uid) {
-    return { success: false, error: 'New user info is required.' };
+  if (!newUser?.uid || !newUser.email) {
+    return { success: false, error: 'New user info (UID and Email) is required.' };
   }
 
   const newUserRef = db.collection('users').doc(newUser.uid);
@@ -57,12 +57,13 @@ export async function processNewUserAndReferral(
       const newUserDoc = await transaction.get(newUserRef);
       if (newUserDoc.exists) {
         console.error(`[DEBUG] Error: User ${newUser.uid} already exists.`);
+        // Don't throw, just return failure. This is a valid outcome if there's a race condition.
         return { success: false, error: 'User already exists.' };
       }
 
       // 1. Create the new user's document
       const newUserPayload: any = {
-        name: newUser.name,
+        name: newUser.name || '',
         email: newUser.email.toLowerCase(),
         country: userData.country,
         mobile: userData.mobile,
@@ -71,8 +72,8 @@ export async function processNewUserAndReferral(
         tokenBalance: signupBonus,
         syncLiveUsage: 0,
         syncOnlineUsage: 0,
-        searchableName: newUser.name.toLowerCase(),
-        searchableEmail: newUser.email.toLowerCase(),
+        searchableName: (newUser.name || '').toLowerCase(),
+        searchableEmail: (newUser.email || '').toLowerCase(),
         createdAt: db.FieldValue.serverTimestamp(),
       };
       
@@ -112,7 +113,7 @@ export async function processNewUserAndReferral(
             actionType: 'referral_bonus',
             tokenChange: bonusAmount,
             timestamp: db.FieldValue.serverTimestamp(),
-            description: `Bonus for referring new user: ${newUser.name}`,
+            description: `Bonus for referring new user: ${newUser.name || newUser.email}`,
           });
           
           // Create a permanent, detailed referral record
@@ -123,7 +124,7 @@ export async function processNewUserAndReferral(
             referrerName: referrerData.name,
             referredUid: newUser.uid,
             referredEmail: newUser.email,
-            referredName: newUser.name,
+            referredName: newUser.name || newUser.email,
             bonusAwarded: bonusAmount,
             status: 'complete',
             createdAt: db.FieldValue.serverTimestamp(),
@@ -134,7 +135,7 @@ export async function processNewUserAndReferral(
           transaction.set(notificationRef, {
             userId: referrerUid,
             type: 'referral_bonus',
-            message: `You earned ${bonusAmount} tokens! ${newUser.name} just signed up with your link.`,
+            message: `You earned ${bonusAmount} tokens! ${newUser.name || newUser.email} just signed up with your link.`,
             fromUserName: 'VibeSync System',
             createdAt: db.FieldValue.serverTimestamp(),
             read: false,
@@ -270,3 +271,5 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
         return [];
     }
 }
+
+    
