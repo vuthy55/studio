@@ -154,26 +154,30 @@ export default function NotificationBell() {
         const combined: DisplayNotification[] = [];
 
         generalNotifications.forEach(n => {
-            combined.push({
-                id: n.id,
-                type: 'general',
-                text: n.message,
-                timestamp: n.createdAt,
-                read: n.read,
-                href: getNotificationLink(n),
-                originalNotification: n
-            });
+            if (n.createdAt) { // Guard against null timestamps
+                combined.push({
+                    id: n.id,
+                    type: 'general',
+                    text: n.message,
+                    timestamp: n.createdAt,
+                    read: n.read,
+                    href: getNotificationLink(n),
+                    originalNotification: n
+                });
+            }
         });
 
         invitations.forEach(inv => {
-            combined.push({
-                id: inv.id,
-                type: 'invitation',
-                text: `You're invited to join "${inv.topic}"`,
-                timestamp: inv.createdAt,
-                read: false, // Invitations are always "unread" in this context
-                href: `/sync-room/${inv.id}`,
-            });
+             if (inv.createdAt) { // Guard against null timestamps
+                combined.push({
+                    id: inv.id,
+                    type: 'invitation',
+                    text: `You're invited to join "${inv.topic}"`,
+                    timestamp: inv.createdAt,
+                    read: false, // Invitations are always "unread" in this context
+                    href: `/sync-room/${inv.id}`,
+                });
+            }
         });
 
         return combined.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
