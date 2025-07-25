@@ -80,7 +80,11 @@ export async function getReferredUsers(referrerUid: string): Promise<ReferredUse
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
 export async function processReferral(referrerUid: string, newUser: {uid: string; name: string; email: string}): Promise<{success: boolean, error?: string}> {
+  console.log('[DEBUG] processReferral: Triggered.');
+  console.log(`[DEBUG] processReferral: Referrer UID: ${referrerUid}, New User: ${JSON.stringify(newUser)}`);
+
   if (!referrerUid || !newUser?.uid) {
+    console.error('[DEBUG] processReferral: Error - Missing referrerUid or newUser info.');
     return { success: false, error: 'Referrer UID and new user info are required.' };
   }
 
@@ -88,25 +92,31 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
 
   try {
     // Fetch settings BEFORE starting the transaction
+    console.log('[DEBUG] processReferral: Fetching app settings...');
     const appSettings = await getAppSettingsAction();
     const bonusAmount = appSettings.referralBonus;
+    console.log(`[DEBUG] processReferral: Got referral bonus amount: ${bonusAmount}`);
 
     return await db.runTransaction(async (transaction) => {
+      console.log('[DEBUG] processReferral: Starting Firestore transaction.');
       const referrerDoc = await transaction.get(referrerRef);
+      
       if (!referrerDoc.exists) {
-        // Referrer might have deleted their account.
-        console.warn(`Referrer with UID ${referrerUid} not found. Cannot award bonus.`);
+        console.error(`[DEBUG] processReferral: Error - Referrer with UID ${referrerUid} not found.`);
         return { success: false, error: "Referrer account not found." };
       }
       const referrerData = referrerDoc.data()!;
+      console.log(`[DEBUG] processReferral: Found referrer: ${referrerData.email}`);
       
       // 1. Award bonus to the referrer
+      console.log(`[DEBUG] processReferral: Updating referrer tokenBalance by ${bonusAmount}.`);
       transaction.update(referrerRef, {
         tokenBalance: db.FieldValue.increment(bonusAmount),
       });
 
       // 2. Add transaction log for the referrer
       const logRef = referrerRef.collection('transactionLogs').doc();
+      console.log('[DEBUG] processReferral: Setting referrer transaction log.');
       transaction.set(logRef, {
         actionType: 'referral_bonus',
         tokenChange: bonusAmount,
@@ -116,6 +126,7 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
       
       // 3. Create a permanent, detailed referral record for the admin ledger
       const referralLedgerRef = db.collection('referrals').doc(`${referrerUid}_${newUser.uid}`);
+      console.log('[DEBUG] processReferral: Setting central referral ledger record.');
       transaction.set(referralLedgerRef, {
         referrerUid: referrerUid,
         referrerEmail: referrerData.email,
@@ -130,6 +141,7 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
       
       // 4. Create notification for the referrer
       const notificationRef = db.collection('notifications').doc();
+      console.log(`[DEBUG] processReferral: Creating notification for referrer ${referrerUid}.`);
       transaction.set(notificationRef, {
         userId: referrerUid,
         type: 'referral_bonus',
@@ -139,11 +151,11 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
         read: false,
       });
 
-
+      console.log('[DEBUG] processReferral: Transaction operations defined. Ready to commit.');
       return { success: true };
     });
   } catch (error: any) {
-    console.error(`Error processing referral for referrer ${referrerUid}:`, error);
+    console.error(`[DEBUG] processReferral: CRITICAL ERROR in transaction for referrer ${referrerUid}:`, error);
     return { success: false, error: 'Failed to process referral on the server.' };
   }
 }
