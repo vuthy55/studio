@@ -84,6 +84,7 @@ export default function JoinRoomPage() {
             
             // Handle referral for existing users joining a room via a referral link
             if (referralId && user.email) {
+                console.log("[DEBUG] fetchRoomAndRedirect: Processing referral for existing user.");
                 const userDoc = await getDoc(doc(db, 'users', user.uid));
                 if (userDoc.exists() && !userDoc.data().referredBy) {
                     await processReferral(referralId, { uid: user.uid, name: user.displayName || 'New User', email: user.email! });
