@@ -20,7 +20,7 @@ import { useUserData } from '@/context/UserDataContext';
 import DonateButton from '../DonateButton';
 import BuyTokens from '../BuyTokens';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import React, { useState } from 'react';
 import { sendBuddyAlert } from '@/actions/friends';
 import { cn } from '@/lib/utils';
@@ -30,11 +30,13 @@ function BuddyAlertButton() {
   const { user, userProfile } = useUserData();
   const { toast } = useToast();
   const [isSendingAlert, setIsSendingAlert] = useState(false);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
   const buddiesCount = userProfile?.buddies?.length || 0;
 
   const handleSendBuddyAlert = () => {
     if (!user) return;
     setIsSendingAlert(true);
+    setIsAlertOpen(false); // Close the dialog immediately
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -81,40 +83,41 @@ function BuddyAlertButton() {
   }
 
   return (
-    <AlertDialog>
+    <>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="default"
-                size="icon"
-                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-                disabled={isSendingAlert}
-              >
-                {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-                <span className="sr-only">Buddy Alert</span>
-              </Button>
-            </AlertDialogTrigger>
+            <Button
+              onClick={() => setIsAlertOpen(true)}
+              variant="default"
+              size="icon"
+              className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
+              disabled={isSendingAlert}
+            >
+              {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+              <span className="sr-only">Buddy Alert</span>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
             <p>Buddy Alert</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This will send an in-app notification with your current location to all {buddiesCount} of your buddies. This is not an emergency SOS.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleSendBuddyAlert}>Confirm & Send</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send an in-app notification with your current location to all {buddiesCount} of your buddies. This is not an emergency SOS.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSendBuddyAlert}>Confirm & Send</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -237,6 +240,7 @@ export function AppSidebar() {
         <div className="flex items-center justify-start gap-2 w-full">
             {user ? (
                  <>
+                    <BuddyAlertButton />
                     <TooltipProvider>
                       <Tooltip>
                           <TooltipTrigger asChild>
@@ -249,7 +253,6 @@ export function AppSidebar() {
                     </TooltipProvider>
                     <BuyTokens variant="icon" />
                     <DonateButton variant="icon" />
-                    <BuddyAlertButton />
                  </>
             ) : (
                 <>
