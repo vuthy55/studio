@@ -165,7 +165,7 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
             querySnapshot = { docs: uniqueDocs, empty: uniqueDocs.length === 0 };
 
         } else {
-            const q = referralsRef.where('status', '==', 'complete').orderBy('createdAt', 'desc');
+            const q = referralsRef.orderBy('createdAt', 'desc');
             querySnapshot = await q.get();
         }
         
