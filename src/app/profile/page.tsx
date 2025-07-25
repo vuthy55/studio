@@ -5,11 +5,11 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where } from 'firebase/firestore';
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { TransactionLog, PaymentLog } from '@/lib/types';
+import type { TransactionLog, PaymentLog, BuddyRequest } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
@@ -33,6 +33,8 @@ import { anonymizeAndDeactivateUser } from '@/actions/user';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { findUserByEmail } from '@/services/ledger';
+import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy } from '@/actions/friends';
 
 
 export interface PracticeStats {
@@ -44,6 +46,7 @@ export interface PracticeStats {
   };
 }
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   country?: string;
@@ -59,6 +62,8 @@ export interface UserProfile {
   defaultLanguage?: AzureLanguageCode;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  buddies?: string[];
+  buddyRequests?: BuddyRequest[];
 }
 
 function TokenHistoryDialog() {
@@ -294,7 +299,7 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile, fetchUserProfile, logout } = useUserData();
+    const { user, userProfile, logout } = useUserData();
     const { toast } = useToast();
     const router = useRouter();
 
@@ -593,6 +598,155 @@ function PaymentHistorySection() {
     )
 }
 
+function BuddiesSection() {
+    const { user, userProfile, fetchUserProfile } = useUserData();
+    const { toast } = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchResults, setSearchResults] = useState<UserProfile | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const [buddiesDetails, setBuddiesDetails] = useState<UserProfile[]>([]);
+
+    useEffect(() => {
+        const fetchBuddiesDetails = async () => {
+            if (userProfile?.buddies && userProfile.buddies.length > 0) {
+                const buddiesQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.buddies));
+                const snapshot = await getDocs(buddiesQuery);
+                const details = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+                setBuddiesDetails(details);
+            } else {
+                setBuddiesDetails([]);
+            }
+        };
+        fetchBuddiesDetails();
+    }, [userProfile?.buddies]);
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchTerm.trim()) return;
+        setIsSearching(true);
+        const result = await findUserByEmail(searchTerm);
+        setSearchResults(result as UserProfile | null);
+        setIsSearching(false);
+    };
+
+    const handleSendRequest = async (toEmail: string) => {
+        if (!user || !user.displayName || !user.email) return;
+        const result = await sendBuddyRequest({ uid: user.uid, name: user.displayName, email: user.email }, toEmail);
+        if (result.success) {
+            toast({ title: "Request Sent!", description: `Your buddy request to ${toEmail} has been sent.` });
+        } else {
+            toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+    };
+    
+    const handleAcceptRequest = async (request: BuddyRequest) => {
+        if (!user || !user.displayName) return;
+        const result = await acceptBuddyRequest({uid: user.uid, name: user.displayName}, request);
+        if (result.success) {
+            toast({ title: 'Buddy Added!', description: `You are now buddies with ${request.fromName}.`});
+            fetchUserProfile(); // Re-fetch to update lists
+        } else {
+            toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+    };
+    
+    const handleDeclineRequest = async (request: BuddyRequest) => {
+        if (!user) return;
+        const result = await declineBuddyRequest(user.uid, request);
+        if (result.success) {
+            toast({ title: 'Request Declined' });
+            fetchUserProfile();
+        } else {
+            toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+    };
+
+    const handleRemoveBuddy = async (buddyId: string) => {
+        if (!user) return;
+        const result = await removeBuddy(user.uid, buddyId);
+        if (result.success) {
+            toast({ title: "Buddy Removed" });
+            fetchUserProfile();
+        } else {
+            toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader><CardTitle>Find New Buddies</CardTitle></CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSearch} className="flex gap-2">
+                        <Input type="email" placeholder="Enter user's email" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        <Button type="submit" disabled={isSearching}>{isSearching ? <LoaderCircle className="animate-spin" /> : <Search />}</Button>
+                    </form>
+                    {searchResults && (
+                        <div className="mt-4 p-4 border rounded-lg flex justify-between items-center">
+                            <div>
+                                <p className="font-semibold">{searchResults.name}</p>
+                                <p className="text-sm text-muted-foreground">{searchResults.email}</p>
+                            </div>
+                            <Button size="sm" onClick={() => handleSendRequest(searchResults.email)}><UserPlus className="mr-2" /> Add Buddy</Button>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {userProfile?.buddyRequests && userProfile.buddyRequests.length > 0 && (
+                 <Card>
+                    <CardHeader><CardTitle>Incoming Requests</CardTitle></CardHeader>
+                    <CardContent className="space-y-2">
+                        {userProfile.buddyRequests.map(req => (
+                            <div key={req.fromUid} className="p-3 border rounded-lg flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{req.fromName}</p>
+                                    <p className="text-sm text-muted-foreground">{req.fromEmail}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button size="icon" variant="outline" onClick={() => handleAcceptRequest(req)}><UserCheck className="text-green-600" /></Button>
+                                    <Button size="icon" variant="outline" onClick={() => handleDeclineRequest(req)}><XCircle className="text-red-600" /></Button>
+                                </div>
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+
+             <Card>
+                <CardHeader><CardTitle>Your Buddies ({buddiesDetails.length})</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                    {buddiesDetails.length > 0 ? buddiesDetails.map(buddy => (
+                         <div key={buddy.id} className="p-3 border rounded-lg flex justify-between items-center">
+                            <div>
+                                <p className="font-semibold">{buddy.name}</p>
+                                <p className="text-sm text-muted-foreground">{buddy.email}</p>
+                            </div>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="destructive"><UserMinus className="mr-2" /> Remove</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove {buddy.name}?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will remove them from your buddy list. This action does not affect their buddy list.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleRemoveBuddy(buddy.id!)}>Confirm</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    )) : <p className="text-muted-foreground text-center py-4">You haven't added any buddies yet.</p>}
+                </CardContent>
+            </Card>
+
+        </div>
+    )
+}
+
+
 export default function ProfilePage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
@@ -616,8 +770,9 @@ export default function ProfilePage() {
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
+                    <TabsTrigger value="buddies">Buddies</TabsTrigger>
                     <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
                     <TabsTrigger value="billing">Payment History</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
@@ -625,6 +780,9 @@ export default function ProfilePage() {
 
                 <TabsContent value="profile" className="mt-6">
                     <ProfileSection />
+                </TabsContent>
+                <TabsContent value="buddies" className="mt-6">
+                    <BuddiesSection />
                 </TabsContent>
                  <TabsContent value="wallet" className="mt-6">
                     <TokenWalletCard />

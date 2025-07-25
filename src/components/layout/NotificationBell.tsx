@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -88,6 +88,8 @@ export default function NotificationBell() {
         switch (type) {
             case 'p2p_transfer':
                 return <Gift className="h-4 w-4 text-primary" />;
+            case 'buddy_request':
+                return <UserPlus className="h-4 w-4 text-blue-500" />;
             case 'room_closed':
             case 'room_closed_summary':
                 return <LogOut className="h-4 w-4 text-destructive" />;
@@ -103,7 +105,9 @@ export default function NotificationBell() {
     const getNotificationLink = (notification: Notification) => {
         switch (notification.type) {
             case 'p2p_transfer':
-                return '/profile?tab=tokens';
+                return '/profile?tab=wallet';
+             case 'buddy_request':
+                return '/profile?tab=buddies';
             case 'room_closed':
             case 'room_closed_summary':
             case 'edit_request':

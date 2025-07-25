@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, writeBatch } from 'firebase/firestore';
-import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi } from 'lucide-react';
+import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -71,6 +71,8 @@ export default function NotificationsPage() {
         switch (type) {
             case 'p2p_transfer':
                 return <Gift className="h-5 w-5 text-primary" />;
+            case 'buddy_request':
+                return <UserPlus className="h-5 w-5 text-blue-500" />;
             case 'room_closed':
             case 'room_closed_summary':
                 return <LogOut className="h-5 w-5 text-destructive" />;
@@ -86,7 +88,9 @@ export default function NotificationsPage() {
     const getNotificationLink = (notification: Notification) => {
         switch (notification.type) {
             case 'p2p_transfer':
-                return '/profile?tab=tokens';
+                return '/profile?tab=wallet';
+             case 'buddy_request':
+                return '/profile?tab=buddies';
             case 'room_closed':
             case 'room_closed_summary':
             case 'edit_request':
