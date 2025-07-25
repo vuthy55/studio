@@ -1238,7 +1238,6 @@ export default function SyncOnlineHome() {
                                             </div>
                                         )}
                                        
-                                        {!startNow && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <Label htmlFor="duration">Duration (minutes)</Label>
@@ -1247,6 +1246,7 @@ export default function SyncOnlineHome() {
                                                     <SelectContent>{[15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
                                                 </Select>
                                             </div>
+                                            {!startNow && (
                                             <div className="space-y-2">
                                                 <Label>Date &amp; Time</Label>
                                                 <Popover>
@@ -1303,8 +1303,8 @@ export default function SyncOnlineHome() {
                                                     </PopoverContent>
                                                 </Popover>
                                             </div>
+                                             )}
                                         </div>
-                                        )}
                                         
                                         <div className="space-y-2">
                                             <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
