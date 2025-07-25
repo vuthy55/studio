@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoaderCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { processReferral } from '@/actions/referrals';
+import { processNewUserAndReferral } from '@/actions/referrals';
 
 export default function JoinRoomPage() {
     const params = useParams();
@@ -36,7 +36,7 @@ export default function JoinRoomPage() {
     const [roomTopic, setRoomTopic] = useState('a Sync Room'); // Generic topic
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isNewUserFlow, setIsNewUserFlow] = useState(false); // <-- Race condition lock
+    const [isNewUserFlow, setIsNewUserFlow] = useState(false);
     
     const [settings, setSettings] = useState<AppSettings | null>(null);
 
@@ -83,17 +83,6 @@ export default function JoinRoomPage() {
             const userProfileDoc = await getDoc(doc(db, 'users', user.uid));
             const userProfile = userProfileDoc.data();
             
-            // Handle referral for existing users joining a room via a referral link
-            if (referralId && user.email) {
-                console.log("[DEBUG] fetchRoomAndRedirect: Processing referral for existing user.");
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                if (userDoc.exists() && !userDoc.data().referredBy) {
-                    await processReferral(referralId, { uid: user.uid, name: user.displayName || 'New User', email: user.email! });
-                    await setDoc(doc(db, 'users', user.uid), { referredBy: referralId }, { merge: true });
-                }
-            }
-
-
             const participantData: Participant = {
                 uid: user.uid,
                 name: user.displayName || user.email!.split('@')[0],
@@ -117,7 +106,7 @@ export default function JoinRoomPage() {
 
     useEffect(() => {
         console.log(`[DEBUG] Main Effect: Auth loading state is ${authLoading}. User object is ${user ? 'present' : 'null'}.`);
-        if (authLoading || isNewUserFlow) { // <-- Add the lock here
+        if (authLoading || isNewUserFlow) {
             console.log(`[DEBUG] Main Effect: Auth is loading or new user flow is active, waiting...`);
             return; 
         }
@@ -189,10 +178,10 @@ export default function JoinRoomPage() {
             return;
         }
         setIsSubmitting(true);
-        setIsNewUserFlow(true); // <-- Set the lock
+        setIsNewUserFlow(true);
 
         try {
-            // 1. Create user
+            // 1. Create user in Auth
             console.log("[DEBUG] handleSignUpAndJoin: Creating user with email and password.");
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const newUser = userCredential.user;
@@ -201,43 +190,20 @@ export default function JoinRoomPage() {
             console.log("[DEBUG] handleSignUpAndJoin: Updating auth profile.");
             await updateAuthProfile(newUser, { displayName: name });
             
-            // 3. Create Firestore user document with signup bonus
-            console.log("[DEBUG] handleSignUpAndJoin: Creating Firestore user document.");
-            const userDocRef = doc(db, 'users', newUser.uid);
-            const signupBonus = settings?.signupBonus || 100;
-            const userData: any = {
-                name, email: email.toLowerCase(), country, mobile,
-                role: 'user', tokenBalance: signupBonus,
-                syncLiveUsage: 0, syncOnlineUsage: 0,
-                searchableName: name.toLowerCase(),
-                searchableEmail: email.toLowerCase(),
-                createdAt: serverTimestamp(),
-                defaultLanguage: spokenLanguage,
-            };
+            // 3. Create Firestore document and process referral via server action
+            console.log(`[DEBUG] handleSignUpAndJoin: Calling processNewUserAndReferral`);
+            const result = await processNewUserAndReferral(
+                { uid: newUser.uid, name: name, email: email },
+                { country: country, mobile: mobile, defaultLanguage: spokenLanguage },
+                referralId
+            );
 
-            // Add referral info only if it exists
-            if (referralId) {
-                userData.referredBy = referralId;
-            }
-
-            await setDoc(userDocRef, userData);
-
-            // 4. Log signup bonus transaction
-            console.log("[DEBUG] handleSignUpAndJoin: Logging signup bonus.");
-            const logRef = collection(db, 'users', newUser.uid, 'transactionLogs');
-            await addDoc(logRef, {
-                actionType: 'signup_bonus',
-                tokenChange: signupBonus,
-                description: 'Welcome bonus for signing up!'
-            });
-
-            // 5. Handle referral if present
-            if (referralId) {
-                console.log(`[DEBUG] handleSignUpAndJoin: Processing referral for referrer ID: ${referralId}`);
-                await processReferral(referralId, { uid: newUser.uid, name: name, email: email });
+            if (!result.success) {
+                // If the server action fails, we should provide feedback.
+                throw new Error(result.error || "Failed to create your user profile on the server.");
             }
             
-            // 6. Add user to room and redirect
+            // 4. Add user to room and redirect
             console.log("[DEBUG] handleSignUpAndJoin: Calling addUserToRoomAndRedirect.");
             await addUserToRoomAndRedirect(newUser);
 
@@ -245,7 +211,7 @@ export default function JoinRoomPage() {
             console.error("[DEBUG] Sign-up and join error:", error);
             toast({ variant: 'destructive', title: 'Sign-up Failed', description: error.message });
             setIsSubmitting(false);
-            setIsNewUserFlow(false); // <-- Release the lock on error
+            setIsNewUserFlow(false);
         }
     };
 
@@ -337,5 +303,3 @@ export default function JoinRoomPage() {
         </div>
     );
 }
-
-    

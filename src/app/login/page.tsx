@@ -25,7 +25,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import { processReferral } from '@/actions/referrals';
+import { processNewUserAndReferral } from '@/actions/referrals';
+import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,6 +42,7 @@ export default function LoginPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupCountry, setSignupCountry] = useState('');
   const [signupMobile, setSignupMobile] = useState('');
+  const [signupLanguage, setSignupLanguage] = useState<AzureLanguageCode | ''>('');
   
   const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -62,40 +65,6 @@ export default function LoginPage() {
     }
   };
 
-  const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
-    const userDocRef = doc(db, 'users', user.uid);
-    const signupBonus = settings?.signupBonus || 100;
-    
-    const docSnap = await getDoc(userDocRef);
-    const existingData = docSnap.exists() ? docSnap.data() : {};
-    
-    const lowercasedEmail = user.email!.toLowerCase();
-
-    const dataToSave = { 
-        ...existingData,
-        ...data, 
-        email: lowercasedEmail,
-        role: existingData.role || 'user',
-        tokenBalance: existingData.tokenBalance ?? (isNewUser ? signupBonus : 0),
-        syncLiveUsage: existingData.syncLiveUsage || 0,
-        searchableName: (data.name || '').toLowerCase(),
-        searchableEmail: lowercasedEmail,
-    };
-
-    await setDoc(userDocRef, dataToSave, { merge: true });
-
-    // Log the signup bonus transaction for new users
-    if (isNewUser) {
-        const logRef = collection(db, 'users', user.uid, 'transactionLogs');
-        await addDoc(logRef, {
-            actionType: 'signup_bonus',
-            tokenChange: signupBonus,
-            timestamp: serverTimestamp(),
-            description: 'Welcome bonus for signing up!'
-        });
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
@@ -105,22 +74,20 @@ export default function LoginPage() {
 
       const userDocRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(userDocRef);
-      const isNewUser = !docSnap.exists();
       
-      const displayName = user.displayName || 'New User';
-
-      await updateUserProfileInFirestore(user, {
-          name: displayName,
-          country: '', 
-          mobile: user.phoneNumber || '',
-      }, isNewUser);
-
-      if (isNewUser && referralId) {
-        await processReferral(referralId, { uid: user.uid, name: displayName, email: user.email! });
+      if (!docSnap.exists()) {
+        // This is a new user signing up with Google
+        const displayName = user.displayName || 'New User';
+         await processNewUserAndReferral(
+            { uid: user.uid, name: displayName, email: user.email! },
+            { country: '', mobile: user.phoneNumber || '', defaultLanguage: 'en-US' },
+            referralId
+        );
       }
-
+      
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
+
     } catch (error: any) {
       console.error("Google sign-in error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -131,8 +98,8 @@ export default function LoginPage() {
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupCountry) {
-        toast({ variant: "destructive", title: "Error", description: "Please select your country." });
+    if (!signupCountry || !signupLanguage) {
+        toast({ variant: "destructive", title: "Error", description: "Please select your country and default language." });
         return;
     }
     setIsLoading(true);
@@ -142,14 +109,14 @@ export default function LoginPage() {
       
       await updateAuthProfile(user, { displayName: signupName });
 
-      await updateUserProfileInFirestore(user, {
-          name: signupName,
-          country: signupCountry,
-          mobile: signupMobile,
-      }, true); // This is a new user
+      const result = await processNewUserAndReferral(
+        { uid: user.uid, name: signupName, email: signupEmail },
+        { country: signupCountry, mobile: signupMobile, defaultLanguage: signupLanguage },
+        referralId
+      );
 
-      if (referralId) {
-        await processReferral(referralId, { uid: user.uid, name: signupName, email: signupEmail });
+      if (!result.success) {
+        throw new Error(result.error || "Failed to save user profile on the server.");
       }
 
       toast({ title: "Success", description: "Account created successfully." });
@@ -242,6 +209,21 @@ export default function LoginPage() {
                         <div className="space-y-2">
                             <Label htmlFor="signup-password">Password</Label>
                             <Input id="signup-password" type="password" required minLength={6} value={signupPassword} onChange={e => setSignupPassword(e.target.value)} />
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="signup-language">Default Spoken Language</Label>
+                            <Select onValueChange={(v) => setSignupLanguage(v as AzureLanguageCode)} value={signupLanguage} required>
+                                <SelectTrigger id="signup-language">
+                                    <SelectValue placeholder="Select your language..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <ScrollArea className="h-72">
+                                        {azureLanguages.map(lang => (
+                                            <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                        ))}
+                                    </ScrollArea>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="signup-country">Country</Label>
