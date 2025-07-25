@@ -55,17 +55,19 @@ export default function NotificationBell() {
             setInvitations(roomsData);
         });
 
-        // Listener for General Notifications (P2P, Admin, etc.) - Fetching more to determine if "View all" is needed
+        // Listener for General Notifications (P2P, Admin, etc.)
         const notificationsRef = collection(db, 'notifications');
         const p2pQuery = query(
             notificationsRef,
-            where("userId", "==", user.uid),
-            orderBy("createdAt", "desc"),
-            limit(20) 
+            where("userId", "==", user.uid)
         );
         const p2pUnsubscribe = onSnapshot(p2pQuery, (snapshot) => {
             const p2pData = snapshot.docs
               .map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            
+            // Sort on the client to avoid composite index
+            p2pData.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+            
             setGeneralNotifications(p2pData);
         }, (error) => {
             console.error("Error fetching notifications:", error);
