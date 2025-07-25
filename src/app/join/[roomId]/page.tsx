@@ -200,7 +200,7 @@ export default function JoinRoomPage() {
 
             if (!result.success) {
                 // If the server action fails, we should provide feedback.
-                throw new Error(result.error || "Failed to create your user profile on the server.");
+                throw new Error(result.error || "Failed to process new user and referral on the server.");
             }
             
             // 4. Add user to room and redirect
