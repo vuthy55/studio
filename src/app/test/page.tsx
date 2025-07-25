@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
-import { LoaderCircle, CheckCircle, XCircle } from 'lucide-react';
+import { LoaderCircle, CheckCircle, XCircle, Send } from 'lucide-react';
 import BuyTokens from '@/components/BuyTokens';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
@@ -15,6 +15,61 @@ import { getAzureVoices } from '@/actions/azure';
 import type { VoiceInfo } from '@/actions/azure';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { sendRoomInviteEmail } from '@/actions/email';
+import { useToast } from '@/hooks/use-toast';
+
+
+function EmailTest() {
+    const [user] = useAuthState(auth);
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSendTestEmail = async () => {
+        if (!user || !user.email) {
+            toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to send a test email.' });
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const result = await sendRoomInviteEmail({
+                to: [user.email],
+                roomTopic: 'Test Room from VibeSync',
+                creatorName: 'VibeSync Test Suite',
+                scheduledAt: new Date(),
+                joinUrl: `${window.location.origin}/test`
+            });
+
+            if (result.success) {
+                toast({ title: 'Test Email Sent', description: `An email has been sent to ${user.email}. Check your server logs for details.` });
+            } else {
+                toast({ variant: 'destructive', title: 'Test Failed', description: result.error || 'The email could not be sent. Check server logs.' });
+            }
+
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred while trying to send the email.' });
+            console.error(error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    return (
+        <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+                <CardTitle>Resend Email Service Test</CardTitle>
+                <CardDescription>
+                    Click the button to send a test email to your own account. This verifies that the Resend API key and service are configured correctly. Check the server console logs for a detailed output.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button onClick={handleSendTestEmail} disabled={isLoading || !user} className="w-full">
+                    {isLoading ? <LoaderCircle className="animate-spin" /> : <Send />}
+                    {user ? 'Send Test Email' : 'Log in to send test email'}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
 
 
 function AzureVoicesTest() {
@@ -240,6 +295,8 @@ const TestPage = () => {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
+      <EmailTest />
+
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Genkit AI Test Page</CardTitle>

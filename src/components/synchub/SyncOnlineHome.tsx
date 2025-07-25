@@ -985,9 +985,11 @@ export default function SyncOnlineHome() {
                         scheduledAt: finalScheduledDate,
                         joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
                     });
+                     toast({ title: "Room Scheduled and invites sent!", description: "Your meeting is ready." });
+                } else {
+                    toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
                 }
                 
-                toast({ title: "Room Scheduled!", description: "Invites have been sent." });
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
                 }

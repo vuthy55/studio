@@ -43,7 +43,7 @@ export async function sendRoomInviteEmail({
   try {
     console.log('[EMAIL ACTION] Attempting to call resend.emails.send...');
     const { data, error } = await resend.emails.send({
-      from: 'VibeSync <onboarding@resend.dev>',
+      from: 'VibeSync <noreply@yourdomain.com>',
       to: to,
       subject: `You're invited to a VibeSync Room: ${roomTopic}`,
       html: `
@@ -57,7 +57,7 @@ export async function sendRoomInviteEmail({
           <p>Click the button below to join the room at the scheduled time.</p>
           <a 
             href="${joinUrl}" 
-            style="display: inline-block; padding: 12px 24px; background-color: #3156%64%; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;"
+            style="display: inline-block; padding: 12px 24px; background-color: #315664; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;"
           >
             Join Room
           </a>
