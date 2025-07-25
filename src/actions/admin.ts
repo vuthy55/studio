@@ -96,3 +96,23 @@ export async function deleteUsers(userIds: string[]): Promise<{success: boolean,
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
     }
 }
+
+/**
+ * Clears the payment history for a specific user.
+ * This is a destructive action and should be used with caution.
+ * @param {string} userId The ID of the user whose payment history will be cleared.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function clearUserPaymentHistory(userId: string): Promise<{success: boolean, error?: string}> {
+    if (!userId) {
+        return { success: false, error: 'User ID is required.' };
+    }
+
+    try {
+        await deleteCollection(`users/${userId}/paymentHistory`, 100);
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error clearing payment history for user ${userId}:`, error);
+        return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}

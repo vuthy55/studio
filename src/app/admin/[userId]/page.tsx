@@ -32,7 +32,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { resetLanguageStats, resetUsageStats } from '@/actions/stats';
-import { deleteUsers } from '@/actions/admin';
+import { deleteUsers, clearUserPaymentHistory } from '@/actions/admin';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { getReferredUsers, ReferredUser } from '@/actions/referrals';
 
@@ -76,6 +76,7 @@ export default function UserDetailPage() {
     const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
 
     const [isResetting, setIsResetting] = useState(false);
+    const [isClearingHistory, setIsClearingHistory] = useState(false);
 
     const countryOptions = useMemo(() => lightweightCountries, []);
     
@@ -385,13 +386,32 @@ export default function UserDetailPage() {
             } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || "Failed to reset usage stats." });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error resetting usage stats:", error);
             toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred." });
         } finally {
             setIsResetting(false);
         }
     }
+
+    const handleClearPaymentHistory = async () => {
+        setIsClearingHistory(true);
+        try {
+            const result = await clearUserPaymentHistory(userId);
+            if (result.success) {
+                toast({ title: 'History Cleared', description: "This user's payment history has been deleted." });
+                setPayments([]);
+                setHasFetchedPayments(true); // To prevent re-fetching deleted data
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not clear history.' });
+            }
+        } catch (error) {
+            console.error("Error clearing payment history:", error);
+            toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred.' });
+        } finally {
+            setIsClearingHistory(false);
+        }
+    };
 
 
     if (adminLoading || isFetchingProfile) {
@@ -718,12 +738,41 @@ export default function UserDetailPage() {
                     </TabsContent>
                     <TabsContent value="payments" className="mt-6">
                             <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <CreditCard />
-                                    Payment History
-                                </CardTitle>
-                                <CardDescription>A record of this user's PayPal transactions.</CardDescription>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <CreditCard />
+                                        Payment History
+                                    </CardTitle>
+                                    <CardDescription>A record of this user's PayPal transactions.</CardDescription>
+                                </div>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button 
+                                            variant="destructive" 
+                                            size="sm"
+                                            disabled={isClearingHistory || !hasFetchedPayments || payments.length === 0}
+                                        >
+                                            {isClearingHistory ? <LoaderCircle className="animate-spin mr-2"/> : <Trash2 className="mr-2"/>}
+                                            Clear History
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Clear Payment History?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete all payment records for {profile.email}. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleClearPaymentHistory} disabled={isClearingHistory}>
+                                                {isClearingHistory && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                                Confirm Delete
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </CardHeader>
                             <CardContent>
                                 <Button onClick={handleFetchPayments} disabled={isFetchingPayments || hasFetchedPayments} className="mb-4">
