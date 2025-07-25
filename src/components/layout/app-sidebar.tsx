@@ -23,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import React, { useState } from 'react';
 import { sendBuddyAlert } from '@/actions/friends';
+import { cn } from '@/lib/utils';
 
 
 function BuddyAlertButton() {
@@ -62,17 +63,18 @@ function BuddyAlertButton() {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="w-full">
-              <Button 
-                className="w-full font-bold" 
-                style={{ backgroundColor: '#4dc9e6', color: 'white' }} 
+               <Button 
+                variant="default"
+                size="lg"
+                className="w-full font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
                 disabled
               >
-                <AlertTriangle />
-                Buddy Alert
+                <AlertTriangle className="h-6 w-6" />
+                <span className="group-data-[collapsible=icon]:hidden">Buddy Alert</span>
               </Button>
             </div>
           </TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent side="right">
             <p>Add buddies in 'My Account' to use this feature.</p>
           </TooltipContent>
         </Tooltip>
@@ -83,13 +85,14 @@ function BuddyAlertButton() {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button 
-          className="w-full font-bold" 
-          style={{ backgroundColor: '#4dc9e6', color: 'white' }}
-          disabled={isSendingAlert}
-        >
-          {isSendingAlert ? <LoaderCircle className="animate-spin" /> : <AlertTriangle />}
-          Buddy Alert
+         <Button 
+            variant="default"
+            size="lg"
+            className="w-full font-bold bg-blue-500 hover:bg-blue-600 text-white"
+            disabled={isSendingAlert}
+          >
+          {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+          <span className="group-data-[collapsible=icon]:hidden">Buddy Alert</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -142,15 +145,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
-              <Link href="/" onClick={closeSidebar}>
-                <Share2 />
-                SyncHub
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-           {loading ? (
+          {loading ? (
              <SidebarMenuItem>
                 <SidebarMenuButton disabled>
                   <LoaderCircle className="animate-spin" />
@@ -161,6 +156,14 @@ export function AppSidebar() {
             <>
               <SidebarMenuItem>
                   <BuddyAlertButton />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
+                  <Link href="/" onClick={closeSidebar}>
+                    <Share2 />
+                    SyncHub
+                  </Link>
+                </SidebarMenuButton>
               </SidebarMenuItem>
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
@@ -205,14 +208,22 @@ export function AppSidebar() {
             </>
           ) : (
              <>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/login'}>
-                  <Link href="/login" onClick={closeSidebar}>
-                    <LogIn />
-                    Login
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/'}>
+                        <Link href="/" onClick={closeSidebar}>
+                            <Share2 />
+                            SyncHub
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/login'}>
+                    <Link href="/login" onClick={closeSidebar}>
+                        <LogIn />
+                        Login
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
              </>
           )}
 
