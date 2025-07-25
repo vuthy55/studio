@@ -1437,10 +1437,7 @@ function RoomsTabContent() {
 function BulkActionsContent() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
-    
-    const [deleteUsersOpen, setDeleteUsersOpen] = useState(false);
     const [clearReferralsOpen, setClearReferralsOpen] = useState(false);
-
 
     const handleClearReferrals = async () => {
         setIsLoading(true);
@@ -1502,7 +1499,6 @@ function BulkActionsContent() {
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
-                
             </CardContent>
         </Card>
     )
@@ -1709,12 +1705,13 @@ function ReferralsTabContent() {
     const { toast } = useToast();
     const [ledger, setLedger] = useState<ReferralLedgerEntry[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
-    const [hasSearched, setHasSearched] = useState(false);
 
     const fetchLedger = useCallback(async (searchQuery = '') => {
-        if (!searchQuery.trim()) {
+        const trimmedSearch = searchQuery.trim();
+        if (!trimmedSearch) {
             setLedger([]);
             setHasSearched(false);
             return;
@@ -1724,7 +1721,7 @@ function ReferralsTabContent() {
         setHasSearched(true);
 
         try {
-            const data = await getReferralLedger(searchQuery);
+            const data = await getReferralLedger(trimmedSearch);
             setLedger(data);
         } catch (error) {
             console.error("Error fetching referral ledger:", error);
@@ -1734,14 +1731,12 @@ function ReferralsTabContent() {
         }
     }, [toast]);
 
-    useEffect(() => {
+     useEffect(() => {
         if (debouncedSearchTerm) {
             fetchLedger(debouncedSearchTerm);
-        } else {
-             if (hasSearched) {
-                setLedger([]);
-                setHasSearched(false);
-            }
+        } else if (hasSearched) {
+            setLedger([]);
+            setHasSearched(false);
         }
     }, [debouncedSearchTerm, fetchLedger, hasSearched]);
 
