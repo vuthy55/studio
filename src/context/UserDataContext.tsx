@@ -56,7 +56,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [loading, setLoading] = useState(true);
-    const [hasFetched, setHasFetched] = useState(false); // New state to prevent re-fetching
+    const [hasFetched, setHasFetched] = useState(false);
     const isLoggingOut = useRef(false);
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
@@ -199,17 +199,20 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     // --- Public Actions ---
 
     const logout = useCallback(async () => {
+        if (isLoggingOut.current) return;
+        
         console.log("[DEBUG] UserDataContext: Logout initiated.");
         isLoggingOut.current = true;
-        debouncedCommitToFirestore.flush(); 
         
-        await auth.signOut();
-        
-        // Explicitly clear local state and localStorage
+        // Immediately clear local state to prevent any further data fetches for the old user.
         setUserProfile({});
         setPracticeHistory({});
         setSyncLiveUsage(0);
-        setHasFetched(false); // Reset for next login
+        setHasFetched(false); 
+        
+        debouncedCommitToFirestore.flush(); 
+        
+        await auth.signOut();
         
         isLoggingOut.current = false;
         console.log("[DEBUG] UserDataContext: Logout complete and local state cleared.");
