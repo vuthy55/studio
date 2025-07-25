@@ -62,17 +62,15 @@ function BuddyAlertButton() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full">
-               <Button 
+             <Button 
                 variant="default"
-                size="lg"
-                className="w-full font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
+                size="icon"
+                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
                 disabled
               >
                 <AlertTriangle className="h-6 w-6" />
-                <span className="group-data-[collapsible=icon]:hidden">Buddy Alert</span>
+                <span className="sr-only">Buddy Alert</span>
               </Button>
-            </div>
           </TooltipTrigger>
           <TooltipContent side="right">
             <p>Add buddies in 'My Account' to use this feature.</p>
@@ -87,12 +85,12 @@ function BuddyAlertButton() {
       <AlertDialogTrigger asChild>
          <Button 
             variant="default"
-            size="lg"
-            className="w-full font-bold bg-blue-500 hover:bg-blue-600 text-white"
+            size="icon"
+            className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
             disabled={isSendingAlert}
           >
           {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-          <span className="group-data-[collapsible=icon]:hidden">Buddy Alert</span>
+          <span className="sr-only">Buddy Alert</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -154,9 +152,6 @@ export function AppSidebar() {
             </SidebarMenuItem>
            ) : user ? (
             <>
-              <SidebarMenuItem>
-                  <BuddyAlertButton />
-              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
                   <Link href="/" onClick={closeSidebar}>
@@ -230,9 +225,10 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center justify-around w-full">
+        <div className="flex items-center justify-start gap-2 w-full">
             {user ? (
                  <>
+                    <BuddyAlertButton />
                     <TooltipProvider>
                       <Tooltip>
                           <TooltipTrigger asChild>
