@@ -53,8 +53,10 @@ export default function JoinRoomPage() {
     }, []);
 
     const fetchRoomAndRedirect = useCallback(async (user: User) => {
+        console.log(`[DEBUG] fetchRoomAndRedirect: Called for authenticated user ${user.uid}.`);
         setIsSubmitting(true);
         try {
+            console.log(`[DEBUG] fetchRoomAndRedirect: Attempting to get room document: syncRooms/${roomId}`);
             const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
             if (!roomDoc.exists()) {
                 toast({ variant: 'destructive', title: 'Room Not Found', description: 'This invitation link is invalid or has expired.' });
@@ -65,6 +67,7 @@ export default function JoinRoomPage() {
              setRoomTopic(roomData.topic);
 
             // Add user to room and redirect.
+            console.log(`[DEBUG] fetchRoomAndRedirect: Adding user ${user.uid} to participants.`);
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             const participantData: Participant = {
                 uid: user.uid,
@@ -75,10 +78,12 @@ export default function JoinRoomPage() {
                 joinedAt: Timestamp.now()
             };
             await setDoc(participantRef, participantData);
+            
+            console.log(`[DEBUG] fetchRoomAndRedirect: Redirecting to /sync-room/${roomId}`);
             router.push(`/sync-room/${roomId}`);
 
         } catch (error) {
-             console.error("Error fetching room or joining:", error);
+             console.error("[DEBUG] Error in fetchRoomAndRedirect:", error);
              toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details or join the room.' });
              setIsSubmitting(false);
         }
@@ -86,11 +91,19 @@ export default function JoinRoomPage() {
 
 
     useEffect(() => {
-        if (!authLoading && user) {
-            // User is already logged in, so we have permission to fetch the room.
+        console.log(`[DEBUG] Main Effect: Auth loading state is ${authLoading}. User object is ${user ? 'present' : 'null'}.`);
+        if (authLoading) {
+            console.log("[DEBUG] Main Effect: Auth is loading, waiting...");
+            return; 
+        }
+
+        if (user) {
+            // Path for already logged-in users
+            console.log("[DEBUG] Main Effect: User is authenticated. Running fetchRoomAndRedirect.");
             fetchRoomAndRedirect(user);
-        } else if (!authLoading && !user) {
-            // User is not logged in, stop loading and show the form.
+        } else {
+            // Path for new/unauthenticated users
+            console.log("[DEBUG] Main Effect: User is not authenticated. Displaying sign-up form.");
             setIsLoading(false);
         }
     }, [authLoading, user, fetchRoomAndRedirect]);
@@ -125,22 +138,26 @@ export default function JoinRoomPage() {
         setIsSubmitting(true);
         try {
             // We fetch the room topic here, after authentication
+            console.log("[DEBUG] addUserToRoomAndRedirect: Getting room doc after signup.");
             const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
             if (!roomDoc.exists()) throw new Error("Room not found");
             
+            console.log(`[DEBUG] addUserToRoomAndRedirect: Adding participant ${userObj.uid} to room.`);
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', userObj.uid);
             const participantData: Participant = {
                 uid: userObj.uid,
                 name: name || userObj.displayName || userObj.email!.split('@')[0],
                 email: userObj.email!,
-                selectedLanguage: spokenLanguage,
+                selectedLanguage: spokenLanguage as AzureLanguageCode,
                 isMuted: false,
                 joinedAt: Timestamp.now()
             };
             await setDoc(participantRef, participantData);
+            
+            console.log(`[DEBUG] addUserToRoomAndRedirect: Redirecting to /sync-room/${roomId}`);
             router.push(`/sync-room/${roomId}`);
         } catch (error) {
-            console.error("Error adding participant to room:", error);
+            console.error("[DEBUG] Error adding participant to room:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not add you to the room.'});
             setIsSubmitting(false);
         }
@@ -149,6 +166,7 @@ export default function JoinRoomPage() {
 
     const handleSignUpAndJoin = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log("[DEBUG] handleSignUpAndJoin: Form submitted.");
         if (!name || !email || !password || !country || !spokenLanguage) {
             toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all required fields.'});
             return;
@@ -157,13 +175,16 @@ export default function JoinRoomPage() {
 
         try {
             // 1. Create user
+            console.log("[DEBUG] handleSignUpAndJoin: Creating user with email and password.");
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const newUser = userCredential.user;
 
             // 2. Update Auth profile
+            console.log("[DEBUG] handleSignUpAndJoin: Updating auth profile.");
             await updateAuthProfile(newUser, { displayName: name });
             
             // 3. Create Firestore user document with signup bonus
+            console.log("[DEBUG] handleSignUpAndJoin: Creating Firestore user document.");
             const userDocRef = doc(db, 'users', newUser.uid);
             const signupBonus = settings?.signupBonus || 100;
             const userData = {
@@ -177,6 +198,7 @@ export default function JoinRoomPage() {
             await setDoc(userDocRef, userData);
 
             // 4. Log signup bonus transaction
+            console.log("[DEBUG] handleSignUpAndJoin: Logging signup bonus.");
             const logRef = collection(db, 'users', newUser.uid, 'transactionLogs');
             await addDoc(logRef, {
                 actionType: 'signup_bonus',
@@ -187,14 +209,16 @@ export default function JoinRoomPage() {
 
             // 5. Handle referral if present
             if (referralId) {
+                console.log("[DEBUG] handleSignUpAndJoin: Creating referral record.");
                 await createReferralRecord(referralId, newUser.uid);
             }
             
             // 6. Add user to room and redirect
+            console.log("[DEBUG] handleSignUpAndJoin: Calling addUserToRoomAndRedirect.");
             await addUserToRoomAndRedirect(newUser);
 
         } catch (error: any) {
-            console.error("Sign-up and join error:", error);
+            console.error("[DEBUG] Sign-up and join error:", error);
             toast({ variant: 'destructive', title: 'Sign-up Failed', description: error.message });
             setIsSubmitting(false);
         }
