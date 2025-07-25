@@ -19,12 +19,49 @@ export async function sendRoomInviteEmail({
   joinUrl,
 }: SendRoomInviteEmailProps): Promise<{ success: boolean; error?: string }> {
   
-  console.log('--- ENTERING EMAIL ACTION ---');
-  console.log('Attempting to send email to:', to);
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.error('Email Error: RESEND_API_KEY is not set in the environment variables.');
+      return { success: false, error: 'The RESEND_API_KEY is not configured on the server.' };
+    }
+    
+    const resend = new Resend(apiKey);
+    
+    // Don't send emails if there are no recipients other than the creator
+    if (!to || to.length === 0) {
+      return { success: true }; // Not an error, just no one to send to.
+    }
 
-  // This is a temporary debug step. If this log appears, we know the action runs.
-  // The next step would be to re-introduce the Resend code carefully.
-  
-  return { success: true };
+    const { data, error } = await resend.emails.send({
+      from: 'VibeSync <onboarding@resend.dev>',
+      to: to,
+      subject: `You're invited to a VibeSync Room: ${roomTopic}`,
+      html: `
+        <div>
+          <h2>Hey!</h2>
+          <p>You've been invited by <strong>${creatorName}</strong> to join a VibeSync room.</p>
+          <p><strong>Topic:</strong> ${roomTopic}</p>
+          <p><strong>When:</strong> ${format(new Date(scheduledAt), 'PPPPp')}</p>
+          <br/>
+          <a href="${joinUrl}" style="background-color: #D4A373; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Join the Room</a>
+          <br/>
+          <p>See you there!</p>
+          <p>- The VibeSync Team</p>
+        </div>
+      `,
+    });
 
+    if (error) {
+      console.error('Resend API Error:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('Resend API Success:', data);
+    return { success: true };
+
+  } catch (e: any) {
+    console.error('Unexpected Error in sendRoomInviteEmail:', e);
+    return { success: false, error: e.message || 'An unexpected server error occurred.' };
+  }
 }

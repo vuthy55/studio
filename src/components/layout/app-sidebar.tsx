@@ -117,8 +117,6 @@ export function AppSidebar() {
               </SidebarMenuItem>
              </>
           )}
-
-          {/* Test page, visible to all users */}
           <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === '/test'}>
                   <Link href="/test" onClick={closeSidebar}>

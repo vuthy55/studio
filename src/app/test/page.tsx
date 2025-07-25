@@ -36,12 +36,18 @@ function EmailTest() {
                 joinUrl: `${window.location.origin}/test`
             });
 
-            // This client-side toast will appear regardless of the server action's success,
-            // but it helps confirm the button click is working.
-            toast({ title: 'Test Dispatched', description: `An email request has been sent to the server for ${testRecipient}. Check your server terminal for logs.` });
+            if (result.success) {
+                toast({ title: 'Email Sent Successfully!', description: `Test email dispatched to ${testRecipient}.` });
+            } else {
+                 toast({ 
+                    variant: 'destructive', 
+                    title: 'Test Failed', 
+                    description: `The email could not be sent. Server error: ${result.error}` 
+                });
+            }
 
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred while trying to send the email.' });
+            toast({ variant: 'destructive', title: 'Client Error', description: `An unexpected error occurred: ${error.message}` });
             console.error(error);
         } finally {
             setIsLoading(false);
@@ -53,7 +59,7 @@ function EmailTest() {
             <CardHeader>
                 <CardTitle>Resend Email Service Test</CardTitle>
                 <CardDescription>
-                    Click the button to send a test email. This verifies that the Resend API key and service are configured correctly. Check the server terminal console for a detailed output.
+                    Click the button to send a test email. This verifies that the Resend API key and service are configured correctly. The result will be shown in a toast notification.
                 </CardDescription>
             </CardHeader>
             <CardContent>
