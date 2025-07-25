@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp, addDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp, addDoc, collection, updateDoc, arrayUnion } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile, type User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -139,9 +139,15 @@ export default function JoinRoomPage() {
         try {
             // We fetch the room topic here, after authentication
             console.log("[DEBUG] addUserToRoomAndRedirect: Getting room doc after signup.");
-            const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
+            const roomRef = doc(db, 'syncRooms', roomId);
+            const roomDoc = await getDoc(roomRef);
             if (!roomDoc.exists()) throw new Error("Room not found");
             
+            // Critical fix: Ensure the new user is on the invited list before redirecting.
+            await updateDoc(roomRef, {
+                invitedEmails: arrayUnion(userObj.email!)
+            });
+
             console.log(`[DEBUG] addUserToRoomAndRedirect: Adding participant ${userObj.uid} to room.`);
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', userObj.uid);
             const participantData: Participant = {
