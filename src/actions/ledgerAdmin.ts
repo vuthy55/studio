@@ -2,7 +2,8 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, collection, doc, writeBatch, increment, serverTimestamp } from 'firebase-admin/firestore';
+import { findUserByEmail as findUserByEmailClient, type IssueTokensPayload } from '@/services/ledger';
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -82,5 +83,47 @@ export async function clearTokenLedger(): Promise<{success: boolean, error?: str
     } catch (error: any) {
         console.error("Error clearing token ledgers:", error);
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
+
+
+/**
+ * Issues a specified amount of tokens to a user from an admin.
+ */
+export async function issueTokens(payload: IssueTokensPayload): Promise<{success: boolean, error?: string}> {
+    const { email, amount, reason, description, adminUser } = payload;
+    
+    try {
+        const recipient = await findUserByEmailClient(email);
+        if (!recipient) {
+            return { success: false, error: `User with email "${email}" not found.` };
+        }
+
+        const recipientRef = doc(db, 'users', recipient.id);
+        const logRef = doc(collection(recipientRef, 'transactionLogs'));
+
+        const batch = writeBatch(db);
+        
+        // Increment user's token balance
+        batch.update(recipientRef, { tokenBalance: increment(amount) });
+
+        // Create transaction log
+        batch.set(logRef, {
+            actionType: 'admin_issue',
+            tokenChange: amount,
+            timestamp: serverTimestamp(),
+            reason: reason,
+            description: description,
+            fromUserId: adminUser.uid,
+            fromUserEmail: adminUser.email
+        });
+
+        await batch.commit();
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error issuing tokens:", error);
+        return { success: false, error: "An unexpected server error occurred." };
     }
 }
