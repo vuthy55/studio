@@ -12,8 +12,6 @@ interface SendRoomInviteEmailProps {
   joinUrl: string;
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function sendRoomInviteEmail({
   to,
   roomTopic,
@@ -22,16 +20,28 @@ export async function sendRoomInviteEmail({
   joinUrl,
 }: SendRoomInviteEmailProps): Promise<{ success: boolean; error?: string }> {
   
-  console.log('[EMAIL ACTION] Attempting to send room invite email with props:', { to, roomTopic, creatorName, scheduledAt: scheduledAt.toISOString(), joinUrl });
+  console.log('[EMAIL ACTION] Entered sendRoomInviteEmail function.');
+  console.log('[EMAIL ACTION] Props received:', { to, roomTopic, creatorName, scheduledAt: scheduledAt.toISOString(), joinUrl });
+
+  const apiKey = process.env.RESEND_API_KEY;
+  console.log(`[EMAIL ACTION] RESEND_API_KEY value is: ${apiKey ? 'Found' : 'NOT FOUND'}`);
+
+  if (!apiKey) {
+    const errorMsg = "Resend API key is not configured on the server.";
+    console.error(`[EMAIL ACTION] ${errorMsg}`);
+    return { success: false, error: errorMsg };
+  }
 
   if (to.length === 0) {
     console.log('[EMAIL ACTION] No recipients provided, skipping email send.');
-    return { success: true }; // Not an error if there's no one to send to.
+    return { success: true };
   }
-
-  const formattedDate = format(scheduledAt, 'PPPP p'); // e.g., "July 22, 2024 at 10:30 AM"
+  
+  const resend = new Resend(apiKey);
+  const formattedDate = format(scheduledAt, 'PPPP p');
 
   try {
+    console.log('[EMAIL ACTION] Attempting to call resend.emails.send...');
     const { data, error } = await resend.emails.send({
       from: 'VibeSync <onboarding@resend.dev>',
       to: to,
@@ -67,7 +77,7 @@ export async function sendRoomInviteEmail({
     console.log('[EMAIL ACTION] Resend API call successful. Response:', JSON.stringify(data, null, 2));
     return { success: true };
   } catch (error: any) {
-    console.error('[EMAIL ACTION] Failed to execute resend.emails.send:', error);
+    console.error('[EMAIL ACTION] An unexpected error occurred in the try/catch block:', error);
     return { success: false, error: 'An unexpected server error occurred while sending the email.' };
   }
 }
