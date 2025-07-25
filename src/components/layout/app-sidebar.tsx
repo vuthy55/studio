@@ -77,11 +77,11 @@ function BuddyAlertButton() {
   };
 
   return (
-    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+     <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
+          <AlertDialogTrigger asChild>
+            <TooltipTrigger asChild>
               <Button
                 variant="default"
                 size="icon"
@@ -91,8 +91,8 @@ function BuddyAlertButton() {
               >
                 <AlertTriangle className="h-6 w-6" strokeWidth={2.5} />
               </Button>
-            </AlertDialogTrigger>
-          </TooltipTrigger>
+            </TooltipTrigger>
+          </AlertDialogTrigger>
           <TooltipContent side="right">
             <p>{buddiesCount > 0 ? "Send Buddy Alert" : "Add buddies to use this feature"}</p>
           </TooltipContent>
@@ -149,8 +149,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>
-          VibeSyn
-          <sup className="text-xs font-bold text-black ml-1">Beta</sup>c
+          VibeSync
+          <sup className="text-xs font-bold text-black ml-1">Beta</sup>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -236,7 +236,7 @@ export function AppSidebar() {
 
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
+       <SidebarFooter>
         <TooltipProvider>
           <div className="flex items-center justify-start gap-2 w-full">
               {user ? (
