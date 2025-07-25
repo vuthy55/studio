@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -21,7 +21,92 @@ import DonateButton from '../DonateButton';
 import BuyTokens from '../BuyTokens';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
-import React from 'react';
+import React, { useState } from 'react';
+import { sendBuddyAlert } from '@/actions/friends';
+
+
+function BuddyAlertButton() {
+  const { user, userProfile } = useUserData();
+  const { toast } = useToast();
+  const [isSendingAlert, setIsSendingAlert] = useState(false);
+  const buddiesCount = userProfile?.buddies?.length || 0;
+
+  const handleSendBuddyAlert = () => {
+    if (!user) return;
+    setIsSendingAlert(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const result = await sendBuddyAlert(user.uid, { latitude, longitude });
+
+        if (result.success) {
+          toast({ title: "Buddy Alert Sent", description: "Your buddies have been notified of your location." });
+        } else {
+          toast({ variant: 'destructive', title: "Alert Failed", description: result.error || "Could not send the alert." });
+        }
+        setIsSendingAlert(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        toast({ variant: 'destructive', title: "Location Error", description: "Could not get your current location." });
+        setIsSendingAlert(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+  
+  if (buddiesCount === 0) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <Button 
+                className="w-full font-bold" 
+                style={{ backgroundColor: '#4dc9e6', color: 'white' }} 
+                disabled
+              >
+                <AlertTriangle />
+                Buddy Alert
+              </Button>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Add buddies in 'My Account' to use this feature.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button 
+          className="w-full font-bold" 
+          style={{ backgroundColor: '#4dc9e6', color: 'white' }}
+          disabled={isSendingAlert}
+        >
+          {isSendingAlert ? <LoaderCircle className="animate-spin" /> : <AlertTriangle />}
+          Buddy Alert
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will send an in-app notification with your current location to all {buddiesCount} of your buddies. This is not an emergency SOS.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSendBuddyAlert}>Confirm & Send</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 
 export function AppSidebar() {
@@ -74,6 +159,9 @@ export function AppSidebar() {
             </SidebarMenuItem>
            ) : user ? (
             <>
+              <SidebarMenuItem>
+                  <BuddyAlertButton />
+              </SidebarMenuItem>
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
