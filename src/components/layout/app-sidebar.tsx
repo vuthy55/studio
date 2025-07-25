@@ -1,7 +1,7 @@
 
 "use client"
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 function BuddyAlertButton() {
   const { user, userProfile } = useUserData();
   const { toast } = useToast();
+  const router = useRouter();
   const [isSendingAlert, setIsSendingAlert] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const buddiesCount = userProfile?.buddies?.length || 0;
@@ -62,48 +63,44 @@ function BuddyAlertButton() {
   
   if (buddiesCount === 0) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button 
-            variant="default"
-            size="icon"
-            className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
-            disabled
-            aria-label="Buddy Alert (disabled)"
-          >
-            <AlertTriangle className="h-6 w-6" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          <p>Add buddies in 'My Account' to use this feature.</p>
-        </TooltipContent>
-      </Tooltip>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="default"
+              size="icon"
+              className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
+              aria-label="Add a buddy to use the Buddy Alert feature"
+              onClick={() => router.push('/profile?tab=buddies')}
+            >
+              <AlertTriangle className="h-6 w-6" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Add buddies in 'My Account' to use this feature.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
   return (
     <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="default"
-                size="icon"
-                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-              >
-                <AlertTriangle className="h-6 w-6" />
-              </Button>
-            </AlertDialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>Send Buddy Alert</p>
-          </TooltipContent>
-        </Tooltip>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="default"
+          size="icon"
+          className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
+          aria-label="Send Buddy Alert"
+        >
+          <AlertTriangle className="h-6 w-6" />
+        </Button>
+      </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will send an in-app notification with your current location to all {buddiesCount} of your buddies. This is not an emergency SOS.
+            This will send an in-app notification with your current location to all {buddiesCount} of your buddies.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
