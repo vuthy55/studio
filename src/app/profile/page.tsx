@@ -636,7 +636,12 @@ function BuddiesSection() {
     return (
         <div className="space-y-6">
             <Card>
-                <CardHeader><CardTitle>Find New Buddies</CardTitle></CardHeader>
+                <CardHeader>
+                    <CardTitle>Find New Buddies</CardTitle>
+                    <CardDescription>
+                        Add a user by searching for their email. Once they accept your request, you can use the Buddy Alert button (the triangle icon) in the sidebar to send them your location.
+                    </CardDescription>
+                </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSearch} className="flex gap-2">
                         <Input type="email" placeholder="Enter user's email" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -712,7 +717,7 @@ export default function ProfilePage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState('profile');
+    const [activeTab, setActiveTab] = useState('buddies');
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -767,3 +772,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
