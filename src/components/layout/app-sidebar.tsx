@@ -30,7 +30,6 @@ function BuddyAlertButton() {
   const { user, userProfile } = useUserData();
   const { toast } = useToast();
   const [isSendingAlert, setIsSendingAlert] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const buddiesCount = userProfile?.buddies?.length || 0;
 
   const handleSendBuddyAlert = () => {
@@ -48,13 +47,11 @@ function BuddyAlertButton() {
           toast({ variant: 'destructive', title: "Alert Failed", description: result.error || "Could not send the alert." });
         }
         setIsSendingAlert(false);
-        setIsDialogOpen(false);
       },
       (error) => {
         console.error("Geolocation error:", error);
         toast({ variant: 'destructive', title: "Location Error", description: "Could not get your current location." });
         setIsSendingAlert(false);
-        setIsDialogOpen(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -70,9 +67,9 @@ function BuddyAlertButton() {
                 size="icon"
                 className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
                 disabled
+                aria-label="Buddy Alert (disabled)"
               >
                 <AlertTriangle className="h-6 w-6" />
-                <span className="sr-only">Buddy Alert</span>
               </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
@@ -84,32 +81,42 @@ function BuddyAlertButton() {
   }
 
   return (
-    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <Button
-          onClick={() => setIsDialogOpen(true)}
-          variant="default"
-          size="icon"
-          className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-          disabled={isSendingAlert}
-          aria-label="Send a Buddy Alert"
-        >
-          {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-        </Button>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will send an in-app notification with your current location to all {buddiesCount} of your buddies. This is not an emergency SOS.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSendBuddyAlert} disabled={isSendingAlert}>
-                {isSendingAlert && <LoaderCircle className="animate-spin mr-2" />}
-                Confirm & Send
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
+    <AlertDialog onOpenChange={(open) => !open && setIsSendingAlert(false)}>
+      <TooltipProvider>
+        <Tooltip>
+          <AlertDialogTrigger asChild>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="default" 
+                size="icon" 
+                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white" 
+                disabled={isSendingAlert}
+                aria-label="Send a Buddy Alert"
+              >
+                {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+              </Button>
+            </TooltipTrigger>
+          </AlertDialogTrigger>
+          <TooltipContent side="right">
+            <p>Send Buddy Alert</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will send an in-app notification with your current location to all {buddiesCount} of your buddies. This is not an emergency SOS.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSendBuddyAlert} disabled={isSendingAlert}>
+              {isSendingAlert && <LoaderCircle className="animate-spin mr-2" />}
+              Confirm & Send
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
     </AlertDialog>
   );
 }
@@ -233,6 +240,7 @@ export function AppSidebar() {
         <div className="flex items-center justify-start gap-2 w-full">
             {user ? (
                  <>
+                    <BuddyAlertButton />
                     <TooltipProvider>
                       <Tooltip>
                           <TooltipTrigger asChild>
@@ -245,7 +253,6 @@ export function AppSidebar() {
                     </TooltipProvider>
                     <BuyTokens variant="icon" />
                     <DonateButton variant="icon" />
-                    <BuddyAlertButton />
                  </>
             ) : (
                 <>
