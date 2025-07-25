@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,9 @@ import MainHeader from '@/components/layout/MainHeader';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import AdminSOP from '@/components/marketing/AdminSOP';
+import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 
 
 interface UserWithId extends UserProfile {
@@ -1566,6 +1569,35 @@ function DataPolicyContent() {
     );
 }
 
+function MarketingContent() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><MessageSquareQuote /> App Messaging</CardTitle>
+                <CardDescription>
+                    This section contains standardized documentation for administrative procedures and external marketing copy.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="item-1">
+                        <AccordionTrigger>Admin Standard Operating Procedures (SOP)</AccordionTrigger>
+                        <AccordionContent>
+                           <AdminSOP />
+                        </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="item-2">
+                        <AccordionTrigger>Marketing Copy for Backpackers</AccordionTrigger>
+                        <AccordionContent>
+                           <BackpackerMarketing />
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            </CardContent>
+        </Card>
+    );
+}
+
 
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
@@ -1607,13 +1639,14 @@ export default function AdminPage() {
         { value: 'tokens', label: 'Tokens', icon: Coins },
         { value: 'bulk-delete', label: 'Bulk Delete', icon: Trash2 },
         { value: 'data-policy', label: 'Data Policy', icon: BookUser },
+        { value: 'marketing', label: 'Marketing', icon: MessageSquareQuote },
     ];
     
     return (
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-7 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1663,9 +1696,11 @@ export default function AdminPage() {
                 <TabsContent value="data-policy" className="mt-6">
                     <DataPolicyContent />
                 </TabsContent>
+                 <TabsContent value="marketing" className="mt-6">
+                    <MarketingContent />
+                </TabsContent>
             </Tabs>
 
         </div>
     );
 }
-
