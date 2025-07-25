@@ -3,61 +3,37 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users Collection
-    // Allow anyone to create a user document (for signup).
-    // Only allow a user to read/update their OWN document.
-    match /users/{userId} {
-      allow create: if request.auth != null;
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      // Disallow deletion from the client-side for data integrity. Deletions should be handled by server functions.
-      allow delete: if false;
-
-      // User Subcollections (history, logs, etc.)
-      // A user can create, read, update, and delete records within their own subcollections.
-      match /{subcollection}/{docId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-      }
-    }
     
-    // Notifications
-    // A user can only see their own notifications.
-    match /notifications/{notificationId} {
-        allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
-        allow create, delete: if false; // Should be created by server actions.
-    }
-
-    // Sync Rooms
-    // Allow creation by any authenticated user.
-    // Allow reads/writes only if the user is on the invited list.
-    match /syncRooms/{roomId} {
-      allow create: if request.auth != null;
-      allow read, update: if request.auth != null && request.auth.token.email in resource.data.invitedEmails;
-      // Deletion is handled by server actions.
-      allow delete: if false;
-
-      // Room Subcollections (participants, messages)
-      // Allow read/write if the user is an invited member of the parent room.
-      match /{subcollection}/{docId} {
-        allow read, write, delete: if request.auth != null && get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails.hasAny([request.auth.token.email]);
-      }
-    }
-    
-    // Referrals: Allow creation by anyone, but reading/updating is restricted.
-    match /referrals/{referralId} {
-        allow create: if true;
-        allow read, update, delete: if false; // Managed by server
-    }
-
-    // Settings & Ledgers: Lock down completely from client-side access.
-    match /settings/{docId} {
+    // Default deny all reads/writes
+    match /{document=**} {
       allow read, write: if false;
     }
-    match /financialLedger/{docId} {
-        allow read, write: if false;
+
+    // User collection rules
+    match /users/{userId} {
+      // Allow any authenticated user to read user profiles.
+      // This is needed for the "find buddies" feature to work.
+      allow read: if request.auth != null;
+      
+      // Allow anyone to create a user account (signup)
+      allow create: if true;
+      
+      // Only allow a user to update their own profile.
+      allow update: if request.auth != null && request.auth.uid == userId;
+      
+      // Only allow a user to delete their own profile.
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
-     match /paypalOrders/{docId} {
-        allow read, write: if false;
+    
+    // Allow users to read/write their own sub-collections
+    match /users/{userId}/{collection}/{docId} {
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow admins to read/write settings
+    match /settings/appConfig {
+        allow read: if true; // All clients can read settings
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
