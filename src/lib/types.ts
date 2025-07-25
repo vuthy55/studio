@@ -137,8 +137,6 @@ export interface UserProfile {
   syncOnlineUsage?: number;
   syncOnlineUsageLastReset?: Timestamp;
   defaultLanguage?: AzureLanguageCode;
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
   buddies?: string[];
   buddyRequests?: BuddyRequest[];
 }

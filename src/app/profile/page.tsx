@@ -318,14 +318,12 @@ function ProfileSection() {
             }
             
             const userDocRef = doc(db, 'users', user.uid);
-            const { name, country, mobile, defaultLanguage, emergencyContactName, emergencyContactPhone } = profile;
+            const { name, country, mobile, defaultLanguage } = profile;
             const dataToSave = {
                 name: name || '',
                 country: country || '',
                 mobile: mobile || '',
                 defaultLanguage: defaultLanguage || 'en-US',
-                emergencyContactName: emergencyContactName || '',
-                emergencyContactPhone: emergencyContactPhone || '',
                 email: user.email,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
@@ -417,23 +415,6 @@ function ProfileSection() {
                         <div className="space-y-2">
                             <Label htmlFor="mobile">Mobile Number</Label>
                             <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
-                        </div>
-
-                        <Separator />
-                        
-                        <div>
-                            <h3 className="text-lg font-semibold flex items-center gap-2 mb-2"><PhoneOutgoing className="text-destructive"/> Emergency Contact</h3>
-                            <p className="text-sm text-muted-foreground mb-4">This person will receive an SMS with your location if you use the SOS feature. Please enter their number with the full country code.</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="emergencyContactName">Contact's Name</Label>
-                                    <Input id="emergencyContactName" value={profile.emergencyContactName || ''} onChange={(e) => setProfile((p: any) => ({...p, emergencyContactName: e.target.value}))} placeholder="e.g., Jane Doe" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="emergencyContactPhone">Contact's Phone Number</Label>
-                                    <Input id="emergencyContactPhone" type="tel" value={profile.emergencyContactPhone || ''} onChange={(e) => setProfile((p: any) => ({...p, emergencyContactPhone: e.target.value}))} placeholder="+15551234567" />
-                                </div>
-                            </div>
                         </div>
 
                         <div className="flex justify-end pt-4">
