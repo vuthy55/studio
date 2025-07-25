@@ -28,7 +28,7 @@ import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
-import { deleteUsers } from '@/actions/admin';
+import { deleteUsers, clearAllReferralData } from '@/actions/admin';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
@@ -1432,7 +1432,82 @@ function RoomsTabContent() {
   );
 }
 
-function BulkDeleteContent() {
+function BulkActionsContent() {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    
+    const [deleteUsersOpen, setDeleteUsersOpen] = useState(false);
+    const [clearReferralsOpen, setClearReferralsOpen] = useState(false);
+
+
+    const handleClearReferrals = async () => {
+        setIsLoading(true);
+        const result = await clearAllReferralData();
+        if (result.success) {
+            toast({ title: "Success", description: "All referral data has been cleared." });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not clear referral data.' });
+        }
+        setIsLoading(false);
+        setClearReferralsOpen(false);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/> Bulk Data Management</CardTitle>
+                <CardDescription>
+                    Perform system-wide data clearing actions. These are irreversible and should be used with extreme caution.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="bulk-delete-users">
+                        <AccordionTrigger>Bulk Delete Users</AccordionTrigger>
+                        <AccordionContent>
+                           <BulkDeleteUsers />
+                        </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="clear-referrals">
+                        <AccordionTrigger>Clear All Referral Data</AccordionTrigger>
+                        <AccordionContent>
+                            <div className="p-4 space-y-4">
+                                <p className="text-sm text-muted-foreground">This will permanently delete all records from the `referrals` collection. It will not affect any referral bonus tokens that have already been awarded. This action is irreversible.</p>
+                                <AlertDialog open={clearReferralsOpen} onOpenChange={setClearReferralsOpen}>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" disabled={isLoading}>
+                                            {isLoading && <LoaderCircle className="animate-spin mr-2" />}
+                                            Clear All Referral Data
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete all referral records. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleClearReferrals} disabled={isLoading}>
+                                                {isLoading && <LoaderCircle className="animate-spin mr-2" />}
+                                                Confirm & Delete
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+                
+            </CardContent>
+        </Card>
+    )
+}
+
+
+function BulkDeleteUsers() {
     const [currentUser] = useAuthState(auth);
     const { toast } = useToast();
     const [users, setUsers] = useState<UserWithId[]>([]);
@@ -1498,106 +1573,98 @@ function BulkDeleteContent() {
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/> Bulk User Deletion</CardTitle>
-                <CardDescription>
-                    Permanently delete multiple users and all their associated data from both Firestore and Firebase Authentication. This action is irreversible.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex justify-end">
-                    <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={selectedUserIds.length === 0 || isDeleting}>
-                                {isDeleting ? <LoaderCircle className="animate-spin mr-2" /> : <Trash2 className="mr-2" />}
-                                Delete Selected ({selectedUserIds.length})
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will permanently delete {selectedUserIds.length} user(s) and all their associated data, including transaction history and authentication accounts. This action cannot be undone.
-                                    <br/><br/>
-                                    Please type <strong className="text-destructive">permanently delete</strong> to confirm.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <Input 
-                                value={confirmationText}
-                                onChange={(e) => setConfirmationText(e.target.value)}
-                                placeholder="permanently delete"
-                            />
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                    onClick={handleDelete}
-                                    disabled={isDeleting || confirmationText !== 'permanently delete'}
-                                >
-                                     {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                                    Confirm Deletion
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </div>
+        <div className="p-4 space-y-4">
+             <div className="flex justify-end">
+                <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={selectedUserIds.length === 0 || isDeleting}>
+                            {isDeleting ? <LoaderCircle className="animate-spin mr-2" /> : <Trash2 className="mr-2" />}
+                            Delete Selected ({selectedUserIds.length})
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will permanently delete {selectedUserIds.length} user(s) and all their associated data, including transaction history and authentication accounts. This action cannot be undone.
+                                <br/><br/>
+                                Please type <strong className="text-destructive">permanently delete</strong> to confirm.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <Input 
+                            value={confirmationText}
+                            onChange={(e) => setConfirmationText(e.target.value)}
+                            placeholder="permanently delete"
+                        />
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                                onClick={handleDelete}
+                                disabled={isDeleting || confirmationText !== 'permanently delete'}
+                            >
+                                 {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                Confirm Deletion
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
 
-                <div className="border rounded-md">
-                    <Table>
-                        <TableHeader>
+            <div className="border rounded-md">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-12">
+                                <Checkbox 
+                                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                    checked={users.length > 0 && selectedUserIds.length === users.length}
+                                    aria-label="Select all"
+                                />
+                            </TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Role</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                         {isLoading ? (
                             <TableRow>
-                                <TableHead className="w-12">
-                                    <Checkbox 
-                                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                                        checked={users.length > 0 && selectedUserIds.length === users.length}
-                                        aria-label="Select all"
-                                    />
-                                </TableHead>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Role</TableHead>
+                                <TableCell colSpan={4} className="h-24 text-center">
+                                    <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                                </TableCell>
                             </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                             {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                        <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                        ) : users.length > 0 ? (
+                            users.map((user) => (
+                                <TableRow key={user.id} data-state={selectedUserIds.includes(user.id) && "selected"}>
+                                    <TableCell>
+                                        <Checkbox
+                                            onCheckedChange={(checked) => handleSelectUser(user.id, !!checked)}
+                                            checked={selectedUserIds.includes(user.id)}
+                                            aria-label={`Select user ${user.name}`}
+                                            disabled={user.id === currentUser?.uid && user.role === 'admin'}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>
+                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell>
+                                        {user.role === 'admin' ? 
+                                            <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
+                                            <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
+                                        }
                                     </TableCell>
                                 </TableRow>
-                            ) : users.length > 0 ? (
-                                users.map((user) => (
-                                    <TableRow key={user.id} data-state={selectedUserIds.includes(user.id) && "selected"}>
-                                        <TableCell>
-                                            <Checkbox
-                                                onCheckedChange={(checked) => handleSelectUser(user.id, !!checked)}
-                                                checked={selectedUserIds.includes(user.id)}
-                                                aria-label={`Select user ${user.name}`}
-                                                disabled={user.id === currentUser?.uid && user.role === 'admin'}
-                                            />
-                                        </TableCell>
-                                        <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>
-                                        <TableCell>{user.email}</TableCell>
-                                        <TableCell>
-                                            {user.role === 'admin' ? 
-                                                <Badge><Shield className="mr-1 h-3 w-3" /> Admin</Badge> : 
-                                                <Badge variant="secondary"><UserIcon className="mr-1 h-3 w-3" /> User</Badge>
-                                            }
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                        No users found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center">
+                                    No users found.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
     );
 }
 
@@ -1713,7 +1780,7 @@ export default function AdminPage() {
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
-        { value: 'bulk-delete', label: 'Bulk Delete', icon: Trash2 },
+        { value: 'bulk-delete', label: 'Bulk Actions', icon: Trash2 },
         { value: 'data-policy', label: 'Data Policy', icon: BookUser },
         { value: 'marketing', label: 'Messaging', icon: MessageSquareQuote },
         { value: 'release', label: 'Release 0.1', icon: MessageSquareQuote },
@@ -1768,7 +1835,7 @@ export default function AdminPage() {
                     <TokensTabContent />
                 </TabsContent>
                  <TabsContent value="bulk-delete" className="mt-6">
-                    <BulkDeleteContent />
+                    <BulkActionsContent />
                 </TabsContent>
                 <TabsContent value="data-policy" className="mt-6">
                     <DataPolicyContent />

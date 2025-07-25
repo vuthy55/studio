@@ -116,3 +116,19 @@ export async function clearUserPaymentHistory(userId: string): Promise<{success:
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
     }
 }
+
+
+/**
+ * Clears all referral data from the 'referrals' collection.
+ * This is a destructive action.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function clearAllReferralData(): Promise<{success: boolean, error?: string}> {
+    try {
+        await deleteCollection('referrals', 100);
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error clearing referral data:", error);
+        return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
