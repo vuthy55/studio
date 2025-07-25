@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -1670,38 +1670,6 @@ function BulkDeleteUsers() {
     );
 }
 
-function DataPolicyContent() {
-    return (
-        <div className="space-y-6">
-            <h3 className="font-semibold text-lg flex items-center gap-2">1. User-Initiated Account Deletion (Soft Delete & Anonymization)</h3>
-            <Separator className="my-2" />
-            <div className="space-y-2 text-sm text-muted-foreground">
-                <p><strong className="text-foreground">Who:</strong> Performed by the user from their "My Account" page.</p>
-                <p><strong className="text-foreground">Purpose:</strong> To provide a self-service option for users to close their account while allowing the business to meet legal and financial reporting obligations.</p>
-                <p className="font-semibold pt-2">What happens:</p>
-                <ul className="list-disc pl-5 space-y-1">
-                    <li><strong className="text-destructive">DELETED:</strong> The user's authentication account, preventing future logins.</li>
-                    <li><strong className="text-destructive">DELETED:</strong> The user's main profile document (name, email, country, etc.).</li>
-                     <li><strong className="text-destructive">DELETED:</strong> Non-essential history, such as practice logs.</li>
-                    <li><strong className="text-green-600">RETAINED (Anonymized):</strong> Financial records like `paymentHistory` and `transactionLogs` are kept, but all personally identifiable information (`userId`, `userEmail`) is disassociated from them.</li>
-                </ul>
-            </div>
-             <h3 className="font-semibold text-lg flex items-center gap-2">2. Administrator-Initiated Deletion (Hard Delete)</h3>
-            <Separator className="my-2" />
-            <div className="spacey-y-2 text-sm text-muted-foreground">
-                <p><strong className="text-foreground">Who:</strong> Performed by a trusted administrator from the Admin Dashboard.</p>
-                <p><strong className="text-foreground">Purpose:</strong> To fulfill a user's "Right to be Forgotten" under GDPR or for complete data removal when no legal obligation to retain records exists.</p>
-                <p className="font-semibold pt-2">What happens:</p>
-                 <ul className="list-disc pl-5 space-y-1">
-                    <li><strong className="text-destructive">DELETED:</strong> The user's authentication account.</li>
-                    <li><strong className="text-destructive">DELETED:</strong> The user's main profile document.</li>
-                    <li><strong className="text-destructive">DELETED:</strong> All associated subcollections, including `paymentHistory`, `transactionLogs`, and `practiceHistory`. No data is retained.</li>
-                </ul>
-            </div>
-        </div>
-    );
-}
-
 function MessagingContent() {
     return (
         <Card>
@@ -1723,12 +1691,6 @@ function MessagingContent() {
                         <AccordionTrigger>Marketing Copy for Backpackers</AccordionTrigger>
                         <AccordionContent>
                            <BackpackerMarketing />
-                        </AccordionContent>
-                    </AccordionItem>
-                     <AccordionItem value="item-3">
-                        <AccordionTrigger className="flex items-center gap-2"><BookUser /> Data Deletion Policy</AccordionTrigger>
-                        <AccordionContent>
-                           <DataPolicyContent />
                         </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-4">
@@ -1891,7 +1853,7 @@ export default function AdminPage() {
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
-        { value: 'bulk-delete', label: 'Bulk Actions', icon: Trash2 },
+        { value: 'bulk-actions', label: 'Bulk Actions', icon: Trash2 },
         { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
     ];
     
@@ -1946,7 +1908,7 @@ export default function AdminPage() {
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
                 </TabsContent>
-                 <TabsContent value="bulk-delete" className="mt-6">
+                 <TabsContent value="bulk-actions" className="mt-6">
                     <BulkActionsContent />
                 </TabsContent>
                 <TabsContent value="messaging" className="mt-6">
