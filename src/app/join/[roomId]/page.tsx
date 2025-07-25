@@ -32,8 +32,8 @@ export default function JoinRoomPage() {
 
     const [user, authLoading] = useAuthState(auth);
     
-    const [room, setRoom] = useState<SyncRoom | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [roomTopic, setRoomTopic] = useState('a Sync Room'); // Generic topic
+    const [isLoading, setIsLoading] = useState(true); // Manages initial loading state
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -52,35 +52,48 @@ export default function JoinRoomPage() {
         getAppSettingsAction().then(setSettings);
     }, []);
 
-    useEffect(() => {
-        const fetchRoomData = async () => {
-            if (!roomId) return;
-            setIsLoading(true);
-            try {
-                const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
-                if (roomDoc.exists()) {
-                    setRoom(roomDoc.data() as SyncRoom);
-                } else {
-                    toast({ variant: 'destructive', title: 'Room Not Found', description: 'This invitation link is invalid or has expired.' });
-                    router.push('/login');
-                }
-            } catch (error) {
-                console.error("Error fetching room data:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details.' });
-            } finally {
-                setIsLoading(false);
+    const fetchRoomAndRedirect = useCallback(async (user: User) => {
+        setIsSubmitting(true);
+        try {
+            const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
+            if (!roomDoc.exists()) {
+                toast({ variant: 'destructive', title: 'Room Not Found', description: 'This invitation link is invalid or has expired.' });
+                router.push('/login');
+                return;
             }
-        };
+             const roomData = roomDoc.data() as SyncRoom;
+             setRoomTopic(roomData.topic);
 
-        fetchRoomData();
-    }, [roomId, router, toast]);
+            // Add user to room and redirect.
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            const participantData: Participant = {
+                uid: user.uid,
+                name: user.displayName || user.email!.split('@')[0],
+                email: user.email!,
+                selectedLanguage: spokenLanguage || 'en-US', // Default if somehow not set
+                isMuted: false,
+                joinedAt: Timestamp.now()
+            };
+            await setDoc(participantRef, participantData);
+            router.push(`/sync-room/${roomId}`);
+
+        } catch (error) {
+             console.error("Error fetching room or joining:", error);
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details or join the room.' });
+             setIsSubmitting(false);
+        }
+    }, [roomId, router, toast, spokenLanguage]);
+
 
     useEffect(() => {
-        if (!authLoading && user && room) {
-            // If user is already logged in, attempt to add them to the room and redirect.
-            addUserToRoomAndRedirect(user);
+        if (!authLoading && user) {
+            // User is already logged in, so we have permission to fetch the room.
+            fetchRoomAndRedirect(user);
+        } else if (!authLoading && !user) {
+            // User is not logged in, stop loading and show the form.
+            setIsLoading(false);
         }
-    }, [authLoading, user, room]);
+    }, [authLoading, user, fetchRoomAndRedirect]);
 
 
     const handleCountryChange = (countryCode: string) => {
@@ -108,9 +121,13 @@ export default function JoinRoomPage() {
     };
     
     const addUserToRoomAndRedirect = async (userObj: User) => {
-        if (!room || !roomId) return;
+        if (!roomId) return;
         setIsSubmitting(true);
         try {
+            // We fetch the room topic here, after authentication
+            const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
+            if (!roomDoc.exists()) throw new Error("Room not found");
+            
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', userObj.uid);
             const participantData: Participant = {
                 uid: userObj.uid,
@@ -183,7 +200,7 @@ export default function JoinRoomPage() {
         }
     };
 
-    if (isLoading || authLoading || !settings || !room) {
+    if (isLoading || authLoading || !settings) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
@@ -197,7 +214,7 @@ export default function JoinRoomPage() {
                 <div className="text-center space-y-2">
                     <LoaderCircle className="h-10 w-10 animate-spin text-primary mx-auto" />
                     <p className="text-muted-foreground">You are already logged in.</p>
-                    <p className="font-semibold">Redirecting you to the room...</p>
+                    <p className="font-semibold">Adding you to the room...</p>
                 </div>
             </div>
         );
@@ -208,7 +225,7 @@ export default function JoinRoomPage() {
         <div className="flex h-screen w-full items-center justify-center bg-muted">
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
-                    <CardTitle className="text-2xl">Join Room: {room.topic}</CardTitle>
+                    <CardTitle className="text-2xl">Join Room</CardTitle>
                     <CardDescription>Create an account to join the conversation.</CardDescription>
                 </CardHeader>
                 <form onSubmit={handleSignUpAndJoin}>
