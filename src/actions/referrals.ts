@@ -153,8 +153,8 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
             const referredQuery = referralsRef.where('referredEmail', '==', lowercasedEmail);
             
             const [referrerSnapshot, referredSnapshot] = await Promise.all([
-                getDocs(referrerQuery),
-                getDocs(referredQuery),
+                referrerQuery.get(),
+                referredQuery.get(),
             ]);
             
             const combinedDocs = new Map();
@@ -166,7 +166,7 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
 
         } else {
             const q = referralsRef.where('status', '==', 'complete').orderBy('createdAt', 'desc');
-            querySnapshot = await getDocs(q);
+            querySnapshot = await q.get();
         }
         
         if (querySnapshot.empty) {
