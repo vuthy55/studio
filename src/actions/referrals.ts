@@ -38,32 +38,28 @@ export async function processNewUserAndReferral(
   userData: {country: string, mobile: string, defaultLanguage: string},
   referrerUid?: string | null
 ): Promise<{success: boolean, error?: string}> {
-  console.log('[DEBUG] processNewUserAndReferral: Triggered.');
-  console.log(`[DEBUG] New User: ${JSON.stringify(newUser)}, Referrer UID: ${referrerUid}`);
+  console.log(`[SERVER ACTION] processNewUserAndReferral: Triggered for new user ${newUser.email} with referrer ${referrerUid || 'None'}`);
 
-  if (!newUser?.uid || !newUser.email) {
-    return { success: false, error: 'New user info (UID and Email) is required.' };
+  if (!newUser?.uid || !newUser.email || !newUser.name) {
+    const errorMsg = 'Critical Error: New user info (UID, Email, and Name) is required.';
+    console.error(`[SERVER ACTION] ${errorMsg}`);
+    return { success: false, error: errorMsg };
   }
 
   const newUserRef = db.collection('users').doc(newUser.uid);
 
   try {
+    console.log('[SERVER ACTION] processNewUserAndReferral: Fetching app settings.');
     const appSettings = await getAppSettingsAction();
     const signupBonus = appSettings.signupBonus;
+    console.log(`[SERVER ACTION] processNewUserAndReferral: Signup bonus is ${signupBonus}.`);
 
-    return await db.runTransaction(async (transaction) => {
-      console.log('[DEBUG] processNewUserAndReferral: Starting Firestore transaction.');
+    await db.runTransaction(async (transaction) => {
+      console.log('[SERVER ACTION] processNewUserAndReferral: Starting Firestore transaction.');
       
-      const newUserDoc = await transaction.get(newUserRef);
-      if (newUserDoc.exists) {
-        console.error(`[DEBUG] Error: User ${newUser.uid} already exists. This should not happen in this flow.`);
-        // Don't throw, just return success as the user does exist.
-        return { success: true };
-      }
-
       // 1. Create the new user's document
       const newUserPayload: any = {
-        name: newUser.name || '',
+        name: newUser.name,
         email: newUser.email.toLowerCase(),
         country: userData.country,
         mobile: userData.mobile,
@@ -72,8 +68,8 @@ export async function processNewUserAndReferral(
         tokenBalance: signupBonus,
         syncLiveUsage: 0,
         syncOnlineUsage: 0,
-        searchableName: (newUser.name || '').toLowerCase(),
-        searchableEmail: (newUser.email || '').toLowerCase(),
+        searchableName: newUser.name.toLowerCase(),
+        searchableEmail: newUser.email.toLowerCase(),
         createdAt: db.FieldValue.serverTimestamp(),
       };
       
@@ -85,85 +81,89 @@ export async function processNewUserAndReferral(
         timestamp: db.FieldValue.serverTimestamp(),
         description: 'Welcome bonus for signing up!'
       });
-      console.log('[DEBUG] Set signup bonus log for new user.');
+      console.log('[SERVER ACTION] Set signup bonus log for new user.');
 
 
       // 3. Handle referral logic if a referrerUid is provided
       if (referrerUid) {
-        console.log(`[DEBUG] Processing referral for referrer: ${referrerUid}`);
+        console.log(`[SERVER ACTION] Processing referral for referrer: ${referrerUid}`);
         const referrerRef = db.collection('users').doc(referrerUid);
         const referrerDoc = await transaction.get(referrerRef);
 
         if (!referrerDoc.exists) {
-          console.error(`[DEBUG] CRITICAL ERROR: Referrer with UID ${referrerUid} not found. Aborting referral process but creating user.`);
-          // If referrer doesn't exist, we can't give a bonus, but we should still create the user.
-          // The transaction will just skip the referral-specific parts.
-        } else {
-            console.log('[DEBUG] Referrer found. Proceeding with bonus logic.');
-            const referrerData = referrerDoc.data()!;
-            const bonusAmount = appSettings.referralBonus;
+          // This is a critical failure that should abort the transaction.
+          console.error(`[SERVER ACTION] CRITICAL ERROR: Referrer with UID ${referrerUid} not found. Aborting transaction.`);
+          throw new Error(`Referrer with UID ${referrerUid} not found.`);
+        } 
+        
+        console.log('[SERVER ACTION] Referrer found. Proceeding with bonus logic.');
+        const referrerData = referrerDoc.data()!;
+        const bonusAmount = appSettings.referralBonus;
 
-            // Mark who referred the new user
-            newUserPayload.referredBy = referrerUid;
+        // Mark who referred the new user
+        newUserPayload.referredBy = referrerUid;
 
-            // Award bonus to the referrer
-            transaction.update(referrerRef, {
-                tokenBalance: db.FieldValue.increment(bonusAmount),
-            });
-            console.log(`[DEBUG] Awarded ${bonusAmount} tokens to referrer ${referrerUid}.`);
+        // Award bonus to the referrer
+        transaction.update(referrerRef, {
+            tokenBalance: db.FieldValue.increment(bonusAmount),
+        });
+        console.log(`[SERVER ACTION] Awarded ${bonusAmount} tokens to referrer ${referrerUid}.`);
 
 
-            // Add transaction log for the referrer
-            const referralLogRef = referrerRef.collection('transactionLogs').doc();
-            transaction.set(referralLogRef, {
-                actionType: 'referral_bonus',
-                tokenChange: bonusAmount,
-                timestamp: db.FieldValue.serverTimestamp(),
-                description: `Bonus for referring new user: ${newUser.name || newUser.email}`,
-            });
-            console.log(`[DEBUG] Created transaction log for referrer.`);
+        // Add transaction log for the referrer
+        const referralLogRef = referrerRef.collection('transactionLogs').doc();
+        transaction.set(referralLogRef, {
+            actionType: 'referral_bonus',
+            tokenChange: bonusAmount,
+            timestamp: db.FieldValue.serverTimestamp(),
+            description: `Bonus for referring new user: ${newUser.name || newUser.email}`,
+        });
+        console.log(`[SERVER ACTION] Created transaction log for referrer.`);
 
-            
-            // Create a permanent, detailed referral record
-            const referralLedgerRef = db.collection('referrals').doc(`${referrerUid}_${newUser.uid}`);
-            transaction.set(referralLedgerRef, {
-                referrerUid,
-                referrerEmail: referrerData.email,
-                referrerName: referrerData.name,
-                referredUid: newUser.uid,
-                referredEmail: newUser.email,
-                referredName: newUser.name || newUser.email,
-                bonusAwarded: bonusAmount,
-                status: 'complete',
-                createdAt: db.FieldValue.serverTimestamp(),
-            });
-            console.log(`[DEBUG] Created entry in main referrals ledger.`);
-            
-            // Create notification for the referrer
-            const notificationRef = db.collection('notifications').doc();
-            transaction.set(notificationRef, {
-                userId: referrerUid,
-                type: 'referral_bonus',
-                message: `You earned ${bonusAmount} tokens! ${newUser.name || newUser.email} just signed up with your link.`,
-                fromUserName: 'VibeSync System',
-                createdAt: db.FieldValue.serverTimestamp(),
-                read: false,
-            });
-            console.log(`[DEBUG] Created notification for referrer.`);
-        }
+        
+        // Create a permanent, detailed referral record
+        const referralLedgerRef = db.collection('referrals').doc(`${referrerUid}_${newUser.uid}`);
+        transaction.set(referralLedgerRef, {
+            referrerUid,
+            referrerEmail: referrerData.email,
+            referrerName: referrerData.name,
+            referredUid: newUser.uid,
+            referredEmail: newUser.email,
+            referredName: newUser.name,
+            bonusAwarded: bonusAmount,
+            status: 'complete',
+            createdAt: db.FieldValue.serverTimestamp(),
+        });
+        console.log(`[SERVER ACTION] Created entry in main referrals ledger.`);
+        
+        // Create notification for the referrer
+        const notificationRef = db.collection('notifications').doc();
+        transaction.set(notificationRef, {
+            userId: referrerUid,
+            type: 'referral_bonus',
+            message: `You earned ${bonusAmount} tokens! ${newUser.name} just signed up with your link.`,
+            fromUserName: 'VibeSync System',
+            createdAt: db.FieldValue.serverTimestamp(),
+            read: false,
+        });
+        console.log(`[SERVER ACTION] Created notification for referrer.`);
       }
 
       // Finally, set the new user's document with all the data
       transaction.set(newUserRef, newUserPayload);
-      console.log('[DEBUG] Set main document for new user.');
+      console.log('[SERVER ACTION] Set main document for new user.');
 
 
-      console.log('[DEBUG] processNewUserAndReferral: Transaction operations defined. Ready to commit.');
-      return { success: true };
+      console.log('[SERVER ACTION] processNewUserAndReferral: Transaction operations defined. Ready to commit.');
     });
+
+    console.log("[SERVER ACTION] Transaction completed successfully.");
+    return { success: true };
+
   } catch (error: any) {
-    console.error(`[DEBUG] CRITICAL ERROR in transaction for new user ${newUser.uid}:`, error);
-    return { success: false, error: 'Failed to process new user and referral on the server.' };
+    console.error(`[SERVER ACTION] CRITICAL ERROR in processNewUserAndReferral for new user ${newUser.email}:`, error);
+    // Return the specific error message from Firestore or other services
+    return { success: false, error: error.message || 'An unexpected server error occurred.' };
   }
 }
 
