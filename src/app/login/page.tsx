@@ -11,8 +11,7 @@ import {
   updateProfile as updateAuthProfile,
   type User
 } from "firebase/auth";
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { processNewUserAndReferral } from '@/actions/referrals';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -72,12 +71,12 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      const userDocRef = doc(db, 'users', user.uid);
-      const docSnap = await getDoc(userDocRef);
+      // Check if user is new by trying to get their Firestore doc
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
       
-      if (!docSnap.exists()) {
-        // This is a new user signing up with Google
-        const displayName = user.displayName || 'New User';
+      if (!userDoc.exists()) {
+        const displayName = user.displayName || user.email?.split('@')[0] || 'New User';
+        // This is a new user, call the server action to create everything
          await processNewUserAndReferral(
             { uid: user.uid, name: displayName, email: user.email! },
             { country: '', mobile: user.phoneNumber || '', defaultLanguage: 'en-US' },
@@ -109,6 +108,7 @@ export default function LoginPage() {
       
       await updateAuthProfile(user, { displayName: signupName });
 
+      // Call the robust server action to handle user creation and referral
       const result = await processNewUserAndReferral(
         { uid: user.uid, name: signupName, email: signupEmail },
         { country: signupCountry, mobile: signupMobile, defaultLanguage: signupLanguage },
@@ -116,6 +116,7 @@ export default function LoginPage() {
       );
 
       if (!result.success) {
+        // This will catch errors from the server action, like invalid referrer
         throw new Error(result.error || "Failed to save user profile on the server.");
       }
 

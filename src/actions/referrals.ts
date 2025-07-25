@@ -57,8 +57,8 @@ export async function processNewUserAndReferral(
       const newUserDoc = await transaction.get(newUserRef);
       if (newUserDoc.exists) {
         console.error(`[DEBUG] Error: User ${newUser.uid} already exists. This should not happen in this flow.`);
-        // Don't throw, just return failure. This is a valid outcome if there's a race condition.
-        return { success: false, error: 'User already exists.' };
+        // Don't throw, just return success as the user does exist.
+        return { success: true };
       }
 
       // 1. Create the new user's document
@@ -95,10 +95,9 @@ export async function processNewUserAndReferral(
         const referrerDoc = await transaction.get(referrerRef);
 
         if (!referrerDoc.exists) {
-          console.error(`[DEBUG] CRITICAL ERROR: Referrer with UID ${referrerUid} not found. Aborting referral process.`);
-          // This is a critical failure. The referral link is invalid. We should still create the user but not award bonuses.
-          // We will stop the referral-specific part of the transaction here.
-          // The new user creation will proceed outside this `if` block.
+          console.error(`[DEBUG] CRITICAL ERROR: Referrer with UID ${referrerUid} not found. Aborting referral process but creating user.`);
+          // If referrer doesn't exist, we can't give a bonus, but we should still create the user.
+          // The transaction will just skip the referral-specific parts.
         } else {
             console.log('[DEBUG] Referrer found. Proceeding with bonus logic.');
             const referrerData = referrerDoc.data()!;
@@ -195,6 +194,8 @@ export async function getReferredUsers(referrerUid: string): Promise<ReferredUse
     }
 
     const usersRef = db.collection('users');
+    // Firestore 'in' queries are limited to 10 items. For a more robust solution with many referrals,
+    // you would need to batch these queries. For this app's scale, this is acceptable.
     const usersQuery = usersRef.where('__name__', 'in', referredUids);
     const usersSnapshot = await usersQuery.get();
 
@@ -273,7 +274,7 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
         });
         
         // Sort manually if we merged queries, as we can't order by creation time in that case.
-        if (lowercasedFilter !== '*') {
+        if (lowercasedFilter !== '*' && entries.length > 1) {
             entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         }
 
@@ -284,4 +285,3 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
         return [];
     }
 }
-

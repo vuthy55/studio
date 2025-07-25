@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp, addDoc, collection, updateDoc, arrayUnion } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile, type User, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
@@ -101,11 +101,11 @@ export default function JoinRoomPage() {
              toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details or join the room.' });
              setIsSubmitting(false);
         }
-    }, [roomId, router, toast, spokenLanguage, referralId]);
+    }, [roomId, router, toast, spokenLanguage]);
 
 
     useEffect(() => {
-        console.log(`[DEBUG] Main Effect: Auth loading state is ${authLoading}. User object is ${user ? 'present' : 'null'}.`);
+        console.log(`[DEBUG] Main Effect: Auth loading state is ${authLoading}. User object is ${user ? 'present' : 'null'}. New user flow is ${isNewUserFlow}.`);
         if (authLoading || isNewUserFlow) {
             console.log(`[DEBUG] Main Effect: Auth is loading or new user flow is active, waiting...`);
             return; 
@@ -193,8 +193,8 @@ export default function JoinRoomPage() {
             // 3. Create Firestore document and process referral via server action
             console.log(`[DEBUG] handleSignUpAndJoin: Calling processNewUserAndReferral`);
             const result = await processNewUserAndReferral(
-                { uid: newUser.uid, name: name, email: email },
-                { country: country, mobile: mobile, defaultLanguage: spokenLanguage },
+                { uid: newUser.uid, name, email },
+                { country, mobile, defaultLanguage: spokenLanguage },
                 referralId
             );
 
