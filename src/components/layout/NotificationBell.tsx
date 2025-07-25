@@ -55,7 +55,7 @@ export default function NotificationBell() {
     const prevUnreadCount = useRef(unreadCount);
 
     useEffect(() => {
-        if (unreadCount > prevUnreadCount.current && soundEnabled) {
+        if (unreadCount > prevUnreadCount.current && soundEnabled && audioRef.current?.paused) {
              audioRef.current?.play().catch(e => console.error("Error playing notification sound:", e));
         }
         prevUnreadCount.current = unreadCount;
