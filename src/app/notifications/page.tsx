@@ -14,12 +14,16 @@ import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import useLocalStorage from '@/hooks/use-local-storage';
 
 export default function NotificationsPage() {
     const [user, loading] = useAuthState(auth);
     const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [soundEnabled, setSoundEnabled] = useLocalStorage('notificationSoundEnabled', true);
 
     useEffect(() => {
         if (loading) return;
@@ -126,10 +130,19 @@ export default function NotificationsPage() {
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
-                        <CardTitle>All Notifications</CardTitle>
-                        <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={notifications.every(n => n.read)}>
-                            Mark all as read
-                        </Button>
+                        <div>
+                             <CardTitle>All Notifications</CardTitle>
+                             <CardDescription>All your alerts will appear here.</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center space-x-2">
+                                <Switch id="sound-switch" checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+                                <Label htmlFor="sound-switch">Sound</Label>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={notifications.every(n => n.read)}>
+                                Mark all as read
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>

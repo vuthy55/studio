@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
@@ -15,6 +15,8 @@ import {
 import Link from 'next/link';
 import { Separator } from '../ui/separator';
 import type { Notification } from '@/lib/types';
+import useLocalStorage from '@/hooks/use-local-storage';
+import { notificationSound } from '@/lib/sounds';
 
 
 interface InvitedRoom {
@@ -41,7 +43,24 @@ export default function NotificationBell() {
     const [generalNotifications, setGeneralNotifications] = useState<Notification[]>([]);
     const [popoverOpen, setPopoverOpen] = useState(false);
     
+    const [soundEnabled] = useLocalStorage('notificationSoundEnabled', true);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => {
+        // Initialize the Audio object on the client side only
+        audioRef.current = new Audio(notificationSound);
+    }, []);
+
     const unreadCount = invitations.length + generalNotifications.filter(n => !n.read).length;
+    const prevUnreadCount = useRef(unreadCount);
+
+    useEffect(() => {
+        if (unreadCount > prevUnreadCount.current && soundEnabled) {
+             audioRef.current?.play().catch(e => console.error("Error playing notification sound:", e));
+        }
+        prevUnreadCount.current = unreadCount;
+    }, [unreadCount, soundEnabled]);
+    
 
     useEffect(() => {
         if (!user || !user.email) {
