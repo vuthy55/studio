@@ -22,7 +22,7 @@ export default function BackpackerMarketing() {
           Don't just travel, connect! VibeSync is the essential, all-in-one app for backpackers in Southeast Asia. Master essential phrases, get instant voice translations, and have real-time conversations with locals, no matter the language barrier.
         </p>
         <p>
-          From ordering street food in Bangkok to finding your hostel in Hanoi, VibeSync is the only tool you need to travel safer, smarter, and make unforgettable connections. Download now and get <strong>100 free tokens</strong> to start your adventure!
+          Plus, with our new **Buddy Alert** feature, you can add friends and send a notification with your location to your group for extra peace of mind. From ordering street food in Bangkok to finding your hostel in Hanoi, VibeSync is the only tool you need to travel safer, smarter, and make unforgettable connections. Download now and get <strong>100 free tokens</strong> to start your adventure!
         </p>
       </section>
 
@@ -33,6 +33,11 @@ export default function BackpackerMarketing() {
             <strong>Prep Your Vibe (Learn):</strong>
             <br />
             Master the basics before you even arrive! Our phrasebook covers everything from greetings and ordering food to bargaining and directions. Plus, earn free tokens just for practicing!
+          </li>
+          <li>
+            <strong>Buddy Alert System (Community Safety):</strong>
+            <br />
+            Add friends traveling with you to your in-app buddy list. If you ever feel uneasy or just want to check in, a single tap sends an alert with your current location to all your buddies. It's a safety net, powered by your friends.
           </li>
           <li>
             <strong>Sync Live (1-on-1 Conversation):</strong>

@@ -39,6 +39,7 @@ export default function AdminSOP() {
                 <li><strong>Profile Management:</strong> Users can update their name, country, and default language.</li>
                 <li><strong>Token Wallet:</strong> Users can view their token balance, see transaction history, and purchase more tokens.</li>
                 <li><strong>Referral System:</strong> Each user has a unique referral link. They earn a significant token bonus when a new user signs up using their link.</li>
+                <li><strong>Buddy System & Alerts:</strong> A community-based safety feature. Users can add friends as "buddies" within the app. A "Buddy Alert" button sends an in-app notification with the user's current location to all their buddies for non-emergency situations.</li>
             </ul>
           </li>
         </ul>
