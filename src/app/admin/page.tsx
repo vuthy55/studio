@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1739,15 +1740,20 @@ function MessagingContent() {
 function ReferralsTabContent() {
     const { toast } = useToast();
     const [ledger, setLedger] = useState<ReferralLedgerEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [isSearching, setIsSearching] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [hasSearched, setHasSearched] = useState(false);
 
     const fetchLedger = useCallback(async (searchQuery = '') => {
+        if (!searchQuery.trim()) {
+            setLedger([]);
+            setHasSearched(false);
+            return;
+        }
+
         setIsSearching(true);
-        if (searchQuery) setHasSearched(true);
+        setHasSearched(true);
 
         try {
             const data = await getReferralLedger(searchQuery);
@@ -1756,15 +1762,9 @@ function ReferralsTabContent() {
             console.error("Error fetching referral ledger:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch the referral ledger.' });
         } finally {
-            setIsLoading(false);
             setIsSearching(false);
         }
     }, [toast]);
-
-    useEffect(() => {
-        // Initial fetch for wildcard
-        fetchLedger('*');
-    }, [fetchLedger]);
 
     useEffect(() => {
         if (debouncedSearchTerm) {
