@@ -710,7 +710,7 @@ function FinancialTabContent() {
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Clear Financial Ledger?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        This action is irreversible. It will permanently delete all entries in the financial ledger (revenue and expenses). This does not affect user token balances.
+                                        This action is irreversible and will permanently delete all entries in the central financial ledger (revenue and expenses). It will NOT affect individual user payment histories or token balances.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -1841,5 +1841,3 @@ export default function AdminPage() {
         </div>
     );
 }
-
-    
