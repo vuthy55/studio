@@ -34,8 +34,9 @@ export default function JoinRoomPage() {
     const [user, authLoading] = useAuthState(auth);
     
     const [roomTopic, setRoomTopic] = useState('a Sync Room'); // Generic topic
-    const [isLoading, setIsLoading] = useState(true); // Manages initial loading state
+    const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isNewUserFlow, setIsNewUserFlow] = useState(false); // <-- Race condition lock
     
     const [settings, setSettings] = useState<AppSettings | null>(null);
 
@@ -116,8 +117,8 @@ export default function JoinRoomPage() {
 
     useEffect(() => {
         console.log(`[DEBUG] Main Effect: Auth loading state is ${authLoading}. User object is ${user ? 'present' : 'null'}.`);
-        if (authLoading) {
-            console.log("[DEBUG] Main Effect: Auth is loading, waiting...");
+        if (authLoading || isNewUserFlow) { // <-- Add the lock here
+            console.log(`[DEBUG] Main Effect: Auth is loading or new user flow is active, waiting...`);
             return; 
         }
 
@@ -130,7 +131,7 @@ export default function JoinRoomPage() {
             console.log("[DEBUG] Main Effect: User is not authenticated. Displaying sign-up form.");
             setIsLoading(false);
         }
-    }, [authLoading, user, fetchRoomAndRedirect]);
+    }, [authLoading, user, fetchRoomAndRedirect, isNewUserFlow]);
 
 
     const handleCountryChange = (countryCode: string) => {
@@ -188,6 +189,7 @@ export default function JoinRoomPage() {
             return;
         }
         setIsSubmitting(true);
+        setIsNewUserFlow(true); // <-- Set the lock
 
         try {
             // 1. Create user
@@ -203,7 +205,7 @@ export default function JoinRoomPage() {
             console.log("[DEBUG] handleSignUpAndJoin: Creating Firestore user document.");
             const userDocRef = doc(db, 'users', newUser.uid);
             const signupBonus = settings?.signupBonus || 100;
-            const userData = {
+            const userData: any = {
                 name, email: email.toLowerCase(), country, mobile,
                 role: 'user', tokenBalance: signupBonus,
                 syncLiveUsage: 0, syncOnlineUsage: 0,
@@ -212,6 +214,12 @@ export default function JoinRoomPage() {
                 createdAt: serverTimestamp(),
                 defaultLanguage: spokenLanguage,
             };
+
+            // Add referral info only if it exists
+            if (referralId) {
+                userData.referredBy = referralId;
+            }
+
             await setDoc(userDocRef, userData);
 
             // 4. Log signup bonus transaction
@@ -220,7 +228,6 @@ export default function JoinRoomPage() {
             await addDoc(logRef, {
                 actionType: 'signup_bonus',
                 tokenChange: signupBonus,
-                timestamp: serverTimestamp(),
                 description: 'Welcome bonus for signing up!'
             });
 
@@ -238,6 +245,7 @@ export default function JoinRoomPage() {
             console.error("[DEBUG] Sign-up and join error:", error);
             toast({ variant: 'destructive', title: 'Sign-up Failed', description: error.message });
             setIsSubmitting(false);
+            setIsNewUserFlow(false); // <-- Release the lock on error
         }
     };
 
@@ -249,7 +257,7 @@ export default function JoinRoomPage() {
         );
     }
 
-    if (user) {
+    if (user && !isNewUserFlow) {
          return (
             <div className="flex h-screen w-full items-center justify-center">
                 <div className="text-center space-y-2">
@@ -329,3 +337,5 @@ export default function JoinRoomPage() {
         </div>
     );
 }
+
+    
