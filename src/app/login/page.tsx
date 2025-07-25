@@ -11,7 +11,8 @@ import {
   updateProfile as updateAuthProfile,
   type User
 } from "firebase/auth";
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -77,11 +78,14 @@ export default function LoginPage() {
       if (!userDoc.exists()) {
         const displayName = user.displayName || user.email?.split('@')[0] || 'New User';
         // This is a new user, call the server action to create everything
-         await processNewUserAndReferral(
+         const processResult = await processNewUserAndReferral(
             { uid: user.uid, name: displayName, email: user.email! },
             { country: '', mobile: user.phoneNumber || '', defaultLanguage: 'en-US' },
             referralId
         );
+         if (!processResult.success) {
+            throw new Error(processResult.error || "Failed to process new user and referral on the server.");
+        }
       }
       
       toast({ title: "Success", description: "Logged in successfully." });
@@ -117,7 +121,7 @@ export default function LoginPage() {
 
       if (!result.success) {
         // This will catch errors from the server action, like invalid referrer
-        throw new Error(result.error || "Failed to save user profile on the server.");
+        throw new Error(result.error || "Failed to process new user and referral on the server.");
       }
 
       toast({ title: "Success", description: "Account created successfully." });
@@ -244,7 +248,7 @@ export default function LoginPage() {
                             <Input id="signup-mobile" type="tel" placeholder="Your phone number" value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} />
                         </div>
                         <p className="text-sm text-muted-foreground text-center pt-2">
-                            You'll receive {settings.signupBonus} tokens as a welcome bonus!
+                            You'll receive {settings?.signupBonus || '...'} tokens as a welcome bonus!
                         </p>
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
