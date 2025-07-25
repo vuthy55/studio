@@ -21,19 +21,29 @@ import { auth } from '@/lib/firebase';
 import { PayPalScriptProvider, PayPalButtons, OnApproveData, CreateOrderActions } from "@paypal/react-paypal-js";
 import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { cn } from '@/lib/utils';
+import { Badge } from './ui/badge';
 
 interface BuyTokensProps {
   variant?: 'button' | 'icon';
 }
 
+const tokenPackages = [
+    { tokens: 500, price: 5.00, bonus: 0 },
+    { tokens: 1200, price: 10.00, bonus: 200 },
+    { tokens: 3000, price: 25.00, bonus: 500 },
+]
+
 export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [user] = useAuthState(auth);
   const { toast } = useToast();
-  const [tokenAmount, setTokenAmount] = useState(500); // Default to 500 tokens ($5.00)
+  const [tokenAmount, setTokenAmount] = useState(500);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+  const currentPrice = (tokenAmount * 0.01).toFixed(2);
+
 
   if (!paypalClientId) {
     console.error("PayPal Client ID is not configured.");
@@ -130,12 +140,26 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
             <DialogHeader>
                 <DialogTitle>Buy More Tokens</DialogTitle>
                 <DialogDescription>
-                    1 Token = $0.01 USD. Select an amount and complete your purchase with PayPal.
+                    Select a package or enter a custom amount. 100 tokens = $1.00 USD.
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
+                 <div className="grid grid-cols-3 gap-2">
+                    {tokenPackages.map(pkg => (
+                        <Button 
+                            key={pkg.tokens}
+                            variant="outline"
+                            className={cn("h-auto flex-col relative", tokenAmount === pkg.tokens && 'border-primary ring-2 ring-primary')}
+                            onClick={() => setTokenAmount(pkg.tokens)}
+                        >
+                             {pkg.bonus > 0 && <Badge className="absolute -top-2 -right-2">+{pkg.bonus} Free!</Badge>}
+                            <span className="text-xl font-bold">{pkg.tokens}</span>
+                            <span className="text-xs text-muted-foreground">${pkg.price.toFixed(2)}</span>
+                        </Button>
+                    ))}
+                </div>
                 <div className="space-y-2">
-                    <Label htmlFor="token-amount">Number of Tokens</Label>
+                    <Label htmlFor="token-amount">Custom Amount</Label>
                     <Input 
                         id="token-amount" 
                         type="number" 
@@ -143,10 +167,11 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                         onChange={(e) => setTokenAmount(Number(e.target.value))} 
                         min="1"
                         step="100"
+                        placeholder="e.g., 500"
                     />
                 </div>
                 <div className="text-center font-bold text-lg">
-                    Total: ${(tokenAmount * 0.01).toFixed(2)} USD
+                    Total: ${currentPrice} USD
                 </div>
                 
                 {isProcessing && (
