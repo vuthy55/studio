@@ -237,7 +237,6 @@ export function AppSidebar() {
         <div className="flex items-center justify-start gap-2 w-full">
             {user ? (
                  <>
-                    <BuddyAlertButton />
                     <TooltipProvider>
                       <Tooltip>
                           <TooltipTrigger asChild>
@@ -250,6 +249,7 @@ export function AppSidebar() {
                     </TooltipProvider>
                     <BuyTokens variant="icon" />
                     <DonateButton variant="icon" />
+                    <BuddyAlertButton />
                  </>
             ) : (
                 <>
