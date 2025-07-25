@@ -20,7 +20,7 @@ import { useUserData } from '@/context/UserDataContext';
 import DonateButton from '../DonateButton';
 import BuyTokens from '../BuyTokens';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import React, { useState } from 'react';
 import { sendBuddyAlert } from '@/actions/friends';
 import { cn } from '@/lib/utils';
@@ -30,14 +30,12 @@ function BuddyAlertButton() {
   const { user, userProfile } = useUserData();
   const { toast } = useToast();
   const [isSendingAlert, setIsSendingAlert] = useState(false);
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
   const buddiesCount = userProfile?.buddies?.length || 0;
 
   const handleSendBuddyAlert = () => {
     if (!user) return;
     setIsSendingAlert(true);
-    setIsAlertOpen(false); // Close the dialog immediately
-
+    
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
@@ -83,18 +81,17 @@ function BuddyAlertButton() {
   }
 
   return (
-    <>
-      <Button
-          onClick={() => setIsAlertOpen(true)}
-          variant="default"
-          size="icon"
-          className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-          disabled={isSendingAlert}
-          aria-label="Send Buddy Alert"
-        >
-          {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-        </Button>
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+    <AlertDialog>
+        <AlertDialogTrigger asChild>
+            <Button
+              variant="default"
+              size="icon"
+              className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
+              disabled={isSendingAlert}
+            >
+              {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+            </Button>
+        </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
@@ -108,7 +105,6 @@ function BuddyAlertButton() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
   );
 }
 
