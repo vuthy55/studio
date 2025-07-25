@@ -3,7 +3,7 @@
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus } from "lucide-react";
@@ -711,6 +711,15 @@ function BuddiesSection() {
 export default function ProfilePage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState('profile');
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -730,10 +739,10 @@ export default function ProfilePage() {
         <div className="space-y-8">
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
-            <Tabs defaultValue="profile" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="buddies">Buddies</TabsTrigger>
+                    <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
                     <TabsTrigger value="billing">Payment History</TabsTrigger>
                     <TabsTrigger value="referrals">Referrals</TabsTrigger>
