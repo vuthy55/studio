@@ -2,6 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -52,7 +53,7 @@ export async function clearFinancialLedger(): Promise<{success: boolean, error?:
 
 
 /**
- * Clears the token transaction history for ALL users.
+ * Clears the token transaction history for ALL users AND resets their token balances to 0.
  * This is a highly destructive action.
  */
 export async function clearTokenLedger(): Promise<{success: boolean, error?: string}> {
@@ -62,6 +63,15 @@ export async function clearTokenLedger(): Promise<{success: boolean, error?: str
             return { success: true }; // Nothing to do
         }
 
+        // Use a batched write to update all user balances.
+        const balanceBatch = db.batch();
+        usersSnapshot.docs.forEach(userDoc => {
+            balanceBatch.update(userDoc.ref, { tokenBalance: 0 });
+        });
+        await balanceBatch.commit();
+
+
+        // Now, delete all transaction log subcollections.
         const deletionPromises = usersSnapshot.docs.map(userDoc => {
             return deleteCollection(`users/${userDoc.id}/transactionLogs`, 100);
         });
