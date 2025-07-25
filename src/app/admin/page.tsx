@@ -1731,6 +1731,12 @@ function MessagingContent() {
                            <DataPolicyContent />
                         </AccordionContent>
                     </AccordionItem>
+                    <AccordionItem value="item-4">
+                        <AccordionTrigger>Release 0.1 Marketing Page</AccordionTrigger>
+                        <AccordionContent>
+                           <MarketingRelease />
+                        </AccordionContent>
+                    </AccordionItem>
                 </Accordion>
             </CardContent>
         </Card>
@@ -1770,10 +1776,12 @@ function ReferralsTabContent() {
         if (debouncedSearchTerm) {
             fetchLedger(debouncedSearchTerm);
         } else {
-            setLedger([]);
-            setHasSearched(false);
+             if (hasSearched) {
+                setLedger([]);
+                setHasSearched(false);
+            }
         }
-    }, [debouncedSearchTerm, fetchLedger]);
+    }, [debouncedSearchTerm, fetchLedger, hasSearched]);
 
     return (
         <Card>
@@ -1885,14 +1893,13 @@ export default function AdminPage() {
         { value: 'tokens', label: 'Tokens', icon: Coins },
         { value: 'bulk-delete', label: 'Bulk Actions', icon: Trash2 },
         { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
-        { value: 'release', label: 'Release 0.1', icon: MessageSquareQuote },
     ];
     
     return (
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-9 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1944,9 +1951,6 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="messaging" className="mt-6">
                     <MessagingContent />
-                </TabsContent>
-                <TabsContent value="release" className="mt-6">
-                    <MarketingRelease />
                 </TabsContent>
             </Tabs>
 
