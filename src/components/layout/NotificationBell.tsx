@@ -64,10 +64,10 @@ export default function NotificationBell() {
     useEffect(() => {
         if (unreadCount > prevUnreadCount.current && soundEnabled && !isPlayingSound.current) {
              isPlayingSound.current = true;
-             audioRef.current?.play().catch(e => {
-                console.error("Error playing notification sound:", e);
-                isPlayingSound.current = false; // Reset on error
-             });
+             // audioRef.current?.play().catch(e => {
+             //    console.error("Error playing notification sound:", e);
+             //    isPlayingSound.current = false; // Reset on error
+             // });
         }
         prevUnreadCount.current = unreadCount;
     }, [unreadCount, soundEnabled]);
@@ -88,8 +88,14 @@ export default function NotificationBell() {
         );
         const roomsUnsubscribe = onSnapshot(roomsQuery, (snapshot) => {
             const roomsData = snapshot.docs
-                .map(doc => ({ id: doc.id, topic: doc.data().topic, createdAt: doc.data().createdAt } as InvitedRoom))
-                .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                .map(doc => {
+                    const data = doc.data();
+                    if (!data.createdAt) return null;
+                    return { id: doc.id, topic: data.topic, createdAt: data.createdAt } as InvitedRoom
+                })
+                .filter(Boolean) as InvitedRoom[];
+
+            roomsData.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setInvitations(roomsData);
         });
 
@@ -189,7 +195,11 @@ export default function NotificationBell() {
             }
         });
 
-        return combined.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+        return combined.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis() || 0;
+            const timeB = b.timestamp?.toMillis() || 0;
+            return timeB - timeA;
+        });
     }, [generalNotifications, invitations]);
 
 

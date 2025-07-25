@@ -135,10 +135,7 @@ export default function NotificationsPage() {
                              <CardDescription>All your alerts will appear here.</CardDescription>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center space-x-2">
-                                <Switch id="sound-switch" checked={soundEnabled} onCheckedChange={setSoundEnabled} />
-                                <Label htmlFor="sound-switch">Sound</Label>
-                            </div>
+                            
                             <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={notifications.every(n => n.read)}>
                                 Mark all as read
                             </Button>
