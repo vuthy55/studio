@@ -36,8 +36,23 @@ function BuddyAlertButton() {
 
   const handleSendBuddyAlert = () => {
     if (!user) return;
-    setIsSendingAlert(true);
     
+    if (buddiesCount === 0) {
+      router.push('/profile?tab=buddies');
+      toast({
+        title: "Add a Buddy",
+        description: "You need to add at least one buddy to use this feature."
+      });
+      return;
+    }
+    
+    setIsDialogOpen(true);
+  };
+  
+  const confirmAndSend = () => {
+    if (!user) return;
+    setIsSendingAlert(true);
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
@@ -60,58 +75,46 @@ function BuddyAlertButton() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
-  
-  if (buddiesCount === 0) {
-    return (
+
+  return (
+    <>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button 
+             <Button
               variant="default"
               size="icon"
               className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-              aria-label="Add a buddy to use the Buddy Alert feature"
-              onClick={() => router.push('/profile?tab=buddies')}
+              aria-label="Send Buddy Alert"
+              onClick={handleSendBuddyAlert}
             >
               <AlertTriangle className="h-6 w-6" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>Add buddies in 'My Account' to use this feature.</p>
+            <p>{buddiesCount > 0 ? "Send Buddy Alert" : "Add buddies to use this feature"}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-    );
-  }
 
-  return (
-    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="default"
-          size="icon"
-          className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-          aria-label="Send Buddy Alert"
-        >
-          <AlertTriangle className="h-6 w-6" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This will send an in-app notification with your current location to all {buddiesCount} of your buddies.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleSendBuddyAlert} disabled={isSendingAlert}>
-              {isSendingAlert && <LoaderCircle className="animate-spin mr-2" />}
-              Confirm & Send
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send an in-app notification with your current location to all {buddiesCount} of your buddies.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAndSend} disabled={isSendingAlert}>
+                {isSendingAlert && <LoaderCircle className="animate-spin mr-2" />}
+                Confirm & Send
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -145,7 +148,9 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>VibeSync</Link>
+        <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>
+          VibeSync<sup className="text-xs font-bold text-black ml-1">Beta</sup>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -241,7 +246,7 @@ export function AppSidebar() {
                                 <Share2 className="h-5 w-5" />
                               </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top"><p>Copy Referral Link</p></TooltipContent>
+                          <TooltipContent side="right"><p>Copy Referral Link</p></TooltipContent>
                       </Tooltip>
                       <BuyTokens variant="icon" />
                       <DonateButton variant="icon" />
