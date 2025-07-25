@@ -983,7 +983,7 @@ export default function SyncOnlineHome() {
 
                 await batch.commit();
                 
-                toast({ title: "Room Scheduled!", description: "Your new room is available in the list below." });
+                toast({ title: "Room Scheduled!", description: "Your new room is available and invites have been sent." });
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
                 }

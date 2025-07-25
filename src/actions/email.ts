@@ -22,6 +22,13 @@ export async function sendRoomInviteEmail({
   joinUrl,
 }: SendRoomInviteEmailProps): Promise<{ success: boolean; error?: string }> {
   
+  console.log('[EMAIL ACTION] Attempting to send room invite email with props:', { to, roomTopic, creatorName, scheduledAt: scheduledAt.toISOString(), joinUrl });
+
+  if (to.length === 0) {
+    console.log('[EMAIL ACTION] No recipients provided, skipping email send.');
+    return { success: true }; // Not an error if there's no one to send to.
+  }
+
   const formattedDate = format(scheduledAt, 'PPPP p'); // e.g., "July 22, 2024 at 10:30 AM"
 
   try {
@@ -53,14 +60,14 @@ export async function sendRoomInviteEmail({
     });
 
     if (error) {
-      console.error('Resend API error:', error);
+      console.error('[EMAIL ACTION] Resend API returned an error:', JSON.stringify(error, null, 2));
       return { success: false, error: error.message };
     }
 
+    console.log('[EMAIL ACTION] Resend API call successful. Response:', JSON.stringify(data, null, 2));
     return { success: true };
   } catch (error: any) {
-    console.error('Failed to send email:', error);
-    return { success: false, error: 'An unexpected error occurred while sending the email.' };
+    console.error('[EMAIL ACTION] Failed to execute resend.emails.send:', error);
+    return { success: false, error: 'An unexpected server error occurred while sending the email.' };
   }
 }
-
