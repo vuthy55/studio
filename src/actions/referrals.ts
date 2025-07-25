@@ -87,6 +87,10 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
   const referrerRef = db.collection('users').doc(referrerUid);
 
   try {
+    // Fetch settings BEFORE starting the transaction
+    const appSettings = await getAppSettingsAction();
+    const bonusAmount = appSettings.referralBonus;
+
     return await db.runTransaction(async (transaction) => {
       const referrerDoc = await transaction.get(referrerRef);
       if (!referrerDoc.exists) {
@@ -95,10 +99,7 @@ export async function processReferral(referrerUid: string, newUser: {uid: string
         return { success: false, error: "Referrer account not found." };
       }
       const referrerData = referrerDoc.data()!;
-
-      const appSettings = await getAppSettingsAction();
-      const bonusAmount = appSettings.referralBonus;
-
+      
       // 1. Award bonus to the referrer
       transaction.update(referrerRef, {
         tokenBalance: db.FieldValue.increment(bonusAmount),
@@ -144,13 +145,20 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
     try {
         const referralsRef = db.collection('referrals');
         let querySnapshot;
+        const lowercasedFilter = emailFilter.toLowerCase().trim();
 
-        if (emailFilter && emailFilter !== '*') {
-            const lowercasedEmail = emailFilter.toLowerCase().trim();
+        if (!lowercasedFilter) {
+            return [];
+        }
+
+        if (lowercasedFilter === '*') {
+            const q = referralsRef.orderBy('createdAt', 'desc');
+            querySnapshot = await q.get();
+        } else {
             // Firestore doesn't support OR queries on different fields.
             // We must perform two separate queries and merge the results.
-            const referrerQuery = referralsRef.where('referrerEmail', '==', lowercasedEmail);
-            const referredQuery = referralsRef.where('referredEmail', '==', lowercasedEmail);
+            const referrerQuery = referralsRef.where('referrerEmail', '==', lowercasedFilter);
+            const referredQuery = referralsRef.where('referredEmail', '==', lowercasedFilter);
             
             const [referrerSnapshot, referredSnapshot] = await Promise.all([
                 referrerQuery.get(),
@@ -163,10 +171,6 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
             
             const uniqueDocs = Array.from(combinedDocs.values());
             querySnapshot = { docs: uniqueDocs, empty: uniqueDocs.length === 0 };
-
-        } else {
-            const q = referralsRef.orderBy('createdAt', 'desc');
-            querySnapshot = await q.get();
         }
         
         if (querySnapshot.empty) {
@@ -190,7 +194,7 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
         });
         
         // Sort manually if we merged queries, as we can't order by creation time in that case.
-        if (emailFilter && emailFilter !== '*') {
+        if (lowercasedFilter !== '*') {
             entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         }
 
