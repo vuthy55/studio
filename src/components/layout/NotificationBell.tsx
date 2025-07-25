@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
@@ -23,6 +23,16 @@ interface InvitedRoom {
     createdAt: Timestamp;
 }
 
+type DisplayNotification = {
+    id: string;
+    type: 'invitation' | 'general';
+    text: string;
+    timestamp: Timestamp;
+    read: boolean;
+    href: string;
+    originalNotification?: Notification;
+};
+
 const MAX_NOTIFICATIONS_IN_POPOVER = 5;
 
 export default function NotificationBell() {
@@ -32,7 +42,6 @@ export default function NotificationBell() {
     const [popoverOpen, setPopoverOpen] = useState(false);
     
     const unreadCount = invitations.length + generalNotifications.filter(n => !n.read).length;
-    const hasMoreNotifications = generalNotifications.length > MAX_NOTIFICATIONS_IN_POPOVER;
 
     useEffect(() => {
         if (!user || !user.email) {
@@ -41,7 +50,6 @@ export default function NotificationBell() {
             return;
         }
 
-        // Listener for Room Invitations
         const roomsRef = collection(db, 'syncRooms');
         const roomsQuery = query(
             roomsRef, 
@@ -55,7 +63,6 @@ export default function NotificationBell() {
             setInvitations(roomsData);
         });
 
-        // Listener for General Notifications (P2P, Admin, etc.)
         const notificationsRef = collection(db, 'notifications');
         const p2pQuery = query(
             notificationsRef,
@@ -64,10 +71,7 @@ export default function NotificationBell() {
         const p2pUnsubscribe = onSnapshot(p2pQuery, (snapshot) => {
             const p2pData = snapshot.docs
               .map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-            
-            // Sort on the client to avoid composite index
             p2pData.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
-            
             setGeneralNotifications(p2pData);
         }, (error) => {
             console.error("Error fetching notifications:", error);
@@ -79,19 +83,6 @@ export default function NotificationBell() {
         };
 
     }, [user]);
-
-    const handleMarkAsRead = async (notificationId: string) => {
-        if (!user) return;
-        const notifRef = doc(db, 'notifications', notificationId);
-        await updateDoc(notifRef, { read: true });
-    };
-
-    const handleLinkClick = (notificationId?: string) => {
-        if (notificationId) {
-            handleMarkAsRead(notificationId);
-        }
-        setPopoverOpen(false);
-    };
 
     const getNotificationIcon = (type: Notification['type']) => {
         switch (type) {
@@ -123,6 +114,52 @@ export default function NotificationBell() {
         }
     }
 
+    const allNotifications = useMemo((): DisplayNotification[] => {
+        const combined: DisplayNotification[] = [];
+
+        generalNotifications.forEach(n => {
+            combined.push({
+                id: n.id,
+                type: 'general',
+                text: n.message,
+                timestamp: n.createdAt,
+                read: n.read,
+                href: getNotificationLink(n),
+                originalNotification: n
+            });
+        });
+
+        invitations.forEach(inv => {
+            combined.push({
+                id: inv.id,
+                type: 'invitation',
+                text: `You're invited to join "${inv.topic}"`,
+                timestamp: inv.createdAt,
+                read: false, // Invitations are always "unread" in this context
+                href: `/sync-room/${inv.id}`,
+            });
+        });
+
+        return combined.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+    }, [generalNotifications, invitations]);
+
+
+    const handleMarkAsRead = async (notificationId: string) => {
+        if (!user) return;
+        const notifRef = doc(db, 'notifications', notificationId);
+        await updateDoc(notifRef, { read: true });
+    };
+
+    const handleLinkClick = (notification?: DisplayNotification) => {
+        if (notification?.type === 'general' && notification.originalNotification) {
+            handleMarkAsRead(notification.originalNotification.id);
+        }
+        setPopoverOpen(false);
+    };
+
+    const hasMoreNotifications = allNotifications.length > MAX_NOTIFICATIONS_IN_POPOVER;
+    const notificationsToShow = allNotifications.slice(0, MAX_NOTIFICATIONS_IN_POPOVER);
+
 
     return (
         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -145,54 +182,28 @@ export default function NotificationBell() {
                 </div>
                  <Separator className="my-2" />
                 <div className="grid gap-2">
-                    {invitations.length === 0 && generalNotifications.length === 0 ? (
+                    {notificationsToShow.length === 0 ? (
                          <p className="text-sm text-center text-muted-foreground py-4">No new notifications.</p>
                     ) : (
-                        <>
-                            {generalNotifications.slice(0, MAX_NOTIFICATIONS_IN_POPOVER).map(n => (
-                                 <Link
-                                    key={n.id}
-                                    href={getNotificationLink(n)}
-                                    onClick={() => handleLinkClick(n.id)}
-                                    className={`flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground ${!n.read ? 'font-bold' : ''}`}
-                                >
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            {getNotificationIcon(n.type)}
-                                            <span>{n.message}</span>
-                                        </div>
-                                         {n.fromUserName && (
-                                            <p className={`text-xs mt-1 ${!n.read ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                                From {n.fromUserName}
-                                            </p>
-                                         )}
+                        notificationsToShow.map(n => (
+                            <Link
+                                key={n.id}
+                                href={n.href}
+                                onClick={() => handleLinkClick(n)}
+                                className={`flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground ${!n.read ? 'font-bold' : ''}`}
+                            >
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        {n.type === 'invitation' ? <Wifi className="h-4 w-4 text-primary" /> : getNotificationIcon(n.originalNotification!.type)}
+                                        <span>{n.text}</span>
                                     </div>
-                                     {!n.read && <span className="h-2 w-2 rounded-full bg-primary mt-1" />}
-                                </Link>
-                            ))}
-                            {invitations.map(room => (
-                               <Link
-                                    key={room.id}
-                                    href={`/sync-room/${room.id}`}
-                                    onClick={() => handleLinkClick()}
-                                    className="flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground font-bold"
-                                >
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <Wifi className="h-4 w-4 text-primary" />
-                                            <span className="truncate">{room.topic}</span>
-                                        </div>
-                                         <p className="text-xs text-muted-foreground mt-1">
-                                            Room Invitation
-                                        </p>
-                                    </div>
-                                     <span className="h-2 w-2 rounded-full bg-primary mt-1" />
-                               </Link>
-                           ))}
-                        </>
+                                </div>
+                                {!n.read && <span className="h-2 w-2 rounded-full bg-primary mt-1" />}
+                            </Link>
+                        ))
                     )}
                 </div>
-                {(hasMoreNotifications || invitations.length > 0) && (
+                {hasMoreNotifications && (
                      <>
                         <Separator className="my-2" />
                         <Button variant="ghost" className="w-full justify-center h-8" asChild>
