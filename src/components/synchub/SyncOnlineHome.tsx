@@ -58,6 +58,7 @@ import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sendRoomInviteEmail } from '@/actions/email';
+import { runTestAction } from '@/actions/test-action';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -911,6 +912,7 @@ export default function SyncOnlineHome() {
 
         setIsSubmitting(true);
         try {
+            await runTestAction();
             const finalScheduledDate = startNow ? new Date() : scheduledDate!;
 
             if (isEditMode && editingRoom) {
@@ -973,18 +975,9 @@ export default function SyncOnlineHome() {
                     description: `Pre-paid for room: "${roomTopic}"`
                 });
                 
-                console.log('[DEBUG] SyncOnlineHome: Calling sendRoomInviteEmail');
-                await sendRoomInviteEmail({
-                    to: allInvitedEmails.filter(e => e !== user.email), // Don't email self
-                    roomTopic,
-                    creatorName: user.displayName || 'A VibeSync User',
-                    scheduledAt: finalScheduledDate,
-                    joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
-                });
-
                 await batch.commit();
                 
-                toast({ title: "Room Scheduled!", description: "Your new room is available and invites have been sent." });
+                toast({ title: "Room Scheduled!", description: "Your new room is available and invites will be sent." });
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
                 }
