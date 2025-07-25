@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -78,26 +78,17 @@ function BuddyAlertButton() {
 
   return (
      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <TooltipProvider>
-        <Tooltip>
-          <AlertDialogTrigger asChild>
-            <TooltipTrigger asChild>
-              <Button
-                variant="default"
-                size="icon"
-                className="h-12 w-12 font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
-                aria-label="Send Buddy Alert"
-                onClick={handleSendBuddyAlert}
-              >
-                <AlertTriangle className="h-6 w-6" strokeWidth={2.5} />
-              </Button>
-            </TooltipTrigger>
-          </AlertDialogTrigger>
-          <TooltipContent side="right">
-            <p>{buddiesCount > 0 ? "Send Buddy Alert" : "Add buddies to use this feature"}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <AlertDialogTrigger asChild>
+          <Button
+            variant="default"
+            size="icon"
+            className="h-12 w-12 font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
+            aria-label="Send Buddy Alert"
+            onClick={handleSendBuddyAlert}
+          >
+            <AlertTriangle className="h-6 w-6" strokeWidth={2.5} />
+          </Button>
+      </AlertDialogTrigger>
 
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -164,9 +155,17 @@ export function AppSidebar() {
             </SidebarMenuItem>
            ) : user ? (
             <>
-              <SidebarMenuItem>
+               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
                   <Link href="/" onClick={closeSidebar}>
+                    <Info />
+                    Homepage
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/synchub'} prefetch={true}>
+                  <Link href="/synchub" onClick={closeSidebar}>
                     <Share2 />
                     SyncHub
                   </Link>
@@ -218,6 +217,14 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/'}>
                         <Link href="/" onClick={closeSidebar}>
+                            <Info />
+                            Homepage
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
+                        <Link href="/synchub" onClick={closeSidebar}>
                             <Share2 />
                             SyncHub
                         </Link>
