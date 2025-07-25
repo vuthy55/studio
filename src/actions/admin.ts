@@ -144,7 +144,24 @@ export async function resetUserPracticeHistory(userId: string): Promise<{success
     }
 
     try {
-        await deleteCollection(`users/${userId}/practiceHistory`, 100);
+        const historyRef = db.collection('users').doc(userId).collection('practiceHistory');
+        const snapshot = await historyRef.limit(500).get(); // Limit batch size for safety
+
+        if (snapshot.empty) {
+            return { success: true };
+        }
+
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+
+        // If there might be more documents than the limit, recursively call until all are deleted.
+        if (snapshot.size >= 500) {
+            return resetUserPracticeHistory(userId);
+        }
+
         return { success: true };
     } catch (error: any) {
         console.error(`Error clearing practice history for user ${userId}:`, error);
