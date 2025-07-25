@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -30,6 +30,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import MainHeader from '@/components/layout/MainHeader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { anonymizeAndDeactivateUser } from '@/actions/user';
+import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 export interface PracticeStats {
@@ -53,6 +55,7 @@ export interface UserProfile {
   syncLiveUsage?: number;
   syncOnlineUsage?: number;
   syncOnlineUsageLastReset?: Timestamp;
+  defaultLanguage?: AzureLanguageCode;
 }
 
 function TokenHistoryDialog() {
@@ -312,6 +315,10 @@ function ProfileSection() {
             setProfile(prev => ({ ...prev, mobile: `+${selected.phone} ` }));
         }
     };
+    
+    const handleLanguageChange = (langCode: AzureLanguageCode) => {
+        setProfile(prev => ({...prev, defaultLanguage: langCode }));
+    };
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -323,11 +330,12 @@ function ProfileSection() {
             }
             
             const userDocRef = doc(db, 'users', user.uid);
-            const { name, country, mobile } = profile;
+            const { name, country, mobile, defaultLanguage } = profile;
             const dataToSave = {
                 name: name || '',
                 country: country || '',
                 mobile: mobile || '',
+                defaultLanguage: defaultLanguage || 'en-US',
                 email: user.email,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
@@ -387,6 +395,21 @@ function ProfileSection() {
                             <Label htmlFor="email">Email</Label>
                             <Input id="email" type="email" value={profile.email || ''} disabled />
                             <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="defaultLanguage">Default Spoken Language</Label>
+                            <Select value={profile.defaultLanguage || ''} onValueChange={handleLanguageChange}>
+                                <SelectTrigger id="defaultLanguage">
+                                    <SelectValue placeholder="Select your preferred language" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <ScrollArea className="h-72">
+                                    {azureLanguages.map((lang: any) => (
+                                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                    ))}
+                                    </ScrollArea>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="country">Country</Label>
