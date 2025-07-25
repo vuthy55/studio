@@ -12,6 +12,20 @@ export interface ReferredUser {
   createdAt?: string;
 }
 
+export interface ReferralLedgerEntry {
+    id: string;
+    referrerUid: string;
+    referrerEmail: string;
+    referrerName: string;
+    referredUid: string;
+    referredEmail: string;
+    referredName: string;
+    bonusAwarded: number;
+    status: 'complete';
+    createdAt: string; // ISO String
+}
+
+
 /**
  * Fetches all users who were referred by a specific user.
  * @param referrerUid The UID of the user who made the referrals.
@@ -59,15 +73,15 @@ export async function getReferredUsers(referrerUid: string): Promise<ReferredUse
 }
 
 /**
- * Processes a referral, awarding a bonus to the referrer.
+ * Processes a referral, awarding a bonus to the referrer and creating a permanent ledger record.
  * This is a secure server action that should be called after a new user signs up.
  * @param referrerUid The UID of the user who made the referral.
- * @param newUserName The name of the new user who signed up.
+ * @param newUser The user object of the new user who signed up.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
-export async function processReferral(referrerUid: string, newUserName: string): Promise<{success: boolean, error?: string}> {
-  if (!referrerUid) {
-    return { success: false, error: 'Referrer UID is required.' };
+export async function processReferral(referrerUid: string, newUser: {uid: string; name: string; email: string}): Promise<{success: boolean, error?: string}> {
+  if (!referrerUid || !newUser?.uid) {
+    return { success: false, error: 'Referrer UID and new user info are required.' };
   }
 
   const referrerRef = db.collection('users').doc(referrerUid);
@@ -80,6 +94,7 @@ export async function processReferral(referrerUid: string, newUserName: string):
         console.warn(`Referrer with UID ${referrerUid} not found. Cannot award bonus.`);
         return { success: false, error: "Referrer account not found." };
       }
+      const referrerData = referrerDoc.data()!;
 
       const appSettings = await getAppSettingsAction();
       const bonusAmount = appSettings.referralBonus;
@@ -95,8 +110,23 @@ export async function processReferral(referrerUid: string, newUserName: string):
         actionType: 'referral_bonus',
         tokenChange: bonusAmount,
         timestamp: db.FieldValue.serverTimestamp(),
-        description: `Bonus for referring new user: ${newUserName}`,
+        description: `Bonus for referring new user: ${newUser.name}`,
       });
+      
+      // 3. Create a permanent, detailed referral record for the admin ledger
+      const referralLedgerRef = db.collection('referrals').doc(`${referrerUid}_${newUser.uid}`);
+      transaction.set(referralLedgerRef, {
+        referrerUid: referrerUid,
+        referrerEmail: referrerData.email,
+        referrerName: referrerData.name,
+        referredUid: newUser.uid,
+        referredEmail: newUser.email,
+        referredName: newUser.name,
+        bonusAwarded: bonusAmount,
+        status: 'complete',
+        createdAt: db.FieldValue.serverTimestamp(),
+      });
+
 
       return { success: true };
     });
@@ -104,4 +134,39 @@ export async function processReferral(referrerUid: string, newUserName: string):
     console.error(`Error processing referral for referrer ${referrerUid}:`, error);
     return { success: false, error: 'Failed to process referral on the server.' };
   }
+}
+
+/**
+ * Fetches all referral records for the admin dashboard ledger.
+ * @returns {Promise<ReferralLedgerEntry[]>} A promise resolving to an array of ledger entries.
+ */
+export async function getReferralLedger(): Promise<ReferralLedgerEntry[]> {
+    try {
+        const referralsRef = db.collection('referrals');
+        const q = referralsRef.where('status', '==', 'complete').orderBy('createdAt', 'desc');
+        const snapshot = await q.get();
+
+        if (snapshot.empty) {
+            return [];
+        }
+
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                referrerUid: data.referrerUid,
+                referrerEmail: data.referrerEmail,
+                referrerName: data.referrerName,
+                referredUid: data.referredUid,
+                referredEmail: data.referredEmail,
+                referredName: data.referredName,
+                bonusAwarded: data.bonusAwarded,
+                status: 'complete',
+                createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+            };
+        });
+    } catch (error) {
+        console.error("Error fetching referral ledger:", error);
+        return [];
+    }
 }

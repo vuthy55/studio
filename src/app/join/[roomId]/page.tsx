@@ -58,7 +58,8 @@ export default function JoinRoomPage() {
         setIsSubmitting(true);
         try {
             console.log(`[DEBUG] fetchRoomAndRedirect: Attempting to get room document: syncRooms/${roomId}`);
-            const roomDoc = await getDoc(doc(db, 'syncRooms', roomId));
+            const roomDocRef = doc(db, 'syncRooms', roomId);
+            const roomDoc = await getDoc(roomDocRef);
             if (!roomDoc.exists()) {
                 toast({ variant: 'destructive', title: 'Room Not Found', description: 'This invitation link is invalid or has expired.' });
                 router.push('/login');
@@ -69,12 +70,23 @@ export default function JoinRoomPage() {
 
             // Add user to room and redirect.
             console.log(`[DEBUG] fetchRoomAndRedirect: Adding user ${user.uid} to participants.`);
+            
+            // Check if user is already invited, if not, add them.
+            if (!roomData.invitedEmails.includes(user.email!)) {
+                await updateDoc(roomDocRef, {
+                    invitedEmails: arrayUnion(user.email!)
+                });
+            }
+
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            const userProfileDoc = await getDoc(doc(db, 'users', user.uid));
+            const userProfile = userProfileDoc.data();
+
             const participantData: Participant = {
                 uid: user.uid,
                 name: user.displayName || user.email!.split('@')[0],
                 email: user.email!,
-                selectedLanguage: spokenLanguage || userProfile.defaultLanguage || 'en-US', // Default if somehow not set
+                selectedLanguage: spokenLanguage || userProfile?.defaultLanguage || 'en-US', // Default if somehow not set
                 isMuted: false,
                 joinedAt: Timestamp.now()
             };
@@ -204,7 +216,7 @@ export default function JoinRoomPage() {
             // 5. Handle referral if present
             if (referralId) {
                 console.log(`[DEBUG] handleSignUpAndJoin: Processing referral for referrer ID: ${referralId}`);
-                await processReferral(referralId, name);
+                await processReferral(referralId, { uid: newUser.uid, name: name, email: email });
             }
             
             // 6. Add user to room and redirect

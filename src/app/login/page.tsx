@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { processReferral } from '@/actions/referrals';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -60,21 +61,6 @@ export default function LoginPage() {
         }
     }
   };
-
-  const createReferralRecord = async (referrerUid: string, newUserId: string) => {
-    try {
-        const referralRef = doc(collection(db, 'referrals'));
-        await setDoc(referralRef, {
-            referrerUid,
-            referredUid: newUserId,
-            status: 'pending', // To be processed by a Cloud Function
-            createdAt: serverTimestamp(),
-        });
-    } catch (error) {
-        console.error("Error creating referral record:", error);
-        // This is a non-critical error, so we don't need to show it to the user
-    }
-  }
 
   const updateUserProfileInFirestore = async (user: User, data: any, isNewUser: boolean = false) => {
     const userDocRef = doc(db, 'users', user.uid);
@@ -130,7 +116,7 @@ export default function LoginPage() {
       }, isNewUser);
 
       if (isNewUser && referralId) {
-        await createReferralRecord(referralId, user.uid);
+        await processReferral(referralId, { uid: user.uid, name: displayName, email: user.email! });
       }
 
       toast({ title: "Success", description: "Logged in successfully." });
@@ -163,7 +149,7 @@ export default function LoginPage() {
       }, true); // This is a new user
 
       if (referralId) {
-        await createReferralRecord(referralId, user.uid);
+        await processReferral(referralId, { uid: user.uid, name: signupName, email: signupEmail });
       }
 
       toast({ title: "Success", description: "Account created successfully." });
@@ -292,5 +278,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    

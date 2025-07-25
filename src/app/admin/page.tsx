@@ -28,7 +28,7 @@ import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
-import { deleteUsers, clearAllReferralData } from '@/actions/admin';
+import { deleteUsers, clearAllReferralData, getReferralLedger, type ReferralLedgerEntry } from '@/actions/admin';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
@@ -1735,6 +1735,87 @@ function MessagingContent() {
     );
 }
 
+function ReferralsTabContent() {
+    const { toast } = useToast();
+    const [ledger, setLedger] = useState<ReferralLedgerEntry[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchLedger = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await getReferralLedger();
+            setLedger(data);
+        } catch (error) {
+            console.error("Error fetching referral ledger:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch the referral ledger.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchLedger();
+    }, [fetchLedger]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Referral Ledger</CardTitle>
+                <CardDescription>A log of all successful referrals and the bonuses awarded.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="border rounded-md min-h-[200px]">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Referrer</TableHead>
+                                <TableHead>New User</TableHead>
+                                <TableHead className="text-right">Bonus Awarded</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                        <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : ledger.length > 0 ? (
+                                ledger.map((entry) => (
+                                    <TableRow key={entry.id}>
+                                        <TableCell>{format(new Date(entry.createdAt), 'd MMM yyyy, HH:mm')}</TableCell>
+                                        <TableCell>
+                                            <Link href={`/admin/${entry.referrerUid}`} className="text-primary underline hover:text-primary/80">
+                                                {entry.referrerName} ({entry.referrerEmail})
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Link href={`/admin/${entry.referredUid}`} className="text-primary underline hover:text-primary/80">
+                                                {entry.referredName} ({entry.referredEmail})
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium text-green-600">
+                                            +{entry.bonusAwarded.toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                             ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                        No referral records found.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+
 
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
@@ -1771,6 +1852,7 @@ export default function AdminPage() {
     const adminTabs = [
         { value: 'rooms', label: 'Rooms', icon: RadioTower },
         { value: 'users', label: 'Users', icon: Users },
+        { value: 'referrals', label: 'Referrals', icon: Award },
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
@@ -1783,7 +1865,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-9 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1817,6 +1899,9 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
+                </TabsContent>
+                <TabsContent value="referrals" className="mt-6">
+                    <ReferralsTabContent />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
