@@ -82,17 +82,26 @@ function BuddyAlertButton() {
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger asChild>
-         <Button 
-            variant="default"
-            size="icon"
-            className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-            disabled={isSendingAlert}
-          >
-          {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-          <span className="sr-only">Buddy Alert</span>
-        </Button>
-      </AlertDialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <AlertDialogTrigger asChild>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
+                disabled={isSendingAlert}
+              >
+                {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+                <span className="sr-only">Buddy Alert</span>
+              </Button>
+            </TooltipTrigger>
+          </AlertDialogTrigger>
+          <TooltipContent side="right">
+            <p>Buddy Alert</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
