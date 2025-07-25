@@ -77,19 +77,21 @@ function BuddyAlertButton() {
   };
 
   return (
-    <>
+    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-             <Button
-              variant="default"
-              size="icon"
-              className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-              aria-label="Send Buddy Alert"
-              onClick={handleSendBuddyAlert}
-            >
-              <AlertTriangle className="h-6 w-6" />
-            </Button>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-12 w-12 font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
+                aria-label="Send Buddy Alert"
+                onClick={handleSendBuddyAlert}
+              >
+                <AlertTriangle className="h-6 w-6" strokeWidth={2.5} />
+              </Button>
+            </AlertDialogTrigger>
           </TooltipTrigger>
           <TooltipContent side="right">
             <p>{buddiesCount > 0 ? "Send Buddy Alert" : "Add buddies to use this feature"}</p>
@@ -97,24 +99,22 @@ function BuddyAlertButton() {
         </Tooltip>
       </TooltipProvider>
 
-      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will send an in-app notification with your current location to all {buddiesCount} of your buddies.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAndSend} disabled={isSendingAlert}>
-                {isSendingAlert && <LoaderCircle className="animate-spin mr-2" />}
-                Confirm & Send
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will send an in-app notification with your current location to all {buddiesCount} of your buddies.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmAndSend} disabled={isSendingAlert}>
+              {isSendingAlert && <LoaderCircle className="animate-spin mr-2" />}
+              Confirm & Send
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -149,7 +149,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>
-          VibeSync<sup className="text-xs font-bold text-black ml-1">Beta</sup>
+          VibeSyn
+          <sup className="text-xs font-bold text-black ml-1">Beta</sup>c
         </Link>
       </SidebarHeader>
       <SidebarContent>
