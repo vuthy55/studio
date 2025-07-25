@@ -210,6 +210,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setSyncLiveUsage(0);
         setHasFetched(false); 
         
+        // Explicitly clear localStorage for a clean slate
+        if(typeof window !== 'undefined') {
+            window.localStorage.removeItem('userProfile');
+            window.localStorage.removeItem('practiceHistory');
+        }
+
         debouncedCommitToFirestore.flush(); 
         
         await auth.signOut();

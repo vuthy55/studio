@@ -45,11 +45,16 @@ export default function NotificationBell() {
     
     const [soundEnabled] = useLocalStorage('notificationSoundEnabled', true);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const isPlayingSound = useRef(false);
 
     useEffect(() => {
         // Initialize the Audio object on the client side only
         if (typeof window !== 'undefined') {
-            audioRef.current = new Audio(notificationSound);
+            const audio = new Audio(notificationSound);
+            audio.onended = () => {
+                isPlayingSound.current = false;
+            };
+            audioRef.current = audio;
         }
     }, []);
 
@@ -57,8 +62,12 @@ export default function NotificationBell() {
     const prevUnreadCount = useRef(unreadCount);
 
     useEffect(() => {
-        if (unreadCount > prevUnreadCount.current && soundEnabled && audioRef.current?.paused) {
-             audioRef.current?.play().catch(e => console.error("Error playing notification sound:", e));
+        if (unreadCount > prevUnreadCount.current && soundEnabled && !isPlayingSound.current) {
+             isPlayingSound.current = true;
+             audioRef.current?.play().catch(e => {
+                console.error("Error playing notification sound:", e);
+                isPlayingSound.current = false; // Reset on error
+             });
         }
         prevUnreadCount.current = unreadCount;
     }, [unreadCount, soundEnabled]);
