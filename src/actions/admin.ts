@@ -132,3 +132,22 @@ export async function clearAllReferralData(): Promise<{success: boolean, error?:
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
     }
 }
+
+/**
+ * Resets a user's entire practice history by deleting the subcollection.
+ * @param {string} userId The ID of the user whose practice history will be cleared.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function resetUserPracticeHistory(userId: string): Promise<{success: boolean, error?: string}> {
+    if (!userId) {
+        return { success: false, error: 'User ID is required.' };
+    }
+
+    try {
+        await deleteCollection(`users/${userId}/practiceHistory`, 100);
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error clearing practice history for user ${userId}:`, error);
+        return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}

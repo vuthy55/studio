@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -35,6 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
+import { resetUserPracticeHistory } from '@/actions/admin';
 
 
 export interface PracticeStats {
@@ -279,7 +280,7 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile, logout } = useUserData();
+    const { user, userProfile, logout, fetchUserProfile } = useUserData();
     const { toast } = useToast();
     const router = useRouter();
 
@@ -289,6 +290,7 @@ function ProfileSection() {
     
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isResettingStats, setIsResettingStats] = useState(false);
 
     useEffect(() => {
         if(userProfile) {
@@ -357,6 +359,20 @@ function ProfileSection() {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete your account.' });
             setIsDeleting(false);
         }
+    };
+
+    const handleResetStats = async () => {
+        if (!user) return;
+        setIsResettingStats(true);
+        const result = await resetUserPracticeHistory(user.uid);
+        if (result.success) {
+            toast({ title: 'Stats Reset', description: 'Your practice history has been successfully cleared.'});
+            // Manually trigger a refetch of all user data in the context
+            await fetchUserProfile();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not reset your stats.'});
+        }
+        setIsResettingStats(false);
     };
 
     return (
@@ -430,44 +446,69 @@ function ProfileSection() {
             <Card className="border-destructive">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Danger Zone</CardTitle>
-                     <CardDescription className="space-y-1 text-xs">
-                        <p>This action will permanently deactivate your account.</p>
-                        <ul className="list-disc pl-5">
-                            <li><strong className="text-foreground">What will be deleted:</strong> Your login account, personal profile info (name, country, etc.), and all practice history.</li>
-                            <li><strong className="text-foreground">What will be kept (anonymously):</strong> Financial records (token purchases, donations) will be retained without your personal details for legal compliance.</li>
-                        </ul>
-                    </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive">
-                                <Trash2 className="mr-2"/> Delete My Account
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action is irreversible. Your account, profile, and practice history will be permanently deleted. Your financial transaction history will be anonymized for legal compliance.
-                                    <br/><br/>
-                                    To confirm, please type <strong className="text-destructive">delete my account</strong> below.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <Input 
-                                value={deleteConfirmation}
-                                onChange={(e) => setDeleteConfirmation(e.target.value)}
-                                placeholder="delete my account"
-                            />
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting || deleteConfirmation !== 'delete my account'}>
-                                    {isDeleting ? <LoaderCircle className="animate-spin mr-2"/> : null}
-                                    Confirm Deletion
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                <CardContent className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <h4 className="font-semibold">Reset Practice Stats</h4>
+                        <p className="text-xs text-muted-foreground">This will permanently delete all your practice history (passes, fails, accuracy). This is useful for clearing old or buggy data but cannot be undone.</p>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={isResettingStats}>
+                                    <RefreshCw className="mr-2"/> 
+                                    {isResettingStats ? 'Resetting...' : 'Reset All Practice Stats'}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action will permanently delete all of your practice history. This cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleResetStats} disabled={isResettingStats}>
+                                        {isResettingStats ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                        Confirm & Reset Stats
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+
+                    <div className="space-y-2">
+                        <h4 className="font-semibold">Delete Account</h4>
+                         <p className="text-xs text-muted-foreground">This will permanently deactivate and anonymize your account. Personal info will be deleted, while financial records will be retained anonymously.</p>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive">
+                                    <Trash2 className="mr-2"/> Delete My Account
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action is irreversible. Your account, profile, and practice history will be permanently deleted.
+                                        <br/><br/>
+                                        To confirm, please type <strong className="text-destructive">delete my account</strong> below.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <Input 
+                                    value={deleteConfirmation}
+                                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                    placeholder="delete my account"
+                                />
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting || deleteConfirmation !== 'delete my account'}>
+                                        {isDeleting ? <LoaderCircle className="animate-spin mr-2"/> : null}
+                                        Confirm Deletion
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 </CardContent>
             </Card>
         </div>
