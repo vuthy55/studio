@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -32,6 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { anonymizeAndDeactivateUser } from '@/actions/user';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 
 export interface PracticeStats {
@@ -56,6 +57,8 @@ export interface UserProfile {
   syncOnlineUsage?: number;
   syncOnlineUsageLastReset?: Timestamp;
   defaultLanguage?: AzureLanguageCode;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }
 
 function TokenHistoryDialog() {
@@ -330,12 +333,14 @@ function ProfileSection() {
             }
             
             const userDocRef = doc(db, 'users', user.uid);
-            const { name, country, mobile, defaultLanguage } = profile;
+            const { name, country, mobile, defaultLanguage, emergencyContactName, emergencyContactPhone } = profile;
             const dataToSave = {
                 name: name || '',
                 country: country || '',
                 mobile: mobile || '',
                 defaultLanguage: defaultLanguage || 'en-US',
+                emergencyContactName: emergencyContactName || '',
+                emergencyContactPhone: emergencyContactPhone || '',
                 email: user.email,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
@@ -428,7 +433,25 @@ function ProfileSection() {
                             <Label htmlFor="mobile">Mobile Number</Label>
                             <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
                         </div>
-                        <div className="flex justify-end">
+
+                        <Separator />
+                        
+                        <div>
+                            <h3 className="text-lg font-semibold flex items-center gap-2 mb-2"><PhoneOutgoing className="text-destructive"/> Emergency Contact</h3>
+                            <p className="text-sm text-muted-foreground mb-4">This person will receive an SMS with your location if you use the SOS feature. Please enter their number with the full country code.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="emergencyContactName">Contact's Name</Label>
+                                    <Input id="emergencyContactName" value={profile.emergencyContactName || ''} onChange={(e) => setProfile((p: any) => ({...p, emergencyContactName: e.target.value}))} placeholder="e.g., Jane Doe" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="emergencyContactPhone">Contact's Phone Number</Label>
+                                    <Input id="emergencyContactPhone" type="tel" value={profile.emergencyContactPhone || ''} onChange={(e) => setProfile((p: any) => ({...p, emergencyContactPhone: e.target.value}))} placeholder="+15551234567" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end pt-4">
                             <Button type="submit" disabled={isSaving}>
                                 {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 Save Changes
