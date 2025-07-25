@@ -34,6 +34,7 @@ const RoomSummarySchemaForInput = z.object({
     dueDate: z.string().optional(),
   })),
   editHistory: z.array(z.any()).optional(),
+  allowMoreEdits: z.boolean().optional(),
 });
 
 const TranslateSummaryInputSchema = z.object({
@@ -131,8 +132,29 @@ const translateSummaryFlow = ai.defineFlow(
             summaryText: updatedSummary.summary.original,
             actionItemTexts: updatedSummary.actionItems.map((item: any) => item.task.original),
         };
+        
+        let output;
+        try {
+            const result = await translateSummaryPrompt(promptData);
+            output = result.output;
+        } catch (error: any) {
+            if (error.message && (error.message.includes('503') || /overloaded/i.test(error.message))) {
+                console.warn(`Primary model for summary translation failed for language ${lang}, switching to fallback.`);
+                const fallbackResult = await ai.generate({
+                   model: 'googleai/gemini-2.0-flash',
+                   prompt: translateSummaryPrompt.prompt, 
+                   input: promptData,
+                   output: { schema: TranslationOutputSchema }, 
+                   config: {
+                        temperature: 0.1
+                   }
+                });
+                output = fallbackResult.output;
+            } else {
+                throw error; // Re-throw other errors
+            }
+        }
 
-        const { output } = await translateSummaryPrompt(promptData);
 
         if (!output) {
             console.warn(`Translation failed for language: ${lang}`);
