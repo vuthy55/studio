@@ -1670,55 +1670,43 @@ function BulkDeleteUsers() {
 
 function DataPolicyContent() {
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><BookUser /> Data Deletion Policy</CardTitle>
-                <CardDescription>
-                    This document outlines the different data deletion procedures available in the application to comply with data privacy regulations like GDPR.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold text-lg flex items-center gap-2">1. User-Initiated Account Deletion (Soft Delete & Anonymization)</h3>
-                    <Separator className="my-2" />
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                        <p><strong className="text-foreground">Who:</strong> Performed by the user from their "My Account" page.</p>
-                        <p><strong className="text-foreground">Purpose:</strong> To provide a self-service option for users to close their account while allowing the business to meet legal and financial reporting obligations.</p>
-                        <p className="font-semibold pt-2">What happens:</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li><strong className="text-destructive">DELETED:</strong> The user's authentication account, preventing future logins.</li>
-                            <li><strong className="text-destructive">DELETED:</strong> The user's main profile document (name, email, country, etc.).</li>
-                             <li><strong className="text-destructive">DELETED:</strong> Non-essential history, such as practice logs.</li>
-                            <li><strong className="text-green-600">RETAINED (Anonymized):</strong> Financial records like `paymentHistory` and `transactionLogs` are kept, but all personally identifiable information (`userId`, `userEmail`) is disassociated from them.</li>
-                        </ul>
-                    </div>
-                </div>
-                 <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold text-lg flex items-center gap-2">2. Administrator-Initiated Deletion (Hard Delete)</h3>
-                    <Separator className="my-2" />
-                    <div className="spacey-y-2 text-sm text-muted-foreground">
-                        <p><strong className="text-foreground">Who:</strong> Performed by a trusted administrator from the Admin Dashboard.</p>
-                        <p><strong className="text-foreground">Purpose:</strong> To fulfill a user's "Right to be Forgotten" under GDPR or for complete data removal when no legal obligation to retain records exists.</p>
-                        <p className="font-semibold pt-2">What happens:</p>
-                         <ul className="list-disc pl-5 space-y-1">
-                            <li><strong className="text-destructive">DELETED:</strong> The user's authentication account.</li>
-                            <li><strong className="text-destructive">DELETED:</strong> The user's main profile document.</li>
-                            <li><strong className="text-destructive">DELETED:</strong> All associated subcollections, including `paymentHistory`, `transactionLogs`, and `practiceHistory`. No data is retained.</li>
-                        </ul>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="space-y-6">
+            <h3 className="font-semibold text-lg flex items-center gap-2">1. User-Initiated Account Deletion (Soft Delete & Anonymization)</h3>
+            <Separator className="my-2" />
+            <div className="space-y-2 text-sm text-muted-foreground">
+                <p><strong className="text-foreground">Who:</strong> Performed by the user from their "My Account" page.</p>
+                <p><strong className="text-foreground">Purpose:</strong> To provide a self-service option for users to close their account while allowing the business to meet legal and financial reporting obligations.</p>
+                <p className="font-semibold pt-2">What happens:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                    <li><strong className="text-destructive">DELETED:</strong> The user's authentication account, preventing future logins.</li>
+                    <li><strong className="text-destructive">DELETED:</strong> The user's main profile document (name, email, country, etc.).</li>
+                     <li><strong className="text-destructive">DELETED:</strong> Non-essential history, such as practice logs.</li>
+                    <li><strong className="text-green-600">RETAINED (Anonymized):</strong> Financial records like `paymentHistory` and `transactionLogs` are kept, but all personally identifiable information (`userId`, `userEmail`) is disassociated from them.</li>
+                </ul>
+            </div>
+             <h3 className="font-semibold text-lg flex items-center gap-2">2. Administrator-Initiated Deletion (Hard Delete)</h3>
+            <Separator className="my-2" />
+            <div className="spacey-y-2 text-sm text-muted-foreground">
+                <p><strong className="text-foreground">Who:</strong> Performed by a trusted administrator from the Admin Dashboard.</p>
+                <p><strong className="text-foreground">Purpose:</strong> To fulfill a user's "Right to be Forgotten" under GDPR or for complete data removal when no legal obligation to retain records exists.</p>
+                <p className="font-semibold pt-2">What happens:</p>
+                 <ul className="list-disc pl-5 space-y-1">
+                    <li><strong className="text-destructive">DELETED:</strong> The user's authentication account.</li>
+                    <li><strong className="text-destructive">DELETED:</strong> The user's main profile document.</li>
+                    <li><strong className="text-destructive">DELETED:</strong> All associated subcollections, including `paymentHistory`, `transactionLogs`, and `practiceHistory`. No data is retained.</li>
+                </ul>
+            </div>
+        </div>
     );
 }
 
-function MarketingContent() {
+function MessagingContent() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2"><MessageSquareQuote /> App Messaging</CardTitle>
+                <CardTitle className="flex items-center gap-2"><MessageSquareQuote /> App Messaging &amp; Policy</CardTitle>
                 <CardDescription>
-                    This section contains standardized documentation for administrative procedures and external marketing copy.
+                    Standardized documentation for administrative procedures, external marketing, and data policies.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1733,6 +1721,12 @@ function MarketingContent() {
                         <AccordionTrigger>Marketing Copy for Backpackers</AccordionTrigger>
                         <AccordionContent>
                            <BackpackerMarketing />
+                        </AccordionContent>
+                    </AccordionItem>
+                     <AccordionItem value="item-3">
+                        <AccordionTrigger className="flex items-center gap-2"><BookUser /> Data Deletion Policy</AccordionTrigger>
+                        <AccordionContent>
+                           <DataPolicyContent />
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
@@ -1781,8 +1775,7 @@ export default function AdminPage() {
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
         { value: 'bulk-delete', label: 'Bulk Actions', icon: Trash2 },
-        { value: 'data-policy', label: 'Data Policy', icon: BookUser },
-        { value: 'marketing', label: 'Messaging', icon: MessageSquareQuote },
+        { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
         { value: 'release', label: 'Release 0.1', icon: MessageSquareQuote },
     ];
     
@@ -1790,7 +1783,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-9 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1837,11 +1830,8 @@ export default function AdminPage() {
                  <TabsContent value="bulk-delete" className="mt-6">
                     <BulkActionsContent />
                 </TabsContent>
-                <TabsContent value="data-policy" className="mt-6">
-                    <DataPolicyContent />
-                </TabsContent>
-                 <TabsContent value="marketing" className="mt-6">
-                    <MarketingContent />
+                <TabsContent value="messaging" className="mt-6">
+                    <MessagingContent />
                 </TabsContent>
                 <TabsContent value="release" className="mt-6">
                     <MarketingRelease />
@@ -1851,3 +1841,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
