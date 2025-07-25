@@ -30,6 +30,7 @@ function BuddyAlertButton() {
   const { user, userProfile } = useUserData();
   const { toast } = useToast();
   const [isSendingAlert, setIsSendingAlert] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const buddiesCount = userProfile?.buddies?.length || 0;
 
   const handleSendBuddyAlert = () => {
@@ -46,11 +47,13 @@ function BuddyAlertButton() {
         } else {
           toast({ variant: 'destructive', title: "Alert Failed", description: result.error || "Could not send the alert." });
         }
+        setIsDialogOpen(false);
         setIsSendingAlert(false);
       },
       (error) => {
         console.error("Geolocation error:", error);
         toast({ variant: 'destructive', title: "Location Error", description: "Could not get your current location." });
+        setIsDialogOpen(false);
         setIsSendingAlert(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -59,48 +62,43 @@ function BuddyAlertButton() {
   
   if (buddiesCount === 0) {
     return (
-       <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-             <Button 
-                variant="default"
-                size="icon"
-                className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
-                disabled
-                aria-label="Buddy Alert (disabled)"
-              >
-                <AlertTriangle className="h-6 w-6" />
-              </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>Add buddies in 'My Account' to use this feature.</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button 
+            variant="default"
+            size="icon"
+            className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white disabled:bg-blue-500/50"
+            disabled
+            aria-label="Buddy Alert (disabled)"
+          >
+            <AlertTriangle className="h-6 w-6" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>Add buddies in 'My Account' to use this feature.</p>
+        </TooltipContent>
+      </Tooltip>
     );
   }
 
   return (
-    <AlertDialog onOpenChange={(open) => !open && setIsSendingAlert(false)}>
-      <AlertDialogTrigger asChild>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
+    <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
               <Button
                 variant="default"
                 size="icon"
                 className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-                disabled={isSendingAlert}
               >
-                {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+                <AlertTriangle className="h-6 w-6" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Send Buddy Alert</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </AlertDialogTrigger>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Send Buddy Alert</p>
+          </TooltipContent>
+        </Tooltip>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
@@ -236,10 +234,10 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center justify-start gap-2 w-full">
-            {user ? (
-                 <>
-                    <TooltipProvider>
+        <TooltipProvider>
+          <div className="flex items-center justify-start gap-2 w-full">
+              {user ? (
+                  <>
                       <Tooltip>
                           <TooltipTrigger asChild>
                               <Button variant="ghost" size="icon" onClick={copyReferralLink}>
@@ -248,17 +246,17 @@ export function AppSidebar() {
                           </TooltipTrigger>
                           <TooltipContent side="top"><p>Copy Referral Link</p></TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
-                    <BuyTokens variant="icon" />
-                    <DonateButton variant="icon" />
-                    <BuddyAlertButton />
-                 </>
-            ) : (
-                <>
-                    <DonateButton variant="icon" />
-                </>
-            )}
-        </div>
+                      <BuyTokens variant="icon" />
+                      <DonateButton variant="icon" />
+                      <BuddyAlertButton />
+                  </>
+              ) : (
+                  <>
+                      <DonateButton variant="icon" />
+                  </>
+              )}
+          </div>
+        </TooltipProvider>
       </SidebarFooter>
     </Sidebar>
   );
