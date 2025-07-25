@@ -84,25 +84,16 @@ function BuddyAlertButton() {
 
   return (
     <>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => setIsAlertOpen(true)}
-              variant="default"
-              size="icon"
-              className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
-              disabled={isSendingAlert}
-            >
-              {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-              <span className="sr-only">Buddy Alert</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>Buddy Alert</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Button
+          onClick={() => setIsAlertOpen(true)}
+          variant="default"
+          size="icon"
+          className="h-12 w-12 font-bold bg-blue-500 hover:bg-blue-600 text-white"
+          disabled={isSendingAlert}
+          aria-label="Send Buddy Alert"
+        >
+          {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+        </Button>
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
