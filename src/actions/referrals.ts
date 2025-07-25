@@ -61,40 +61,24 @@ export async function getReferredUsers(referrerUid: string): Promise<ReferredUse
 /**
  * Processes a referral, awarding a bonus to the referrer.
  * This is a secure server action that should be called after a new user signs up.
- * @param referralId The ID of the referral document to process.
+ * @param referrerUid The UID of the user who made the referral.
  * @param newUserName The name of the new user who signed up.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
-export async function processReferral(referralId: string, newUserName: string): Promise<{success: boolean, error?: string}> {
-  if (!referralId) {
-    return { success: false, error: 'Referral ID is required.' };
+export async function processReferral(referrerUid: string, newUserName: string): Promise<{success: boolean, error?: string}> {
+  if (!referrerUid) {
+    return { success: false, error: 'Referrer UID is required.' };
   }
 
-  const referralRef = db.collection('referrals').doc(referralId);
+  const referrerRef = db.collection('users').doc(referrerUid);
 
   try {
     return await db.runTransaction(async (transaction) => {
-      const referralDoc = await transaction.get(referralRef);
-
-      if (!referralDoc.exists) {
-        throw new Error('Referral not found.');
-      }
-
-      const referralData = referralDoc.data()!;
-      if (referralData.status !== 'pending') {
-        // This prevents double-processing a referral
-        console.log(`Referral ${referralId} already processed.`);
-        return { success: true }; 
-      }
-
-      const { referrerUid } = referralData;
-      const referrerRef = db.collection('users').doc(referrerUid);
-
       const referrerDoc = await transaction.get(referrerRef);
       if (!referrerDoc.exists) {
-        // Referrer might have deleted their account, which is fine. Just mark as processed.
-        transaction.update(referralRef, { status: 'processed_no_referrer' });
-        return { success: true };
+        // Referrer might have deleted their account.
+        console.warn(`Referrer with UID ${referrerUid} not found. Cannot award bonus.`);
+        return { success: false, error: "Referrer account not found." };
       }
 
       const appSettings = await getAppSettingsAction();
@@ -114,15 +98,10 @@ export async function processReferral(referralId: string, newUserName: string): 
         description: `Bonus for referring new user: ${newUserName}`,
       });
 
-      // 3. Mark the referral as completed
-      transaction.update(referralRef, { status: 'completed' });
-
       return { success: true };
     });
   } catch (error: any) {
-    console.error(`Error processing referral ${referralId}:`, error);
-    // Attempt to mark as failed to prevent retries on permanent errors
-    await referralRef.set({ status: 'failed', error: error.message }, { merge: true }).catch();
+    console.error(`Error processing referral for referrer ${referrerUid}:`, error);
     return { success: false, error: 'Failed to process referral on the server.' };
   }
 }

@@ -57,6 +57,7 @@ import { format } from 'date-fns';
 import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { sendRoomInviteEmail } from '@/actions/email';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -708,12 +709,12 @@ export default function SyncOnlineHome() {
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
-    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
+    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>(userProfile?.defaultLanguage || '');
     const [inviteeEmails, setInviteeEmails] = useState('');
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
     const [duration, setDuration] = useState(30);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
-    const [reminderMinutes, setReminderMinutes] = useState<number>(30);
+    const [startNow, setStartNow] = useState(false);
     
     // Edit Mode State
     const [editingRoom, setEditingRoom] = useState<InvitedRoom | null>(null);
@@ -747,20 +748,26 @@ export default function SyncOnlineHome() {
         defaultDate.setMilliseconds(0);
         
         setRoomTopic('');
-        setCreatorLanguage('');
+        setCreatorLanguage(userProfile?.defaultLanguage || '');
         setInviteeEmails('');
         setEmceeEmails(user?.email ? [user.email] : []);
         setDuration(30);
         setScheduledDate(defaultDate);
-        setReminderMinutes(30);
+        setStartNow(false);
         setEditingRoom(null);
-    }, [user?.email]);
+    }, [user?.email, userProfile?.defaultLanguage]);
 
      useEffect(() => {
         if (isScheduling && !isEditMode) {
              resetForm();
         }
     }, [isScheduling, isEditMode, resetForm]);
+    
+     useEffect(() => {
+        if (userProfile?.defaultLanguage && !creatorLanguage) {
+            setCreatorLanguage(userProfile.defaultLanguage);
+        }
+    }, [userProfile?.defaultLanguage, creatorLanguage]);
 
      useEffect(() => {
         if (isEditMode && editingRoom) {
@@ -768,7 +775,7 @@ export default function SyncOnlineHome() {
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
-            setReminderMinutes(editingRoom.reminderMinutes || 30);
+            setStartNow(false); // "Start Now" is not applicable for editing
             
              const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
                 ? new Date(editingRoom.scheduledAt)
@@ -880,12 +887,12 @@ export default function SyncOnlineHome() {
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !user.email || !userProfile || !scheduledDate) {
+        if (!user || !user.email || !userProfile) {
             toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create or edit a room.' });
             return;
         }
         
-        const requiredFields = isEditMode ? [roomTopic] : [roomTopic, creatorLanguage];
+        const requiredFields = (isEditMode || startNow) ? [roomTopic] : [roomTopic, creatorLanguage, scheduledDate];
         if (requiredFields.some(f => !f)) {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
             return;
@@ -904,6 +911,8 @@ export default function SyncOnlineHome() {
 
         setIsSubmitting(true);
         try {
+            const finalScheduledDate = startNow ? new Date() : scheduledDate!;
+
             if (isEditMode && editingRoom) {
                  if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
                     toast({ variant: "destructive", title: "Insufficient Tokens", description: `You need ${calculatedCost - ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0))} more tokens.` });
@@ -915,11 +924,10 @@ export default function SyncOnlineHome() {
                     userId: user.uid,
                     updates: {
                         topic: roomTopic,
-                        scheduledAt: scheduledDate.toISOString(),
+                        scheduledAt: finalScheduledDate.toISOString(),
                         durationMinutes: duration,
                         invitedEmails: allInvitedEmails,
                         emceeEmails: [...new Set(emceeEmails)],
-                        reminderMinutes: reminderMinutes,
                     },
                     newCost: calculatedCost
                 });
@@ -943,17 +951,16 @@ export default function SyncOnlineHome() {
                     creatorUid: user.uid,
                     creatorName: user.displayName || user.email?.split('@')[0] || 'Creator',
                     createdAt: serverTimestamp(),
-                    status: 'scheduled',
+                    status: startNow ? 'active' : 'scheduled',
                     invitedEmails: allInvitedEmails,
                     emceeEmails: [...new Set(emceeEmails)],
                     blockedUsers: [],
                     lastActivityAt: serverTimestamp(),
-                    scheduledAt: Timestamp.fromDate(scheduledDate),
+                    scheduledAt: Timestamp.fromDate(finalScheduledDate),
                     durationMinutes: duration,
                     initialCost: calculatedCost,
                     paymentLogId: newPaymentLogRef.id,
-                    hasStarted: false,
-                    reminderMinutes: reminderMinutes,
+                    hasStarted: startNow,
                 };
                 batch.set(newRoomRef, newRoom);
                 
@@ -963,12 +970,23 @@ export default function SyncOnlineHome() {
                     actionType: 'live_sync_online_spend',
                     tokenChange: -calculatedCost,
                     timestamp: serverTimestamp(),
-                    description: `Pre-paid for scheduled room: "${roomTopic}"`
+                    description: `Pre-paid for room: "${roomTopic}"`
+                });
+                
+                await sendRoomInviteEmail({
+                    to: allInvitedEmails.filter(e => e !== user.email), // Don't email self
+                    roomTopic,
+                    creatorName: user.displayName || 'A VibeSync User',
+                    scheduledAt: finalScheduledDate,
+                    joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
                 });
 
                 await batch.commit();
                 
                 toast({ title: "Room Scheduled!", description: "Your new room is available in the list below." });
+                if (startNow) {
+                    router.push(`/sync-room/${newRoomRef.id}`);
+                }
             }
             
             fetchInvitedRooms();
@@ -1021,8 +1039,8 @@ export default function SyncOnlineHome() {
         return now >= scheduledTime - gracePeriod;
     };
 
-    const copyInviteLink = (roomId: string) => {
-        const link = `${window.location.origin}/join/${roomId}`;
+    const copyInviteLink = (roomId: string, creatorId: string) => {
+        const link = `${window.location.origin}/join/${roomId}?ref=${creatorId}`;
         navigator.clipboard.writeText(link);
         toast({ title: 'Invite Link Copied!', description: 'You can now share this link with anyone.' });
     };
@@ -1103,7 +1121,7 @@ export default function SyncOnlineHome() {
                                     
                                     {isCreator && room.status === 'scheduled' && (
                                         <>
-                                            <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id)}><LinkIcon className="h-4 w-4"/></Button>
+                                            <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)}><LinkIcon className="h-4 w-4"/></Button>
                                             <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                         </>
                                     )}
@@ -1192,7 +1210,7 @@ export default function SyncOnlineHome() {
                                 </CardHeader>
                                 <CardContent>
                                     <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
-                                        <div className="space-y-2">
+                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
                                         </div>
@@ -1207,7 +1225,15 @@ export default function SyncOnlineHome() {
                                                 </Select>
                                             </div>
                                         )}
-                                       <div className="grid grid-cols-2 gap-4">
+                                        {!isEditMode && (
+                                            <div className="flex items-center space-x-2 pt-2">
+                                                <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                                                <Label htmlFor="start-now">Start meeting immediately</Label>
+                                            </div>
+                                        )}
+                                       
+                                        {!startNow && (
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <Label htmlFor="duration">Duration (minutes)</Label>
                                                 <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
@@ -1272,26 +1298,13 @@ export default function SyncOnlineHome() {
                                                 </Popover>
                                             </div>
                                         </div>
+                                        )}
                                         
                                         <div className="space-y-2">
                                             <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
                                             <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
                                         </div>
                                         
-                                        <div className="space-y-2">
-                                            <Label htmlFor="reminder">Reminder</Label>
-                                            <Select onValueChange={(v) => setReminderMinutes(parseInt(v))} value={String(reminderMinutes)}>
-                                                <SelectTrigger id="reminder"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0">No reminder</SelectItem>
-                                                    <SelectItem value="5">5 minutes before</SelectItem>
-                                                    <SelectItem value="15">15 minutes before</SelectItem>
-                                                    <SelectItem value="30">30 minutes before</SelectItem>
-                                                    <SelectItem value="60">1 hour before</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
                                         <div className="space-y-3">
                                             <Separator/>
                                             <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>

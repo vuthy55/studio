@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoaderCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { processReferral } from '@/actions/referrals';
 
 export default function JoinRoomPage() {
     const params = useParams();
@@ -73,7 +74,7 @@ export default function JoinRoomPage() {
                 uid: user.uid,
                 name: user.displayName || user.email!.split('@')[0],
                 email: user.email!,
-                selectedLanguage: spokenLanguage || 'en-US', // Default if somehow not set
+                selectedLanguage: spokenLanguage || userProfile.defaultLanguage || 'en-US', // Default if somehow not set
                 isMuted: false,
                 joinedAt: Timestamp.now()
             };
@@ -116,20 +117,6 @@ export default function JoinRoomPage() {
             if (!mobile.startsWith('+')) {
                 setMobile(`+${selected.phone} `);
             }
-        }
-    };
-
-    const createReferralRecord = async (referrerUid: string, newUserId: string) => {
-        try {
-            const referralRef = doc(collection(db, 'referrals'));
-            await setDoc(referralRef, {
-                referrerUid,
-                referredUid: newUserId,
-                status: 'pending',
-                createdAt: serverTimestamp(),
-            });
-        } catch (error) {
-            console.error("Error creating referral record:", error);
         }
     };
     
@@ -199,7 +186,8 @@ export default function JoinRoomPage() {
                 syncLiveUsage: 0, syncOnlineUsage: 0,
                 searchableName: name.toLowerCase(),
                 searchableEmail: email.toLowerCase(),
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                defaultLanguage: spokenLanguage,
             };
             await setDoc(userDocRef, userData);
 
@@ -215,8 +203,8 @@ export default function JoinRoomPage() {
 
             // 5. Handle referral if present
             if (referralId) {
-                console.log("[DEBUG] handleSignUpAndJoin: Creating referral record.");
-                await createReferralRecord(referralId, newUser.uid);
+                console.log(`[DEBUG] handleSignUpAndJoin: Processing referral for referrer ID: ${referralId}`);
+                await processReferral(referralId, name);
             }
             
             // 6. Add user to room and redirect
