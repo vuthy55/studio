@@ -113,29 +113,29 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
     setIsProcessing(false);
   }
 
-  const TriggerButton = variant === 'icon' ? (
-    <TooltipProvider>
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon">
-                    <Wallet className="h-5 w-5" />
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top"><p>Buy Tokens</p></TooltipContent>
-        </Tooltip>
-    </TooltipProvider>
-  ) : (
-    <Button className="w-full">
-        <Wallet className="mr-2 h-4 w-4" />
-        Buy Tokens
-    </Button>
-  );
-
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-            {TriggerButton}
-        </DialogTrigger>
+        {variant === 'icon' ? (
+             <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <Wallet className="h-5 w-5" />
+                            </Button>
+                        </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p>Buy Tokens</p></TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        ) : (
+            <DialogTrigger asChild>
+                <Button className="w-full">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Buy Tokens
+                </Button>
+            </DialogTrigger>
+        )}
         <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <DialogTitle>Buy More Tokens</DialogTitle>
@@ -149,7 +149,7 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                         <Button 
                             key={pkg.tokens}
                             variant="outline"
-                            className={cn("h-auto flex-col relative", tokenAmount === pkg.tokens && 'border-primary ring-2 ring-primary')}
+                            className={cn("h-auto flex-col relative py-2", tokenAmount === pkg.tokens && 'border-primary ring-2 ring-primary')}
                             onClick={() => setTokenAmount(pkg.tokens)}
                         >
                              {pkg.bonus > 0 && <Badge className="absolute -top-2 -right-2">+{pkg.bonus} Free!</Badge>}

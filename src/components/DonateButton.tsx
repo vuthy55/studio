@@ -97,28 +97,28 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
     setIsProcessing(false);
   }
 
-  const TriggerButton = variant === 'icon' ? (
-    <TooltipProvider>
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon">
-                    <Heart className="h-5 w-5" />
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top"><p>Donate</p></TooltipContent>
-        </Tooltip>
-    </TooltipProvider>
-  ) : (
-    <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-        <Heart className="mr-2 h-4 w-4" /> Donate
-    </Button>
-  );
-
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-           {TriggerButton}
-        </DialogTrigger>
+        {variant === 'icon' ? (
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <Heart className="h-5 w-5" />
+                            </Button>
+                        </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p>Donate</p></TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        ) : (
+            <DialogTrigger asChild>
+                <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                    <Heart className="mr-2 h-4 w-4" /> Donate
+                </Button>
+            </DialogTrigger>
+        )}
         <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <DialogTitle>Make a Donation</DialogTitle>
