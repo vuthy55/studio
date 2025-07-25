@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
+import MarketingRelease from '@/components/marketing/MarketingRelease';
 
 
 interface UserWithId extends UserProfile {
@@ -1639,14 +1640,15 @@ export default function AdminPage() {
         { value: 'tokens', label: 'Tokens', icon: Coins },
         { value: 'bulk-delete', label: 'Bulk Delete', icon: Trash2 },
         { value: 'data-policy', label: 'Data Policy', icon: BookUser },
-        { value: 'marketing', label: 'Marketing', icon: MessageSquareQuote },
+        { value: 'marketing', label: 'Messaging', icon: MessageSquareQuote },
+        { value: 'release', label: 'Release 0.1', icon: MessageSquareQuote },
     ];
     
     return (
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-9 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1698,6 +1700,9 @@ export default function AdminPage() {
                 </TabsContent>
                  <TabsContent value="marketing" className="mt-6">
                     <MarketingContent />
+                </TabsContent>
+                <TabsContent value="release" className="mt-6">
+                    <MarketingRelease />
                 </TabsContent>
             </Tabs>
 
