@@ -207,7 +207,7 @@ export default function UserDetailPage() {
         setIsSaving(true);
         try {
             const userDocRef = doc(db, 'users', userId);
-            const { name, email, country, mobile, role, tokenBalance, syncLiveUsage, syncOnlineUsage } = profile;
+            const { name, email, country, mobile, role, syncLiveUsage, syncOnlineUsage } = profile;
             
             await setDoc(userDocRef, { 
                 name, 
@@ -215,7 +215,7 @@ export default function UserDetailPage() {
                 country, 
                 mobile, 
                 role, 
-                tokenBalance,
+                // tokenBalance is intentionally omitted to prevent direct edits
                 syncLiveUsage: syncLiveUsage || 0,
                 syncOnlineUsage: syncOnlineUsage || 0,
                 searchableName: (name || '').toLowerCase(),
@@ -481,8 +481,9 @@ export default function UserDetailPage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="tokenBalance">Token Balance</Label>
-                                        <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} onChange={handleInputChange} />
+                                        <Label htmlFor="tokenBalance">Token Balance (Read-only)</Label>
+                                        <Input id="tokenBalance" type="number" value={profile.tokenBalance || 0} readOnly disabled />
+                                        <p className="text-xs text-muted-foreground">To issue or revoke tokens, please use the "Tokens" tab in the main admin dashboard to ensure a transaction is logged.</p>
                                     </div>
                                     <div className="flex items-center space-x-2 rounded-md border p-4">
                                         <div className="flex-1 space-y-1">
