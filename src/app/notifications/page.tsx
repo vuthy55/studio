@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, writeBatch } from 'firebase/firestore';
-import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus } from 'lucide-react';
+import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -29,7 +29,6 @@ export default function NotificationsPage() {
         }
 
         const notificationsRef = collection(db, 'notifications');
-        // The query is now simpler and does not require a custom index.
         const q = query(
             notificationsRef,
             where("userId", "==", user.uid)
@@ -37,7 +36,6 @@ export default function NotificationsPage() {
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-            // We sort the notifications on the client side after fetching.
             fetchedNotifications.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
             setNotifications(fetchedNotifications);
             setIsLoading(false);
@@ -72,7 +70,10 @@ export default function NotificationsPage() {
             case 'p2p_transfer':
                 return <Gift className="h-5 w-5 text-primary" />;
             case 'buddy_request':
+            case 'buddy_request_accepted':
                 return <UserPlus className="h-5 w-5 text-blue-500" />;
+            case 'buddy_alert':
+                 return <AlertTriangle className="h-5 w-5 text-destructive" />;
             case 'room_closed':
             case 'room_closed_summary':
                 return <LogOut className="h-5 w-5 text-destructive" />;
@@ -86,18 +87,23 @@ export default function NotificationsPage() {
     };
 
     const getNotificationLink = (notification: Notification) => {
+        if (notification.type === 'buddy_alert') {
+            const urlMatch = notification.message.match(/https?:\/\/[^\s]+/);
+            return urlMatch ? { href: urlMatch[0], isExternal: true } : { href: '#', isExternal: false };
+        }
         switch (notification.type) {
             case 'p2p_transfer':
-                return '/profile?tab=wallet';
+                return { href: '/profile?tab=wallet', isExternal: false };
              case 'buddy_request':
-                return '/profile?tab=buddies';
+             case 'buddy_request_accepted':
+                return { href: '/profile?tab=buddies', isExternal: false };
             case 'room_closed':
             case 'room_closed_summary':
             case 'edit_request':
             case 'room_canceled':
-                return `/admin?tab=rooms&highlight=${notification.roomId}`;
+                return { href: `/admin?tab=rooms&highlight=${notification.roomId}`, isExternal: false };
             default:
-                return '#';
+                return { href: '#', isExternal: false };
         }
     }
 
@@ -131,15 +137,20 @@ export default function NotificationsPage() {
                         </div>
                     ) : (
                         <ul className="space-y-4">
-                            {notifications.map(n => (
+                            {notifications.map(n => {
+                                const { href, isExternal } = getNotificationLink(n);
+                                const Wrapper = isExternal ? 'a' : Link;
+                                const props = isExternal ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href };
+
+                                return (
                                 <li key={n.id}>
-                                    <Link href={getNotificationLink(n)} className={`block p-4 rounded-lg border transition-colors ${n.read ? 'bg-background hover:bg-muted/50' : 'bg-primary/10 hover:bg-primary/20'}`}>
+                                    <Wrapper {...props} className={`block p-4 rounded-lg border transition-colors ${n.read ? 'bg-background hover:bg-muted/50' : 'bg-primary/10 hover:bg-primary/20'}`}>
                                         <div className="flex items-start gap-4">
                                             <div className="mt-1">
                                                 {getNotificationIcon(n.type)}
                                             </div>
                                             <div className="flex-1">
-                                                <p className={`font-semibold ${!n.read ? 'text-primary-foreground' : 'text-foreground'}`}>{n.message}</p>
+                                                <p className={`font-semibold ${!n.read ? 'text-primary-foreground' : 'text-foreground'} whitespace-pre-wrap`}>{n.message}</p>
                                                 {n.fromUserName && (
                                                     <p className="text-sm text-muted-foreground">From: {n.fromUserName}</p>
                                                 )}
@@ -149,9 +160,9 @@ export default function NotificationsPage() {
                                                 {!n.read && <div className="mt-2 flex justify-end"><span className="h-2 w-2 rounded-full bg-primary" /></div>}
                                             </div>
                                         </div>
-                                    </Link>
+                                    </Wrapper>
                                 </li>
-                            ))}
+                            )})}
                         </ul>
                     )}
                 </CardContent>

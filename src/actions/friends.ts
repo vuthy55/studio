@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { BuddyRequest } from '@/lib/types';
+import type { BuddyRequest, UserProfile } from '@/lib/types';
 
 
 /**
@@ -113,7 +113,7 @@ export async function acceptBuddyRequest(
         const notificationRef = db.collection('notifications').doc();
         batch.set(notificationRef, {
             userId: request.fromUid,
-            type: 'buddy_request', // Re-using type for simplicity
+            type: 'buddy_request_accepted', 
             fromUserName: currentUser.name,
             message: `${currentUser.name} accepted your buddy request!`,
             createdAt: FieldValue.serverTimestamp(),
@@ -167,5 +167,50 @@ export async function removeBuddy(
     } catch (error: any) {
         console.error("Error removing buddy:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+/**
+ * Sends an alert notification to all of a user's buddies.
+ */
+export async function sendBuddyAlert(
+    userId: string, 
+    location: { latitude: number; longitude: number }
+): Promise<{success: boolean, error?: string}> {
+    if (!userId) return { success: false, error: "User ID is required." };
+    
+    try {
+        const userRef = db.collection('users').doc(userId);
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) return { success: false, error: "Sender not found." };
+        
+        const userData = userDoc.data() as UserProfile;
+        const buddies = userData.buddies || [];
+
+        if (buddies.length === 0) {
+            return { success: false, error: "You have no buddies to alert." };
+        }
+
+        const mapsLink = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
+        const batch = db.batch();
+
+        buddies.forEach(buddyId => {
+            const notificationRef = db.collection('notifications').doc();
+            batch.set(notificationRef, {
+                userId: buddyId,
+                type: 'buddy_alert',
+                fromUserName: userData.name,
+                message: `${userData.name} sent a buddy alert. Last known location: ${mapsLink}`,
+                createdAt: FieldValue.serverTimestamp(),
+                read: false,
+            });
+        });
+        
+        await batch.commit();
+        
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending buddy alert:", error);
+        return { success: false, error: 'An unexpected server error occurred while sending alerts.' };
     }
 }

@@ -18,7 +18,7 @@ import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { TransactionLog, PaymentLog, BuddyRequest } from '@/lib/types';
+import type { TransactionLog, PaymentLog, BuddyRequest, UserProfile } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
@@ -34,7 +34,7 @@ import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
-import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy } from '@/actions/friends';
+import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 
 
 export interface PracticeStats {
@@ -44,26 +44,6 @@ export interface PracticeStats {
       correct: number;
     };
   };
-}
-export interface UserProfile {
-  id?: string;
-  name: string;
-  email: string;
-  country?: string;
-  mobile?: string;
-  role?: 'admin' | 'user';
-  tokenBalance?: number;
-  searchableName?: string;
-  searchableEmail?: string;
-  practiceStats?: PracticeStats;
-  syncLiveUsage?: number;
-  syncOnlineUsage?: number;
-  syncOnlineUsageLastReset?: Timestamp;
-  defaultLanguage?: AzureLanguageCode;
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  buddies?: string[];
-  buddyRequests?: BuddyRequest[];
 }
 
 function TokenHistoryDialog() {
@@ -604,6 +584,7 @@ function BuddiesSection() {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<UserProfile | null>(null);
     const [isSearching, setIsSearching] = useState(false);
+    const [isSendingAlert, setIsSendingAlert] = useState(false);
     const [buddiesDetails, setBuddiesDetails] = useState<UserProfile[]>([]);
 
     useEffect(() => {
@@ -670,10 +651,64 @@ function BuddiesSection() {
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }
+    };
+
+    const handleSendBuddyAlert = () => {
+        if (!user) return;
+        setIsSendingAlert(true);
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                const result = await sendBuddyAlert(user.uid, { latitude, longitude });
+
+                if (result.success) {
+                    toast({ title: "Buddy Alert Sent", description: "Your buddies have been notified of your location." });
+                } else {
+                    toast({ variant: 'destructive', title: "Alert Failed", description: result.error || "Could not send the alert." });
+                }
+                setIsSendingAlert(false);
+            },
+            (error) => {
+                console.error("Geolocation error:", error);
+                toast({ variant: 'destructive', title: "Location Error", description: "Could not get your current location." });
+                setIsSendingAlert(false);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
     }
 
     return (
         <div className="space-y-6">
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><AlertTriangle className="text-amber-500" /> Buddy Alert</CardTitle>
+                    <CardDescription>Send a non-emergency alert to all your buddies with your current location.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button className="w-full" disabled={isSendingAlert || buddiesDetails.length === 0}>
+                                {isSendingAlert ? <LoaderCircle className="animate-spin mr-2"/> : <PhoneOutgoing className="mr-2"/>}
+                                {buddiesDetails.length > 0 ? 'Send Alert to All Buddies' : 'Add Buddies to Send Alerts'}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will send an in-app notification with your current location to all {buddiesDetails.length} of your buddies. This is not an emergency SOS.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleSendBuddyAlert}>Confirm & Send</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </CardContent>
+            </Card>
+
             <Card>
                 <CardHeader><CardTitle>Find New Buddies</CardTitle></CardHeader>
                 <CardContent>
@@ -695,7 +730,7 @@ function BuddiesSection() {
 
             {userProfile?.buddyRequests && userProfile.buddyRequests.length > 0 && (
                  <Card>
-                    <CardHeader><CardTitle>Incoming Requests</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>Incoming Requests ({userProfile.buddyRequests.length})</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
                         {userProfile.buddyRequests.map(req => (
                             <div key={req.fromUid} className="p-3 border rounded-lg flex justify-between items-center">

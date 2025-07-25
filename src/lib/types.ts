@@ -122,8 +122,28 @@ export type BuddyRequest = {
     fromEmail: string;
 };
 
+export interface UserProfile {
+  id?: string;
+  name: string;
+  email: string;
+  country?: string;
+  mobile?: string;
+  role?: 'admin' | 'user';
+  tokenBalance?: number;
+  searchableName?: string;
+  searchableEmail?: string;
+  practiceStats?: any;
+  syncLiveUsage?: number;
+  syncOnlineUsage?: number;
+  syncOnlineUsageLastReset?: Timestamp;
+  defaultLanguage?: AzureLanguageCode;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  buddies?: string[];
+  buddyRequests?: BuddyRequest[];
+}
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request' | 'buddy_request_accepted' | 'buddy_alert';
 
 export type Notification = {
     id: string;

@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -89,7 +89,10 @@ export default function NotificationBell() {
             case 'p2p_transfer':
                 return <Gift className="h-4 w-4 text-primary" />;
             case 'buddy_request':
+            case 'buddy_request_accepted':
                 return <UserPlus className="h-4 w-4 text-blue-500" />;
+            case 'buddy_alert':
+                 return <AlertTriangle className="h-4 w-4 text-destructive" />;
             case 'room_closed':
             case 'room_closed_summary':
                 return <LogOut className="h-4 w-4 text-destructive" />;
@@ -103,10 +106,15 @@ export default function NotificationBell() {
     };
 
     const getNotificationLink = (notification: Notification) => {
+        if (notification.type === 'buddy_alert') {
+            const urlMatch = notification.message.match(/https?:\/\/[^\s]+/);
+            return urlMatch ? urlMatch[0] : '/notifications';
+        }
         switch (notification.type) {
             case 'p2p_transfer':
                 return '/profile?tab=wallet';
              case 'buddy_request':
+             case 'buddy_request_accepted':
                 return '/profile?tab=buddies';
             case 'room_closed':
             case 'room_closed_summary':
@@ -114,7 +122,7 @@ export default function NotificationBell() {
             case 'room_canceled':
                 return `/admin?tab=rooms&highlight=${notification.roomId}`;
             default:
-                return '#';
+                return '/notifications';
         }
     }
 
@@ -189,22 +197,30 @@ export default function NotificationBell() {
                     {notificationsToShow.length === 0 ? (
                          <p className="text-sm text-center text-muted-foreground py-4">No new notifications.</p>
                     ) : (
-                        notificationsToShow.map(n => (
-                            <Link
-                                key={n.id}
-                                href={n.href}
-                                onClick={() => handleLinkClick(n)}
-                                className={`flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground ${!n.read ? 'font-bold' : ''}`}
-                            >
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        {n.type === 'invitation' ? <Wifi className="h-4 w-4 text-primary" /> : getNotificationIcon(n.originalNotification!.type)}
-                                        <span>{n.text}</span>
+                        notificationsToShow.map(n => {
+                             const isLink = n.type === 'general' && n.originalNotification?.type === 'buddy_alert';
+                             const Wrapper = isLink ? 'a' : Link;
+                             const props = isLink 
+                                ? { href: n.href, target: '_blank', rel: 'noopener noreferrer' } 
+                                : { href: n.href };
+
+                            return (
+                                <Wrapper
+                                    key={n.id}
+                                    {...props}
+                                    onClick={() => handleLinkClick(n)}
+                                    className={`flex items-start justify-between p-2 -m-2 rounded-md hover:bg-accent hover:text-accent-foreground ${!n.read ? 'font-bold' : ''}`}
+                                >
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            {n.type === 'invitation' ? <Wifi className="h-4 w-4 text-primary" /> : getNotificationIcon(n.originalNotification!.type)}
+                                            <span className="text-sm whitespace-pre-wrap">{n.text}</span>
+                                        </div>
                                     </div>
-                                </div>
-                                {!n.read && <span className="h-2 w-2 rounded-full bg-primary mt-1" />}
-                            </Link>
-                        ))
+                                    {!n.read && <span className="h-2 w-2 rounded-full bg-primary mt-1" />}
+                                </Wrapper>
+                            )
+                        })
                     )}
                 </div>
                 {hasMoreNotifications && (
