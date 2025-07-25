@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -66,7 +65,7 @@ export default function MarketingRelease() {
                 Don't just travel, connect! VibeSync is the essential, all-in-one app for backpackers in Southeast Asia. Master essential phrases, get instant voice translations, and have real-time conversations with locals, no matter the language barrier.
             </p>
             <p className="text-muted-foreground">
-                From ordering street food in Bangkok to finding your hostel in Hanoi, VibeSync is the only tool you need to travel safer, smarter, and make unforgettable connections.
+                From ordering street food in Siem Reap to finding your hostel in Kuala Lumpur, VibeSync is the only tool you need to travel safer, smarter, and make unforgettable connections.
             </p>
             {user && settings ? (
                 <ReferralDialog settings={settings} user={user} />
