@@ -708,9 +708,9 @@ function FinancialTabContent() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogTitle>Clear Financial Ledger?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        This action is irreversible. It will permanently delete all entries in the financial ledger. This is intended for resetting the app for production and should not be used otherwise.
+                                        This action is irreversible. It will permanently delete all entries in the financial ledger (revenue and expenses). This does not affect user token balances.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -1000,7 +1000,7 @@ function TokensTabContent() {
         setIsDeleting(true);
         const result = await clearTokenLedger();
         if (result.success) {
-            toast({ title: "Success", description: "Token ledger has been cleared for all users." });
+            toast({ title: "Success", description: "Token ledger and all user balances have been reset." });
             await fetchData(); // Refresh data
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -1121,15 +1121,15 @@ function TokensTabContent() {
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
-                                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                    <AlertDialogTitle>Clear Entire Token Economy?</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        This action is irreversible. It will permanently delete the token transaction history for ALL users. This is intended for resetting the app for production.
+                                                        This action is irreversible. It will permanently delete the token transaction history for <strong className="text-destructive">ALL</strong> users and reset every user's token balance to <strong className="text-destructive">ZERO</strong>.
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction onClick={handleClearLedger} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                                        Confirm & Delete
+                                                        Confirm & Delete All
                                                     </AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
