@@ -973,6 +973,7 @@ export default function SyncOnlineHome() {
                     description: `Pre-paid for room: "${roomTopic}"`
                 });
                 
+                console.log('[DEBUG] SyncOnlineHome: Calling sendRoomInviteEmail');
                 await sendRoomInviteEmail({
                     to: allInvitedEmails.filter(e => e !== user.email), // Don't email self
                     roomTopic,
