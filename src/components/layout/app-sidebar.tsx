@@ -84,8 +84,8 @@ function BuddyAlertButton() {
     <AlertDialog>
       <TooltipProvider>
         <Tooltip>
-          <AlertDialogTrigger asChild>
-            <TooltipTrigger asChild>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
               <Button
                 variant="default"
                 size="icon"
@@ -95,8 +95,8 @@ function BuddyAlertButton() {
                 {isSendingAlert ? <LoaderCircle className="animate-spin h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
                 <span className="sr-only">Buddy Alert</span>
               </Button>
-            </TooltipTrigger>
-          </AlertDialogTrigger>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
           <TooltipContent side="right">
             <p>Buddy Alert</p>
           </TooltipContent>
