@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
 import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry, issueTokens } from '@/services/ledger';
+import { clearFinancialLedger, clearTokenLedger } from '@/actions/ledgerAdmin';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -368,6 +369,7 @@ function FinancialTabContent() {
     const [userMap, setUserMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSearching, setIsSearching] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
@@ -530,6 +532,18 @@ function FinancialTabContent() {
         link.click();
         document.body.removeChild(link);
     };
+
+    const handleClearLedger = async () => {
+        setIsDeleting(true);
+        const result = await clearFinancialLedger();
+        if (result.success) {
+            toast({ title: "Success", description: "Financial ledger has been cleared." });
+            await fetchData(); // Refresh data
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsDeleting(false);
+    }
     
     if (isLoading) {
         return (
@@ -680,10 +694,34 @@ function FinancialTabContent() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0} className="ml-4">
-                        <Download className="mr-2 h-4 w-4" />
-                        Download CSV
-                    </Button>
+                    <div className="flex items-center gap-2 ml-4">
+                        <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0}>
+                            <Download className="mr-2 h-4 w-4" />
+                            CSV
+                        </Button>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" disabled={isDeleting}>
+                                    {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                    Clear Ledger
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action is irreversible. It will permanently delete all entries in the financial ledger. This is intended for resetting the app for production and should not be used otherwise.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearLedger} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                        Confirm & Delete
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 </div>
                  <div className="border rounded-md min-h-[200px]">
                     <Table>
@@ -863,6 +901,7 @@ function TokensTabContent() {
     const [ledger, setLedger] = useState<TokenLedgerEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSearching, setIsSearching] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -956,6 +995,18 @@ function TokensTabContent() {
         link.click();
         document.body.removeChild(link);
     };
+
+     const handleClearLedger = async () => {
+        setIsDeleting(true);
+        const result = await clearTokenLedger();
+        if (result.success) {
+            toast({ title: "Success", description: "Token ledger has been cleared for all users." });
+            await fetchData(); // Refresh data
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsDeleting(false);
+    }
 
     const getFromToCell = (log: TokenLedgerEntry) => {
         if (log.actionType === 'admin_issue' && log.fromUserEmail) {
@@ -1056,10 +1107,34 @@ function TokensTabContent() {
                                         <CardTitle>Token Ledger</CardTitle>
                                         <CardDescription>A log of all token transactions in the system.</CardDescription>
                                     </div>
-                                    <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0}>
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Download CSV
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            CSV
+                                        </Button>
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" disabled={isDeleting}>
+                                                    {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                                    Clear Ledger
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This action is irreversible. It will permanently delete the token transaction history for ALL users. This is intended for resetting the app for production.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={handleClearLedger} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                        Confirm & Delete
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
                                 </div>
                                 <div className="relative pt-2">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
