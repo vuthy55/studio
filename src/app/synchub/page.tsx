@@ -47,23 +47,6 @@ function SyncHubTabs() {
         }
     }, [searchParams]);
     
-    useEffect(() => {
-        // This effect handles scrolling to an anchor after a tab switch.
-        // It runs once on the client after the initial render.
-        const hash = window.location.hash;
-        if (hash) {
-            // We use a short timeout to allow the dynamic tab content to render
-            // before we try to scroll to the element.
-            setTimeout(() => {
-                const element = document.getElementById(hash.substring(1));
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 100);
-        }
-    }, [searchParams]);
-
-
     return (
          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
