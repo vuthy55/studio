@@ -284,6 +284,7 @@ function ProfileSection() {
     const { user, userProfile } = useUserData();
     const { toast } = useToast();
 
+    // This local state is now ONLY for handling form inputs.
     const [localProfile, setLocalProfile] = useState<Partial<UserProfile>>({});
     const [isSaving, setIsSaving] = useState(false);
     const countryOptions = useMemo(() => lightweightCountries, []);
@@ -292,8 +293,8 @@ function ProfileSection() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isResettingStats, setIsResettingStats] = useState(false);
 
+    // This effect reliably syncs the fresh data from the context to the local form state.
     useEffect(() => {
-        // Sync local state only when the userProfile from context changes
         if (userProfile) {
             setLocalProfile(userProfile);
         }
@@ -331,7 +332,6 @@ function ProfileSection() {
                 searchableName: (localProfile.name || '').toLowerCase(),
             };
             
-            // The onSnapshot listener in UserDataContext will handle updating the UI.
             await setDoc(userDocRef, dataToSave, { merge: true });
             
             toast({ title: 'Success', description: 'Profile updated successfully.' });
@@ -908,3 +908,4 @@ export default function ProfilePage() {
         </div>
     );
 }
+

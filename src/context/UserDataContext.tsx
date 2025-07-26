@@ -38,6 +38,7 @@ interface UserDataContextType {
     spendTokensForTranslation: (description: string) => boolean;
     updateSyncLiveUsage: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
+    forceRefetch: () => void;
 }
 
 // --- Context ---
@@ -68,6 +69,15 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     // --- Data Fetching & Main Effect ---
     useEffect(() => {
         getAppSettingsAction().then(setSettings);
+    }, []);
+
+    const fetchUserProfile = useCallback(async (uid: string) => {
+        if (isLoggingOut.current) return;
+        const userDocRef = doc(db, 'users', uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+             setUserProfile(userDocSnap.data() as UserProfile);
+        }
     }, []);
 
     const clearLocalState = useCallback(() => {
@@ -419,6 +429,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         spendTokensForTranslation,
         updateSyncLiveUsage,
         handleSyncOnlineSessionEnd,
+        forceRefetch: () => user ? fetchUserProfile(user.uid) : Promise.resolve(),
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
@@ -433,3 +444,4 @@ export const useUserData = () => {
     }
     return context;
 };
+
