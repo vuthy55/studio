@@ -320,14 +320,13 @@ function ProfileSection() {
             }
             
             const userDocRef = doc(db, 'users', user.uid);
-            const { name, country, mobile, defaultLanguage } = profile;
             
             const dataToSave = {
-                name: name || '',
-                country: country || '',
-                mobile: mobile || '',
-                defaultLanguage: defaultLanguage || 'en-US',
-                searchableName: (name || '').toLowerCase(),
+                name: profile.name || '',
+                country: profile.country || '',
+                mobile: profile.mobile || '',
+                defaultLanguage: profile.defaultLanguage || 'en-US',
+                searchableName: (profile.name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
             };
             
@@ -911,5 +910,7 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
 
     
