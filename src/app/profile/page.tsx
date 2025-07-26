@@ -6,7 +6,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw, Users as UsersIcon } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -281,7 +281,7 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile, setUserProfileState } = useUserData();
+    const { user, userProfile } = useUserData();
     const { toast } = useToast();
 
     const [localProfile, setLocalProfile] = useState<Partial<UserProfile>>({});
@@ -293,7 +293,8 @@ function ProfileSection() {
     const [isResettingStats, setIsResettingStats] = useState(false);
 
     useEffect(() => {
-        if(userProfile) {
+        // Sync local state only when the userProfile from context changes
+        if (userProfile) {
             setLocalProfile(userProfile);
         }
     }, [userProfile]);
@@ -330,10 +331,8 @@ function ProfileSection() {
                 searchableName: (localProfile.name || '').toLowerCase(),
             };
             
+            // The onSnapshot listener in UserDataContext will handle updating the UI.
             await setDoc(userDocRef, dataToSave, { merge: true });
-            
-            // Optimistically update the context state
-            setUserProfileState(dataToSave);
             
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {

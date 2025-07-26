@@ -38,8 +38,6 @@ interface UserDataContextType {
     spendTokensForTranslation: (description: string) => boolean;
     updateSyncLiveUsage: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
-    forceRefetch: () => void;
-    setUserProfileState: (profile: Partial<UserProfile>) => void; // For optimistic updates
 }
 
 // --- Context ---
@@ -79,21 +77,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setPracticeHistory({});
         setSyncLiveUsage(0);
         setIsDataLoading(true);
-    }, []);
-
-    const fetchUserProfile = useCallback(async (uid: string) => {
-        if (isLoggingOut.current) return;
-        const userDocRef = doc(db, 'users', uid);
-        try {
-            const docSnap = await getDoc(userDocRef);
-            if (docSnap.exists()) {
-                const profileData = docSnap.data() as UserProfile;
-                setUserProfile(profileData);
-                setSyncLiveUsage(profileData.syncLiveUsage || 0);
-            }
-        } catch (error) {
-            console.error("Error fetching user profile:", error);
-        }
     }, []);
 
      useEffect(() => {
@@ -266,7 +249,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         debouncedCommitToFirestore();
         return tokensSpentThisTurn;
 
-    }, [user, settings, syncLiveUsage, userProfile.tokenBalance, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore, pendingUsageSync]);
+    }, [user, settings, syncLiveUsage, userProfile.tokenBalance, pendingTokenSyncs, debouncedCommitToFirestore, pendingUsageSync]);
 
 
    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
@@ -312,7 +295,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         return { wasRewardable, rewardAmount };
 
-    }, [user, settings, practiceHistory, setUserProfile, debouncedCommitToFirestore, pendingPracticeSyncs]);
+    }, [user, settings, practiceHistory, debouncedCommitToFirestore, pendingPracticeSyncs]);
     
     const spendTokensForTranslation = useCallback((description: string): boolean => {
         if (!user || !settings) return false;
@@ -331,7 +314,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         debouncedCommitToFirestore();
 
         return true;
-    }, [user, settings, userProfile, setUserProfile, pendingTokenSyncs, debouncedCommitToFirestore]);
+    }, [user, settings, userProfile, pendingTokenSyncs, debouncedCommitToFirestore]);
 
 
     const getTopicStats = useCallback((topicId: string, lang: LanguageCode) => {
@@ -423,10 +406,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, settings]);
 
-    const setUserProfileState = useCallback((profile: Partial<UserProfile>) => {
-        setUserProfile(prev => ({ ...prev, ...profile }));
-    }, []);
-
     const value = {
         user,
         loading: authLoading || isDataLoading,
@@ -440,8 +419,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         spendTokensForTranslation,
         updateSyncLiveUsage,
         handleSyncOnlineSessionEnd,
-        forceRefetch: () => user && fetchUserProfile(user.uid),
-        setUserProfileState,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
