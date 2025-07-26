@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw, Users as UsersIcon } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -35,6 +35,7 @@ import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
+import { getReferredUsers, type ReferredUser } from '@/actions/referrals';
 
 
 export interface PracticeStats {
@@ -753,12 +754,108 @@ function BuddiesSection() {
     )
 }
 
+function ReferralsSection() {
+    const { user } = useUserData();
+    const { toast } = useToast();
+    const [referrals, setReferrals] = useState<ReferredUser[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasFetched, setHasFetched] = useState(false);
+
+    const copyReferralLink = () => {
+        if (user?.uid && typeof window !== 'undefined') {
+            const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+            navigator.clipboard.writeText(referralLink);
+            toast({ title: "Copied!", description: "Referral link copied to clipboard." });
+        }
+    };
+
+    const fetchReferrals = useCallback(async () => {
+        if (!user || hasFetched) return;
+        setIsLoading(true);
+        try {
+            const referredUsers = await getReferredUsers(user.uid);
+            setReferrals(referredUsers);
+        } catch (error) {
+            console.error("Error fetching referrals:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load your referrals.' });
+        } finally {
+            setIsLoading(false);
+            setHasFetched(true);
+        }
+    }, [user, hasFetched, toast]);
+    
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Your Referral Link</CardTitle>
+                    <CardDescription>Share this link with friends. When they sign up, you'll get a token bonus!</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center space-x-2">
+                        <Input value={`${window.location.origin}/login?ref=${user?.uid}`} readOnly />
+                        <Button type="button" size="icon" onClick={copyReferralLink}>
+                            <Copy className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><UsersIcon /> Referred Users</CardTitle>
+                    <CardDescription>A list of users who have signed up using your link.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <Button onClick={fetchReferrals} disabled={isLoading || hasFetched} className="mb-4">
+                        {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        {hasFetched ? 'Referrals Loaded' : 'Load My Referrals'}
+                    </Button>
+                    
+                    {isLoading && !hasFetched && (
+                        <div className="flex justify-center items-center py-8">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    )}
+
+                    {hasFetched && (
+                         <div className="border rounded-md min-h-[200px]">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Date Joined</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {referrals.length > 0 ? (
+                                        referrals.map(ref => (
+                                            <TableRow key={ref.id}>
+                                                <TableCell>{ref.name || 'N/A'}</TableCell>
+                                                <TableCell>{ref.email}</TableCell>
+                                                <TableCell>{ref.createdAt ? format(new Date(ref.createdAt), 'd MMM yyyy') : 'N/A'}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                         <TableRow>
+                                            <TableCell colSpan={3} className="h-24 text-center">No one has signed up with your link yet.</TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    )
+}
 
 export default function ProfilePage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState('buddies');
+    const [activeTab, setActiveTab] = useState('profile');
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -786,11 +883,12 @@ export default function ProfilePage() {
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="buddies">Buddies</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
+                    <TabsTrigger value="buddies">Buddies</TabsTrigger>
                     <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
                     <TabsTrigger value="billing">Payment History</TabsTrigger>
+                    <TabsTrigger value="referrals">Referrals</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="profile" className="mt-6">
@@ -804,6 +902,9 @@ export default function ProfilePage() {
                 </TabsContent>
                  <TabsContent value="billing" className="mt-6">
                     <PaymentHistorySection />
+                </TabsContent>
+                <TabsContent value="referrals" className="mt-6">
+                    <ReferralsSection />
                 </TabsContent>
             </Tabs>
         </div>

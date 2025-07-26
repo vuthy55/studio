@@ -4,14 +4,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider,
-  updateProfile
+  GoogleAuthProvider
 } from "firebase/auth";
-import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp, getDoc, writeBatch, collection } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +24,8 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
+import { signUpUser } from '@/actions/auth';
+
 
 export default function LoginPage() {
   const router = useRouter();
@@ -70,50 +69,19 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // Check if user already exists in Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (!userDocSnap.exists()) {
-        // New user, create a document in Firestore
-        const batch = writeBatch(db);
-        const logRef = doc(collection(userDocRef, 'transactionLogs'));
-
-        batch.set(userDocRef, {
-            name: user.displayName,
-            email: user.email?.toLowerCase(),
-            role: 'user',
-            tokenBalance: settings?.signupBonus || 100,
-            syncLiveUsage: 0,
-            syncOnlineUsage: 0,
-            searchableName: user.displayName?.toLowerCase(),
-            searchableEmail: user.email?.toLowerCase(),
-            createdAt: serverTimestamp(),
-            photoURL: user.photoURL
-        });
-        
-        batch.set(logRef, {
-            actionType: 'signup_bonus',
-            tokenChange: settings?.signupBonus || 100,
-            timestamp: serverTimestamp(),
-            description: 'Welcome bonus for signing up.'
-        });
-
-        await batch.commit();
-
-        toast({ title: "Welcome!", description: "Your account has been created." });
-      } else {
-         toast({ title: "Welcome back!", description: "Logged in successfully." });
-      }
       
       await forceRefetch();
+      toast({ title: "Welcome back!", description: "Logged in successfully." });
       router.push('/profile');
 
     } catch (error: any) {
       console.error("Google sign-in error", error);
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      // Check if the error is because the account already exists with a different credential
+      if (error.code === 'auth/account-exists-with-different-credential') {
+        toast({ variant: "destructive", title: "Sign-in Error", description: "An account already exists with this email address. Please sign in using the original method." });
+      } else {
+        toast({ variant: "destructive", title: "Error", description: error.message });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -127,41 +95,25 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
-       const user = userCredential.user;
-       await updateProfile(user, { displayName: signupName });
-
-       const userDocRef = doc(db, 'users', user.uid);
-       const batch = writeBatch(db);
-       const logRef = doc(collection(userDocRef, 'transactionLogs'));
-
-       batch.set(userDocRef, {
+       const result = await signUpUser({
             name: signupName,
-            email: signupEmail.toLowerCase(),
+            email: signupEmail,
+            password: signupPassword,
             country: signupCountry,
             mobile: signupMobile,
-            defaultLanguage: signupLanguage,
-            role: 'user',
-            tokenBalance: settings?.signupBonus || 100, // Fallback to 100
-            syncLiveUsage: 0,
-            syncOnlineUsage: 0,
-            searchableName: signupName.toLowerCase(),
-            searchableEmail: signupEmail.toLowerCase(),
-            createdAt: serverTimestamp(),
-       });
+            defaultLanguage: signupLanguage
+       }, referralId);
+        
+       if (!result.success) {
+            throw new Error(result.error || 'An unknown error occurred during signup.');
+       }
+        
+       // Manually sign in the user on the client after successful server-side creation
+       await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
+       await forceRefetch();
 
-       batch.set(logRef, {
-            actionType: 'signup_bonus',
-            tokenChange: settings?.signupBonus || 100,
-            timestamp: serverTimestamp(),
-            description: 'Welcome bonus for signing up.'
-        });
-        
-        await batch.commit();
-        
-        await forceRefetch();
-        toast({ title: "Success", description: "Account created successfully." });
-        router.push('/profile');
+       toast({ title: "Success", description: "Account created successfully." });
+       router.push('/profile');
       
     } catch (error: any) {
       console.error("Email sign-up error", error);
@@ -225,9 +177,9 @@ export default function LoginPage() {
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}</Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={true}>
                             {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
-                            Sign in with Google
+                            Sign in with Google (Coming Soon)
                         </Button>
                     </CardFooter>
                     </form>
@@ -292,9 +244,9 @@ export default function LoginPage() {
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}</Button>
-                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                         <Button variant="outline" className="w-full" type="button" disabled={true}>
                              {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
-                             Sign up with Google
+                             Sign up with Google (Coming Soon)
                         </Button>
                         </CardFooter>
                     </form>
