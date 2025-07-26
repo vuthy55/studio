@@ -31,7 +31,7 @@ export default function JoinRoomPage() {
     const roomId = params.roomId as string;
     const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
 
-    const { user, loading: authLoading, forceRefetch } = useUserData();
+    const { user, loading: authLoading } = useUserData();
     
     const [roomTopic, setRoomTopic] = useState('a Sync Room'); // Generic topic
     const [isLoading, setIsLoading] = useState(true);
@@ -158,7 +158,6 @@ export default function JoinRoomPage() {
             
             // Now that the user exists in Auth and Firestore, log them in on the client
             await signInWithEmailAndPassword(auth, email, password);
-            await forceRefetch(); // Force the context to see the new user
             
             console.log("[DEBUG] handleSignUpAndJoin: Calling addUserToRoomAndRedirect.");
             await addUserToRoomAndRedirect();

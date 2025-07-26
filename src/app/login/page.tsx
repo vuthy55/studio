@@ -32,7 +32,6 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { forceRefetch } = useUserData();
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -86,7 +85,6 @@ export default function LoginPage() {
         }, referralId);
       }
       
-      await forceRefetch();
       toast({ title: "Welcome!", description: "Logged in successfully." });
       router.push('/profile');
 
@@ -125,7 +123,6 @@ export default function LoginPage() {
         
        // Manually sign in the user on the client after successful server-side creation
        await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
-       await forceRefetch();
 
        toast({ title: "Success", description: "Account created successfully." });
        router.push('/profile');
@@ -143,7 +140,6 @@ export default function LoginPage() {
     setIsEmailLoading(true);
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      await forceRefetch();
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
