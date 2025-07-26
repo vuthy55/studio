@@ -44,7 +44,8 @@ export default function LoginPage() {
   const [signupMobile, setSignupMobile] = useState('');
   const [signupLanguage, setSignupLanguage] = useState<AzureLanguageCode | ''>('');
   
-  const [isLoading, setIsLoading] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
@@ -66,7 +67,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -97,7 +98,7 @@ export default function LoginPage() {
         toast({ variant: "destructive", title: "Error", description: error.message });
       }
     } finally {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -107,7 +108,7 @@ export default function LoginPage() {
         toast({ variant: "destructive", title: "Error", description: "Please select your country and default language." });
         return;
     }
-    setIsLoading(true);
+    setIsEmailLoading(true);
     try {
        const result = await signUpUser({
             name: signupName,
@@ -133,13 +134,13 @@ export default function LoginPage() {
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
-      setIsLoading(false);
+      setIsEmailLoading(false);
     }
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsEmailLoading(true);
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       await forceRefetch();
@@ -149,7 +150,7 @@ export default function LoginPage() {
       console.error("Email login error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
-      setIsLoading(false);
+      setIsEmailLoading(false);
     }
   };
   
@@ -191,9 +192,11 @@ export default function LoginPage() {
                         </div>
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}</Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                            {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
+                        <Button className="w-full" type="submit" disabled={isEmailLoading || isGoogleLoading}>
+                            {isEmailLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}
+                        </Button>
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isEmailLoading || isGoogleLoading}>
+                            {isGoogleLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
                             Sign in with Google
                         </Button>
                     </CardFooter>
@@ -258,9 +261,11 @@ export default function LoginPage() {
                         </div>
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}</Button>
-                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                             {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
+                        <Button className="w-full" type="submit" disabled={isEmailLoading || isGoogleLoading}>
+                            {isEmailLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}
+                        </Button>
+                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isEmailLoading || isGoogleLoading}>
+                             {isGoogleLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
                              Sign up with Google
                         </Button>
                         </CardFooter>
