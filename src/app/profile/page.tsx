@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -284,56 +283,46 @@ function ProfileSection() {
     const { user, userProfile } = useUserData();
     const { toast } = useToast();
 
-    // This local state is now ONLY for handling form inputs.
-    const [localProfile, setLocalProfile] = useState<Partial<UserProfile>>({});
+    // This state ONLY holds the fields that have been changed.
+    const [edits, setEdits] = useState<Partial<UserProfile>>({});
     const [isSaving, setIsSaving] = useState(false);
     const countryOptions = useMemo(() => lightweightCountries, []);
     
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isResettingStats, setIsResettingStats] = useState(false);
-
-    // This effect reliably syncs the fresh data from the context to the local form state.
-    useEffect(() => {
-        if (userProfile) {
-            setLocalProfile(userProfile);
-        }
-    }, [userProfile]);
     
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { id, value } = e.target;
-        setLocalProfile(prev => ({ ...prev, [id]: value }));
-    };
+    // Create a merged view of the profile for the form to display.
+    // It prioritizes the edited value, falling back to the context value.
+    const displayProfile = useMemo(() => ({
+        ...userProfile,
+        ...edits
+    }), [userProfile, edits]);
 
-    const handleCountryChange = (countryCode: string) => {
-        setLocalProfile(prev => ({ ...prev, country: countryCode }));
-    };
-    
-    const handleLanguageChange = (langCode: AzureLanguageCode) => {
-        setLocalProfile(prev => ({...prev, defaultLanguage: langCode }));
+    const handleInputChange = (field: keyof UserProfile, value: any) => {
+        setEdits(prev => ({ ...prev, [field]: value }));
     };
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user) return;
+        if (!user || Object.keys(edits).length === 0) return;
         setIsSaving(true);
         try {
-            if (localProfile.name && localProfile.name !== user.displayName) {
-                await updateAuthProfile(user, { displayName: localProfile.name });
+            // Merge the original profile with the edits for saving
+            const dataToSave: Partial<UserProfile> = {
+                ...edits,
+                searchableName: (displayProfile.name || '').toLowerCase(),
+            };
+            
+            // Handle auth profile update separately if name changed
+            if (edits.name && edits.name !== user.displayName) {
+                await updateAuthProfile(user, { displayName: edits.name });
             }
             
             const userDocRef = doc(db, 'users', user.uid);
-            
-            const dataToSave: Partial<UserProfile> = {
-                name: localProfile.name || '',
-                country: localProfile.country || '',
-                mobile: localProfile.mobile || '',
-                defaultLanguage: localProfile.defaultLanguage || 'en-US',
-                searchableName: (localProfile.name || '').toLowerCase(),
-            };
-            
             await setDoc(userDocRef, dataToSave, { merge: true });
             
+            setEdits({}); // Clear pending edits on successful save
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
             console.error("Error updating profile: ", error);
@@ -382,12 +371,12 @@ function ProfileSection() {
                 <CardHeader>
                     <div className="flex items-center gap-4">
                         <Avatar className="h-20 w-20 text-3xl">
-                             <AvatarImage src={user?.photoURL || undefined} alt={localProfile.name || 'User Avatar'} />
-                            <AvatarFallback>{getInitials(localProfile.name)}</AvatarFallback>
+                             <AvatarImage src={user?.photoURL || undefined} alt={displayProfile.name || 'User Avatar'} />
+                            <AvatarFallback>{getInitials(displayProfile.name)}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <CardTitle className="text-2xl">{localProfile.name || 'Your Name'}</CardTitle>
-                            <CardDescription>{localProfile.email}</CardDescription>
+                            <CardTitle className="text-2xl">{displayProfile.name || 'Your Name'}</CardTitle>
+                            <CardDescription>{displayProfile.email}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -395,16 +384,16 @@ function ProfileSection() {
                     <form onSubmit={handleSaveProfile} className="space-y-6">
                         <div className="space-y-2">
                             <Label htmlFor="name">Name</Label>
-                            <Input id="name" value={localProfile.name || ''} onChange={handleInputChange} />
+                            <Input id="name" value={displayProfile.name || ''} onChange={(e) => handleInputChange('name', e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={localProfile.email || ''} disabled />
+                            <Input id="email" type="email" value={displayProfile.email || ''} disabled />
                             <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="defaultLanguage">Default Spoken Language</Label>
-                            <Select value={localProfile.defaultLanguage || ''} onValueChange={handleLanguageChange}>
+                            <Select value={displayProfile.defaultLanguage || ''} onValueChange={(v) => handleInputChange('defaultLanguage', v)}>
                                 <SelectTrigger id="defaultLanguage">
                                     <SelectValue placeholder="Select your preferred language" />
                                 </SelectTrigger>
@@ -419,7 +408,7 @@ function ProfileSection() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="country">Country</Label>
-                            <Select value={localProfile.country || ''} onValueChange={handleCountryChange}>
+                            <Select value={displayProfile.country || ''} onValueChange={(v) => handleInputChange('country', v)}>
                                 <SelectTrigger id="country">
                                     <SelectValue placeholder="Select your country" />
                                 </SelectTrigger>
@@ -432,11 +421,11 @@ function ProfileSection() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="mobile">Mobile Number</Label>
-                            <Input id="mobile" type="tel" value={localProfile.mobile || ''} onChange={handleInputChange} placeholder="e.g., +1 123 456 7890" />
+                            <Input id="mobile" type="tel" value={displayProfile.mobile || ''} onChange={(e) => handleInputChange('mobile', e.target.value)} placeholder="e.g., +1 123 456 7890" />
                         </div>
 
                         <div className="flex justify-end pt-4">
-                            <Button type="submit" disabled={isSaving}>
+                            <Button type="submit" disabled={isSaving || Object.keys(edits).length === 0}>
                                 {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 Save Changes
                             </Button>
@@ -603,7 +592,7 @@ function PaymentHistorySection() {
 }
 
 function BuddiesSection() {
-    const { user, userProfile, forceRefetch } = useUserData();
+    const { user, userProfile } = useUserData();
     const { toast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<UserProfile | null>(null);
@@ -909,3 +898,4 @@ export default function ProfilePage() {
     );
 }
 
+    
