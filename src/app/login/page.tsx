@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
-import { Chrome, LoaderCircle } from 'lucide-react';
+import { Chrome, LoaderCircle, Award } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
@@ -285,9 +285,10 @@ export default function LoginPage() {
                             <Label htmlFor="signup-mobile">Mobile Number (Optional)</Label>
                             <Input id="signup-mobile" type="tel" placeholder="Your phone number" value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} />
                         </div>
-                        <p className="text-sm text-muted-foreground text-center pt-2">
-                            You'll receive {settings?.signupBonus || '...'} tokens as a welcome bonus!
-                        </p>
+                        <div className="flex items-center justify-center gap-2 p-3 text-base font-bold text-primary bg-primary/10 rounded-lg mt-4">
+                            <Award className="h-6 w-6" />
+                            <span>You'll receive {settings?.signupBonus || '...'} tokens as a welcome bonus!</span>
+                        </div>
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}</Button>
