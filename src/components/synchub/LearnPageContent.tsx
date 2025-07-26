@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { useState, useMemo, useEffect, useRef, memo, Dispatch, SetStateAction } from 'react';
 import Link from 'next/link';
 import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,11 @@ type AssessmentResult = {
   fluency?: number;
 };
 
-function LearnPageContent() {
+interface LearnPageContentProps {
+  setActiveTab: Dispatch<SetStateAction<string>>;
+}
+
+function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats } = useUserData();
@@ -291,15 +295,13 @@ function LearnPageContent() {
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button
-                                                asChild
                                                 variant="ghost"
+                                                onClick={() => setActiveTab('live-translation')}
                                                 className={cn(
                                                     'h-auto w-full p-2 transition-all duration-200 text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                                 )}
                                             >
-                                                <Link href="/synchub?tab=live-translation">
-                                                    <Bookmark className="h-12 w-12" />
-                                                </Link>
+                                                <Bookmark className="h-12 w-12" />
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>

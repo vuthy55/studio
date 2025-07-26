@@ -56,7 +56,7 @@ function SyncHubTabs() {
                 <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
             </TabsList>
             <TabsContent value="prep-vibe" className="mt-6">
-                <MemoizedLearnPage />
+                <MemoizedLearnPage setActiveTab={setActiveTab} />
             </TabsContent>
             <TabsContent value="sync-live" className="mt-6">
                 <Suspense fallback={<LoadingSpinner />}>
