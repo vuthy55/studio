@@ -48,6 +48,16 @@ export default function SyncHubPage() {
             setActiveTab(tab);
         }
     }, [searchParams]);
+
+    useEffect(() => {
+        if (window.location.hash) {
+            const id = window.location.hash.substring(1); // remove #
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }, [activeTab]);
    
     return (
         <div className="space-y-8">
