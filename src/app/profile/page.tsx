@@ -282,7 +282,6 @@ function TokenWalletCard() {
 function ProfileSection() {
     const { user, userProfile, logout, fetchUserProfile } = useUserData();
     const { toast } = useToast();
-    const router = useRouter();
 
     const [profile, setProfile] = useState<Partial<UserProfile>>({});
     const [isSaving, setIsSaving] = useState(false);
@@ -297,13 +296,14 @@ function ProfileSection() {
             setProfile(userProfile);
         }
     }, [userProfile]);
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { id, value } = e.target;
+        setProfile(prev => ({ ...prev, [id]: value }));
+    };
 
     const handleCountryChange = (countryCode: string) => {
         setProfile(prev => ({ ...prev, country: countryCode }));
-        const selected = countryOptions.find(c => c.code === countryCode);
-        if (selected && (!profile.mobile || !profile.mobile.startsWith('+'))) {
-            setProfile(prev => ({ ...prev, mobile: `+${selected.phone} ` }));
-        }
     };
     
     const handleLanguageChange = (langCode: AzureLanguageCode) => {
@@ -320,10 +320,8 @@ function ProfileSection() {
             }
             
             const userDocRef = doc(db, 'users', user.uid);
-            // Destructure all relevant fields from the local profile state
             const { name, country, mobile, defaultLanguage } = profile;
             
-            // Construct the data object to save to Firestore
             const dataToSave = {
                 name: name || '',
                 country: country || '',
@@ -397,7 +395,7 @@ function ProfileSection() {
                     <form onSubmit={handleSaveProfile} className="space-y-6">
                         <div className="space-y-2">
                             <Label htmlFor="name">Name</Label>
-                            <Input id="name" value={profile.name || ''} onChange={(e) => setProfile((p: any) => ({...p, name: e.target.value}))} />
+                            <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
@@ -434,7 +432,7 @@ function ProfileSection() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="mobile">Mobile Number</Label>
-                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={(e) => setProfile((p: any) => ({...p, mobile: e.target.value}))} placeholder="e.g., +1 123 456 7890" />
+                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} placeholder="e.g., +1 123 456 7890" />
                         </div>
 
                         <div className="flex justify-end pt-4">
@@ -913,7 +911,5 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
 
     
