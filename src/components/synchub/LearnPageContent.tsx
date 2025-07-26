@@ -2,11 +2,12 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import Link from 'next/link';
 import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -262,7 +263,7 @@ function LearnPageContent() {
                                     </Tooltip>
                                 </TooltipProvider>
                             </div>
-                            <div className="grid grid-cols-5 gap-3 rounded-md bg-muted p-1">
+                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1">
                                 {phrasebook.map((topic) => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                     <Tooltip>
@@ -286,6 +287,26 @@ function LearnPageContent() {
                                     </Tooltip>
                                     </TooltipProvider>
                                 ))}
+                                <TooltipProvider delayDuration={100}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                asChild
+                                                variant="ghost"
+                                                className={cn(
+                                                    'h-auto w-full p-2 transition-all duration-200 text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                                                )}
+                                            >
+                                                <Link href="/synchub?tab=live-translation#saved-phrases">
+                                                    <Bookmark className="h-12 w-12" />
+                                                </Link>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>My Saved Phrases</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                             </div>
                         </div>
                         <div>

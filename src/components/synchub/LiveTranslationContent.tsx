@@ -383,7 +383,7 @@ export default function LiveTranslationContent() {
 
             {savedPhrases.length > 0 && user && (
                 <div className="space-y-4">
-                    <h3 className="text-xl font-bold font-headline">Your Saved Phrases for Practice</h3>
+                    <h3 id="saved-phrases" className="text-xl font-bold font-headline">Your Saved Phrases for Practice</h3>
                     <div className="w-full space-y-2">
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
                             const assessment = lastAssessment[phrase.id];
