@@ -4,11 +4,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
-  createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  updateProfile as updateAuthProfile,
   type User
 } from "firebase/auth";
 import { auth, db } from '@/lib/firebase';
@@ -29,6 +27,7 @@ import { processNewUserAndReferral } from '@/actions/referrals';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
+import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from 'firebase/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -108,11 +107,14 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
+      // Step 1: Create the user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
       const user = userCredential.user;
       
+      // Step 2: Update their Auth display name
       await updateAuthProfile(user, { displayName: signupName });
 
+      // Step 3: Call the server action to create the Firestore document and handle referral
       const result = await processNewUserAndReferral(
         { uid: user.uid, name: signupName, email: signupEmail },
         { country: signupCountry, mobile: signupMobile, defaultLanguage: signupLanguage },
@@ -120,13 +122,17 @@ export default function LoginPage() {
       );
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to process new user and referral on the server.");
+        // If the server action fails, it's critical to inform the user.
+        // The account exists in Auth, but not in our DB.
+        throw new Error(result.error || "A server error occurred while finalizing your account.");
       }
       
+      // Step 4: Manually trigger a refetch of the user data in our app's context
       await forceRefetch();
 
       toast({ title: "Success", description: "Account created successfully." });
       router.push('/profile');
+
     } catch (error: any) {
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });

@@ -1,7 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase-admin';
+import { db, auth } from '@/lib/firebase-admin';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
 

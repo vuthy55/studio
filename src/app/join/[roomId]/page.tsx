@@ -183,12 +183,10 @@ export default function JoinRoomPage() {
 
         try {
             // 1. Create user in Auth
-            console.log("[DEBUG] handleSignUpAndJoin: Creating user with email and password.");
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const newUser = userCredential.user;
 
             // 2. Update Auth profile
-            console.log("[DEBUG] handleSignUpAndJoin: Updating auth profile.");
             await updateAuthProfile(newUser, { displayName: name });
             
             // 3. Create Firestore document and process referral via server action
