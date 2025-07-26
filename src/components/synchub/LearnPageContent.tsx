@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
@@ -23,6 +22,9 @@ import { cn } from '@/lib/utils';
 import type { AppSettings } from '@/actions/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
+import { getOfflineAudio } from './OfflineManager';
+import OfflineManager from './OfflineManager';
+import { languageToLocaleMap } from '@/lib/utils';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -51,7 +53,6 @@ function LearnPageContent() {
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
 
-        // Set initial status
         if (typeof window !== 'undefined') {
             setIsOnline(navigator.onLine);
         }
@@ -65,7 +66,6 @@ function LearnPageContent() {
         };
     }, []);
 
-    // Effect to handle aborting recognition on component unmount
     useEffect(() => {
         return () => {
             if (assessingPhraseId) {
@@ -74,24 +74,30 @@ function LearnPageContent() {
         };
     }, [assessingPhraseId]);
     
-    const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
-        english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
-        malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
-        chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
-    };
+    const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
+        if (!text || !!assessingPhraseId) return;
 
-    const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!isOnline) {
-            toast({ variant: 'destructive', title: 'Offline', description: 'Audio playback requires an internet connection.' });
+        // 1. Try to play from offline storage first
+        const offlineAudioPack = await getOfflineAudio(lang);
+        const audioDataUri = offlineAudioPack?.[phraseId];
+
+        if (audioDataUri) {
+            const audio = new Audio(audioDataUri);
+            audio.play().catch(e => console.error("Offline audio playback failed.", e));
             return;
         }
-        if (!text || !!assessingPhraseId) return;
-        const locale = languageToLocaleMap[lang];
+
+        // 2. Fallback to online fetching
+        if (!isOnline) {
+            toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download this language pack for offline listening.' });
+            return;
+        }
         
+        const locale = languageToLocaleMap[lang];
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
-            audio.play().catch(e => console.error("Audio playback failed.", e));
+            audio.play().catch(e => console.error("Online audio playback failed.", e));
         } catch (error: any) {
             console.error("TTS generation failed.", error);
             toast({
@@ -110,7 +116,7 @@ function LearnPageContent() {
     }
 
     const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
-        if (assessingPhraseId) return; // Don't start a new assessment if one is in progress.
+        if (assessingPhraseId) return;
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
             return;
@@ -124,7 +130,7 @@ function LearnPageContent() {
         const phraseId = phrase.id;
         
         setAssessingPhraseId(phraseId);
-        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any)); // Clear previous result for this phrase
+        setLastAssessment(prev => ({ ...prev, [phraseId]: undefined } as any));
     
         try {
             const assessment = await assessPronunciationFromMic(referenceText, toLanguage);
@@ -135,7 +141,7 @@ function LearnPageContent() {
             
             const { wasRewardable, rewardAmount } = recordPracticeAttempt({
                 phraseId,
-                phraseText: referenceText, // Pass the correct translated text
+                phraseText: referenceText,
                 topicId,
                 lang: toLanguage,
                 isPass,
@@ -182,254 +188,233 @@ function LearnPageContent() {
     }
 
     return (
-        <Card className="shadow-lg mt-6">
-            <CardContent className="space-y-6 pt-6">
-                 <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
-                    <div className="flex-1 w-full">
-                        <Label htmlFor="from-language">From</Label>
-                        <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
-                            <SelectTrigger id="from-language">
-                                <SelectValue placeholder="Select a language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {languages.map(lang => (
-                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Button variant="ghost" size="icon" className="mt-4 sm:mt-5 self-center" onClick={swapLanguages}>
-                        <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
-                        <span className="sr-only">Switch languages</span>
-                    </Button>
-                    
-                    <div className="flex-1 w-full">
-                        <Label htmlFor="to-language">To</Label>
-                        <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
-                            <SelectTrigger id="to-language">
-                                <SelectValue placeholder="Select a language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {languages.map(lang => (
-                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="w-full sm:w-auto sm:flex-1">
-                      <Label htmlFor="tts-voice">Voice</Label>
-                      <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
-                          <SelectTrigger id="tts-voice">
-                              <SelectValue placeholder="Select a voice" />
-                          </SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="default">Default</SelectItem>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                          </SelectContent>
-                      </Select>
-                    </div>
-                </div>
-            
-                <div className="space-y-4 pt-6">
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                            <Label>Select a Topic</Label>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Info className="h-5 w-5 text-accent cursor-help" />
-                                    </TooltipTrigger>
-                                     <TooltipContent className="max-w-xs" side="right">
-                                        <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
-                                        <ul className="list-disc pl-4 space-y-1 text-sm">
-                                            <li>Select a topic to learn relevant phrases.</li>
-                                            <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                            <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. The mic will stop automatically when you pause.</li>
-                                            { !user && <li className="font-bold">Log in to save your progress!</li> }
-                                        </ul>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+        <div className="space-y-6">
+            <OfflineManager />
+            <Card className="shadow-lg">
+                <CardContent className="space-y-6 pt-6">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
+                        <div className="flex-1 w-full">
+                            <Label htmlFor="from-language">From</Label>
+                            <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
+                                <SelectTrigger id="from-language">
+                                    <SelectValue placeholder="Select a language" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {languages.map(lang => (
+                                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <div className="grid grid-cols-5 gap-3 rounded-md bg-muted p-1">
-                            {phrasebook.map((topic) => (
-                                <TooltipProvider key={topic.id} delayDuration={100}>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        onClick={() => setSelectedTopicId(topic.id)}
-                                        className={cn(
-                                        'h-auto w-full p-2 transition-all duration-200',
-                                        selectedTopicId === topic.id
-                                            ? 'bg-background text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
-                                        )}
-                                    >
-                                        <topic.icon className="h-12 w-12" />
-                                    </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                    <p>{topic.title}</p>
-                                    </TooltipContent>
-                                </Tooltip>
+
+                        <Button variant="ghost" size="icon" className="mt-4 sm:mt-5 self-center" onClick={swapLanguages}>
+                            <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+                            <span className="sr-only">Switch languages</span>
+                        </Button>
+                        
+                        <div className="flex-1 w-full">
+                            <Label htmlFor="to-language">To</Label>
+                            <Select value={toLanguage} onValueChange={(value) => setToLanguage(value as LanguageCode)}>
+                                <SelectTrigger id="to-language">
+                                    <SelectValue placeholder="Select a language" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {languages.map(lang => (
+                                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="w-full sm:w-auto sm:flex-1">
+                        <Label htmlFor="tts-voice">Voice</Label>
+                        <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
+                            <SelectTrigger id="tts-voice">
+                                <SelectValue placeholder="Select a voice" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="default">Default</SelectItem>
+                                <SelectItem value="male">Male</SelectItem>
+                                <SelectItem value="female">Female</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        </div>
+                    </div>
+                
+                    <div className="space-y-4 pt-6">
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <Label>Select a Topic</Label>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-5 w-5 text-accent cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs" side="right">
+                                            <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
+                                            <ul className="list-disc pl-4 space-y-1 text-sm">
+                                                <li>Select a topic to learn relevant phrases.</li>
+                                                <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
+                                                <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. The mic will stop automatically when you pause.</li>
+                                                { !user && <li className="font-bold">Log in to save your progress!</li> }
+                                            </ul>
+                                        </TooltipContent>
+                                    </Tooltip>
                                 </TooltipProvider>
-                            ))}
-                        </div>
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-1 mt-6">
-                            <selectedTopic.icon className="h-6 w-6 text-accent" /> 
-                            {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
-                        </h3>
-                        {user && (
-                            <div className="text-sm text-muted-foreground mb-4 flex items-center gap-4">
-                                <div className="flex items-center gap-1.5" title="Unique phrases pronounced correctly">
-                                    <Star className="h-4 w-4 text-yellow-500" />
-                                    <span>Correct: <strong>{topicStats.correct} / {selectedTopic.phrases.length}</strong></span>
-                                </div>
-                                <div className="flex items-center gap-1.5" title="Tokens earned from this topic">
-                                    <Award className="h-4 w-4 text-amber-500" />
-                                    <span>Tokens Earned: <strong>{topicStats.tokensEarned}</strong></span>
-                                </div>
                             </div>
-                        )}
-                        <div className="space-y-4">
-                            {sortedPhrases.map((phrase) => {
-                                const fromText = getTranslation(phrase, fromLanguage);
-                                const toText = getTranslation(phrase, toLanguage);
-                                const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
-                                const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
-
-                                const assessment = lastAssessment[phrase.id];
-                                const isAssessingCurrent = assessingPhraseId === phrase.id;
-                                
-                                const history = practiceHistory[phrase.id];
-                                const passes = history?.passCountPerLang?.[toLanguage] || 0;
-                                const fails = history?.failCountPerLang?.[toLanguage] || 0;
-                                const hasBeenRewarded = settings && passes >= settings.practiceThreshold;
-
-
-                                const getResultIcon = () => {
-                                    if (!assessment) return null;
-                                    if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
-                                    if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
-                                    return null;
-                                };
-
-                                return (
-                                <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex justify-between items-center w-full">
-                                            <p className="font-semibold text-lg">{fromText}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex justify-between items-center w-full">
-                                            <div>
-                                                <p className="font-bold text-lg text-primary">{toText}</p>
-                                                 {assessment && (
-                                                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
-                                                        <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                        <p>Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center shrink-0">
-                                                {getResultIcon()}
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                             <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
-                                                                <Volume2 className="h-5 w-5" />
-                                                                <span className="sr-only">Play audio</span>
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                         {!isOnline && (
-                                                            <TooltipContent>
-                                                                <p>Audio playback is disabled while offline.</p>
-                                                            </TooltipContent>
-                                                        )}
-                                                    </Tooltip>
-                                                </TooltipProvider>
-
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <div className="relative">
-                                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
-                                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-destructive" /> : <Mic className={cn("h-5 w-5")} /> }
-                                                                    <span className="sr-only">Record pronunciation</span>
-                                                                </Button>
-                                                            </div>
-                                                        </TooltipTrigger>
-                                                        {!isOnline && (
-                                                            <TooltipContent>
-                                                                <p>Practice is disabled while offline.</p>
-                                                            </TooltipContent>
-                                                        )}
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </div>
-                                    </div>
-                                     { user && (passes > 0 || fails > 0) &&
-                                        <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
-                                            {hasBeenRewarded && (
-                                                <div className="flex items-center gap-1 text-amber-500 font-bold" title='Tokens awarded for this phrase'>
-                                                    <Award className="h-4 w-4" />
-                                                    <span>+{settings?.practiceReward || 0}</span>
-                                                </div>
+                            <div className="grid grid-cols-5 gap-3 rounded-md bg-muted p-1">
+                                {phrasebook.map((topic) => (
+                                    <TooltipProvider key={topic.id} delayDuration={100}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() => setSelectedTopicId(topic.id)}
+                                            className={cn(
+                                            'h-auto w-full p-2 transition-all duration-200',
+                                            selectedTopicId === topic.id
+                                                ? 'bg-background text-foreground shadow-sm'
+                                                : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                             )}
-                                            <div className="flex items-center gap-1" title='Correct attempts'>
-                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                <span className="font-bold">{passes}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1" title='Incorrect attempts'>
-                                                <XCircle className="h-4 w-4 text-red-500" />
-                                                <span className="font-bold">{fails}</span>
+                                        >
+                                            <topic.icon className="h-12 w-12" />
+                                        </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                        <p>{topic.title}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    </TooltipProvider>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold font-headline flex items-center gap-3 mb-1 mt-6">
+                                <selectedTopic.icon className="h-6 w-6 text-accent" /> 
+                                {selectedTopic.title}: {fromLanguageDetails?.label} to {toLanguageDetails?.label}
+                            </h3>
+                            {user && (
+                                <div className="text-sm text-muted-foreground mb-4 flex items-center gap-4">
+                                    <div className="flex items-center gap-1.5" title="Unique phrases pronounced correctly">
+                                        <Star className="h-4 w-4 text-yellow-500" />
+                                        <span>Correct: <strong>{topicStats.correct} / {selectedTopic.phrases.length}</strong></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5" title="Tokens earned from this topic">
+                                        <Award className="h-4 w-4 text-amber-500" />
+                                        <span>Tokens Earned: <strong>{topicStats.tokensEarned}</strong></span>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="space-y-4">
+                                {sortedPhrases.map((phrase) => {
+                                    const fromText = getTranslation(phrase, fromLanguage);
+                                    const toText = getTranslation(phrase, toLanguage);
+                                    const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
+                                    const toAnswerText = phrase.answer ? getTranslation(phrase.answer, toLanguage) : '';
+
+                                    const assessment = lastAssessment[phrase.id];
+                                    const isAssessingCurrent = assessingPhraseId === phrase.id;
+                                    
+                                    const history = practiceHistory[phrase.id];
+                                    const passes = history?.passCountPerLang?.[toLanguage] || 0;
+                                    const fails = history?.failCountPerLang?.[toLanguage] || 0;
+                                    const hasBeenRewarded = settings && passes >= settings.practiceThreshold;
+
+                                    const getResultIcon = () => {
+                                        if (!assessment) return null;
+                                        if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+                                        if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
+                                        return null;
+                                    };
+
+                                    return (
+                                    <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-center w-full">
+                                                <p className="font-semibold text-lg">{fromText}</p>
                                             </div>
                                         </div>
-                                    }
-
-                                    {phrase.answer && (
-                                        <>
-                                            <div className="border-t border-dashed border-border my-2"></div>
-                                            <p className="font-semibold text-lg">{fromAnswerText}</p>
+                                        <div className="flex flex-col gap-2">
                                             <div className="flex justify-between items-center w-full">
-                                                <p className="font-bold text-lg text-primary">{toAnswerText}</p>
+                                                <div>
+                                                    <p className="font-bold text-lg text-primary">{toText}</p>
+                                                    {assessment && (
+                                                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
+                                                            <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                            <p>Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <div className="flex items-center shrink-0">
-                                                     <TooltipProvider>
+                                                    {getResultIcon()}
+                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                        <Volume2 className="h-5 w-5" />
+                                                        <span className="sr-only">Play audio</span>
+                                                    </Button>
+
+                                                    <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
-                                                                    <Volume2 className="h-5 w-5" />
-                                                                    <span className="sr-only">Play audio</span>
-                                                                </Button>
+                                                                <div className="relative">
+                                                                    <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                                        {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-destructive" /> : <Mic className={cn("h-5 w-5")} /> }
+                                                                        <span className="sr-only">Record pronunciation</span>
+                                                                    </Button>
+                                                                </div>
                                                             </TooltipTrigger>
                                                             {!isOnline && (
                                                                 <TooltipContent>
-                                                                    <p>Audio playback is disabled while offline.</p>
+                                                                    <p>Practice is disabled while offline.</p>
                                                                 </TooltipContent>
                                                             )}
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 </div>
                                             </div>
-                                        </>
-                                    )}
-                                </div>
-                                )
-                            })}
+                                        </div>
+                                        { user && (passes > 0 || fails > 0) &&
+                                            <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
+                                                {hasBeenRewarded && (
+                                                    <div className="flex items-center gap-1 text-amber-500 font-bold" title='Tokens awarded for this phrase'>
+                                                        <Award className="h-4 w-4" />
+                                                        <span>+{settings?.practiceReward || 0}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-1" title='Correct attempts'>
+                                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                    <span className="font-bold">{passes}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                                    <XCircle className="h-4 w-4 text-red-500" />
+                                                    <span className="font-bold">{fails}</span>
+                                                </div>
+                                            </div>
+                                        }
+
+                                        {phrase.answer && (
+                                            <>
+                                                <div className="border-t border-dashed border-border my-2"></div>
+                                                <p className="font-semibold text-lg">{fromAnswerText}</p>
+                                                <div className="flex justify-between items-center w-full">
+                                                    <p className="font-bold text-lg text-primary">{toAnswerText}</p>
+                                                    <div className="flex items-center shrink-0">
+                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage, `${phrase.id}-ans`)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                            <Volume2 className="h-5 w-5" />
+                                                            <span className="sr-only">Play audio</span>
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                    )
+                                })}
+                            </div>
                         </div>
                     </div>
-                </div>
-
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
