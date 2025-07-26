@@ -8,7 +8,8 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from "firebase/auth";
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -69,14 +70,27 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Check if user document already exists
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        // This is a new user, create their profile via the server action
+        await signUpUser({
+            name: user.displayName || 'New User',
+            email: user.email!,
+            photoURL: user.photoURL || undefined
+        }, referralId);
+      }
       
       await forceRefetch();
-      toast({ title: "Welcome back!", description: "Logged in successfully." });
+      toast({ title: "Welcome!", description: "Logged in successfully." });
       router.push('/profile');
 
     } catch (error: any) {
       console.error("Google sign-in error", error);
-      // Check if the error is because the account already exists with a different credential
       if (error.code === 'auth/account-exists-with-different-credential') {
         toast({ variant: "destructive", title: "Sign-in Error", description: "An account already exists with this email address. Please sign in using the original method." });
       } else {
@@ -128,6 +142,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      await forceRefetch();
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
     } catch (error: any) {
@@ -177,9 +192,9 @@ export default function LoginPage() {
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}</Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={true}>
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
                             {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
-                            Sign in with Google (Coming Soon)
+                            Sign in with Google
                         </Button>
                     </CardFooter>
                     </form>
@@ -244,9 +259,9 @@ export default function LoginPage() {
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}</Button>
-                         <Button variant="outline" className="w-full" type="button" disabled={true}>
+                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
                              {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
-                             Sign up with Google (Coming Soon)
+                             Sign up with Google
                         </Button>
                         </CardFooter>
                     </form>
