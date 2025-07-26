@@ -9,7 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { getLanguageAudioPack, type AudioPack } from '@/actions/audio';
 import { languages, type LanguageCode } from '@/lib/data';
 import { Download, Trash2, LoaderCircle, CheckCircle2 } from 'lucide-react';
-import { Progress } from '../ui/progress';
+import useLocalStorage from '@/hooks/use-local-storage';
+
 
 const DB_NAME = 'VibeSync-Offline';
 const STORE_NAME = 'AudioPacks';
@@ -37,7 +38,7 @@ export default function OfflineManager() {
   const { toast } = useToast();
   const [downloading, setDownloading] = useState<LanguageCode | null>(null);
   const [deleting, setDeleting] = useState<LanguageCode | null>(null);
-  const [downloadedLanguages, setDownloadedLanguages] = useState<Set<LanguageCode>>(new Set());
+  const [downloadedLanguages, setDownloadedLanguages] = useLocalStorage<Record<string, { size: number }>>('offlineLanguagePacks', {});
   const [isChecking, setIsChecking] = useState(true);
 
   // Check for existing offline data on mount
@@ -45,25 +46,34 @@ export default function OfflineManager() {
     setIsChecking(true);
     const db = await getDb();
     const keys = await db.getAllKeys(STORE_NAME);
-    setDownloadedLanguages(new Set(keys as LanguageCode[]));
+    const offlineData: Record<string, { size: number }> = {};
+    
+    // Ensure that only keys that actually exist in the DB are in our state
+    keys.forEach(key => {
+        const langCode = key as LanguageCode;
+        offlineData[langCode] = downloadedLanguages[langCode] || { size: 0 }; // Keep existing size if available
+    });
+
+    setDownloadedLanguages(offlineData);
     setIsChecking(false);
-  }, []);
+  }, [setDownloadedLanguages, downloadedLanguages]);
 
   useEffect(() => {
     checkForOfflineData();
-  }, [checkForOfflineData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDownload = async (lang: LanguageCode) => {
     setDownloading(lang);
     try {
-      const audioPack = await getLanguageAudioPack(lang);
+      const { audioPack, size } = await getLanguageAudioPack(lang);
       const db = await getDb();
       await db.put(STORE_NAME, audioPack, lang);
       toast({
         title: 'Download Complete!',
         description: `Offline audio for ${languages.find(l => l.value === lang)?.label} is now available.`,
       });
-      setDownloadedLanguages(prev => new Set(prev).add(lang));
+      setDownloadedLanguages(prev => ({...prev, [lang]: { size }}));
     } catch (error) {
       console.error('Failed to download audio pack:', error);
       toast({
@@ -86,9 +96,9 @@ export default function OfflineManager() {
             description: `Removed offline audio for ${languages.find(l => l.value === lang)?.label}.`
         });
         setDownloadedLanguages(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(lang);
-            return newSet;
+            const newDownloads = { ...prev };
+            delete newDownloads[lang];
+            return newDownloads;
         });
     } catch (error) {
          console.error('Failed to delete audio pack:', error);
@@ -101,6 +111,15 @@ export default function OfflineManager() {
         setDeleting(null);
     }
   };
+
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
 
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
@@ -115,13 +134,17 @@ export default function OfflineManager() {
       <div className="space-y-2">
         {offlineReadyLanguages.map(langCode => {
           const lang = languages.find(l => l.value === langCode)!;
-          const isDownloaded = downloadedLanguages.has(lang.value);
+          const downloadInfo = downloadedLanguages[lang.value];
+          const isDownloaded = !!downloadInfo;
           const isDownloadingThis = downloading === lang.value;
           const isDeletingThis = deleting === lang.value;
 
           return (
             <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-              <span>{lang.label}</span>
+              <div className="flex flex-col">
+                <span>{lang.label}</span>
+                 {isDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(downloadInfo.size)}</span>}
+              </div>
               {isDownloaded ? (
                 <div className="flex items-center gap-2">
                     <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready for Offline Use</span>

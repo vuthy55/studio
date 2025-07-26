@@ -9,6 +9,11 @@ export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
 };
 
+export interface AudioPackResult {
+    audioPack: AudioPack;
+    size: number; // size in bytes
+}
+
 /**
  * Generates an "audio pack" for a given language.
  * This involves iterating through the entire phrasebook and generating TTS audio
@@ -17,7 +22,7 @@ export type AudioPack = {
  * @param lang - The language code for which to generate the audio pack.
  * @returns A promise that resolves to an AudioPack object.
  */
-export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPack> {
+export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPackResult> {
   const audioPack: AudioPack = {};
   const locale = languageToLocaleMap[lang];
 
@@ -65,5 +70,7 @@ export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPac
 
   await Promise.all(generationPromises);
 
-  return audioPack;
+  const size = Buffer.from(JSON.stringify(audioPack)).length;
+
+  return { audioPack, size };
 }
