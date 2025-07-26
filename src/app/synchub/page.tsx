@@ -5,7 +5,6 @@ import { useState, memo, useEffect, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSidebar } from '@/components/ui/sidebar';
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle } from 'lucide-react';
@@ -37,10 +36,9 @@ const MemoizedSyncLive = memo(DynamicSyncLive);
 const MemoizedLiveTranslation = memo(DynamicLiveTranslation);
 const MemoizedSyncOnline = memo(DynamicSyncOnline);
 
-
-export default function SyncHubPage() {
+function SyncHubTabs() {
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState('prep-vibe');
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'prep-vibe');
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -51,43 +49,55 @@ export default function SyncHubPage() {
 
     useEffect(() => {
         if (window.location.hash) {
-            const id = window.location.hash.substring(1); // remove #
-            const element = document.getElementById(id);
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth' });
-            }
+            const id = window.location.hash.substring(1);
+            // Use a timeout to ensure the dynamic content has loaded
+            setTimeout(() => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100); 
         }
-    }, [activeTab]);
-   
+    }, [activeTab]); // Rerunning on activeTab change is correct here
+
+    return (
+         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
+                <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
+                <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
+                <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
+            </TabsList>
+            <TabsContent value="prep-vibe" className="mt-6">
+                <MemoizedLearnPage />
+            </TabsContent>
+            <TabsContent value="sync-live" className="mt-6">
+                <Suspense fallback={<LoadingSpinner />}>
+                    <MemoizedSyncLive />
+                </Suspense>
+            </TabsContent>
+            <TabsContent value="live-translation" className="mt-6">
+                <Suspense fallback={<LoadingSpinner />}>
+                    <MemoizedLiveTranslation />
+                </Suspense>
+            </TabsContent>
+            <TabsContent value="sync-online" className="mt-6">
+                <Suspense fallback={<LoadingSpinner />}>
+                    <MemoizedSyncOnline />
+                </Suspense>
+            </TabsContent>
+        </Tabs>
+    );
+}
+
+
+export default function SyncHubPage() {
     return (
         <div className="space-y-8">
             <MainHeader title="SyncHub" description="Prepare, practice, and connect." />
-             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
-                    <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
-                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
-                    <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
-                </TabsList>
-                <TabsContent value="prep-vibe" className="mt-6">
-                    <MemoizedLearnPage />
-                </TabsContent>
-                <TabsContent value="sync-live" className="mt-6">
-                   <Suspense fallback={<LoadingSpinner />}>
-                        <MemoizedSyncLive />
-                   </Suspense>
-                </TabsContent>
-                <TabsContent value="live-translation" className="mt-6">
-                   <Suspense fallback={<LoadingSpinner />}>
-                        <MemoizedLiveTranslation />
-                   </Suspense>
-                </TabsContent>
-                <TabsContent value="sync-online" className="mt-6">
-                    <Suspense fallback={<LoadingSpinner />}>
-                        <MemoizedSyncOnline />
-                    </Suspense>
-                </TabsContent>
-            </Tabs>
+             <Suspense fallback={<LoadingSpinner />}>
+                <SyncHubTabs />
+            </Suspense>
         </div>
     );
 }
