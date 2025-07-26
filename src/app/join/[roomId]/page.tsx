@@ -3,9 +3,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp, addDoc, collection, updateDoc, arrayUnion } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile, type User, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
@@ -55,7 +54,7 @@ export default function JoinRoomPage() {
         getAppSettingsAction().then(setSettings);
     }, []);
 
-    const fetchRoomAndRedirect = useCallback(async (user: User) => {
+    const fetchRoomAndRedirect = useCallback(async (user: any) => {
         console.log(`[DEBUG] fetchRoomAndRedirect: Called for authenticated user ${user.uid}.`);
         setIsSubmitting(true);
         try {
@@ -73,26 +72,11 @@ export default function JoinRoomPage() {
             // Add user to room and redirect.
             console.log(`[DEBUG] fetchRoomAndRedirect: Adding user ${user.uid} to participants.`);
             
-            // Check if user is already invited, if not, add them.
             if (!roomData.invitedEmails.includes(user.email!)) {
                 await updateDoc(roomDocRef, {
                     invitedEmails: arrayUnion(user.email!)
                 });
             }
-
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-            const userProfileDoc = await getDoc(doc(db, 'users', user.uid));
-            const userProfile = userProfileDoc.data();
-            
-            const participantData: Participant = {
-                uid: user.uid,
-                name: user.displayName || user.email!.split('@')[0],
-                email: user.email!,
-                selectedLanguage: spokenLanguage || userProfile?.defaultLanguage || 'en-US', // Default if somehow not set
-                isMuted: false,
-                joinedAt: Timestamp.now()
-            };
-            await setDoc(participantRef, participantData);
             
             console.log(`[DEBUG] fetchRoomAndRedirect: Redirecting to /sync-room/${roomId}`);
             router.push(`/sync-room/${roomId}`);
@@ -102,7 +86,7 @@ export default function JoinRoomPage() {
              toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details or join the room.' });
              setIsSubmitting(false);
         }
-    }, [roomId, router, toast, spokenLanguage]);
+    }, [roomId, router, toast]);
 
 
     useEffect(() => {
@@ -113,11 +97,9 @@ export default function JoinRoomPage() {
         }
 
         if (user) {
-            // Path for already logged-in users
             console.log("[DEBUG] Main Effect: User is authenticated. Running fetchRoomAndRedirect.");
             fetchRoomAndRedirect(user);
         } else {
-            // Path for new/unauthenticated users
             console.log("[DEBUG] Main Effect: User is not authenticated. Displaying sign-up form.");
             setIsLoading(false);
         }
@@ -134,42 +116,18 @@ export default function JoinRoomPage() {
         }
     };
     
-    const addUserToRoomAndRedirect = async (userObj: User) => {
+    const addUserToRoomAndRedirect = async () => {
         if (!roomId) return;
         setIsSubmitting(true);
         try {
-            // We fetch the room topic here, after authentication
-            console.log("[DEBUG] addUserToRoomAndRedirect: Getting room doc after signup.");
-            const roomRef = doc(db, 'syncRooms', roomId);
-            const roomDoc = await getDoc(roomRef);
-            if (!roomDoc.exists()) throw new Error("Room not found");
-            
-            // Critical fix: Ensure the new user is on the invited list before redirecting.
-            await updateDoc(roomRef, {
-                invitedEmails: arrayUnion(userObj.email!)
-            });
-
-            console.log(`[DEBUG] addUserToRoomAndRedirect: Adding participant ${userObj.uid} to room.`);
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', userObj.uid);
-            const participantData: Participant = {
-                uid: userObj.uid,
-                name: name || userObj.displayName || userObj.email!.split('@')[0],
-                email: userObj.email!,
-                selectedLanguage: spokenLanguage as AzureLanguageCode,
-                isMuted: false,
-                joinedAt: Timestamp.now()
-            };
-            await setDoc(participantRef, participantData);
-            
             console.log(`[DEBUG] addUserToRoomAndRedirect: Redirecting to /sync-room/${roomId}`);
             router.push(`/sync-room/${roomId}`);
         } catch (error) {
-            console.error("[DEBUG] Error adding participant to room:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not add you to the room.'});
+            console.error("[DEBUG] Error in addUserToRoomAndRedirect:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not redirect you to the room.'});
             setIsSubmitting(false);
         }
     };
-
 
     const handleSignUpAndJoin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -182,31 +140,28 @@ export default function JoinRoomPage() {
         setIsNewUserFlow(true);
 
         try {
-            // 1. Create user in Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const newUser = userCredential.user;
-
-            // 2. Update Auth profile
-            await updateAuthProfile(newUser, { displayName: name });
-            
-            // 3. Create Firestore document and process referral via server action
-            console.log(`[DEBUG] handleSignUpAndJoin: Calling processNewUserAndReferral`);
             const result = await processNewUserAndReferral(
-                { uid: newUser.uid, name, email },
-                { country, mobile, defaultLanguage: spokenLanguage },
+                {
+                    name,
+                    email,
+                    password,
+                    country,
+                    mobile,
+                    defaultLanguage: spokenLanguage
+                },
                 referralId
             );
 
             if (!result.success) {
-                // If the server action fails, we should provide feedback.
                 throw new Error(result.error || "Failed to process new user and referral on the server.");
             }
             
-            await forceRefetch();
+            // Now that the user exists in Auth and Firestore, log them in on the client
+            await signInWithEmailAndPassword(auth, email, password);
+            await forceRefetch(); // Force the context to see the new user
             
-            // 4. Add user to room and redirect
             console.log("[DEBUG] handleSignUpAndJoin: Calling addUserToRoomAndRedirect.");
-            await addUserToRoomAndRedirect(newUser);
+            await addUserToRoomAndRedirect();
 
         } catch (error: any) {
             console.error("[DEBUG] Sign-up and join error:", error);
@@ -230,7 +185,7 @@ export default function JoinRoomPage() {
                 <div className="text-center space-y-2">
                     <LoaderCircle className="h-10 w-10 animate-spin text-primary mx-auto" />
                     <p className="text-muted-foreground">You are already logged in.</p>
-                    <p className="font-semibold">Adding you to the room...</p>
+                    <p className="font-semibold">Taking you to the room...</p>
                 </div>
             </div>
         );
@@ -304,3 +259,5 @@ export default function JoinRoomPage() {
         </div>
     );
 }
+
+    

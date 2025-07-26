@@ -6,11 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider,
-  type User
+  GoogleAuthProvider
 } from "firebase/auth";
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +25,6 @@ import { processNewUserAndReferral } from '@/actions/referrals';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
-import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from 'firebase/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -67,30 +64,17 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
+    // This function will now be much simpler. We let the server handle user creation.
+    // This is just for demonstration and would need a corresponding server action for social logins.
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      if (!userDoc.exists()) {
-        const displayName = user.displayName || user.email?.split('@')[0] || 'New User';
-        const processResult = await processNewUserAndReferral(
-            { uid: user.uid, name: displayName, email: user.email! },
-            { country: '', mobile: user.phoneNumber || '', defaultLanguage: 'en-US' },
-            referralId
-        );
-         if (!processResult.success) {
-            throw new Error(processResult.error || "Failed to process new user and referral on the server.");
-        }
-        await forceRefetch();
-      }
-      
+      await signInWithPopup(auth, provider);
+      // After sign-in, the UserDataContext will pick up the new user and redirect.
+      // We might need a separate server action to handle the Firestore document creation for social signups
+      // if it doesn't already exist.
       toast({ title: "Success", description: "Logged in successfully." });
       router.push('/profile');
-
     } catch (error: any) {
       console.error("Google sign-in error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -107,32 +91,28 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      // Step 1: Create the user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
-      const user = userCredential.user;
-      
-      // Step 2: Update their Auth display name
-      await updateAuthProfile(user, { displayName: signupName });
-
-      // Step 3: Call the server action to create the Firestore document and handle referral
+      // All logic is now on the server. The client just passes the data.
       const result = await processNewUserAndReferral(
-        { uid: user.uid, name: signupName, email: signupEmail },
-        { country: signupCountry, mobile: signupMobile, defaultLanguage: signupLanguage },
+        { 
+          name: signupName, 
+          email: signupEmail, 
+          password: signupPassword,
+          country: signupCountry, 
+          mobile: signupMobile, 
+          defaultLanguage: signupLanguage 
+        },
         referralId
       );
 
-      if (!result.success) {
-        // If the server action fails, it's critical to inform the user.
-        // The account exists in Auth, but not in our DB.
-        throw new Error(result.error || "A server error occurred while finalizing your account.");
+      if (result.success) {
+        // Now, log the user in on the client
+        await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
+        await forceRefetch();
+        toast({ title: "Success", description: "Account created successfully." });
+        router.push('/profile');
+      } else {
+        throw new Error(result.error || "An unknown server error occurred.");
       }
-      
-      // Step 4: Manually trigger a refetch of the user data in our app's context
-      await forceRefetch();
-
-      toast({ title: "Success", description: "Account created successfully." });
-      router.push('/profile');
-
     } catch (error: any) {
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -195,8 +175,8 @@ export default function LoginPage() {
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                        <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={true}>
+                        <Chrome className="mr-2 h-4 w-4" /> Sign in with Google (Soon)
                         </Button>
                     </CardFooter>
                     </form>
@@ -260,8 +240,8 @@ export default function LoginPage() {
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
-                            <Chrome className="mr-2 h-4 w-4" /> Sign up with Google
+                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={true}>
+                            <Chrome className="mr-2 h-4 w-4" /> Sign up with Google (Soon)
                         </Button>
                         </CardFooter>
                     </form>
@@ -272,3 +252,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
