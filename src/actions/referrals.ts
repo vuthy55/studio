@@ -281,5 +281,3 @@ export async function getReferralLedger(emailFilter: string = ''): Promise<Refer
         return [];
     }
 }
-
-    
