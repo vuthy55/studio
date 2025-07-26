@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoaderCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { processNewUserAndReferral } from '@/actions/referrals';
+import { signUpUser } from '@/actions/auth';
 import { useUserData } from '@/context/UserDataContext';
 
 export default function JoinRoomPage() {
@@ -140,7 +140,7 @@ export default function JoinRoomPage() {
         setIsNewUserFlow(true);
 
         try {
-            const result = await processNewUserAndReferral(
+            const result = await signUpUser(
                 {
                     name,
                     email,

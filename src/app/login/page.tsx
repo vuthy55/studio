@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { processNewUserAndReferral } from '@/actions/referrals';
+import { signUpUser } from '@/actions/auth';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
@@ -91,8 +91,7 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      // All logic is now on the server. The client just passes the data.
-      const result = await processNewUserAndReferral(
+      const result = await signUpUser(
         { 
           name: signupName, 
           email: signupEmail, 
@@ -105,7 +104,6 @@ export default function LoginPage() {
       );
 
       if (result.success) {
-        // Now, log the user in on the client
         await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
         await forceRefetch();
         toast({ title: "Success", description: "Account created successfully." });
