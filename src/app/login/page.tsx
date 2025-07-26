@@ -11,7 +11,7 @@ import {
   updateProfile
 } from "firebase/auth";
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, writeBatch, collection } from 'firebase/firestore';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,10 @@ export default function LoginPage() {
 
       if (!userDocSnap.exists()) {
         // New user, create a document in Firestore
-        await setDoc(userDocRef, {
+        const batch = writeBatch(db);
+        const logRef = doc(collection(userDocRef, 'transactionLogs'));
+
+        batch.set(userDocRef, {
             name: user.displayName,
             email: user.email?.toLowerCase(),
             role: 'user',
@@ -90,6 +93,16 @@ export default function LoginPage() {
             createdAt: serverTimestamp(),
             photoURL: user.photoURL
         });
+        
+        batch.set(logRef, {
+            actionType: 'signup_bonus',
+            tokenChange: settings?.signupBonus || 100,
+            timestamp: serverTimestamp(),
+            description: 'Welcome bonus for signing up.'
+        });
+
+        await batch.commit();
+
         toast({ title: "Welcome!", description: "Your account has been created." });
       } else {
          toast({ title: "Welcome back!", description: "Logged in successfully." });
@@ -119,8 +132,10 @@ export default function LoginPage() {
        await updateProfile(user, { displayName: signupName });
 
        const userDocRef = doc(db, 'users', user.uid);
+       const batch = writeBatch(db);
+       const logRef = doc(collection(userDocRef, 'transactionLogs'));
 
-       await setDoc(userDocRef, {
+       batch.set(userDocRef, {
             name: signupName,
             email: signupEmail.toLowerCase(),
             country: signupCountry,
@@ -134,6 +149,15 @@ export default function LoginPage() {
             searchableEmail: signupEmail.toLowerCase(),
             createdAt: serverTimestamp(),
        });
+
+       batch.set(logRef, {
+            actionType: 'signup_bonus',
+            tokenChange: settings?.signupBonus || 100,
+            timestamp: serverTimestamp(),
+            description: 'Welcome bonus for signing up.'
+        });
+        
+        await batch.commit();
         
         await forceRefetch();
         toast({ title: "Success", description: "Account created successfully." });
