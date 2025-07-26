@@ -38,6 +38,8 @@ interface UserDataContextType {
     spendTokensForTranslation: (description: string) => boolean;
     updateSyncLiveUsage: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
+    forceRefetch: () => void;
+    setUserProfileState: (profile: Partial<UserProfile>) => void; // For optimistic updates
 }
 
 // --- Context ---
@@ -49,7 +51,7 @@ const UserDataContext = createContext<UserDataContextType | undefined>(undefined
 export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [user, authLoading] = useAuthState(auth);
     
-    // State is now managed internally, not by localStorage
+    // State is now managed internally
     const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
     const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
     const [syncLiveUsage, setSyncLiveUsage] = useState(0);
@@ -79,6 +81,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setIsDataLoading(true);
     }, []);
 
+    const fetchUserProfile = useCallback(async (uid: string) => {
+        if (isLoggingOut.current) return;
+        const userDocRef = doc(db, 'users', uid);
+        try {
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+                const profileData = docSnap.data() as UserProfile;
+                setUserProfile(profileData);
+                setSyncLiveUsage(profileData.syncLiveUsage || 0);
+            }
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
+        }
+    }, []);
+
      useEffect(() => {
         if (authLoading) {
             return;
@@ -91,13 +108,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // Set up real-time listener for user profile
             const userDocRef = doc(db, 'users', user.uid);
             profileUnsubscribe.current = onSnapshot(userDocRef, (docSnap) => {
+                if (isLoggingOut.current) return;
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                 } else {
-                    // This can happen briefly during account creation.
-                    // Or if the doc is deleted.
                     setUserProfile({});
                 }
             }, (error) => {
@@ -107,12 +123,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // Set up real-time listener for practice history
             const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
             historyUnsubscribe.current = onSnapshot(historyCollectionRef, (snapshot) => {
+                if (isLoggingOut.current) return;
                 const historyData: PracticeHistoryState = {};
                 snapshot.forEach(doc => {
                     historyData[doc.id] = doc.data();
                 });
                 setPracticeHistory(historyData);
-                setIsDataLoading(false); // Mark loading as false after history is fetched
+                setIsDataLoading(false); 
             }, (error) => {
                 console.error("Error listening to practice history:", error);
                 setIsDataLoading(false);
@@ -401,12 +418,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         try {
             await batch.commit();
-            // The listener will automatically update the local state.
         } catch (error) {
             console.error("Error committing Sync Online session end transaction:", error);
         }
     }, [user, settings]);
 
+    const setUserProfileState = useCallback((profile: Partial<UserProfile>) => {
+        setUserProfile(prev => ({ ...prev, ...profile }));
+    }, []);
 
     const value = {
         user,
@@ -421,6 +440,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         spendTokensForTranslation,
         updateSyncLiveUsage,
         handleSyncOnlineSessionEnd,
+        forceRefetch: () => user && fetchUserProfile(user.uid),
+        setUserProfileState,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;

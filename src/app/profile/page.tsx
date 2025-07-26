@@ -281,10 +281,9 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile } = useUserData();
+    const { user, userProfile, setUserProfileState } = useUserData();
     const { toast } = useToast();
 
-    // Local state for form edits, initialized from the context
     const [localProfile, setLocalProfile] = useState<Partial<UserProfile>>({});
     const [isSaving, setIsSaving] = useState(false);
     const countryOptions = useMemo(() => lightweightCountries, []);
@@ -293,7 +292,6 @@ function ProfileSection() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isResettingStats, setIsResettingStats] = useState(false);
 
-    // Sync local state when the profile from context changes
     useEffect(() => {
         if(userProfile) {
             setLocalProfile(userProfile);
@@ -330,10 +328,13 @@ function ProfileSection() {
                 mobile: localProfile.mobile || '',
                 defaultLanguage: localProfile.defaultLanguage || 'en-US',
                 searchableName: (localProfile.name || '').toLowerCase(),
-                searchableEmail: (user.email!).toLowerCase(),
             };
             
             await setDoc(userDocRef, dataToSave, { merge: true });
+            
+            // Optimistically update the context state
+            setUserProfileState(dataToSave);
+            
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
             console.error("Error updating profile: ", error);
