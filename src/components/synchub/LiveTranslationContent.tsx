@@ -18,6 +18,7 @@ import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
 import type { SavedPhrase } from '@/lib/types';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -46,6 +47,25 @@ export default function LiveTranslationContent() {
     
     const [savedPhrases, setSavedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
+    
+    const [isOnline, setIsOnline] = useState(true);
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        if (typeof window !== 'undefined') {
+            setIsOnline(navigator.onLine);
+        }
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
@@ -82,6 +102,12 @@ export default function LiveTranslationContent() {
     
     const handleTranslation = async () => {
         if (!inputText.trim()) return;
+
+        if (!isOnline) {
+            toast({ variant: 'destructive', title: 'Offline', description: 'Translation services require an internet connection.' });
+            setTranslatedText('');
+            return;
+        }
 
         if (!user || !settings) {
             if (!user) toast({ variant: 'destructive', title: 'Not Logged In', description: 'Please log in to use translation.' });
@@ -131,7 +157,7 @@ export default function LiveTranslationContent() {
             clearTimeout(debounceTimer);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [inputText, fromLanguage, toLanguage]);
+    }, [inputText, fromLanguage, toLanguage, isOnline]);
 
     const doRecognizeFromMicrophone = async () => {
         if (isRecognizing || assessingPhraseId) return;
@@ -284,10 +310,23 @@ export default function LiveTranslationContent() {
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="from-language-live">{languages.find(l => l.value === fromLanguage)?.label}</Label>
-                                <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={isRecognizing || !!assessingPhraseId}>
-                                    {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                    <span className="sr-only">Record from microphone</span>
-                                </Button>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                             <div className="relative">
+                                                <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={!isOnline || isRecognizing || !!assessingPhraseId}>
+                                                    {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                    <span className="sr-only">Record from microphone</span>
+                                                </Button>
+                                             </div>
+                                        </TooltipTrigger>
+                                        {!isOnline && (
+                                            <TooltipContent>
+                                                <p>Voice input is disabled while offline.</p>
+                                            </TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </TooltipProvider>
                             </div>
                             <Textarea
                                 id="from-language-live"
@@ -364,10 +403,23 @@ export default function LiveTranslationContent() {
                                                 <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                 </Button>
-                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                    <span className="sr-only">Practice</span>
-                                                </Button>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="relative">
+                                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                                    <span className="sr-only">Practice</span>
+                                                                </Button>
+                                                             </div>
+                                                        </TooltipTrigger>
+                                                         {!isOnline && (
+                                                            <TooltipContent>
+                                                                <p>Practice is disabled while offline.</p>
+                                                            </TooltipContent>
+                                                        )}
+                                                    </Tooltip>
+                                                </TooltipProvider>
                                                 <Button size="icon" variant="ghost" onClick={() => handleRemovePhrase(phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                     <Trash2 className="h-5 w-5 text-red-500" /><span className="sr-only">Remove</span>
                                                 </Button>
