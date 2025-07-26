@@ -22,7 +22,6 @@ import type { TransactionLog, PaymentLog, BuddyRequest, UserProfile } from '@/li
 import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
-import ReferralLink from '@/components/ReferralLink';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { transferTokensAction } from '@/actions/ledger';
@@ -786,12 +785,11 @@ export default function ProfilePage() {
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="buddies">Buddies</TabsTrigger>
                     <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
                     <TabsTrigger value="billing">Payment History</TabsTrigger>
-                    <TabsTrigger value="referrals">Referrals</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="profile" className="mt-6">
@@ -806,12 +804,7 @@ export default function ProfilePage() {
                  <TabsContent value="billing" className="mt-6">
                     <PaymentHistorySection />
                 </TabsContent>
-                <TabsContent value="referrals" className="mt-6">
-                   <ReferralLink />
-                </TabsContent>
             </Tabs>
         </div>
     );
 }
-
-    

@@ -29,8 +29,7 @@ import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
-import { deleteUsers, clearAllReferralData, clearAllNotifications } from '@/actions/admin';
-import { getReferralLedger, type ReferralLedgerEntry } from '@/actions/referrals';
+import { deleteUsers, clearAllNotifications } from '@/actions/admin';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import MainHeader from '@/components/layout/MainHeader';
@@ -1437,21 +1436,8 @@ function RoomsTabContent() {
 function BulkActionsContent() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
-    const [clearReferralsOpen, setClearReferralsOpen] = useState(false);
     const [clearNotificationsOpen, setClearNotificationsOpen] = useState(false);
 
-    const handleClearReferrals = async () => {
-        setIsLoading(true);
-        const result = await clearAllReferralData();
-        if (result.success) {
-            toast({ title: "Success", description: "All referral data has been cleared." });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not clear referral data.' });
-        }
-        setIsLoading(false);
-        setClearReferralsOpen(false);
-    };
-    
     const handleClearNotifications = async () => {
         setIsLoading(true);
         const result = await clearAllNotifications();
@@ -1478,37 +1464,6 @@ function BulkActionsContent() {
                         <AccordionTrigger>Bulk Delete Users</AccordionTrigger>
                         <AccordionContent>
                            <BulkDeleteUsers />
-                        </AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem value="clear-referrals">
-                        <AccordionTrigger>Clear All Referral Data</AccordionTrigger>
-                        <AccordionContent>
-                            <div className="p-4 space-y-4">
-                                <p className="text-sm text-muted-foreground">This will permanently delete all records from the `referrals` collection. It will not affect any referral bonus tokens that have already been awarded. This action is irreversible.</p>
-                                <AlertDialog open={clearReferralsOpen} onOpenChange={setClearReferralsOpen}>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" disabled={isLoading}>
-                                            {isLoading && <LoaderCircle className="animate-spin mr-2" />}
-                                            Clear All Referral Data
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will permanently delete all referral records. This action cannot be undone.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleClearReferrals} disabled={isLoading}>
-                                                {isLoading && <LoaderCircle className="animate-spin mr-2" />}
-                                                Confirm & Delete
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
                         </AccordionContent>
                     </AccordionItem>
                      <AccordionItem value="clear-notifications">
@@ -1745,116 +1700,6 @@ function MessagingContent() {
     );
 }
 
-function ReferralsTabContent() {
-    const { toast } = useToast();
-    const [ledger, setLedger] = useState<ReferralLedgerEntry[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
-    const [hasSearched, setHasSearched] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 500);
-
-    const fetchLedger = useCallback(async (searchQuery = '') => {
-        const trimmedSearch = searchQuery.trim();
-        if (!trimmedSearch) {
-            setLedger([]);
-            setHasSearched(false);
-            return;
-        }
-
-        setIsSearching(true);
-        setHasSearched(true);
-
-        try {
-            const data = await getReferralLedger(trimmedSearch);
-            setLedger(data);
-        } catch (error) {
-            console.error("Error fetching referral ledger:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch the referral ledger.' });
-        } finally {
-            setIsSearching(false);
-        }
-    }, [toast]);
-
-     useEffect(() => {
-        if (debouncedSearchTerm && debouncedSearchTerm !== '*' && debouncedSearchTerm.length > 0) {
-            fetchLedger(debouncedSearchTerm);
-        } else if (debouncedSearchTerm === '*') {
-            fetchLedger('*');
-        } else if (hasSearched) {
-            setLedger([]);
-            setHasSearched(false);
-        }
-    }, [debouncedSearchTerm, fetchLedger, hasSearched]);
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Referral Ledger</CardTitle>
-                <CardDescription>A log of all successful referrals and the bonuses awarded.</CardDescription>
-                 <div className="relative pt-2">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                        placeholder="Search by referrer or new user email, or use * for all"
-                        className="pl-10"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="border rounded-md min-h-[200px]">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Referrer</TableHead>
-                                <TableHead>New User</TableHead>
-                                <TableHead className="text-right">Bonus Awarded</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isSearching ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                        <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
-                                    </TableCell>
-                                </TableRow>
-                            ) : ledger.length > 0 ? (
-                                ledger.map((entry) => (
-                                    <TableRow key={entry.id}>
-                                        <TableCell>{format(new Date(entry.createdAt), 'd MMM yyyy, HH:mm')}</TableCell>
-                                        <TableCell>
-                                            <Link href={`/admin/${entry.referrerUid}`} className="text-primary underline hover:text-primary/80">
-                                                {entry.referrerName} ({entry.referrerEmail})
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Link href={`/admin/${entry.referredUid}`} className="text-primary underline hover:text-primary/80">
-                                                {entry.referredName} ({entry.referredEmail})
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium text-green-600">
-                                            +{entry.bonusAwarded.toLocaleString()}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                             ) : (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                        {hasSearched ? 'No records found for your search.' : 'Enter a search term to begin.'}
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-
-
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -1890,7 +1735,6 @@ export default function AdminPage() {
     const adminTabs = [
         { value: 'rooms', label: 'Rooms', icon: RadioTower },
         { value: 'users', label: 'Users', icon: Users },
-        { value: 'referrals', label: 'Referrals', icon: Award },
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
@@ -1902,7 +1746,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-7 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1936,9 +1780,6 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
-                </TabsContent>
-                <TabsContent value="referrals" className="mt-6">
-                    <ReferralsTabContent />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />

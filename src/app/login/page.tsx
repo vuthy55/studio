@@ -4,11 +4,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  updateProfile
 } from "firebase/auth";
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -21,7 +24,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { signUpUser } from '@/actions/auth';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
@@ -91,26 +93,31 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      const result = await signUpUser(
-        { 
-          name: signupName, 
-          email: signupEmail, 
-          password: signupPassword,
-          country: signupCountry, 
-          mobile: signupMobile, 
-          defaultLanguage: signupLanguage 
-        },
-        referralId
-      );
+       const userCredential = await createUserWithEmailAndPassword(auth, signupEmail, signupPassword);
+       const user = userCredential.user;
+       await updateProfile(user, { displayName: signupName });
 
-      if (result.success) {
-        await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
+       const userDocRef = doc(db, 'users', user.uid);
+
+       await setDoc(userDocRef, {
+            name: signupName,
+            email: signupEmail.toLowerCase(),
+            country: signupCountry,
+            mobile: signupMobile,
+            defaultLanguage: signupLanguage,
+            role: 'user',
+            tokenBalance: settings?.signupBonus || 100, // Fallback to 100
+            syncLiveUsage: 0,
+            syncOnlineUsage: 0,
+            searchableName: signupName.toLowerCase(),
+            searchableEmail: signupEmail.toLowerCase(),
+            createdAt: serverTimestamp(),
+       });
+        
         await forceRefetch();
         toast({ title: "Success", description: "Account created successfully." });
         router.push('/profile');
-      } else {
-        throw new Error(result.error || "An unknown server error occurred.");
-      }
+      
     } catch (error: any) {
       console.error("Email sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
