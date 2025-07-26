@@ -320,16 +320,19 @@ function ProfileSection() {
             }
             
             const userDocRef = doc(db, 'users', user.uid);
+            // Destructure all relevant fields from the local profile state
             const { name, country, mobile, defaultLanguage } = profile;
+            
+            // Construct the data object to save to Firestore
             const dataToSave = {
                 name: name || '',
                 country: country || '',
                 mobile: mobile || '',
                 defaultLanguage: defaultLanguage || 'en-US',
-                email: user.email,
                 searchableName: (name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
             };
+            
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
@@ -910,3 +913,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
