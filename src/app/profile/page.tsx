@@ -1,11 +1,12 @@
 
+
 "use client";
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw, Users as UsersIcon } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -280,10 +281,11 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile, logout, fetchUserProfile } = useUserData();
+    const { user, userProfile, forceRefetch } = useUserData();
     const { toast } = useToast();
 
-    const [profile, setProfile] = useState<Partial<UserProfile>>({});
+    // Local state for form edits, initialized from the context
+    const [localProfile, setLocalProfile] = useState<Partial<UserProfile>>({});
     const [isSaving, setIsSaving] = useState(false);
     const countryOptions = useMemo(() => lightweightCountries, []);
     
@@ -291,23 +293,24 @@ function ProfileSection() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isResettingStats, setIsResettingStats] = useState(false);
 
+    // Sync local state when the profile from context changes
     useEffect(() => {
         if(userProfile) {
-            setProfile(userProfile);
+            setLocalProfile(userProfile);
         }
     }, [userProfile]);
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
-        setProfile(prev => ({ ...prev, [id]: value }));
+        setLocalProfile(prev => ({ ...prev, [id]: value }));
     };
 
     const handleCountryChange = (countryCode: string) => {
-        setProfile(prev => ({ ...prev, country: countryCode }));
+        setLocalProfile(prev => ({ ...prev, country: countryCode }));
     };
     
     const handleLanguageChange = (langCode: AzureLanguageCode) => {
-        setProfile(prev => ({...prev, defaultLanguage: langCode }));
+        setLocalProfile(prev => ({...prev, defaultLanguage: langCode }));
     };
 
     const handleSaveProfile = async (e: React.FormEvent) => {
@@ -315,24 +318,24 @@ function ProfileSection() {
         if (!user) return;
         setIsSaving(true);
         try {
-            if (profile.name && profile.name !== user.displayName) {
-                await updateAuthProfile(user, { displayName: profile.name });
+            if (localProfile.name && localProfile.name !== user.displayName) {
+                await updateAuthProfile(user, { displayName: localProfile.name });
             }
             
             const userDocRef = doc(db, 'users', user.uid);
             
-            const dataToSave = {
-                name: profile.name || '',
-                country: profile.country || '',
-                mobile: profile.mobile || '',
-                defaultLanguage: profile.defaultLanguage || 'en-US',
-                searchableName: (profile.name || '').toLowerCase(),
+            const dataToSave: Partial<UserProfile> = {
+                name: localProfile.name || '',
+                country: localProfile.country || '',
+                mobile: localProfile.mobile || '',
+                defaultLanguage: localProfile.defaultLanguage || 'en-US',
+                searchableName: (localProfile.name || '').toLowerCase(),
                 searchableEmail: (user.email!).toLowerCase(),
             };
             
-            await setDoc(userDocRef, dataToSave, { merge: true });
+            await updateDoc(userDocRef, dataToSave);
             toast({ title: 'Success', description: 'Profile updated successfully.' });
-            await fetchUserProfile(); // This is the crucial fix
+            // No need to call forceRefetch, the real-time listener will handle it.
         } catch (error: any) {
             console.error("Error updating profile: ", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
@@ -368,8 +371,6 @@ function ProfileSection() {
         const result = await resetUserPracticeHistory(user.uid);
         if (result.success) {
             toast({ title: 'Stats Reset', description: 'Your practice history has been successfully cleared.'});
-            // Manually trigger a refetch of all user data in the context
-            await fetchUserProfile();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not reset your stats.'});
         }
@@ -382,12 +383,12 @@ function ProfileSection() {
                 <CardHeader>
                     <div className="flex items-center gap-4">
                         <Avatar className="h-20 w-20 text-3xl">
-                             <AvatarImage src={user?.photoURL || undefined} alt={profile.name || 'User Avatar'} />
-                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                             <AvatarImage src={user?.photoURL || undefined} alt={localProfile.name || 'User Avatar'} />
+                            <AvatarFallback>{getInitials(localProfile.name)}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <CardTitle className="text-2xl">{profile.name || 'Your Name'}</CardTitle>
-                            <CardDescription>{profile.email}</CardDescription>
+                            <CardTitle className="text-2xl">{localProfile.name || 'Your Name'}</CardTitle>
+                            <CardDescription>{localProfile.email}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -395,16 +396,16 @@ function ProfileSection() {
                     <form onSubmit={handleSaveProfile} className="space-y-6">
                         <div className="space-y-2">
                             <Label htmlFor="name">Name</Label>
-                            <Input id="name" value={profile.name || ''} onChange={handleInputChange} />
+                            <Input id="name" value={localProfile.name || ''} onChange={handleInputChange} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={profile.email || ''} disabled />
+                            <Input id="email" type="email" value={localProfile.email || ''} disabled />
                             <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="defaultLanguage">Default Spoken Language</Label>
-                            <Select value={profile.defaultLanguage || ''} onValueChange={handleLanguageChange}>
+                            <Select value={localProfile.defaultLanguage || ''} onValueChange={handleLanguageChange}>
                                 <SelectTrigger id="defaultLanguage">
                                     <SelectValue placeholder="Select your preferred language" />
                                 </SelectTrigger>
@@ -419,7 +420,7 @@ function ProfileSection() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="country">Country</Label>
-                            <Select value={profile.country || ''} onValueChange={handleCountryChange}>
+                            <Select value={localProfile.country || ''} onValueChange={handleCountryChange}>
                                 <SelectTrigger id="country">
                                     <SelectValue placeholder="Select your country" />
                                 </SelectTrigger>
@@ -432,7 +433,7 @@ function ProfileSection() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="mobile">Mobile Number</Label>
-                            <Input id="mobile" type="tel" value={profile.mobile || ''} onChange={handleInputChange} placeholder="e.g., +1 123 456 7890" />
+                            <Input id="mobile" type="tel" value={localProfile.mobile || ''} onChange={handleInputChange} placeholder="e.g., +1 123 456 7890" />
                         </div>
 
                         <div className="flex justify-end pt-4">
@@ -603,7 +604,7 @@ function PaymentHistorySection() {
 }
 
 function BuddiesSection() {
-    const { user, userProfile, fetchUserProfile } = useUserData();
+    const { user, userProfile, forceRefetch } = useUserData();
     const { toast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<UserProfile | null>(null);
@@ -648,7 +649,6 @@ function BuddiesSection() {
         const result = await acceptBuddyRequest({uid: user.uid, name: user.displayName}, request);
         if (result.success) {
             toast({ title: 'Buddy Added!', description: `You are now buddies with ${request.fromName}.`});
-            fetchUserProfile(); // Re-fetch to update lists
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }
@@ -659,7 +659,6 @@ function BuddiesSection() {
         const result = await declineBuddyRequest(user.uid, request);
         if (result.success) {
             toast({ title: 'Request Declined' });
-            fetchUserProfile();
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }
@@ -670,7 +669,6 @@ function BuddiesSection() {
         const result = await removeBuddy(user.uid, buddyId);
         if (result.success) {
             toast({ title: "Buddy Removed" });
-            fetchUserProfile();
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }

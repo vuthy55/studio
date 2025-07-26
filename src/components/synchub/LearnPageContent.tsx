@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useRef, memo } from 'react';
@@ -19,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
 import { cn } from '@/lib/utils';
-import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
+import type { AppSettings } from '@/actions/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 
@@ -34,7 +35,7 @@ type AssessmentResult = {
 function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, loading, recordPracticeAttempt, getTopicStats } = useUserData();
+    const { user, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats } = useUserData();
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
@@ -43,16 +44,6 @@ function LearnPageContent() {
     
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
-
-    const [settings, setSettings] = useState<AppSettings | null>(null);
-    const [isFetchingSettings, setIsFetchingSettings] = useState(true);
-
-    useEffect(() => {
-        getAppSettingsAction().then(s => {
-            setSettings(s)
-            setIsFetchingSettings(false);
-        });
-    }, []);
 
     // Effect to handle aborting recognition on component unmount
     useEffect(() => {
@@ -158,7 +149,7 @@ function LearnPageContent() {
 
     const topicStats = getTopicStats(selectedTopic.id, toLanguage);
 
-    if (isFetchingSettings || loading) {
+    if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />

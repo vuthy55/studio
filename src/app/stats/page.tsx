@@ -1,16 +1,12 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle, Check, X, Languages } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { type LanguageCode, languages, phrasebook, type Phrase } from '@/lib/data';
-import type { PracticeStats } from '@/app/profile/page';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -22,7 +18,7 @@ import MainHeader from '@/components/layout/MainHeader';
 
 
 export default function StatsPage() {
-    const { user, loading, practiceHistory, getTopicStats } = useUserData();
+    const { user, loading, practiceHistory } = useUserData();
     const router = useRouter();
     
     const [isDialogDataLoading, setIsDialogDataLoading] = useState(false);
@@ -34,7 +30,6 @@ export default function StatsPage() {
 
     useEffect(() => {
         if (!loading && !user) {
-            // Clear sensitive data before redirecting
             setDetailedHistoryForDialog([]);
             router.push('/login');
         }

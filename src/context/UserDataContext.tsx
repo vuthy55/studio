@@ -5,13 +5,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
-import useLocalStorage from '@/hooks/use-local-storage';
 import type { PracticeHistoryDoc, PracticeHistoryState } from '@/lib/types';
+import type { Timestamp } from 'firebase/firestore';
 
 // --- Types ---
 
@@ -32,7 +32,6 @@ interface UserDataContextType {
     practiceHistory: PracticeHistoryState;
     settings: AppSettings | null;
     syncLiveUsage: number;
-    fetchUserProfile: () => Promise<void>;
     logout: () => Promise<void>;
     forceRefetch: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
@@ -51,86 +50,95 @@ const UserDataContext = createContext<UserDataContextType | undefined>(undefined
 export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [user, authLoading] = useAuthState(auth);
     
-    const [userProfile, setUserProfile] = useLocalStorage<Partial<UserProfile>>('userProfile', {});
-    const [practiceHistory, setPracticeHistory] = useLocalStorage<PracticeHistoryState>('practiceHistory', {});
+    // State is now managed internally, not by localStorage
+    const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
+    const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
     const [syncLiveUsage, setSyncLiveUsage] = useState(0);
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [hasFetched, setHasFetched] = useState(false);
+    const [isDataLoading, setIsDataLoading] = useState(true);
     const isLoggingOut = useRef(false);
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
     const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string, duration?: number }>>([]).current;
     const pendingUsageSync = useRef<{ duration: number }>({ duration: 0 }).current;
     
+    const profileUnsubscribe = useRef<() => void | undefined>();
+    const historyUnsubscribe = useRef<() => void | undefined>();
+    
     // --- Data Fetching & Main Effect ---
     useEffect(() => {
         getAppSettingsAction().then(setSettings);
     }, []);
 
-    const fetchAllData = useCallback(async () => {
-        if (!auth.currentUser || isLoggingOut.current) return;
-        setLoading(true);
-        console.log("[DEBUG] UserDataContext: fetchAllData running for user:", auth.currentUser.uid);
-        
-        try {
-            const userDocRef = doc(db, 'users', auth.currentUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists()) {
-                const profileData = userDocSnap.data() as UserProfile;
-                setUserProfile(profileData);
-                setSyncLiveUsage(profileData.syncLiveUsage || 0);
-            } else {
-                 console.warn("[DEBUG] UserDataContext: No user document found for uid:", auth.currentUser.uid);
-                 setUserProfile({}); // Clear profile if doc doesn't exist
-            }
-
-            const historyCollectionRef = collection(db, 'users', auth.currentUser.uid, 'practiceHistory');
-            const historySnapshot = await getDocs(historyCollectionRef);
-            const historyData: PracticeHistoryState = {};
-            historySnapshot.forEach(doc => {
-                historyData[doc.id] = doc.data();
-            });
-            setPracticeHistory(historyData);
-
-        } catch (error) {
-            console.error("Error fetching user data:", error);
-        } finally {
-            setHasFetched(true);
-            setLoading(false);
-        }
-    }, [setUserProfile, setPracticeHistory]);
-
+    const clearLocalState = useCallback(() => {
+        if (profileUnsubscribe.current) profileUnsubscribe.current();
+        if (historyUnsubscribe.current) historyUnsubscribe.current();
+        setUserProfile({});
+        setPracticeHistory({});
+        setSyncLiveUsage(0);
+        setIsDataLoading(true);
+    }, []);
 
      useEffect(() => {
         if (authLoading) {
-            console.log("[DEBUG] UserDataContext: Auth is loading, waiting...");
             return;
         }
 
         if (user) {
-            if (!hasFetched) {
-                console.log("[DEBUG] UserDataContext: User detected, hasFetched is false. Fetching all data.");
-                fetchAllData();
-            } else {
-                console.log("[DEBUG] UserDataContext: User detected, but hasFetched is true. Skipping fetch.");
-            }
+            isLoggingOut.current = false;
+            setIsDataLoading(true);
+
+            // Set up real-time listener for user profile
+            const userDocRef = doc(db, 'users', user.uid);
+            profileUnsubscribe.current = onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const profileData = docSnap.data() as UserProfile;
+                    setUserProfile(profileData);
+                    setSyncLiveUsage(profileData.syncLiveUsage || 0);
+                } else {
+                    // This can happen briefly during account creation.
+                    // Or if the doc is deleted.
+                    setUserProfile({});
+                }
+            }, (error) => {
+                console.error("Error listening to user profile:", error);
+            });
+
+            // Set up real-time listener for practice history
+            const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
+            historyUnsubscribe.current = onSnapshot(historyCollectionRef, (snapshot) => {
+                const historyData: PracticeHistoryState = {};
+                snapshot.forEach(doc => {
+                    historyData[doc.id] = doc.data();
+                });
+                setPracticeHistory(historyData);
+                setIsDataLoading(false); // Mark loading as false after history is fetched
+            }, (error) => {
+                console.error("Error listening to practice history:", error);
+                setIsDataLoading(false);
+            });
+
         } else {
-            if (hasFetched || Object.keys(userProfile).length > 0) {
-                 console.log("[DEBUG] UserDataContext: No user detected, clearing local state.");
-                 setUserProfile({});
-                 setPracticeHistory({});
-                 setSyncLiveUsage(0);
-                 setHasFetched(false); 
-            }
-            setLoading(false);
+            clearLocalState();
+            setIsDataLoading(false);
         }
-    }, [user, authLoading, hasFetched, fetchAllData, userProfile, setUserProfile, setPracticeHistory]);
+        
+        return () => {
+            if (profileUnsubscribe.current) profileUnsubscribe.current();
+            if (historyUnsubscribe.current) historyUnsubscribe.current();
+        };
+    }, [user, authLoading, clearLocalState]);
     
     const forceRefetch = useCallback(async () => {
-        console.log("[DEBUG] UserDataContext: forceRefetch called.");
-        setHasFetched(false);
+        // This function is now less critical but can be kept for explicit refresh needs.
+        if (auth.currentUser) {
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+                 setUserProfile(userDocSnap.data() as UserProfile);
+            }
+        }
     }, []);
 
 
@@ -210,33 +218,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     // --- Public Actions ---
 
     const logout = useCallback(async () => {
-        if (isLoggingOut.current) return;
-        
-        console.log("[DEBUG] UserDataContext: Logout initiated.");
         isLoggingOut.current = true;
-        
-        setUserProfile({});
-        setPracticeHistory({});
-        setSyncLiveUsage(0);
-        setHasFetched(false); 
-        
-        if(typeof window !== 'undefined') {
-            window.localStorage.removeItem('userProfile');
-            window.localStorage.removeItem('practiceHistory');
-        }
-
         debouncedCommitToFirestore.flush(); 
-        
         await auth.signOut();
-        
-        isLoggingOut.current = false;
-        console.log("[DEBUG] UserDataContext: Logout complete and local state cleared.");
-    }, [debouncedCommitToFirestore, setUserProfile, setPracticeHistory]);
+        clearLocalState();
+    }, [debouncedCommitToFirestore, clearLocalState]);
 
-    const fetchUserProfile = useCallback(async () => {
-        // Renaming this to avoid confusion with the internal fetchAllData
-        await fetchAllData();
-    }, [fetchAllData]);
 
     const updateSyncLiveUsage = useCallback((durationMs: number): number => {
         if (!user || !settings) return 0;
@@ -302,6 +289,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 wasRewardable = true;
                 rewardAmount = settings.practiceReward;
                 
+                // Optimistic UI update
                 setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) + rewardAmount }));
             }
         } else {
@@ -310,6 +298,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         updatedPhraseHistory.lastAccuracyPerLang![lang] = accuracy;
         
+        // Optimistic UI update
         const updatedHistory = { ...practiceHistory, [phraseId]: updatedPhraseHistory };
         setPracticeHistory(updatedHistory);
 
@@ -318,7 +307,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         return { wasRewardable, rewardAmount };
 
-    }, [user, settings, practiceHistory, setPracticeHistory, setUserProfile, debouncedCommitToFirestore, pendingPracticeSyncs]);
+    }, [user, settings, practiceHistory, setUserProfile, debouncedCommitToFirestore, pendingPracticeSyncs]);
     
     const spendTokensForTranslation = useCallback((description: string): boolean => {
         if (!user || !settings) return false;
@@ -329,7 +318,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (currentBalance < cost) {
             return false;
         }
-
+        
+        // Optimistic UI update
         setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
         
         pendingTokenSyncs.push({ amount: cost, actionType: 'translation_spend', description });
@@ -367,6 +357,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
         const userDocRef = doc(db, 'users', user.uid);
         
+        // It's better to read from state here if possible, but reading from server is safer
         const userDocSnap = await getDoc(userDocRef);
         const currentProfile = userDocSnap.data() as UserProfile | undefined;
         if (!currentProfile) return;
@@ -422,26 +413,20 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         try {
             await batch.commit();
-            setUserProfile(p => ({
-                ...p,
-                tokenBalance: (p.tokenBalance || 0) - cost,
-                syncOnlineUsage: (p.syncOnlineUsage || 0) + durationMs,
-                syncOnlineUsageLastReset: syncOnlineUsageLastReset
-            }));
+            // The listener will automatically update the local state.
         } catch (error) {
             console.error("Error committing Sync Online session end transaction:", error);
         }
-    }, [user, settings, setUserProfile]);
+    }, [user, settings]);
 
 
     const value = {
         user,
-        loading: loading || authLoading,
+        loading: authLoading || isDataLoading,
         userProfile,
         practiceHistory,
         settings,
         syncLiveUsage,
-        fetchUserProfile,
         logout,
         forceRefetch,
         recordPracticeAttempt,
