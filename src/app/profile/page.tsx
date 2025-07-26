@@ -332,6 +332,7 @@ function ProfileSection() {
             
             await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
+            await fetchUserProfile(); // This is the crucial fix
         } catch (error: any) {
             console.error("Error updating profile: ", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
@@ -910,7 +911,3 @@ export default function ProfilePage() {
         </div>
     );
 }
-
-    
-
-    
