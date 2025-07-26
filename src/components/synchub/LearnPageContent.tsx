@@ -81,6 +81,10 @@ function LearnPageContent() {
     };
 
     const handlePlayAudio = async (text: string, lang: LanguageCode) => {
+        if (!isOnline) {
+            toast({ variant: 'destructive', title: 'Offline', description: 'Audio playback requires an internet connection.' });
+            return;
+        }
         if (!text || !!assessingPhraseId) return;
         const locale = languageToLocaleMap[lang];
         
@@ -336,10 +340,22 @@ function LearnPageContent() {
                                             </div>
                                             <div className="flex items-center shrink-0">
                                                 {getResultIcon()}
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    <Volume2 className="h-5 w-5" />
-                                                    <span className="sr-only">Play audio</span>
-                                                </Button>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                             <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                                <Volume2 className="h-5 w-5" />
+                                                                <span className="sr-only">Play audio</span>
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                         {!isOnline && (
+                                                            <TooltipContent>
+                                                                <p>Audio playback is disabled while offline.</p>
+                                                            </TooltipContent>
+                                                        )}
+                                                    </Tooltip>
+                                                </TooltipProvider>
+
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -386,10 +402,21 @@ function LearnPageContent() {
                                             <div className="flex justify-between items-center w-full">
                                                 <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                 <div className="flex items-center shrink-0">
-                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                        <Volume2 className="h-5 w-5" />
-                                                        <span className="sr-only">Play audio</span>
-                                                    </Button>
+                                                     <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                                    <Volume2 className="h-5 w-5" />
+                                                                    <span className="sr-only">Play audio</span>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            {!isOnline && (
+                                                                <TooltipContent>
+                                                                    <p>Audio playback is disabled while offline.</p>
+                                                                </TooltipContent>
+                                                            )}
+                                                        </Tooltip>
+                                                    </TooltipProvider>
                                                 </div>
                                             </div>
                                         </>
