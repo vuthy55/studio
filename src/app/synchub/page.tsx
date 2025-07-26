@@ -47,19 +47,6 @@ function SyncHubTabs() {
         }
     }, [searchParams]);
 
-    useEffect(() => {
-        if (window.location.hash) {
-            const id = window.location.hash.substring(1);
-            // Use a timeout to ensure the dynamic content has loaded
-            setTimeout(() => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth' });
-                }
-            }, 100); 
-        }
-    }, [activeTab]); // Rerunning on activeTab change is correct here
-
     return (
          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">

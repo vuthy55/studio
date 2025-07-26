@@ -297,7 +297,7 @@ function LearnPageContent() {
                                                     'h-auto w-full p-2 transition-all duration-200 text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                                 )}
                                             >
-                                                <Link href="/synchub?tab=live-translation#saved-phrases">
+                                                <Link href="/synchub?tab=live-translation">
                                                     <Bookmark className="h-12 w-12" />
                                                 </Link>
                                             </Button>
