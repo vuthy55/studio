@@ -35,7 +35,7 @@ interface UserDataContextType {
     logout: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
-    spendTokensForTranslation: (description: string) => boolean;
+    spendTokensForTranslation: (description: string, cost?: number) => boolean;
     updateSyncLiveUsage: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
 }
@@ -297,20 +297,20 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     }, [user, settings, practiceHistory, debouncedCommitToFirestore, pendingPracticeSyncs]);
     
-    const spendTokensForTranslation = useCallback((description: string): boolean => {
+    const spendTokensForTranslation = useCallback((description: string, cost?: number): boolean => {
         if (!user || !settings) return false;
 
         const currentBalance = userProfile.tokenBalance || 0;
-        const cost = settings.translationCost || 1;
+        const transactionCost = cost !== undefined ? cost : (settings.translationCost || 1);
 
-        if (currentBalance < cost) {
+        if (currentBalance < transactionCost) {
             return false;
         }
         
         // Optimistic UI update
-        setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
+        setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - transactionCost }));
         
-        pendingTokenSyncs.push({ amount: cost, actionType: 'translation_spend', description });
+        pendingTokenSyncs.push({ amount: transactionCost, actionType: 'translation_spend', description });
         debouncedCommitToFirestore();
 
         return true;
