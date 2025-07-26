@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import type { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import type { Timestamp } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
 
 export interface ReferredUser {

@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LoaderCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { processNewUserAndReferral } from '@/actions/referrals';
+import { useUserData } from '@/context/UserDataContext';
 
 export default function JoinRoomPage() {
     const params = useParams();
@@ -31,7 +32,7 @@ export default function JoinRoomPage() {
     const roomId = params.roomId as string;
     const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
 
-    const [user, authLoading] = useAuthState(auth);
+    const { user, loading: authLoading, forceRefetch } = useUserData();
     
     const [roomTopic, setRoomTopic] = useState('a Sync Room'); // Generic topic
     const [isLoading, setIsLoading] = useState(true);
@@ -202,6 +203,8 @@ export default function JoinRoomPage() {
                 // If the server action fails, we should provide feedback.
                 throw new Error(result.error || "Failed to process new user and referral on the server.");
             }
+            
+            await forceRefetch();
             
             // 4. Add user to room and redirect
             console.log("[DEBUG] handleSignUpAndJoin: Calling addUserToRoomAndRedirect.");

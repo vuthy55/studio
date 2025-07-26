@@ -27,17 +27,8 @@ if (!admin.apps.length) {
     console.log("[FIREBASE ADMIN] Firebase Admin SDK already initialized.");
 }
 
-let db, auth;
-
-try {
-    db = admin.firestore();
-    auth = admin.auth();
-} catch (error) {
-    console.error("[FIREBASE ADMIN] CRITICAL: Failed to get Firestore or Auth instance from initialized Admin SDK.", error);
-    // Set them to null or a mock object to prevent crashes, although server actions will fail.
-    db = null;
-    auth = null;
-}
+const db = admin.firestore();
+const auth = admin.auth();
 
 
 export { db, auth };

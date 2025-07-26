@@ -2,8 +2,26 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue, collection, doc, writeBatch, increment, serverTimestamp } from 'firebase-admin/firestore';
-import { findUserByEmail as findUserByEmailClient, type IssueTokensPayload } from '@/services/ledger';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { IssueTokensPayload } from '@/services/ledger';
+
+
+/**
+ * Finds a user by their email address using the Admin SDK.
+ * @returns {Promise<{id: string, data: any} | null>} The user object or null if not found.
+ */
+async function findUserByEmailAdmin(email: string): Promise<{id: string; data: any} | null> {
+    if (!email) return null;
+    const usersRef = db.collection('users');
+    const q = usersRef.where('email', '==', email.toLowerCase()).limit(1);
+    const snapshot = await q.get();
+    if (snapshot.empty) {
+        return null;
+    }
+    const userDoc = snapshot.docs[0];
+    return { id: userDoc.id, data: userDoc.data() };
+}
+
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -94,24 +112,24 @@ export async function issueTokens(payload: IssueTokensPayload): Promise<{success
     const { email, amount, reason, description, adminUser } = payload;
     
     try {
-        const recipient = await findUserByEmailClient(email);
+        const recipient = await findUserByEmailAdmin(email);
         if (!recipient) {
             return { success: false, error: `User with email "${email}" not found.` };
         }
 
-        const recipientRef = doc(db, 'users', recipient.id);
-        const logRef = doc(collection(recipientRef, 'transactionLogs'));
+        const recipientRef = db.collection('users').doc(recipient.id);
+        const logRef = recipientRef.collection('transactionLogs').doc();
 
-        const batch = writeBatch(db);
+        const batch = db.batch();
         
         // Increment user's token balance
-        batch.update(recipientRef, { tokenBalance: increment(amount) });
+        batch.update(recipientRef, { tokenBalance: FieldValue.increment(amount) });
 
         // Create transaction log
         batch.set(logRef, {
             actionType: 'admin_issue',
             tokenChange: amount,
-            timestamp: serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             reason: reason,
             description: description,
             fromUserId: adminUser.uid,
