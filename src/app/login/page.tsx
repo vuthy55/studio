@@ -11,7 +11,7 @@ import {
   updateProfile
 } from "firebase/auth";
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -66,17 +66,38 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    // This function will now be much simpler. We let the server handle user creation.
-    // This is just for demonstration and would need a corresponding server action for social logins.
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      // After sign-in, the UserDataContext will pick up the new user and redirect.
-      // We might need a separate server action to handle the Firestore document creation for social signups
-      // if it doesn't already exist.
-      toast({ title: "Success", description: "Logged in successfully." });
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Check if user already exists in Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        // New user, create a document in Firestore
+        await setDoc(userDocRef, {
+            name: user.displayName,
+            email: user.email?.toLowerCase(),
+            role: 'user',
+            tokenBalance: settings?.signupBonus || 100,
+            syncLiveUsage: 0,
+            syncOnlineUsage: 0,
+            searchableName: user.displayName?.toLowerCase(),
+            searchableEmail: user.email?.toLowerCase(),
+            createdAt: serverTimestamp(),
+            photoURL: user.photoURL
+        });
+        toast({ title: "Welcome!", description: "Your account has been created." });
+      } else {
+         toast({ title: "Welcome back!", description: "Logged in successfully." });
+      }
+      
+      await forceRefetch();
       router.push('/profile');
+
     } catch (error: any) {
       console.error("Google sign-in error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -179,9 +200,10 @@ export default function LoginPage() {
                         </div>
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Logging in...' : 'Login'}</Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={true}>
-                        <Chrome className="mr-2 h-4 w-4" /> Sign in with Google (Soon)
+                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}</Button>
+                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
+                            Sign in with Google
                         </Button>
                     </CardFooter>
                     </form>
@@ -244,9 +266,10 @@ export default function LoginPage() {
                         </p>
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? 'Creating account...' : 'Create Account'}</Button>
-                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={true}>
-                            <Chrome className="mr-2 h-4 w-4" /> Sign up with Google (Soon)
+                        <Button className="w-full" type="submit" disabled={isLoading}>{isLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}</Button>
+                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isLoading}>
+                             {isLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
+                             Sign up with Google
                         </Button>
                         </CardFooter>
                     </form>
