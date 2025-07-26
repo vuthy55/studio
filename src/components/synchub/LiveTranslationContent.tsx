@@ -20,7 +20,8 @@ import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
 import type { SavedPhrase } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-
+import { getOfflineAudio } from './OfflineManager';
+import { languageToLocaleMap } from '@/lib/utils';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -77,24 +78,31 @@ export default function LiveTranslationContent() {
         };
     }, [isRecognizing, assessingPhraseId]);
 
-    const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
-        english: 'en-US', thai: 'th-TH', vietnamese: 'vi-VN', khmer: 'km-KH', filipino: 'fil-PH',
-        malay: 'ms-MY', indonesian: 'id-ID', burmese: 'my-MM', laos: 'lo-LA', tamil: 'ta-IN',
-        chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
-    };
 
-    const handlePlayAudio = async (text: string, lang: LanguageCode) => {
-        if (!isOnline) {
-            toast({ variant: 'destructive', title: 'Offline', description: 'Audio playback requires an internet connection.' });
+    const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
+        if (!text || isRecognizing || assessingPhraseId) return;
+
+        // 1. Try to play from offline storage first
+        const offlineAudioPack = await getOfflineAudio('user_saved_phrases');
+        const audioDataUri = offlineAudioPack?.[phraseId];
+
+        if (audioDataUri) {
+            const audio = new Audio(audioDataUri);
+            audio.play().catch(e => console.error("Offline audio playback failed.", e));
             return;
         }
-        if (!text || isRecognizing || assessingPhraseId) return;
-        const locale = languageToLocaleMap[lang];
+
+        // 2. Fallback to online fetching if offline audio is not found or not available.
+        if (!isOnline) {
+            toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download your saved phrases for offline listening.' });
+            return;
+        }
         
+        const locale = languageToLocaleMap[lang];
         try {
             const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
             const audio = new Audio(response.audioDataUri);
-            audio.play().catch(e => console.error("Audio playback failed.", e));
+            audio.play().catch(e => console.error("Online audio playback failed.", e));
         } catch (error: any) {
             console.error("TTS generation failed.", error);
             toast({
@@ -354,16 +362,11 @@ export default function LiveTranslationContent() {
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage)} disabled={!isOnline || !translatedText || !!assessingPhraseId}>
+                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(translatedText, toLanguage, '')} disabled={!translatedText || !!assessingPhraseId}>
                                                     <Volume2 className="h-5 w-5" />
                                                     <span className="sr-only">Play translated audio</span>
                                                 </Button>
                                             </TooltipTrigger>
-                                            {!isOnline && (
-                                                <TooltipContent>
-                                                    <p>Audio playback is disabled while offline.</p>
-                                                </TooltipContent>
-                                            )}
                                         </Tooltip>
                                     </TooltipProvider>
                                     <Button size="icon" variant="ghost" onClick={handleSavePhrase} disabled={!translatedText}>
@@ -419,15 +422,10 @@ export default function LiveTranslationContent() {
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                             </Button>
                                                         </TooltipTrigger>
-                                                         {!isOnline && (
-                                                            <TooltipContent>
-                                                                <p>Audio playback is disabled while offline.</p>
-                                                            </TooltipContent>
-                                                        )}
                                                     </Tooltip>
                                                 </TooltipProvider>
 
