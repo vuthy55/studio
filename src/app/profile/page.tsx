@@ -352,7 +352,7 @@ function ProfileSection() {
         setIsDeleting(true);
         const result = await anonymizeAndDeactivateUser({ userId: user.uid });
         if (result.success) {
-            toast({ title: 'Account Deleted', description: "Your account has been deleted. We're sorry to see you go."});
+            toast({ title: "Your VibeSync Journey Is Paused", description: "Your account has been deleted, but we'll be here to welcome you back whenever you're ready to sync with the local vibe again." });
             // The auth state listener in UserDataContext will handle logout and redirect.
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete your account.' });
