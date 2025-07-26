@@ -33,7 +33,6 @@ interface UserDataContextType {
     settings: AppSettings | null;
     syncLiveUsage: number;
     logout: () => Promise<void>;
-    forceRefetch: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string) => boolean;
@@ -130,17 +129,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         };
     }, [user, authLoading, clearLocalState]);
     
-    const forceRefetch = useCallback(async () => {
-        // This function is now less critical but can be kept for explicit refresh needs.
-        if (auth.currentUser) {
-            const userDocRef = doc(db, 'users', auth.currentUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists()) {
-                 setUserProfile(userDocSnap.data() as UserProfile);
-            }
-        }
-    }, []);
-
 
     // --- Firestore Synchronization Logic ---
     const debouncedCommitToFirestore = useRef(
@@ -428,7 +416,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         settings,
         syncLiveUsage,
         logout,
-        forceRefetch,
         recordPracticeAttempt,
         getTopicStats,
         spendTokensForTranslation,

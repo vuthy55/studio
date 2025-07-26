@@ -281,7 +281,7 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile, forceRefetch } = useUserData();
+    const { user, userProfile } = useUserData();
     const { toast } = useToast();
 
     // Local state for form edits, initialized from the context
@@ -333,9 +333,8 @@ function ProfileSection() {
                 searchableEmail: (user.email!).toLowerCase(),
             };
             
-            await updateDoc(userDocRef, dataToSave);
+            await setDoc(userDocRef, dataToSave, { merge: true });
             toast({ title: 'Success', description: 'Profile updated successfully.' });
-            // No need to call forceRefetch, the real-time listener will handle it.
         } catch (error: any) {
             console.error("Error updating profile: ", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not update profile. ' + error.message });
