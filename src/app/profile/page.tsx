@@ -828,7 +828,7 @@ function ReferralsSection() {
                                                 <TableRow key={ref.id}>
                                                     <TableCell>{ref.name || 'N/A'}</TableCell>
                                                     <TableCell>{ref.email}</TableCell>
-                                                    <TableCell>{ref.createdAt ? format(new Date(ref.createdAt), 'd MMM yyyy') : 'N/A'}</TableCell>
+                                                    <TableCell>{ref.createdAt ? format(new Date(ref.createdAt), 'd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
