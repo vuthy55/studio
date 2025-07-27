@@ -33,18 +33,18 @@ function SyncHubTabs() {
          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
-                <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                 <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
+                <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                 <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
             </TabsList>
             <TabsContent value="prep-vibe" className="mt-6">
                 <MemoizedLearnPage setActiveTab={setActiveTab} />
             </TabsContent>
-            <TabsContent value="sync-live" className="mt-6">
-                <MemoizedSyncLive />
-            </TabsContent>
             <TabsContent value="live-translation" className="mt-6">
                 <MemoizedLiveTranslation />
+            </TabsContent>
+            <TabsContent value="sync-live" className="mt-6">
+                <MemoizedSyncLive />
             </TabsContent>
             <TabsContent value="sync-online" className="mt-6">
                 <MemoizedSyncOnline />
