@@ -25,7 +25,9 @@ export async function getReferredUsers(referrerId: string): Promise<ReferredUser
 
     try {
         const referralsRef = collection(db, 'referrals');
-        const q = query(referralsRef, where('referrerId', '==', referrerId), orderBy('createdAt', 'desc'));
+        // Simplified query: Only filter by referrerId. Sorting will be done on the client.
+        // This avoids the need for a composite index.
+        const q = query(referralsRef, where('referrerId', '==', referrerId));
         
         const snapshot = await getDocs(q);
 
@@ -46,6 +48,9 @@ export async function getReferredUsers(referrerId: string): Promise<ReferredUser
             return referredUser;
         });
         
+        // Sort the results in JavaScript after fetching them.
+        results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
         return results;
 
     } catch (error) {
@@ -53,5 +58,3 @@ export async function getReferredUsers(referrerId: string): Promise<ReferredUser
         throw error;
     }
 }
-
-    
