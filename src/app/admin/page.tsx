@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
+import AudioPackGenerator from './AudioPackGenerator';
 
 
 interface UserWithId extends UserProfile {
@@ -1738,6 +1739,7 @@ export default function AdminPage() {
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
+        { value: 'audio-packs', label: 'Audio Packs', icon: Music },
         { value: 'bulk-actions', label: 'Bulk Actions', icon: Trash2 },
         { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
     ];
@@ -1746,7 +1748,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-7 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1789,6 +1791,9 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
+                </TabsContent>
+                <TabsContent value="audio-packs" className="mt-6">
+                    <AudioPackGenerator />
                 </TabsContent>
                  <TabsContent value="bulk-actions" className="mt-6">
                     <BulkActionsContent />

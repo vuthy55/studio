@@ -1,0 +1,20 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Files in the 'audio-packs' directory are publicly readable.
+    // This allows any user (authenticated or not) to download the pre-generated language packs.
+    // Writes are restricted to authenticated users, but you should use Admin SDK for uploads
+    // and rely on Firestore/IAM roles for true write security, not these rules.
+    match /audio-packs/{allPaths=**} {
+      allow read;
+      allow write: if request.auth != null;
+    }
+
+    // Default rules for other paths
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

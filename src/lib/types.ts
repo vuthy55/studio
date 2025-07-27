@@ -67,7 +67,7 @@ export type SyncRoom = {
     blockedUsers?: BlockedUser[];
     summary?: RoomSummary;
     transcript?: Transcript;
-    scheduledAt?: Timestamp;
+    scheduledAt?: Timestamp | string; // Allow string for client-side flexibility before conversion
     durationMinutes?: number;
     initialCost?: number;
     paymentLogId?: string; // ID of the transaction log for the current cost
