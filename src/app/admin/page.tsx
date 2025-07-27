@@ -1705,7 +1705,7 @@ function MessagingContent() {
 
 function AudioPacksContent() {
     const [audioPacks, setAudioPacks] = useState<AudioPackMetadata[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const { toast } = useToast();
     
@@ -1717,12 +1717,6 @@ function AudioPacksContent() {
         const snapshot = await getDocs(packsRef);
         const packsData = snapshot.docs.map(doc => doc.data() as AudioPackMetadata);
         setAudioPacks(packsData);
-        setIsLoading(false);
-    }, []);
-
-    useEffect(() => {
-        // Initial fetch is now manual, triggered by the user if needed.
-        // We start with an empty list.
         setIsLoading(false);
     }, []);
     
@@ -1760,108 +1754,115 @@ function AudioPacksContent() {
                 <CardDescription>Generate and verify offline audio packs for each language. These are stored in public Cloud Storage.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-between items-start">
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button><PlusCircle className="mr-2"/> Generate/Update Packs</Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>Generate Audio Packs</DialogTitle>
-                                <DialogDescription>
-                                    Select the languages you want to generate or update. This will overwrite any existing packs for the selected languages.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="py-4">
-                                <ScrollArea className="h-72 border rounded-md">
-                                    <div className="p-4 space-y-2">
-                                    {allAppLanguages.map(lang => (
-                                        <div key={lang.value} className="flex items-center space-x-2">
-                                            <Checkbox 
-                                                id={`lang-check-${lang.value}`}
-                                                checked={selectedLanguages.includes(lang.value)}
-                                                onCheckedChange={(checked) => handleSelectLanguage(lang.value, !!checked)}
-                                            />
-                                            <Label htmlFor={`lang-check-${lang.value}`} className="w-full flex justify-between items-center">
-                                                <span>{lang.label}</span>
-                                                {getPackForLanguage(lang.value) && <Badge variant="secondary">Existing</Badge>}
-                                            </Label>
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button><PlusCircle className="mr-2"/> Generate/Update Packs</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                    <DialogTitle>Generate Audio Packs</DialogTitle>
+                                    <DialogDescription>
+                                        Select the languages you want to generate or update. This will overwrite any existing packs for the selected languages.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4">
+                                    <ScrollArea className="h-72 border rounded-md">
+                                        <div className="p-4 space-y-2">
+                                        {allAppLanguages.map(lang => (
+                                            <div key={lang.value} className="flex items-center space-x-2">
+                                                <Checkbox 
+                                                    id={`lang-check-${lang.value}`}
+                                                    checked={selectedLanguages.includes(lang.value)}
+                                                    onCheckedChange={(checked) => handleSelectLanguage(lang.value, !!checked)}
+                                                />
+                                                <Label htmlFor={`lang-check-${lang.value}`} className="w-full flex justify-between items-center">
+                                                    <span>{lang.label}</span>
+                                                    {getPackForLanguage(lang.value) && <Badge variant="secondary">Existing</Badge>}
+                                                </Label>
+                                            </div>
+                                        ))}
                                         </div>
-                                    ))}
-                                    </div>
-                                </ScrollArea>
-                            </div>
-                            <DialogFooter>
-                                <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                                <Button onClick={handleGeneratePacks} disabled={isGenerating || selectedLanguages.length === 0}>
-                                    {isGenerating && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                    {isGenerating ? 'Generating...' : `Generate (${selectedLanguages.length})`}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                    <Button variant="outline" onClick={fetchPacks} disabled={isLoading}>
-                        {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
-                        Refresh Status
-                    </Button>
+                                    </ScrollArea>
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                    <Button onClick={handleGeneratePacks} disabled={isGenerating || selectedLanguages.length === 0}>
+                                        {isGenerating && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                        {isGenerating ? 'Generating...' : `Generate (${selectedLanguages.length})`}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                        <Button variant="outline" onClick={fetchPacks} disabled={isLoading}>
+                            {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                            Refresh Status
+                        </Button>
+                    </div>
+                     <div className="text-sm text-muted-foreground space-y-2">
+                        <p><strong className="text-foreground">Step 1:</strong> Click "Generate/Update Packs", select the languages you need, and start the generation. This may take some time.</p>
+                        <p><strong className="text-foreground">Step 2:</strong> After generation is complete, click "Refresh Status" to view a detailed report of the generated packs below.</p>
+                    </div>
                 </div>
                 
                 <Accordion type="single" collapsible className="w-full mt-6">
-                    {allAppLanguages.map(lang => {
-                         const pack = getPackForLanguage(lang.value);
-                         if (!pack) return null; // Only show packs that have metadata
-                         const isComplete = Object.values(pack.topicStats).every(t => t.generatedAudio === t.totalPhrases);
-                        return (
-                        <AccordionItem value={lang.value} key={lang.value}>
-                            <AccordionTrigger>
-                                <div className="flex items-center justify-between w-full pr-4">
-                                    <span>{lang.label}</span>
-                                     <Badge variant={isComplete ? 'default' : 'destructive'} className={isComplete ? 'bg-green-100 text-green-800' : ''}>
-                                        {isComplete ? 'Complete' : 'Incomplete'}
-                                     </Badge>
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="space-y-4">
-                                <div className="text-xs text-muted-foreground space-y-1">
-                                    <p>Last Updated: {pack.updatedAt ? format(pack.updatedAt.toDate(), 'PPpp') : 'N/A'}</p>
-                                    <p>Size: {new Intl.NumberFormat().format(pack.size)} bytes</p>
-                                    <a href={pack.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
-                                        Download Link <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                </div>
-                               <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Topic</TableHead>
-                                            <TableHead className="text-right">Total Phrases</TableHead>
-                                            <TableHead className="text-right">Audio Generated</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {phrasebook.map(topic => {
-                                            const stats = pack?.topicStats[topic.id];
-                                            const total = stats?.totalPhrases ?? topic.phrases.length + topic.phrases.filter(p => p.answer).length;
-                                            const generated = stats?.generatedAudio ?? 0;
-                                            const isTopicComplete = total === generated;
-                                            return (
-                                                <TableRow key={topic.id}>
-                                                    <TableCell>{topic.title}</TableCell>
-                                                    <TableCell className="text-right">{total}</TableCell>
-                                                    <TableCell className={`text-right font-bold ${isTopicComplete ? 'text-green-600' : 'text-destructive'}`}>
-                                                        {generated}
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </AccordionContent>
-                        </AccordionItem>
-                    )})}
+                    {audioPacks.length > 0 ? (
+                        audioPacks.map(langPack => {
+                            const isComplete = Object.values(langPack.topicStats).every(t => t.generatedAudio === t.totalPhrases);
+                            return (
+                            <AccordionItem value={langPack.id} key={langPack.id}>
+                                <AccordionTrigger>
+                                    <div className="flex items-center justify-between w-full pr-4">
+                                        <span>{langPack.language}</span>
+                                        <Badge variant={isComplete ? 'default' : 'destructive'} className={isComplete ? 'bg-green-100 text-green-800' : ''}>
+                                            {isComplete ? 'Complete' : 'Incomplete'}
+                                        </Badge>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-4">
+                                    <div className="text-xs text-muted-foreground space-y-1">
+                                        <p>Last Updated: {langPack.updatedAt ? format(langPack.updatedAt.toDate(), 'PPpp') : 'N/A'}</p>
+                                        <p>Size: {new Intl.NumberFormat().format(langPack.size)} bytes</p>
+                                        <a href={langPack.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
+                                            Download Link <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                    </div>
+                                <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Topic</TableHead>
+                                                <TableHead className="text-right">Total Phrases</TableHead>
+                                                <TableHead className="text-right">Audio Generated</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {phrasebook.map(topic => {
+                                                const stats = langPack?.topicStats[topic.id];
+                                                const total = stats?.totalPhrases ?? topic.phrases.length + topic.phrases.filter(p => p.answer).length;
+                                                const generated = stats?.generatedAudio ?? 0;
+                                                const isTopicComplete = total === generated;
+                                                return (
+                                                    <TableRow key={topic.id}>
+                                                        <TableCell>{topic.title}</TableCell>
+                                                        <TableCell className="text-right">{total}</TableCell>
+                                                        <TableCell className={`text-right font-bold ${isTopicComplete ? 'text-green-600' : 'text-destructive'}`}>
+                                                            {generated}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )})
+                    ) : (
+                        <div className="text-center text-muted-foreground py-8">
+                            <p>Click "Refresh Status" to see generated packs.</p>
+                        </div>
+                    )}
                 </Accordion>
-                 {audioPacks.length === 0 && !isLoading && (
-                    <p className="text-center text-muted-foreground py-8">Click "Refresh Status" to see generated packs.</p>
-                )}
             </CardContent>
         </Card>
     )
