@@ -15,6 +15,7 @@ import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
 import { softDeleteRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
+import { sendRoomInviteEmail } from '@/actions/email';
 
 
 import { Button } from '@/components/ui/button';
@@ -535,6 +536,7 @@ export default function SyncRoomPage() {
     };
 
     const handleSendInvites = async () => {
+        if (!user || !roomData) return;
         const emails = emailsToInvite.split(/[ ,]+/).map(e => e.trim()).filter(Boolean);
         if (emails.length === 0) {
             toast({ variant: 'destructive', title: 'No Emails', description: 'Please enter at least one email address.' });
@@ -546,7 +548,16 @@ export default function SyncRoomPage() {
             await updateDoc(doc(db, 'syncRooms', roomId), {
                 invitedEmails: arrayUnion(...emails)
             });
-            toast({ title: 'Invites Sent', description: 'The new participants can now join the room from their Sync Online tab.' });
+            
+            await sendRoomInviteEmail({
+                to: emails,
+                roomTopic: roomData.topic,
+                creatorName: user.displayName || 'A user',
+                scheduledAt: roomData.scheduledAt ? new Date(roomData.scheduledAt) : new Date(),
+                joinUrl: `${window.location.origin}/join/${roomId}?ref=${roomData.creatorUid}`
+            });
+
+            toast({ title: 'Invites Sent', description: 'The new participants have been notified by email.' });
             setEmailsToInvite('');
             setIsInviteDialogOpen(false);
         } catch (error) {
@@ -789,7 +800,7 @@ export default function SyncRoomPage() {
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => handleRemoveParticipant(p as Participant)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                                            Remove &amp; Block
+                                                            Remove & Block
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
@@ -841,7 +852,7 @@ export default function SyncRoomPage() {
                                             <Info className="h-4 w-4 cursor-help" />
                                         </TooltipTrigger>
                                         <TooltipContent side="top" align="start" className="max-w-xs text-sm">
-                                            <p className="font-bold">About the Timer &amp; Billing</p>
+                                            <p className="font-bold">About the Timer & Billing</p>
                                             <p className="mt-2">This timer is a visual estimate of your current session duration.</p>
                                             <p className="mt-1">Final billing is calculated securely on the server when your session ends.</p>
                                             <p className="mt-2 font-semibold">A session ends if you:</p>
@@ -898,7 +909,7 @@ export default function SyncRoomPage() {
                                                 <TooltipTrigger asChild>
                                                     <Button type="button" variant="destructive" onClick={handleEndMeeting}>
                                                         <Trash2 className="mr-2 h-4 w-4" />
-                                                        End &amp; Delete
+                                                        End & Delete
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>

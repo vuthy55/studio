@@ -926,7 +926,6 @@ export default function SyncOnlineHome() {
         setIsSubmitting(true);
         try {
             const finalScheduledDate = startNow ? new Date() : scheduledDate!;
-            const newRoomRef = doc(collection(db, 'syncRooms'));
             
             if (isEditMode && editingRoom) {
                  if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
@@ -957,6 +956,7 @@ export default function SyncOnlineHome() {
                     setIsSubmitting(false);
                     return;
                 }
+                const newRoomRef = doc(collection(db, 'syncRooms'));
                 const batch = writeBatch(db);
                 const newPaymentLogRef = doc(collection(db, 'users', user.uid, 'transactionLogs'));
                 
