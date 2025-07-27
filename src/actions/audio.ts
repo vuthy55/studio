@@ -42,13 +42,16 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
     return { success: false, error: "No languages selected for audio pack generation." };
   }
   
+  console.log(`[AUDIO GEN] Starting generation for languages: ${langs.join(', ')}`);
+
   for (const lang of langs) {
+      console.log(`[AUDIO GEN] Processing language: ${lang}`);
       const audioPack: AudioPack = {};
       const topicStats: Record<string, TopicStats> = {};
       const locale = languageToLocaleMap[lang];
 
       if (!locale) {
-        console.error(`Unsupported language for audio pack generation: ${lang}`);
+        console.error(`[AUDIO GEN] Unsupported language for audio pack generation: ${lang}`);
         continue; // Skip to the next language
       }
 
@@ -77,7 +80,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
             audioPack[phrase.id] = audioDataUri;
             topicStats[phrase.topicId].generatedAudio++;
           } catch (error) {
-            console.error(`Failed to generate audio for phrase "${phrase.id}" in ${lang}:`, error);
+            console.error(`[AUDIO GEN] Failed to generate audio for phrase "${phrase.id}" in ${lang}:`, error);
           }
         }
 
@@ -89,7 +92,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
                     audioPack[`${phrase.id}-ans`] = audioDataUri;
                     topicStats[phrase.topicId].generatedAudio++;
                 } catch (error) {
-                    console.error(`Failed to generate audio for answer of phrase "${phrase.id}" in ${lang}:`, error);
+                    console.error(`[AUDIO GEN] Failed to generate audio for answer of phrase "${phrase.id}" in ${lang}:`, error);
                 }
             }
         }
@@ -104,6 +107,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
 
       try {
           // Upload to Firebase Storage
+          console.log(`[AUDIO GEN] Uploading pack for ${lang} to Firebase Storage at ${fileName}`);
           const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
           if (!bucketName) {
             throw new Error("Firebase Storage bucket name is not configured.");
@@ -118,6 +122,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
           
           // Use the public URL, which is the standard and correct way.
           const downloadUrl = file.publicUrl();
+          console.log(`[AUDIO GEN] Upload successful. Public URL: ${downloadUrl}`);
 
           // Save metadata to Firestore
           const metadataDocRef = db.collection('audioPacks').doc(lang);
@@ -130,9 +135,10 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
               topicStats,
           };
           await metadataDocRef.set(metadata, { merge: true });
+          console.log(`[AUDIO GEN] Firestore metadata saved for ${lang}.`);
           
       } catch(error: any) {
-          console.error(`Error uploading pack for ${lang}:`, error);
+          console.error(`[AUDIO GEN] Error uploading pack for ${lang}:`, error);
           // Return failure for the whole operation if one language fails
           return { success: false, error: `Failed to upload pack for ${lang}: ${error.message}` };
       }
