@@ -19,6 +19,16 @@ import { getGenerationMetadata, LanguagePackGenerationMetadata, getFreeLanguageP
 import { Badge } from '../ui/badge';
 import BuyTokens from '../BuyTokens';
 import { Dialog } from '../ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -97,26 +107,28 @@ export default function OfflineManager() {
 
   const handleDownload = async (lang: LanguageCode, cost: number | 'Free') => {
     if (!user || !settings) {
-        toast({ variant: 'destructive', title: 'Please log in', description: 'You need to be logged in to download packs.' });
-        return;
+      toast({ variant: 'destructive', title: 'Please log in', description: 'You need to be logged in to download packs.' });
+      return;
     }
     
     if (cost !== 'Free' && (userProfile?.tokenBalance || 0) < cost) {
-        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to download this pack.` });
-        setIsBuyTokensOpen(true);
-        return;
+      toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to download this pack.` });
+      setIsBuyTokensOpen(true);
+      return;
     }
-      
-    if (cost !== 'Free') {
+
+    setDownloading(lang);
+
+    try {
+      if (cost !== 'Free') {
         const spendSuccess = spendTokensForTranslation(`Downloaded language pack: ${lang}`, cost);
         if (!spendSuccess) {
-             toast({ variant: 'destructive', title: 'Transaction Failed', description: `Could not deduct tokens.` });
-             return;
+          toast({ variant: 'destructive', title: 'Transaction Failed', description: 'Could not deduct tokens.' });
+          setDownloading(null);
+          return;
         }
-    }
-      
-    setDownloading(lang);
-    try {
+      }
+
       const { audioPack, size } = await getLanguageAudioPack(lang);
       const db = await getDb();
       await db.put(STORE_NAME, audioPack, lang);
@@ -125,12 +137,23 @@ export default function OfflineManager() {
       await db.put(METADATA_STORE_NAME, metadata);
       
       await loadSingleOfflinePack(lang);
+      
+      if (cost === 'Free') {
+        toast({
+            title: 'Download Complete!',
+            description: `Offline audio for ${languages.find(l => l.value === lang)?.label} is now available. To support our work, consider donating or referring a friend!`,
+        });
+      } else {
+         toast({
+            title: 'Download Complete!',
+            description: `${cost} tokens have been deducted from your account.`,
+        });
+      }
 
-      toast({
-        title: 'Download Complete!',
-        description: `Offline audio for ${languages.find(l => l.value === lang)?.label} is now available.`,
-      });
       setDownloadedPacks(prev => ({...prev, [lang]: metadata}));
+      // Refetch available packs to remove the one just downloaded
+      handleTabChange('available');
+
     } catch (error) {
       console.error('Failed to download audio pack:', error);
       toast({
@@ -181,20 +204,32 @@ export default function OfflineManager() {
     if (savedPhrases.length === 0 || !user) return;
     
     const cost = Math.ceil(savedPhrases.length / 5);
-    const hasSufficientTokens = spendTokensForTranslation(`Downloaded ${savedPhrases.length} saved phrases for offline use.`, cost);
 
-    if (!hasSufficientTokens) {
+     if ((userProfile?.tokenBalance || 0) < cost) {
         toast({
             variant: 'destructive',
             title: 'Insufficient Tokens',
             description: `You need ${cost} tokens to download this pack.`,
         });
+        setIsBuyTokensOpen(true);
         return;
     }
     
     setDownloading(SAVED_PHRASES_KEY);
 
     try {
+        const spendSuccess = spendTokensForTranslation(`Downloaded ${savedPhrases.length} saved phrases for offline use.`, cost);
+        if (!spendSuccess) {
+            toast({
+                variant: 'destructive',
+                title: 'Transaction Failed',
+                description: 'Could not deduct tokens.',
+            });
+            setDownloading(null);
+            return;
+        }
+
+
         const audioPack: AudioPack = {};
         const generationPromises = savedPhrases.map(async (phrase) => {
             const toLocale = languageToLocaleMap[phrase.toLang];
@@ -221,7 +256,7 @@ export default function OfflineManager() {
 
         toast({
             title: 'Download Complete!',
-            description: 'Your saved phrases are now available for offline practice.',
+            description: `${cost} tokens have been deducted. Your saved phrases are now available for offline practice.`,
         });
         setDownloadedPacks(prev => ({ ...prev, [SAVED_PHRASES_KEY]: metadata }));
 
@@ -248,7 +283,7 @@ export default function OfflineManager() {
   }
 
   const handleTabChange = useCallback(async (value: string) => {
-    if (value === 'available' && availableForDownload.length === 0) {
+    if (value === 'available') {
         setIsFetchingAvailable(true);
         try {
              const [metadata, freePacks] = await Promise.all([
@@ -271,7 +306,7 @@ export default function OfflineManager() {
              setIsFetchingAvailable(false);
         }
     }
-  }, [availableForDownload.length, settings?.languagePackCost, downloadedPacks, toast]);
+  }, [settings?.languagePackCost, downloadedPacks, toast]);
 
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
@@ -371,15 +406,47 @@ export default function OfflineManager() {
                         )}
                         
                         {isUpdateAvailable && (
-                            <Button variant="secondary" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                            {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update ({savedPhrasesCost} Tokens)</>}
-                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="secondary" size="sm" disabled={isDownloadingSaved}>
+                                        {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update</>}
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Update Saved Phrases?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will re-download the audio for all your saved phrases. This action will cost {savedPhrasesCost} tokens.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         )}
                         
                         {!isSavedPhrasesDownloaded && (
-                            <Button variant="default" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                            {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download ({savedPhrasesCost} Tokens)</>}
-                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="default" size="sm" disabled={isDownloadingSaved}>
+                                        {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
+                                    </Button>
+                                </AlertDialogTrigger>
+                                 <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Download Saved Phrases?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will download the audio for all {savedPhrases.length} of your saved phrases for offline use. This action will cost {savedPhrasesCost} tokens.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm & Download</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         )}
                     </div>
                 ) : (
@@ -394,4 +461,3 @@ export default function OfflineManager() {
     </div>
   );
 }
-

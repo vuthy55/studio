@@ -16,7 +16,7 @@ import { getOfflineAudio } from '@/components/synchub/OfflineManager';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -334,7 +334,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         // Optimistic UI update
         setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - transactionCost }));
         
-        pendingTokenSyncs.push({ amount: transactionCost, actionType: 'translation_spend', description });
+        pendingTokenSyncs.push({
+            amount: transactionCost,
+            actionType: cost !== undefined ? 'language_pack_download' : 'translation_spend',
+            description
+        });
         debouncedCommitToFirestore();
 
         return true;
