@@ -29,6 +29,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -139,7 +141,7 @@ export default function OfflineManager() {
       await loadSingleOfflinePack(lang);
       
        // Manually add the new language to the user profile's unlocked list
-       if(user && userProfile.unlockedLanguages && !userProfile.unlockedLanguages.includes(lang)) {
+       if(user) {
             const userDocRef = doc(db, 'users', user.uid);
             await updateDoc(userDocRef, {
                 unlockedLanguages: arrayUnion(lang)
