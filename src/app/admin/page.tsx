@@ -42,7 +42,7 @@ import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
 import { languages as allAppLanguages, phrasebook, type Topic, type LanguageCode } from '@/lib/data';
 import { generateAndUploadAudioPacks, type AudioPackMetadata } from '@/actions/audio';
-import { ScrollArea } from '../ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 interface UserWithId extends UserProfile {
