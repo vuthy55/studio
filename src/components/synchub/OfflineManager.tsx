@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getGenerationMetadata, LanguagePackGenerationMetadata, getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import { Badge } from '../ui/badge';
 import BuyTokens from '../BuyTokens';
+import { Dialog } from '../ui/dialog';
 
 
 const DB_NAME = 'VibeSync-Offline';
