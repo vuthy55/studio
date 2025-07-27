@@ -14,6 +14,7 @@ import type { SavedPhrase } from '@/lib/types';
 import { languageToLocaleMap } from '@/lib/utils';
 import { generateSpeech } from '@/services/tts';
 import { useUserData } from '@/context/UserDataContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -214,6 +215,8 @@ export default function OfflineManager() {
   }
 
   const offlineReadyLanguages = ['khmer'];
+  const availableForDownload = offlineReadyLanguages.filter(langCode => !downloadedPacks[langCode]);
+  const currentlyDownloaded = Object.keys(downloadedPacks).filter(p => p !== SAVED_PHRASES_KEY);
 
   const savedPhrasesPackInfo = downloadedPacks[SAVED_PHRASES_KEY];
   const isSavedPhrasesDownloaded = !!savedPhrasesPackInfo;
@@ -226,87 +229,89 @@ export default function OfflineManager() {
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
-      <div className="space-y-2">
-        {savedPhrases.length > 0 && user && (
-           <div className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-              <div className="flex flex-col">
-                <span className="flex items-center gap-1.5 font-medium"><Bookmark className="h-4 w-4 text-primary"/> Your Saved Phrases ({savedPhrases.length})</span>
-                 {isSavedPhrasesDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(savedPhrasesPackInfo.size)}</span>}
-              </div>
-              
-              {isSavedPhrasesDownloaded && !isUpdateAvailable && (
-                 <div className="flex items-center gap-2">
-                    <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready for Offline Use</span>
-                    <Button size="icon" variant="ghost" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved} aria-label="Delete offline saved phrases">
-                         {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                    </Button>
-                </div>
-              )}
-              
-              {isUpdateAvailable && (
-                 <Button variant="secondary" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                  {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update ({savedPhrasesCost} Tokens)</>}
-                </Button>
-              )}
-              
-              {!isSavedPhrasesDownloaded && (
-                <Button variant="default" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                  {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download ({savedPhrasesCost} Tokens)</>}
-                </Button>
-              )}
-            </div>
-        )}
+      <Tabs defaultValue="download">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="download">Download</TabsTrigger>
+          <TabsTrigger value="available">Available</TabsTrigger>
+          <TabsTrigger value="saved">Saved Phrases</TabsTrigger>
+        </TabsList>
+        <TabsContent value="download" className="mt-4">
+            <div className="space-y-2">
+            {availableForDownload.length > 0 ? availableForDownload.map(langCode => {
+                const lang = languages.find(l => l.value === langCode)!;
+                const isDownloadingThis = downloading === lang.value;
 
-        {offlineReadyLanguages.map(langCode => {
-          const lang = languages.find(l => l.value === langCode)!;
-          const downloadInfo = downloadedPacks[lang.value];
-          const isDownloaded = !!downloadInfo;
-          const isDownloadingThis = downloading === lang.value;
-          const isDeletingThis = deleting === lang.value;
-
-          return (
-            <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-              <div className="flex flex-col">
-                <span>{lang.label}</span>
-                 {isDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(downloadInfo.size)}</span>}
-              </div>
-              {isDownloaded ? (
-                <div className="flex items-center gap-2">
-                    <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready for Offline Use</span>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDelete(lang.value)}
-                        disabled={isDeletingThis}
-                        aria-label={`Delete offline audio for ${lang.label}`}
-                    >
-                         {isDeletingThis ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                    </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleDownload(lang.value)}
-                  disabled={isDownloadingThis}
-                >
-                  {isDownloadingThis ? (
-                    <>
-                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </>
-                  )}
-                </Button>
-              )}
+                return (
+                    <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                        <span>{lang.label}</span>
+                         <Button variant="default" size="sm" onClick={() => handleDownload(lang.value)} disabled={isDownloadingThis}>
+                            {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
+                        </Button>
+                    </div>
+                );
+            }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
             </div>
-          );
-        })}
-      </div>
+        </TabsContent>
+        <TabsContent value="available" className="mt-4">
+            <div className="space-y-2">
+                {currentlyDownloaded.length > 0 ? currentlyDownloaded.map(langCode => {
+                    const lang = languages.find(l => l.value === langCode)!;
+                    const downloadInfo = downloadedPacks[langCode];
+                    const isDeletingThis = deleting === langCode;
+
+                    return (
+                         <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                            <div className="flex flex-col">
+                                <span>{lang.label}</span>
+                                {downloadInfo && <span className="text-xs text-muted-foreground">{formatBytes(downloadInfo.size)}</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
+                                <Button size="icon" variant="ghost" onClick={() => handleDelete(lang.value as LanguageCode)} disabled={isDeletingThis} aria-label={`Delete offline audio for ${lang.label}`}>
+                                    {isDeletingThis ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                }) : <p className="text-center text-sm text-muted-foreground py-4">No language packs downloaded yet.</p>}
+            </div>
+        </TabsContent>
+        <TabsContent value="saved" className="mt-4">
+             <div className="space-y-2">
+                {savedPhrases.length > 0 && user ? (
+                    <div className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                        <div className="flex flex-col">
+                            <span className="flex items-center gap-1.5 font-medium"><Bookmark className="h-4 w-4 text-primary"/> Your Saved Phrases ({savedPhrases.length})</span>
+                            {isSavedPhrasesDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(savedPhrasesPackInfo.size)}</span>}
+                        </div>
+                        
+                        {isSavedPhrasesDownloaded && !isUpdateAvailable && (
+                            <div className="flex items-center gap-2">
+                                <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
+                                <Button size="icon" variant="ghost" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved} aria-label="Delete offline saved phrases">
+                                    {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
+                                </Button>
+                            </div>
+                        )}
+                        
+                        {isUpdateAvailable && (
+                            <Button variant="secondary" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
+                            {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update ({savedPhrasesCost} Tokens)</>}
+                            </Button>
+                        )}
+                        
+                        {!isSavedPhrasesDownloaded && (
+                            <Button variant="default" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
+                            {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download ({savedPhrasesCost} Tokens)</>}
+                            </Button>
+                        )}
+                    </div>
+                ) : (
+                    <p className="text-center text-sm text-muted-foreground py-4">You have no saved phrases to download.</p>
+                )}
+            </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
