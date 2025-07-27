@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getGenerationMetadata, LanguagePackGenerationMetadata, getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import { Badge } from '../ui/badge';
 import BuyTokens from '../BuyTokens';
-import { Dialog } from '../ui/dialog';
+import { Dialog, DialogContent } from '../ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -464,4 +464,3 @@ export default function OfflineManager() {
   );
 }
 
-    
