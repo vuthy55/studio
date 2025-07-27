@@ -5,7 +5,7 @@ import { phrasebook, type LanguageCode, type Topic, languages } from '@/lib/data
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { db, storage } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { UserProfile } from '@/lib/types';
 
 
@@ -28,7 +28,7 @@ export interface AudioPackMetadata {
     language: string;
     downloadUrl: string;
     size: number;
-    updatedAt: FieldValue;
+    updatedAt: string | FieldValue; // Send ISO string to client
     topicStats: Record<string, TopicStats>;
 }
 
@@ -45,11 +45,17 @@ export async function getAudioPacks(): Promise<AudioPackMetadata[]> {
     }
     return snapshot.docs.map(doc => {
         const data = doc.data();
+        const updatedAt = data.updatedAt;
+        
+        // Convert Timestamp to ISO string for client-side compatibility
+        const safeUpdatedAt = (updatedAt instanceof Timestamp) 
+            ? updatedAt.toDate().toISOString() 
+            : new Date().toISOString();
+
         return {
             ...data,
             id: doc.id,
-            // Ensure timestamp is converted if needed, though client-side onSnapshot will handle it.
-            updatedAt: data.updatedAt
+            updatedAt: safeUpdatedAt,
         } as AudioPackMetadata
     });
 }
@@ -151,7 +157,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
 
           // Save metadata to Firestore
           const metadataDocRef = db.collection('audioPacks').doc(lang);
-          const metadata: AudioPackMetadata = {
+          const metadata = {
               id: lang,
               language: languages.find(l => l.value === lang)?.label || lang,
               downloadUrl,
