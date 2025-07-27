@@ -265,7 +265,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                     </Tooltip>
                                 </TooltipProvider>
                             </div>
-                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1">
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 rounded-md bg-muted p-1">
                                 {phrasebook.map((topic) => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                     <Tooltip>
@@ -274,13 +274,13 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                             variant="ghost"
                                             onClick={() => setSelectedTopicId(topic.id)}
                                             className={cn(
-                                            'h-auto w-full p-2 transition-all duration-200',
+                                            'h-auto w-full p-2 transition-all duration-200 flex flex-col items-center justify-center aspect-square',
                                             selectedTopicId === topic.id
                                                 ? 'bg-background text-foreground shadow-sm'
                                                 : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                             )}
                                         >
-                                            <topic.icon className="h-12 w-12" />
+                                            <topic.icon className="h-8 w-8 mb-1" />
                                         </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
@@ -296,10 +296,10 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                                 variant="ghost"
                                                 onClick={() => setActiveTab('live-translation')}
                                                 className={cn(
-                                                    'h-auto w-full p-2 transition-all duration-200 text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                                                    'h-auto w-full p-2 transition-all duration-200 flex flex-col items-center justify-center aspect-square text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                                 )}
                                             >
-                                                <Bookmark className="h-12 w-12" />
+                                                <Bookmark className="h-8 w-8 mb-1" />
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
