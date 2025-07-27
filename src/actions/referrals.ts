@@ -23,17 +23,21 @@ export async function getReferredUsers(referrerId: string): Promise<ReferredUser
     }
 
     try {
+        console.log(`[SERVER-DEBUG] Searching for users referred by: ${referrerId}`);
         const usersRef = db.collection('users');
         const q = usersRef.where('referredBy', '==', referrerId).orderBy('createdAt', 'desc');
         
         const snapshot = await q.get();
 
         if (snapshot.empty) {
+            console.log(`[SERVER-DEBUG] No referred users found for ${referrerId}.`);
             return [];
         }
 
+        console.log(`[SERVER-DEBUG] Found ${snapshot.size} referred users.`);
         const results = snapshot.docs.map(doc => {
             const data = doc.data();
+            // Safely convert Firestore Timestamp to an ISO string
             const createdAt = (data.createdAt as Timestamp)?.toDate()?.toISOString() || new Date(0).toISOString();
             
             const referredUser: ReferredUser = {
