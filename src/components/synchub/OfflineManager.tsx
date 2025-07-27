@@ -365,12 +365,13 @@ export default function OfflineManager() {
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
+        {/* Downloaded Packs Button & Dialog */}
         <Dialog open={isDownloadedOpen} onOpenChange={setIsDownloadedOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline">
                     <Package className="mr-2" />
-                    View Downloaded Packs
+                    Downloaded
                     <Badge variant="secondary" className="ml-2">{currentlyDownloaded.length}</Badge>
                 </Button>
             </DialogTrigger>
@@ -406,11 +407,12 @@ export default function OfflineManager() {
             </DialogContent>
         </Dialog>
 
+        {/* Available Packs Button & Dialog */}
         <Dialog open={isAvailableOpen} onOpenChange={setIsAvailableOpen}>
              <DialogTrigger asChild>
                 <Button variant="outline" onClick={fetchAvailablePacks}>
                     <ArrowDownToLine className="mr-2" />
-                    Find More Packs
+                    Available
                 </Button>
             </DialogTrigger>
             <DialogContent>
@@ -452,74 +454,68 @@ export default function OfflineManager() {
                 )}
             </DialogContent>
         </Dialog>
-      </div>
 
-       <div className="space-y-2 pt-4">
-            <h4 className="font-semibold">My Saved Phrases</h4>
-            {savedPhrases.length > 0 && user ? (
-                <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-                    <div className="flex flex-col">
-                        <span className="flex items-center gap-1.5 font-medium"><Bookmark className="h-4 w-4 text-primary"/> Your Saved Phrases ({savedPhrases.length})</span>
-                        {isSavedPhrasesDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(savedPhrasesPackInfo.size)}</span>}
-                    </div>
-                    
-                    {isSavedPhrasesDownloaded && !isUpdateAvailable && (
-                        <div className="flex items-center gap-2">
-                            <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
-                            <Button size="icon" variant="ghost" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved} aria-label="Delete offline saved phrases">
-                                {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                            </Button>
-                        </div>
-                    )}
-                    
-                    {isUpdateAvailable && (
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="secondary" size="sm" disabled={isDownloadingSaved}>
-                                    {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update</>}
+        {/* Saved Phrases Section */}
+        {savedPhrases.length > 0 && user ? (
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="outline" disabled={isDownloadingSaved}>
+                        {isDownloadingSaved ? <LoaderCircle className="mr-2 animate-spin"/> : <Bookmark className="mr-2" />}
+                        Saved Phrases
+                        <Badge variant="secondary" className="ml-2">{savedPhrases.length}</Badge>
+                    </Button>
+                </AlertDialogTrigger>
+                {isSavedPhrasesDownloaded && !isUpdateAvailable && (
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Saved Phrases are Offline</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                All {savedPhrases.length} of your saved phrases are downloaded and available for offline use.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                             <AlertDialogAction asChild>
+                                <Button variant="destructive" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved}>
+                                     {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
+                                     Delete Offline Copy
                                 </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Update Saved Phrases?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will re-download the audio for all your saved phrases. This action will cost {savedPhrasesCost} tokens.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
-                    
-                    {!isSavedPhrasesDownloaded && (
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="default" size="sm" disabled={isDownloadingSaved}>
-                                    {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Download Saved Phrases?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will download the audio for all {savedPhrases.length} of your saved phrases for offline use. It will use {Math.min(newPhrasesToDownload, freePhrasesLeft)} of your free phrase downloads. The remaining {phrasesToPayFor} phrases will cost {savedPhrasesCost} tokens.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm & Download</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
-                </div>
-            ) : (
-                <p className="text-center text-sm text-muted-foreground py-4">You have no saved phrases to download.</p>
-            )}
-        </div>
+                             </AlertDialogAction>
+                            <AlertDialogCancel>Close</AlertDialogCancel>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                )}
+                 {(isUpdateAvailable || !isSavedPhrasesDownloaded) && (
+                     <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{isUpdateAvailable ? "Update Saved Phrases?" : "Download Saved Phrases?"}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {isUpdateAvailable ? 
+                                    `You have ${newPhrasesToDownload} new phrases to download.` :
+                                    `This will download audio for all ${savedPhrases.length} of your saved phrases for offline use.`
+                                }
+                                <br/>
+                                You have {freePhrasesLeft} free phrase downloads remaining.
+                                The remaining {phrasesToPayFor} phrases will cost {savedPhrasesCost} tokens.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
+                                {isDownloadingSaved && <LoaderCircle className="animate-spin mr-2"/>}
+                                {isUpdateAvailable ? "Update & Pay" : "Download & Pay"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                 )}
+            </AlertDialog>
+        ) : (
+             <Button variant="outline" disabled>
+                <Bookmark className="mr-2" />
+                Saved Phrases
+                <Badge variant="secondary" className="ml-2">0</Badge>
+            </Button>
+        )}
+      </div>
       
       <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
         <DialogContent>
