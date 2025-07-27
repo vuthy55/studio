@@ -1,27 +1,22 @@
 
 import admin from 'firebase-admin';
 
-// This check provides a clear error message if the developer hasn't configured the .env.local file.
-if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-    console.error("FIREBASE_ADMIN_* environment variables not set.");
-    console.error("Please ensure NEXT_PUBLIC_FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are in your .env file.");
+// This new check ensures the service account file is referenced.
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    console.error("GOOGLE_APPLICATION_CREDENTIALS environment variable not set.");
+    console.error("Please ensure GOOGLE_APPLICATION_CREDENTIALS is in your .env file and points to your service-account.json.");
 }
 
 
 if (!admin.apps.length) {
     console.log("[FIREBASE ADMIN] Attempting to initialize Firebase Admin SDK...");
     try {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // The replace is crucial for parsing the key from the .env file
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            })
-        });
+        // The Admin SDK will automatically use the GOOGLE_APPLICATION_CREDENTIALS env var.
+        admin.initializeApp();
         console.log("[FIREBASE ADMIN] Firebase Admin SDK initialized successfully.");
-    } catch (error: any) {
-        console.error('[FIREBASE ADMIN] CRITICAL: Firebase admin initialization error. Check your environment variables and private key format.', error.stack);
+    } catch (error: any)
+        {
+        console.error('[FIREBASE ADMIN] CRITICAL: Firebase admin initialization error. Check your environment variables and that your service account file is correct.', error.stack);
     }
 } else {
     console.log("[FIREBASE ADMIN] Firebase Admin SDK already initialized.");
