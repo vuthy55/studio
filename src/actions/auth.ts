@@ -4,6 +4,7 @@
 import { auth, db } from '@/lib/firebase-admin';
 import { FieldValue, writeBatch } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
+import { getFreeLanguagePacks } from './audiopack-admin';
 
 interface SignUpPayload {
   name: string;
@@ -31,6 +32,8 @@ export async function signUpUser(
     const settings = await getAppSettingsAction();
     const signupBonus = settings.signupBonus || 100;
     const referralBonus = settings.referralBonus || 150;
+    const freeLanguages = await getFreeLanguagePacks();
+
 
     // --- Step 1: Create User in Firebase Auth ---
     // This must happen first to get a UID.
@@ -61,7 +64,9 @@ export async function signUpUser(
         country: country || '',
         mobile: mobile || '',
         defaultLanguage: defaultLanguage || 'en-US',
-        photoURL: photoURL || null
+        photoURL: photoURL || null,
+        unlockedLanguages: freeLanguages,
+        downloadedPhraseCount: 0,
     };
 
     // 2b. Log the signup bonus for the new user

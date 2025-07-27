@@ -42,7 +42,7 @@ interface LearnPageContentProps {
 function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
+    const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
@@ -53,6 +53,21 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
     const [isOnline, setIsOnline] = useState(true);
+
+    const availableLanguages = useMemo(() => {
+        if (!userProfile?.unlockedLanguages) return languages.filter(l => l.value === 'english');
+        return languages.filter(l => userProfile.unlockedLanguages?.includes(l.value));
+    }, [userProfile?.unlockedLanguages]);
+
+    useEffect(() => {
+        // If the current 'from' or 'to' language is not in the available list, reset it.
+        if (!availableLanguages.some(l => l.value === fromLanguage)) {
+            setFromLanguage(availableLanguages[0]?.value || 'english');
+        }
+        if (!availableLanguages.some(l => l.value === toLanguage)) {
+            setToLanguage(availableLanguages[1]?.value || availableLanguages[0]?.value || 'english');
+        }
+    }, [availableLanguages, fromLanguage, toLanguage, setFromLanguage, setToLanguage]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -203,7 +218,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                     <SelectValue placeholder="Select a language" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {languages.map(lang => (
+                                    {availableLanguages.map(lang => (
                                         <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -222,7 +237,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                     <SelectValue placeholder="Select a language" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {languages.map(lang => (
+                                    {availableLanguages.map(lang => (
                                         <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                     ))}
                                 </SelectContent>

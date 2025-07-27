@@ -200,9 +200,22 @@ export default function OfflineManager() {
   };
 
   const handleDownloadSavedPhrases = async () => {
-    if (savedPhrases.length === 0 || !user) return;
+    if (savedPhrases.length === 0 || !user || !settings) return;
     
-    const cost = Math.ceil(savedPhrases.length / 5);
+    const alreadyDownloadedCount = userProfile?.downloadedPhraseCount || 0;
+    const newPhrasesToDownload = savedPhrases.length - alreadyDownloadedCount;
+
+    if (newPhrasesToDownload <= 0) {
+        toast({ title: "Already Up-to-Date", description: "Your offline saved phrases are already synced." });
+        return;
+    }
+    
+    const freeQuota = settings.freeSavedPhrasesLimit || 0;
+    const phrasesPerToken = settings.savedPhrasesPerToken || 5;
+
+    const remainingFree = Math.max(0, freeQuota - alreadyDownloadedCount);
+    const phrasesToPayFor = Math.max(0, newPhrasesToDownload - remainingFree);
+    const cost = Math.ceil(phrasesToPayFor / phrasesPerToken);
 
      if ((userProfile?.tokenBalance || 0) < cost) {
         toast({
@@ -217,17 +230,14 @@ export default function OfflineManager() {
     setDownloading(SAVED_PHRASES_KEY);
 
     try {
-        const spendSuccess = spendTokensForTranslation(`Downloaded ${savedPhrases.length} saved phrases for offline use.`, cost);
-        if (!spendSuccess) {
-            toast({
-                variant: 'destructive',
-                title: 'Transaction Failed',
-                description: 'Could not deduct tokens.',
-            });
-            setDownloading(null);
-            return;
+        if (cost > 0) {
+            const spendSuccess = spendTokensForTranslation(`Downloaded ${newPhrasesToDownload} saved phrases for offline use.`, cost);
+            if (!spendSuccess) {
+                toast({ variant: 'destructive', title: 'Transaction Failed', description: 'Could not deduct tokens.' });
+                setDownloading(null);
+                return;
+            }
         }
-
 
         const audioPack: AudioPack = {};
         const generationPromises = savedPhrases.map(async (phrase) => {
@@ -255,7 +265,9 @@ export default function OfflineManager() {
 
         toast({
             title: 'Download Complete!',
-            description: `${cost} tokens have been deducted. Your saved phrases are now available for offline practice.`,
+            description: cost > 0 
+                ? `${cost} tokens have been deducted. Your saved phrases are now available for offline practice.`
+                : `Your saved phrases are now available for offline practice.`
         });
         setDownloadedPacks(prev => ({ ...prev, [SAVED_PHRASES_KEY]: metadata }));
 
@@ -290,7 +302,7 @@ export default function OfflineManager() {
                 getFreeLanguagePacks()
             ]);
             
-            const packCost = settings?.languagePackCost ?? 10;
+            const packCost = settings?.languageUnlockCost ?? 100;
             const completePacks = metadata
                 .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id])
                 .map(meta => ({
@@ -305,7 +317,7 @@ export default function OfflineManager() {
              setIsFetchingAvailable(false);
         }
     }
-  }, [settings?.languagePackCost, downloadedPacks, toast]);
+  }, [settings?.languageUnlockCost, downloadedPacks, toast]);
 
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
@@ -318,7 +330,12 @@ export default function OfflineManager() {
   const isUpdateAvailable = isSavedPhrasesDownloaded && savedPhrasesPackInfo.phraseCount !== savedPhrases.length;
   const isDownloadingSaved = downloading === SAVED_PHRASES_KEY;
   const isDeletingSaved = deleting === SAVED_PHRASES_KEY;
-  const savedPhrasesCost = Math.ceil(savedPhrases.length / 5);
+
+  const alreadyDownloadedCount = userProfile?.downloadedPhraseCount || 0;
+  const freePhrasesLeft = Math.max(0, (settings?.freeSavedPhrasesLimit || 0) - alreadyDownloadedCount);
+  const newPhrasesToDownload = savedPhrases.length - alreadyDownloadedCount;
+  const phrasesToPayFor = Math.max(0, newPhrasesToDownload - freePhrasesLeft);
+  const savedPhrasesCost = Math.ceil(phrasesToPayFor / (settings?.savedPhrasesPerToken || 5));
 
 
   return (
@@ -437,7 +454,7 @@ export default function OfflineManager() {
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Download Saved Phrases?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This will download the audio for all {savedPhrases.length} of your saved phrases for offline use. This action will cost {savedPhrasesCost} tokens.
+                                            This will download the audio for all {savedPhrases.length} of your saved phrases for offline use. It will use {Math.min(newPhrasesToDownload, freePhrasesLeft)} of your free phrase downloads. The remaining {phrasesToPayFor} phrases will cost {savedPhrasesCost} tokens.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>

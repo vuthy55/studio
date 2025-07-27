@@ -280,7 +280,7 @@ function SettingsTabContent() {
                 <CardDescription>Manage the token economy and other application-wide settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
                     {/* Column 1: Rewards & Freebies */}
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Freebies</h3>
@@ -351,10 +351,26 @@ function SettingsTabContent() {
                             <Input id="summaryTranslationCost" type="number" value={settings.summaryTranslationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
                             <p className="text-sm text-muted-foreground">Token cost to translate a summary into one language.</p>
                         </div>
+                    </div>
+
+                    {/* Column 3: Language & Phrase Costs */}
+                    <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Music className="text-primary"/> Language Packs</h3>
+                         <Separator />
+                        <div className="space-y-2">
+                            <Label htmlFor="languageUnlockCost">Language Unlock Cost</Label>
+                            <Input id="languageUnlockCost" type="number" value={settings.languageUnlockCost ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
+                            <p className="text-sm text-muted-foreground">Tokens to permanently unlock a language.</p>
+                        </div>
                          <div className="space-y-2">
-                            <Label htmlFor="languagePackCost" className="flex items-center gap-1.5"><Download/> Language Pack Cost</Label>
-                            <Input id="languagePackCost" type="number" value={settings.languagePackCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
-                            <p className="text-sm text-muted-foreground">Token cost to download one language pack for offline use.</p>
+                            <Label htmlFor="freeSavedPhrasesLimit">Free Offline Saved Phrases</Label>
+                            <Input id="freeSavedPhrasesLimit" type="number" value={settings.freeSavedPhrasesLimit ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
+                            <p className="text-sm text-muted-foreground">Number of phrases a user can download for offline use for free.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="savedPhrasesPerToken">Saved Phrases per Token</Label>
+                            <Input id="savedPhrasesPerToken" type="number" value={settings.savedPhrasesPerToken ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
+                            <p className="text-sm text-muted-foreground">Number of phrases a user can download per token after the free limit.</p>
                         </div>
                     </div>
                  </div>
@@ -1841,4 +1857,3 @@ export default function AdminPage() {
         </div>
     );
 }
-

@@ -16,7 +16,9 @@ export interface AppSettings {
   costPerSyncOnlineMinute: number;
   summaryTranslationCost: number;
   transcriptCost: number;
-  languagePackCost: number;
+  languageUnlockCost: number;
+  freeSavedPhrasesLimit: number;
+  savedPhrasesPerToken: number;
 }
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
@@ -39,7 +41,9 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         costPerSyncOnlineMinute: 2,
         summaryTranslationCost: 10,
         transcriptCost: 50,
-        languagePackCost: 10,
+        languageUnlockCost: 100,
+        freeSavedPhrasesLimit: 100,
+        savedPhrasesPerToken: 5,
     };
     
     try {

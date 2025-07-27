@@ -23,7 +23,7 @@ export type LanguageCode = typeof languages[number]['value'];
 
 // This list controls which language packs are available for download by users.
 // Add a language code here after generating its pack in the admin panel.
-export const offlineAudioPackLanguages: LanguageCode[] = ['khmer', 'chinese', 'english'];
+export const offlineAudioPackLanguages: LanguageCode[] = ['khmer', 'chinese', 'english', 'burmese', 'filipino', 'french', 'indonesian', 'italian', 'laos', 'malay', 'spanish', 'tamil', 'thai', 'vietnamese'];
 
 
 type TranslatableText = {
@@ -256,4 +256,5 @@ export const phrasebook: Topic[] = [
     
 
     
+
 

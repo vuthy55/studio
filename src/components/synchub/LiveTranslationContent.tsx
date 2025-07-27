@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -51,6 +51,21 @@ export default function LiveTranslationContent() {
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
     
     const [isOnline, setIsOnline] = useState(true);
+
+    const availableLanguages = useMemo(() => {
+        if (!userProfile?.unlockedLanguages) return languages.filter(l => l.value === 'english');
+        return languages.filter(l => userProfile.unlockedLanguages?.includes(l.value));
+    }, [userProfile?.unlockedLanguages]);
+
+    useEffect(() => {
+        // If the current 'from' or 'to' language is not in the available list, reset it.
+        if (!availableLanguages.some(l => l.value === fromLanguage)) {
+            setFromLanguage(availableLanguages[0]?.value || 'english');
+        }
+        if (!availableLanguages.some(l => l.value === toLanguage)) {
+            setToLanguage(availableLanguages[1]?.value || availableLanguages[0]?.value || 'english');
+        }
+    }, [availableLanguages, fromLanguage, toLanguage, setFromLanguage, setToLanguage]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -276,7 +291,7 @@ export default function LiveTranslationContent() {
                                     <SelectValue placeholder="Select a language" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {languages.map(lang => (
+                                    {availableLanguages.map(lang => (
                                         <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -295,7 +310,7 @@ export default function LiveTranslationContent() {
                                     <SelectValue placeholder="Select a language" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {languages.map(lang => (
+                                    {availableLanguages.map(lang => (
                                         <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                     ))}
                                 </SelectContent>
