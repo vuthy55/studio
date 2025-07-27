@@ -15,6 +15,8 @@ import type { Timestamp } from 'firebase/firestore';
 import { getOfflineAudio } from '@/components/synchub/OfflineManager';
 import { getLanguageAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
+import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
+
 
 // --- Types ---
 
@@ -88,6 +90,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         getAppSettingsAction().then(setSettings);
     }, []);
+    
+    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
+        const pack = await getOfflineAudio(lang);
+        if (pack) {
+            setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
+        }
+    }, []);
 
     const clearLocalState = useCallback(() => {
         if (profileUnsubscribe.current) profileUnsubscribe.current();
@@ -99,14 +108,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setIsDataLoading(true);
     }, []);
 
-    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
-        const pack = await getOfflineAudio(lang);
-        if (pack) {
-            setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
-        }
-    }, []);
-
-     useEffect(() => {
+    useEffect(() => {
         if (authLoading) {
             console.log("[DEBUG] Auth state is loading...");
             return;
@@ -117,6 +119,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             isLoggingOut.current = false;
             setIsDataLoading(true);
 
+            // --- Load existing offline packs from IndexedDB into state ---
             const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
             const packPromises = allPackKeys.map(key => getOfflineAudio(key));
             
@@ -133,22 +136,39 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             });
 
             const userDocRef = doc(db, 'users', user.uid);
+            
+            // --- Listen for profile changes ---
             profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
                 if (isLoggingOut.current) return;
                 console.log("[DEBUG] User profile snapshot received.");
+
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
 
+                    // --- NEW LOGIC: Check for and grant newly free languages ---
+                    const systemFreePacks = await getFreeLanguagePacks();
+                    const userUnlocked = profileData.unlockedLanguages || [];
+                    const missingFreePacks = systemFreePacks.filter(p => !userUnlocked.includes(p));
+
+                    if (missingFreePacks.length > 0) {
+                        console.log(`[DEBUG] User is missing free packs: ${missingFreePacks.join(', ')}. Updating profile...`);
+                        await updateDoc(userDocRef, {
+                            unlockedLanguages: arrayUnion(...missingFreePacks)
+                        });
+                        // The onSnapshot will re-trigger with the updated profile, which then handles the download.
+                        return; // Exit this execution to wait for the updated snapshot.
+                    }
+
                     // --- Auto-download logic ---
-                    if (profileData.unlockedLanguages && profileData.unlockedLanguages.length > 0) {
-                        console.log("[DEBUG] User has unlocked languages:", profileData.unlockedLanguages);
+                    const unlockedLanguages = profileData.unlockedLanguages || [];
+                    if (unlockedLanguages.length > 0) {
+                        console.log("[DEBUG] User has unlocked languages:", unlockedLanguages);
                         const db = await openDB(DB_NAME, 2);
                         const downloadedPackIds = await db.getAllKeys(STORE_NAME);
-                        console.log("[DEBUG] Packs currently in IndexedDB:", downloadedPackIds);
 
-                        for (const langCode of profileData.unlockedLanguages) {
+                        for (const langCode of unlockedLanguages) {
                             if (!downloadedPackIds.includes(langCode)) {
                                 console.log(`[Auto-Download] User unlocked ${langCode} but it's not offline. Downloading...`);
                                 try {
@@ -161,8 +181,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                                 } catch (e) {
                                     console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
                                 }
-                            } else {
-                                console.log(`[DEBUG] Language ${langCode} is already downloaded. Skipping.`);
                             }
                         }
                     } else {
