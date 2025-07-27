@@ -1,7 +1,7 @@
 
 'use server';
 
-import { phrasebook, type LanguageCode, type Topic } from '@/lib/data';
+import { phrasebook, type LanguageCode, type Topic, languages } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { db } from '@/lib/firebase-admin';
@@ -99,16 +99,20 @@ export async function generateAndUploadAudioPack(lang: LanguageCode): Promise<{s
 
   try {
       // Upload to Firebase Storage
-      const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+      const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error("Firebase Storage bucket name is not configured.");
+      }
+      const bucket = getStorage().bucket(bucketName);
       const file = bucket.file(fileName);
       await file.save(buffer, {
-          contentType: 'application/json',
-          public: true, // Make the file publicly accessible
+          contentType: 'application/json'
       });
-      const [downloadUrl] = await file.getSignedUrl({
-          action: 'read',
-          expires: '03-09-2491' // A far-future date
-      });
+      // Make the file publicly readable
+      await file.makePublic();
+
+      // Construct the public URL
+      const downloadUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
 
       // Save metadata to Firestore
       const metadataDocRef = db.collection('audioPacks').doc(lang);
