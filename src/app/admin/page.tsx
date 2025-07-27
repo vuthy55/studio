@@ -43,7 +43,7 @@ import MarketingRelease from '@/components/marketing/MarketingRelease';
 import { languages as allAppLanguages, phrasebook, type Topic, type LanguageCode } from '@/lib/data';
 import { generateAndUploadAudioPacks, getAudioPacks, type AudioPackMetadata } from '@/actions/audio';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 interface UserWithId extends UserProfile {
@@ -875,15 +875,15 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="issue-amount">Amount</Label>
-                            <Input id="issue-amount" type="number" value={formState.amount} onChange={e => setFormState(p => ({ ...p, amount: Number(e.target.value) }))} placeholder="e.g., 100" required min="1" />
+                            <Input id="issue-amount" type="number" value={formState.amount} onChange={e => setFormState(p => ({...p, amount: Number(e.target.value)}))} placeholder="e.g., 100" required min="1" />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="issue-reason">Reason (for Transaction Log)</Label>
-                            <Input id="issue-reason" value={formState.reason} onChange={e => setFormState(p => ({ ...p, reason: e.target.value }))} />
+                            <Input id="issue-reason" value={formState.reason} onChange={e => setFormState(p => ({...p, reason: e.target.value}))} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="issue-description">Description (for Transaction Log)</Label>
-                            <Textarea id="issue-description" value={formState.description} onChange={e => setFormState(p => ({ ...p, description: e.target.value }))} />
+                            <Textarea id="issue-description" value={formState.description} onChange={e => setFormState(p => ({...p, description: e.target.value}))} />
                         </div>
                     </div>
                      <DialogFooter>
