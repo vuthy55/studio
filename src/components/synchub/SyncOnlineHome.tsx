@@ -1124,19 +1124,20 @@ export default function SyncOnlineHome() {
                                         </Button>
                                     )}
                                     
+                                    {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
+                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)}><LinkIcon className="h-4 w-4"/></Button>
+                                    )}
+
                                     {isCreator && room.status === 'scheduled' && (
-                                        <>
-                                            <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)}><LinkIcon className="h-4 w-4"/></Button>
-                                            <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
-                                        </>
+                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
                                     {room.summary && (
                                         <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
                                     )}
                                     
-                                    {isCreator && room.status !== 'active' && (
-                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                    {isCreator && (
+                                        <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
                                     )}
 
                                     {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
