@@ -18,13 +18,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getGenerationMetadata, LanguagePackGenerationMetadata, getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import { Badge } from '../ui/badge';
 import BuyTokens from '../BuyTokens';
-import { Dialog, DialogContent } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -457,10 +456,15 @@ export default function OfflineManager() {
       </Tabs>
       <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
         <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Insufficient Tokens</DialogTitle>
+                <DialogDescription>
+                    You need more tokens to perform this action. Please purchase a token package below.
+                </DialogDescription>
+            </DialogHeader>
             <BuyTokens />
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-
