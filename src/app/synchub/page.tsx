@@ -2,39 +2,21 @@
 "use client";
 
 import { useState, memo, useEffect, Suspense } from 'react';
-import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LearnPageContent from '@/components/synchub/LearnPageContent';
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle } from 'lucide-react';
+import SyncLiveContent from '@/components/synchub/SyncLiveContent';
+import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
+import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 
-// Default tab is loaded statically for instant display.
+// Statically import all components to ensure they are available in offline mode.
 const MemoizedLearnPage = memo(LearnPageContent);
+const MemoizedSyncLive = memo(SyncLiveContent);
+const MemoizedLiveTranslation = memo(LiveTranslationContent);
+const MemoizedSyncOnline = memo(SyncOnlineHome);
 
-// Other tabs are lazy-loaded to speed up the initial page load.
-const LoadingSpinner = () => (
-    <div className="flex justify-center items-center h-64">
-        <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
-    </div>
-);
-
-const DynamicSyncLive = dynamic(() => import('@/components/synchub/SyncLiveContent'), {
-    suspense: true,
-    loading: () => <LoadingSpinner />,
-});
-const DynamicLiveTranslation = dynamic(() => import('@/components/synchub/LiveTranslationContent'), {
-    suspense: true,
-    loading: () => <LoadingSpinner />,
-});
-const DynamicSyncOnline = dynamic(() => import('@/components/synchub/SyncOnlineHome'), {
-    suspense: true,
-    loading: () => <LoadingSpinner />,
-});
-
-const MemoizedSyncLive = memo(DynamicSyncLive);
-const MemoizedLiveTranslation = memo(DynamicLiveTranslation);
-const MemoizedSyncOnline = memo(DynamicSyncOnline);
 
 function SyncHubTabs() {
     const searchParams = useSearchParams();
@@ -59,19 +41,13 @@ function SyncHubTabs() {
                 <MemoizedLearnPage setActiveTab={setActiveTab} />
             </TabsContent>
             <TabsContent value="sync-live" className="mt-6">
-                <Suspense fallback={<LoadingSpinner />}>
-                    <MemoizedSyncLive />
-                </Suspense>
+                <MemoizedSyncLive />
             </TabsContent>
             <TabsContent value="live-translation" className="mt-6">
-                <Suspense fallback={<LoadingSpinner />}>
-                    <MemoizedLiveTranslation />
-                </Suspense>
+                <MemoizedLiveTranslation />
             </TabsContent>
             <TabsContent value="sync-online" className="mt-6">
-                <Suspense fallback={<LoadingSpinner />}>
-                    <MemoizedSyncOnline />
-                </Suspense>
+                <MemoizedSyncOnline />
             </TabsContent>
         </Tabs>
     );
@@ -82,7 +58,7 @@ export default function SyncHubPage() {
     return (
         <div className="space-y-8">
             <MainHeader title="SyncHub" description="Prepare, practice, and connect." />
-             <Suspense fallback={<LoadingSpinner />}>
+             <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
                 <SyncHubTabs />
             </Suspense>
         </div>
