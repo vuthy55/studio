@@ -78,11 +78,14 @@ export default function LoginPage() {
 
       if (!userDoc.exists()) {
         // This is a new user, create their profile via the server action
-        await signUpUser({
-            name: user.displayName || 'New User',
-            email: user.email!,
-            photoURL: user.photoURL || undefined
-        }, referralId);
+        await signUpUser(
+            {
+                name: user.displayName || 'New User',
+                email: user.email!,
+                photoURL: user.photoURL || undefined
+            },
+            referralId
+        );
       }
       
       toast({ title: "Welcome!", description: "Logged in successfully." });
@@ -92,7 +95,7 @@ export default function LoginPage() {
       console.error("Google sign-in error", error);
       if (error.code === 'auth/account-exists-with-different-credential') {
         toast({ variant: "destructive", title: "Sign-in Error", description: "An account already exists with this email address. Please sign in using the original method." });
-      } else {
+      } else if (error.code !== 'auth/popup-closed-by-user') {
         toast({ variant: "destructive", title: "Error", description: error.message });
       }
     } finally {
@@ -108,14 +111,17 @@ export default function LoginPage() {
     }
     setIsEmailLoading(true);
     try {
-       const result = await signUpUser({
-            name: signupName,
-            email: signupEmail,
-            password: signupPassword,
-            country: signupCountry,
-            mobile: signupMobile,
-            defaultLanguage: signupLanguage
-       }, referralId);
+       const result = await signUpUser(
+            {
+                name: signupName,
+                email: signupEmail,
+                password: signupPassword,
+                country: signupCountry,
+                mobile: signupMobile,
+                defaultLanguage: signupLanguage
+            }, 
+            referralId
+       );
         
        if (!result.success) {
             throw new Error(result.error || 'An unknown error occurred during signup.');

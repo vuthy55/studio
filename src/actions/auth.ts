@@ -2,9 +2,10 @@
 'use server';
 
 import { auth, db } from '@/lib/firebase-admin';
-import { FieldValue, writeBatch } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
 import { getFreeLanguagePacks } from './audiopack-admin';
+import type { SyncRoom } from '@/lib/types';
 
 interface SignUpPayload {
   name: string;
@@ -19,12 +20,20 @@ interface SignUpPayload {
 /**
  * Creates a new user in Firebase Authentication and Firestore,
  * and handles referral bonuses if applicable.
+ * If a roomId is provided, it returns the room's status.
  * This is a secure server-side action.
  */
 export async function signUpUser(
   payload: SignUpPayload,
-  referralId: string | null
-): Promise<{ success: boolean; error?: string; userId?: string }> {
+  referralId: string | null,
+  roomId?: string | null
+): Promise<{
+  success: boolean;
+  error?: string;
+  userId?: string;
+  roomStatus?: 'active' | 'scheduled' | 'closed';
+  scheduledAt?: string;
+}> {
   const { name, email, password, country, mobile, defaultLanguage, photoURL } = payload;
   const lowerCaseEmail = email.toLowerCase();
 
@@ -126,6 +135,23 @@ export async function signUpUser(
 
     // --- Step 3: Commit the batch ---
     await batch.commit();
+    
+    // --- Step 4: Handle Room Logic (if applicable) ---
+    if (roomId) {
+        const roomRef = db.collection('syncRooms').doc(roomId);
+        const roomDoc = await roomRef.get();
+        if (roomDoc.exists) {
+            const roomData = roomDoc.data() as SyncRoom;
+            
+            // Return room status to the client for intelligent redirection
+            return { 
+                success: true, 
+                userId: uid, 
+                roomStatus: roomData.status,
+                scheduledAt: (roomData.scheduledAt as Timestamp)?.toDate().toISOString()
+            };
+        }
+    }
 
     return { success: true, userId: uid };
 

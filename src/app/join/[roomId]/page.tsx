@@ -21,6 +21,7 @@ import { LoaderCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { signUpUser } from '@/actions/auth';
 import { useUserData } from '@/context/UserDataContext';
+import { format } from 'date-fns';
 
 export default function JoinRoomPage() {
     const params = useParams();
@@ -116,19 +117,6 @@ export default function JoinRoomPage() {
         }
     };
     
-    const addUserToRoomAndRedirect = async () => {
-        if (!roomId) return;
-        setIsSubmitting(true);
-        try {
-            console.log(`[DEBUG] addUserToRoomAndRedirect: Redirecting to /sync-room/${roomId}`);
-            router.push(`/sync-room/${roomId}`);
-        } catch (error) {
-            console.error("[DEBUG] Error in addUserToRoomAndRedirect:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not redirect you to the room.'});
-            setIsSubmitting(false);
-        }
-    };
-
     const handleSignUpAndJoin = async (e: React.FormEvent) => {
         e.preventDefault();
         console.log("[DEBUG] handleSignUpAndJoin: Form submitted.");
@@ -141,27 +129,35 @@ export default function JoinRoomPage() {
 
         try {
             const result = await signUpUser(
-                {
-                    name,
-                    email,
-                    password,
-                    country,
-                    mobile,
-                    defaultLanguage: spokenLanguage
-                },
-                referralId
+                { name, email, password, country, mobile, defaultLanguage: spokenLanguage },
+                referralId,
+                roomId
             );
 
             if (!result.success) {
-                throw new Error(result.error || "Failed to process new user and referral on the server.");
+                throw new Error(result.error || "Failed to process new user on the server.");
             }
             
             // Now that the user exists in Auth and Firestore, log them in on the client
             await signInWithEmailAndPassword(auth, email, password);
             
-            console.log("[DEBUG] handleSignUpAndJoin: Calling addUserToRoomAndRedirect.");
-            await addUserToRoomAndRedirect();
+            console.log("[DEBUG] handleSignUpAndJoin: User created and signed in.");
 
+            const isRoomActive = result.roomStatus === 'active' || (result.roomStatus === 'scheduled' && new Date(result.scheduledAt!) < new Date());
+
+            if (isRoomActive) {
+                console.log("[DEBUG] Room is active. Redirecting to room.");
+                router.push(`/sync-room/${roomId}`);
+            } else {
+                console.log("[DEBUG] Room is scheduled for later. Redirecting to profile.");
+                toast({
+                    title: "Welcome to VibeSync!",
+                    description: `Your account is ready. Your room is scheduled for ${format(new Date(result.scheduledAt!), 'PPpp')}.`,
+                    duration: 10000
+                });
+                router.push('/profile');
+            }
+            
         } catch (error: any) {
             console.error("[DEBUG] Sign-up and join error:", error);
             toast({ variant: 'destructive', title: 'Sign-up Failed', description: error.message });
