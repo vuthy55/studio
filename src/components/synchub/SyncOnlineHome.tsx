@@ -977,7 +977,6 @@ export default function SyncOnlineHome() {
 
                 // Send email invites
                 if (parsedInviteeEmails.length > 0) {
-                    console.log("[DEBUG] SyncOnlineHome: Calling sendRoomInviteEmail");
                     await sendRoomInviteEmail({
                         to: parsedInviteeEmails,
                         roomTopic: roomTopic,
