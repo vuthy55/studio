@@ -9,17 +9,16 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getLanguageAudioPack, type AudioPack } from '@/actions/audio';
 import { languages, type LanguageCode } from '@/lib/data';
-import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw, Coins } from 'lucide-react';
+import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw, Coins, Library, Package, ArrowDownToLine } from 'lucide-react';
 import useLocalStorage from '@/hooks/use-local-storage';
 import type { SavedPhrase } from '@/lib/types';
 import { languageToLocaleMap } from '@/lib/utils';
 import { generateSpeech } from '@/services/tts';
 import { useUserData } from '@/context/UserDataContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getGenerationMetadata, LanguagePackGenerationMetadata, getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import { Badge } from '../ui/badge';
 import BuyTokens from '../BuyTokens';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { ScrollArea } from '../ui/scroll-area';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -81,6 +81,9 @@ export default function OfflineManager() {
   
   const [availableForDownload, setAvailableForDownload] = useState<AvailablePack[]>([]);
   const [isFetchingAvailable, setIsFetchingAvailable] = useState(false);
+  
+  const [isDownloadedOpen, setIsDownloadedOpen] = useState(false);
+  const [isAvailableOpen, setIsAvailableOpen] = useState(false);
   const [isBuyTokensOpen, setIsBuyTokensOpen] = useState(false);
 
   const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
@@ -115,6 +118,7 @@ export default function OfflineManager() {
     
     if (cost !== 'Free' && (userProfile?.tokenBalance || 0) < cost) {
       toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to download this pack.` });
+      setIsAvailableOpen(false); // Close current dialog
       setIsBuyTokensOpen(true);
       return;
     }
@@ -163,7 +167,7 @@ export default function OfflineManager() {
 
       setDownloadedPacks(prev => ({...prev, [lang]: metadata}));
       // Refetch available packs to remove the one just downloaded
-      handleTabChange('available');
+      fetchAvailablePacks();
 
     } catch (error) {
       console.error('Failed to download audio pack:', error);
@@ -314,29 +318,27 @@ export default function OfflineManager() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
-  const handleTabChange = useCallback(async (value: string) => {
-    if (value === 'available') {
-        setIsFetchingAvailable(true);
-        try {
-             const [metadata, freePacks] = await Promise.all([
-                getGenerationMetadata(),
-                getFreeLanguagePacks()
-            ]);
-            
-            const packCost = settings?.languageUnlockCost ?? 100;
-            const completePacks = metadata
-                .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
-                .map(meta => ({
-                    ...meta,
-                    cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
-                }));
-            
-            setAvailableForDownload(completePacks);
-        } catch(e) {
-            toast({variant: 'destructive', title: 'Error', description: 'Could not fetch available packs.'});
-        } finally {
-             setIsFetchingAvailable(false);
-        }
+  const fetchAvailablePacks = useCallback(async () => {
+    setIsFetchingAvailable(true);
+    try {
+        const [metadata, freePacks] = await Promise.all([
+            getGenerationMetadata(),
+            getFreeLanguagePacks()
+        ]);
+        
+        const packCost = settings?.languageUnlockCost ?? 100;
+        const completePacks = metadata
+            .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
+            .map(meta => ({
+                ...meta,
+                cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
+            }));
+        
+        setAvailableForDownload(completePacks);
+    } catch(e) {
+        toast({variant: 'destructive', title: 'Error', description: 'Could not fetch available packs.'});
+    } finally {
+        setIsFetchingAvailable(false);
     }
   }, [settings?.languageUnlockCost, downloadedPacks, toast, userProfile?.unlockedLanguages]);
 
@@ -362,136 +364,163 @@ export default function OfflineManager() {
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
-      <Tabs defaultValue="downloaded" onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="downloaded">Downloaded</TabsTrigger>
-          <TabsTrigger value="available">Available</TabsTrigger>
-          <TabsTrigger value="saved">Saved Phrases</TabsTrigger>
-        </TabsList>
-        <TabsContent value="downloaded" className="mt-4">
-            <div className="space-y-2">
-                {currentlyDownloaded.length > 0 ? currentlyDownloaded.map(langCode => {
-                    const lang = languages.find(l => l.value === langCode)!;
-                    const downloadInfo = downloadedPacks[langCode];
-                    const isDeletingThis = deleting === langCode;
+      
+      <div className="grid grid-cols-2 gap-4">
+        <Dialog open={isDownloadedOpen} onOpenChange={setIsDownloadedOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline">
+                    <Package className="mr-2" />
+                    View Downloaded Packs
+                    <Badge variant="secondary" className="ml-2">{currentlyDownloaded.length}</Badge>
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Downloaded Language Packs</DialogTitle>
+                    <DialogDescription>These packs are available for offline use.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh]">
+                <div className="space-y-2 pr-4 py-2">
+                    {currentlyDownloaded.length > 0 ? currentlyDownloaded.map(langCode => {
+                        const lang = languages.find(l => l.value === langCode)!;
+                        const downloadInfo = downloadedPacks[langCode];
+                        const isDeletingThis = deleting === langCode;
 
-                    return (
-                         <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                            <div className="flex flex-col">
-                                <span>{lang.label}</span>
-                                {downloadInfo && <span className="text-xs text-muted-foreground">{formatBytes(downloadInfo.size)}</span>}
+                        return (
+                            <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                                <div className="flex flex-col">
+                                    <span>{lang.label}</span>
+                                    {downloadInfo && <span className="text-xs text-muted-foreground">{formatBytes(downloadInfo.size)}</span>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
+                                    <Button size="icon" variant="ghost" onClick={() => handleDelete(lang.value as LanguageCode)} disabled={isDeletingThis} aria-label={`Delete offline audio for ${lang.label}`}>
+                                        {isDeletingThis ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
-                                <Button size="icon" variant="ghost" onClick={() => handleDelete(lang.value as LanguageCode)} disabled={isDeletingThis} aria-label={`Delete offline audio for ${lang.label}`}>
-                                    {isDeletingThis ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                                </Button>
-                            </div>
-                        </div>
-                    );
-                }) : <p className="text-center text-sm text-muted-foreground py-4">No language packs downloaded yet.</p>}
-            </div>
-        </TabsContent>
-        <TabsContent value="available" className="mt-4">
-             {isFetchingAvailable ? (
-                <div className="flex items-center justify-center py-8">
-                    <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+                        );
+                    }) : <p className="text-center text-sm text-muted-foreground py-8">No language packs downloaded yet.</p>}
                 </div>
-            ) : (
-                <div className="space-y-2">
-                {availableForDownload.length > 0 ? availableForDownload.map(pack => {
-                    const lang = languages.find(l => l.value === pack.id)!;
-                    const isDownloadingThis = downloading === pack.id;
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
 
-                    return (
-                        <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                            <div className="flex flex-col">
-                                <span>{lang.label}</span>
-                                <span className="text-xs text-muted-foreground">{formatBytes(pack.totalCount * 12000)}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Badge variant={pack.cost === 'Free' ? 'default' : 'secondary'} className="font-bold">
-                                    {pack.cost === 'Free' ? 'Free' : <span className="flex items-center gap-1"><Coins className="h-3 w-3"/>{pack.cost}</span>}
-                                </Badge>
-                                 <Button variant="default" size="sm" onClick={() => handleDownload(lang.value as LanguageCode, pack.cost)} disabled={isDownloadingThis}>
-                                    {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /></> : <><Download className="mr-2 h-4 w-4" /></>}
-                                    Download
-                                </Button>
-                            </div>
-                        </div>
-                    );
-                }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
-                </div>
-            )}
-        </TabsContent>
-        <TabsContent value="saved" className="mt-4">
-             <div className="space-y-2">
-                {savedPhrases.length > 0 && user ? (
-                    <div className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                        <div className="flex flex-col">
-                            <span className="flex items-center gap-1.5 font-medium"><Bookmark className="h-4 w-4 text-primary"/> Your Saved Phrases ({savedPhrases.length})</span>
-                            {isSavedPhrasesDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(savedPhrasesPackInfo.size)}</span>}
-                        </div>
-                        
-                        {isSavedPhrasesDownloaded && !isUpdateAvailable && (
-                            <div className="flex items-center gap-2">
-                                <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
-                                <Button size="icon" variant="ghost" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved} aria-label="Delete offline saved phrases">
-                                    {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                                </Button>
-                            </div>
-                        )}
-                        
-                        {isUpdateAvailable && (
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="secondary" size="sm" disabled={isDownloadingSaved}>
-                                        {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update</>}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Update Saved Phrases?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will re-download the audio for all your saved phrases. This action will cost {savedPhrasesCost} tokens.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        )}
-                        
-                        {!isSavedPhrasesDownloaded && (
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="default" size="sm" disabled={isDownloadingSaved}>
-                                        {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
-                                    </Button>
-                                </AlertDialogTrigger>
-                                 <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Download Saved Phrases?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will download the audio for all {savedPhrases.length} of your saved phrases for offline use. It will use {Math.min(newPhrasesToDownload, freePhrasesLeft)} of your free phrase downloads. The remaining {phrasesToPayFor} phrases will cost {savedPhrasesCost} tokens.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm & Download</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        )}
+        <Dialog open={isAvailableOpen} onOpenChange={setIsAvailableOpen}>
+             <DialogTrigger asChild>
+                <Button variant="outline" onClick={fetchAvailablePacks}>
+                    <ArrowDownToLine className="mr-2" />
+                    Find More Packs
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Available Language Packs</DialogTitle>
+                    <DialogDescription>Download packs for offline audio and practice.</DialogDescription>
+                </DialogHeader>
+                 {isFetchingAvailable ? (
+                    <div className="flex items-center justify-center py-8">
+                        <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
                     </div>
                 ) : (
-                    <p className="text-center text-sm text-muted-foreground py-4">You have no saved phrases to download.</p>
+                    <ScrollArea className="max-h-[60vh]">
+                    <div className="space-y-2 pr-4 py-2">
+                    {availableForDownload.length > 0 ? availableForDownload.map(pack => {
+                        const lang = languages.find(l => l.value === pack.id)!;
+                        const isDownloadingThis = downloading === pack.id;
+
+                        return (
+                            <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                                <div className="flex flex-col">
+                                    <span>{lang.label}</span>
+                                    <span className="text-xs text-muted-foreground">{formatBytes(pack.totalCount * 12000)} (est)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={pack.cost === 'Free' ? 'default' : 'secondary'} className="font-bold">
+                                        {pack.cost === 'Free' ? 'Free' : <span className="flex items-center gap-1"><Coins className="h-3 w-3"/>{pack.cost}</span>}
+                                    </Badge>
+                                    <Button variant="default" size="sm" onClick={() => handleDownload(lang.value as LanguageCode, pack.cost)} disabled={isDownloadingThis}>
+                                        {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /></> : <><Download className="mr-2 h-4 w-4" /></>}
+                                        Download
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    }) : <p className="text-center text-sm text-muted-foreground py-8">All available packs are downloaded.</p>}
+                    </div>
+                    </ScrollArea>
                 )}
-            </div>
-        </TabsContent>
-      </Tabs>
+            </DialogContent>
+        </Dialog>
+      </div>
+
+       <div className="space-y-2 pt-4">
+            <h4 className="font-semibold">My Saved Phrases</h4>
+            {savedPhrases.length > 0 && user ? (
+                <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                    <div className="flex flex-col">
+                        <span className="flex items-center gap-1.5 font-medium"><Bookmark className="h-4 w-4 text-primary"/> Your Saved Phrases ({savedPhrases.length})</span>
+                        {isSavedPhrasesDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(savedPhrasesPackInfo.size)}</span>}
+                    </div>
+                    
+                    {isSavedPhrasesDownloaded && !isUpdateAvailable && (
+                        <div className="flex items-center gap-2">
+                            <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready</span>
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved} aria-label="Delete offline saved phrases">
+                                {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
+                            </Button>
+                        </div>
+                    )}
+                    
+                    {isUpdateAvailable && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="secondary" size="sm" disabled={isDownloadingSaved}>
+                                    {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update</>}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Update Saved Phrases?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will re-download the audio for all your saved phrases. This action will cost {savedPhrasesCost} tokens.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                    
+                    {!isSavedPhrasesDownloaded && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="default" size="sm" disabled={isDownloadingSaved}>
+                                    {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Download Saved Phrases?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will download the audio for all {savedPhrases.length} of your saved phrases for offline use. It will use {Math.min(newPhrasesToDownload, freePhrasesLeft)} of your free phrase downloads. The remaining {phrasesToPayFor} phrases will cost {savedPhrasesCost} tokens.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDownloadSavedPhrases}>Confirm & Download</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                </div>
+            ) : (
+                <p className="text-center text-sm text-muted-foreground py-4">You have no saved phrases to download.</p>
+            )}
+        </div>
+      
       <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
         <DialogContent>
             <DialogHeader>
