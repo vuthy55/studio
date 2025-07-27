@@ -228,13 +228,13 @@ export default function OfflineManager() {
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
-      <Tabs defaultValue="download">
+      <Tabs defaultValue="available">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="download">Download</TabsTrigger>
           <TabsTrigger value="available">Available</TabsTrigger>
+          <TabsTrigger value="downloaded">Downloaded</TabsTrigger>
           <TabsTrigger value="saved">Saved Phrases</TabsTrigger>
         </TabsList>
-        <TabsContent value="download" className="mt-4">
+        <TabsContent value="available" className="mt-4">
             <div className="space-y-2">
             {availableForDownload.length > 0 ? availableForDownload.map(langCode => {
                 const lang = languages.find(l => l.value === langCode)!;
@@ -251,7 +251,7 @@ export default function OfflineManager() {
             }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
             </div>
         </TabsContent>
-        <TabsContent value="available" className="mt-4">
+        <TabsContent value="downloaded" className="mt-4">
             <div className="space-y-2">
                 {currentlyDownloaded.length > 0 ? currentlyDownloaded.map(langCode => {
                     const lang = languages.find(l => l.value === langCode)!;
