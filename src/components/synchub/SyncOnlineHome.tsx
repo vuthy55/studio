@@ -1379,7 +1379,7 @@ export default function SyncOnlineHome() {
                                         <Button type="submit" form="create-room-form" disabled={isSubmitting}>
                                             {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                                             {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                                isEditMode ? `Confirm &amp; Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm &amp; Pay ${calculatedCost} Tokens`
+                                                isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
                                             }
                                         </Button>
                                     )}
