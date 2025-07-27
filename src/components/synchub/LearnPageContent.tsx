@@ -274,13 +274,13 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                             variant="ghost"
                                             onClick={() => setSelectedTopicId(topic.id)}
                                             className={cn(
-                                            'h-auto w-full p-2 transition-all duration-200 flex flex-col items-center justify-center aspect-square',
+                                            'h-auto w-full p-1 transition-all duration-200 flex flex-col items-center justify-center aspect-square',
                                             selectedTopicId === topic.id
                                                 ? 'bg-background text-foreground shadow-sm'
                                                 : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                             )}
                                         >
-                                            <topic.icon className="h-8 w-8 mb-1" />
+                                            <topic.icon className="h-6 w-6" />
                                         </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
@@ -296,10 +296,10 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                                 variant="ghost"
                                                 onClick={() => setActiveTab('live-translation')}
                                                 className={cn(
-                                                    'h-auto w-full p-2 transition-all duration-200 flex flex-col items-center justify-center aspect-square text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                                                    'h-auto w-full p-1 transition-all duration-200 flex flex-col items-center justify-center aspect-square text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                                 )}
                                             >
-                                                <Bookmark className="h-8 w-8 mb-1" />
+                                                <Bookmark className="h-6 w-6" />
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
