@@ -17,9 +17,27 @@ export interface ReferredUser {
  * @returns {Promise<ReferredUser[]>} A list of users referred by the given user.
  */
 export async function getReferredUsers(referrerId: string): Promise<ReferredUser[]> {
-    // Top-level log to ensure the function is even invoked.
     console.log(`[SERVER-DEBUG] getReferredUsers invoked with referrerId: ${referrerId}`);
     
+    // --- DEBUGGING STEP ---
+    // Return a hardcoded array to test if the function is being called at all
+    // and if the data structure is correct on the client.
+    return [
+        {
+            id: 'debug-user-1',
+            name: 'Test Referral One',
+            email: 'test1@example.com',
+            createdAt: new Date().toISOString(),
+        },
+        {
+            id: 'debug-user-2',
+            name: 'Test Referral Two',
+            email: 'test2@example.com',
+            createdAt: new Date().toISOString(),
+        }
+    ];
+
+    /*
     if (!referrerId) {
         console.log("[SERVER-DEBUG] No referrerId provided. Returning empty array.");
         return [];
@@ -62,4 +80,5 @@ export async function getReferredUsers(referrerId: string): Promise<ReferredUser
         // Return empty array on error to prevent client crashes
         return [];
     }
+    */
 }
