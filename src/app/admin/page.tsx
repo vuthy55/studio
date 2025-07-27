@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1705,35 +1705,11 @@ function MessagingContent() {
 
 function AudioPacksContent() {
     const [audioPacks, setAudioPacks] = useState<AudioPackMetadata[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const { toast } = useToast();
     
     const [selectedLanguages, setSelectedLanguages] = useState<LanguageCode[]>([]);
-    
-    useEffect(() => {
-        // Use a real-time listener to automatically get updates
-        const packsRef = collection(db, 'audioPacks');
-        const unsubscribe = onSnapshot(packsRef, (snapshot) => {
-            const packsData = snapshot.docs.map(doc => {
-                const data = doc.data();
-                 return {
-                    ...data,
-                    id: doc.id,
-                } as AudioPackMetadata
-            });
-            setAudioPacks(packsData);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error listening to audio packs:", error);
-            // This is where the permission error would have happened.
-            // By using a server action for the initial fetch, and letting the listener fail gracefully, we are safe.
-            toast({ variant: 'destructive', title: 'Sync Error', description: 'Could not get real-time updates for audio packs.'});
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [toast]);
     
     const fetchPacks = useCallback(async () => {
         setIsLoading(true);
@@ -1761,8 +1737,8 @@ function AudioPacksContent() {
         setIsGenerating(true);
         const result = await generateAndUploadAudioPacks(selectedLanguages);
         if (result.success) {
-            toast({ title: 'Success', description: `Audio pack generation complete for ${selectedLanguages.length} language(s).` });
-            await fetchPacks(); // Refresh the list after generation
+            toast({ title: 'Success', description: `Audio pack generation started for ${selectedLanguages.length} language(s). Click Refresh to see updates.` });
+            await fetchPacks();
             setSelectedLanguages([]);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to generate one or more packs.' });
@@ -1781,7 +1757,7 @@ function AudioPacksContent() {
                 <CardDescription>Generate and verify offline audio packs for each language. These are stored in public Cloud Storage.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="space-y-4">
+                 <div className="space-y-4">
                     <div className="flex items-center gap-2">
                         <Dialog>
                             <DialogTrigger asChild>
