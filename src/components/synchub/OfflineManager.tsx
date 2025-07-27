@@ -146,12 +146,13 @@ export default function OfflineManager() {
             await updateDoc(userDocRef, {
                 unlockedLanguages: arrayUnion(lang)
             });
+            console.log(`[DEBUG] Firestore updated. Added ${lang} to unlockedLanguages for user ${user.uid}`);
         }
       
       if (cost === 'Free') {
         toast({
             title: 'Download Complete!',
-            description: `Offline audio for ${languages.find(l => l.value === lang)?.label} is now available. To support our work, consider donating or referring a friend!`,
+            description: `Offline audio for ${languages.find(l => l.value === lang)?.label} is now available.`,
         });
       } else {
          toast({

@@ -108,15 +108,15 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
      useEffect(() => {
         if (authLoading) {
+            console.log("[DEBUG] Auth state is loading...");
             return;
         }
 
         if (user) {
+            console.log("[DEBUG] User found. Setting up data listeners and checks.");
             isLoggingOut.current = false;
             setIsDataLoading(true);
 
-            // Fetch all possible offline packs once when user logs in.
-            // This ensures all downloaded data is available in memory for offline use.
             const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
             const packPromises = allPackKeys.map(key => getOfflineAudio(key));
             
@@ -129,13 +129,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     }
                  });
                  setOfflineAudioPacks(loadedPacks);
+                 console.log("[DEBUG] Initial offline packs loaded into state:", Object.keys(loadedPacks));
             });
 
-
-            // Set up real-time listener for user profile
             const userDocRef = doc(db, 'users', user.uid);
             profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
                 if (isLoggingOut.current) return;
+                console.log("[DEBUG] User profile snapshot received.");
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
@@ -143,8 +143,10 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
                     // --- Auto-download logic ---
                     if (profileData.unlockedLanguages && profileData.unlockedLanguages.length > 0) {
+                        console.log("[DEBUG] User has unlocked languages:", profileData.unlockedLanguages);
                         const db = await openDB(DB_NAME, 2);
                         const downloadedPackIds = await db.getAllKeys(STORE_NAME);
+                        console.log("[DEBUG] Packs currently in IndexedDB:", downloadedPackIds);
 
                         for (const langCode of profileData.unlockedLanguages) {
                             if (!downloadedPackIds.includes(langCode)) {
@@ -155,20 +157,25 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                                     const metadata: PackMetadata = { id: langCode, size };
                                     await db.put(METADATA_STORE_NAME, metadata);
                                     loadSingleOfflinePack(langCode);
+                                    console.log(`[Auto-Download] Successfully downloaded and stored ${langCode}.`);
                                 } catch (e) {
                                     console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
                                 }
+                            } else {
+                                console.log(`[DEBUG] Language ${langCode} is already downloaded. Skipping.`);
                             }
                         }
+                    } else {
+                        console.log("[DEBUG] User profile has no unlocked languages array or it's empty.");
                     }
                 } else {
+                    console.log("[DEBUG] User document does not exist.");
                     setUserProfile({});
                 }
             }, (error) => {
                 console.error("Error listening to user profile:", error);
             });
 
-            // Set up real-time listener for practice history
             const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
             historyUnsubscribe.current = onSnapshot(historyCollectionRef, (snapshot) => {
                 if (isLoggingOut.current) return;
@@ -184,11 +191,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             });
 
         } else {
+            console.log("[DEBUG] No user found. Clearing local state.");
             clearLocalState();
             setIsDataLoading(false);
         }
         
         return () => {
+             console.log("[DEBUG] Cleanup effect running. Unsubscribing from listeners.");
             if (profileUnsubscribe.current) profileUnsubscribe.current();
             if (historyUnsubscribe.current) historyUnsubscribe.current();
         };
