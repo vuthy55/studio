@@ -1,5 +1,6 @@
 
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -927,7 +928,8 @@ function TokensTabContent() {
             case 'live_sync_online_spend': return 'Sync Online Usage';
             case 'p2p_transfer': return 'Peer Transfer';
             case 'sync_online_refund': return 'Sync Online Refund';
-            default: return 'Unknown Action';
+            case 'language_pack_download': return 'Language Pack Download';
+            default: return 'Prep Your Vibe';
         }
     };
     
@@ -1839,3 +1841,4 @@ export default function AdminPage() {
         </div>
     );
 }
+

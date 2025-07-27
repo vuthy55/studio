@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -267,7 +268,8 @@ export default function UserDetailPage() {
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
             case 'sync_online_refund': return 'Sync Online Refund';
-            default: return 'Unknown Action';
+            case 'language_pack_download': return 'Language Pack Download';
+            default: return 'Prep Your Vibe';
         }
     }
     
@@ -905,3 +907,4 @@ export default function UserDetailPage() {
         </Dialog>
     );
 }
+

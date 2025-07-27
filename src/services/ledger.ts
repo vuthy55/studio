@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
@@ -27,6 +28,7 @@ export interface TokenAnalytics {
     translationSpend: number;
     liveSyncSpend: number;
     liveSyncOnlineSpend: number;
+    languagePackDownload: number;
     totalAwarded: number;
     totalSpent: number;
     totalTokensInSystem: number;
@@ -155,6 +157,7 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
         translationSpend: 0,
         liveSyncSpend: 0,
         liveSyncOnlineSpend: 0,
+        languagePackDownload: 0,
         totalAwarded: 0,
         totalSpent: 0,
         totalTokensInSystem: 0,
@@ -201,12 +204,15 @@ export async function getTokenAnalytics(): Promise<TokenAnalytics> {
                 case 'p2p_transfer':
                     // This is the sender's side, handled by the receiver's positive log to avoid double counting.
                     break;
+                case 'language_pack_download':
+                    analytics.languagePackDownload += Math.abs(log.tokenChange);
+                    break;
              }
         }
     });
 
     analytics.totalAwarded = analytics.signupBonus + analytics.referralBonus + analytics.practiceEarn + analytics.adminIssued;
-    analytics.totalSpent = analytics.translationSpend + analytics.liveSyncSpend + analytics.liveSyncOnlineSpend;
+    analytics.totalSpent = analytics.translationSpend + analytics.liveSyncSpend + analytics.liveSyncOnlineSpend + analytics.languagePackDownload;
     analytics.totalTokensInSystem = analytics.purchased + analytics.totalAwarded;
 
     return analytics;
@@ -272,3 +278,4 @@ export async function getTokenLedger(emailFilter: string = ''): Promise<TokenLed
     throw error;
   }
 }
+

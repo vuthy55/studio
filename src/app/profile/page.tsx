@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -69,7 +70,8 @@ function TokenHistoryDialog() {
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
-            default: return 'Unknown Action';
+            case 'language_pack_download': return 'Language Pack Download';
+            default: return 'Prep Your Vibe';
         }
     }
     
