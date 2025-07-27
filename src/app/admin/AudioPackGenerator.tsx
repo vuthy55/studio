@@ -18,6 +18,8 @@ interface LanguageStatus {
   code: LanguageCode;
   status: GenerationStatus;
   message?: string;
+  generatedCount?: number;
+  totalCount?: number;
 }
 
 export default function AudioPackGenerator() {
@@ -74,7 +76,9 @@ export default function AudioPackGenerator() {
             newStatuses[result.language] = {
                 code: result.language,
                 status: result.success ? 'success' : 'failed',
-                message: result.message
+                message: result.message,
+                generatedCount: result.generatedCount,
+                totalCount: result.totalCount,
             };
         });
         return newStatuses;
@@ -110,7 +114,7 @@ export default function AudioPackGenerator() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Music /> Offline Audio Pack Generator</CardTitle>
         <CardDescription>
-          Select languages to pre-generate their complete audio packs. These packs are stored in Firebase Storage for users to download for offline use.
+          Select languages to pre-generate their complete audio packs. These packs are stored in Firebase Storage for users to download for offline use. Re-generating a pack will overwrite the existing one.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -128,7 +132,11 @@ export default function AudioPackGenerator() {
           </div>
           <Separator />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2">
-            {languages.map(lang => (
+            {languages.map(lang => {
+              const langStatus = statuses[lang.value];
+              const hasProgress = typeof langStatus.generatedCount === 'number' && typeof langStatus.totalCount === 'number';
+
+              return (
               <div key={lang.value} className="flex items-start space-x-2">
                 <Checkbox
                   id={lang.value}
@@ -139,12 +147,20 @@ export default function AudioPackGenerator() {
                 <div className="grid gap-1.5 leading-none">
                     <Label htmlFor={lang.value} className="font-medium cursor-pointer">{lang.label}</Label>
                     <div className="flex items-center gap-1.5">
-                        {renderStatusIcon(statuses[lang.value].status)}
-                        <p className="text-xs text-muted-foreground">{statuses[lang.value].message}</p>
+                        {renderStatusIcon(langStatus.status)}
+                        <div className="text-xs text-muted-foreground">
+                            {hasProgress ? (
+                                <span className={langStatus.status === 'failed' ? 'text-destructive' : ''}>
+                                    {langStatus.generatedCount}/{langStatus.totalCount} generated. {langStatus.message}
+                                </span>
+                            ) : (
+                                <span>{langStatus.message}</span>
+                            )}
+                        </div>
                     </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
         <Button onClick={handleGenerate} disabled={isGenerating || selectedLanguages.length === 0}>

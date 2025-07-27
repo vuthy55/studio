@@ -11,10 +11,28 @@ interface AudioPackResult {
   language: LanguageCode;
   success: boolean;
   message: string;
-  missingPhrases?: string[];
+  generatedCount?: number;
+  totalCount?: number;
 }
 
 const MAX_RETRIES = 3;
+
+// Calculate the total number of audio files required for a full pack
+const calculateTotalAudioFiles = () => {
+    let total = 0;
+    phrasebook.forEach(topic => {
+        topic.phrases.forEach(phrase => {
+            total++; // For the phrase itself
+            if (phrase.answer) {
+                total++; // For the answer
+            }
+        });
+    });
+    return total;
+};
+
+const totalAudioFiles = calculateTotalAudioFiles();
+
 
 /**
  * Generates and stores a complete audio pack for a given language.
@@ -29,7 +47,7 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
   for (const lang of languages) {
     let success = false;
     let finalMessage = '';
-    let missingPhrases: string[] = [];
+    let generatedCount = 0;
     
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       console.log(`[AudioPack] Attempt ${attempt} for language: ${lang}`);
@@ -65,44 +83,49 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
       });
       
       await Promise.all(generationPromises);
+      
+      generatedCount = totalAudioFiles - failedPhrases.length;
 
       if (failedPhrases.length === 0) {
         // Successfully generated all audio, save to storage
         try {
           const fileName = `audio-packs/${lang}.json`;
           const file = bucket.file(fileName);
+          // Saving the file will overwrite any existing file with the same name.
           await file.save(JSON.stringify(audioPack), {
             contentType: 'application/json',
-            // Set cache control for public read access if needed
-            // public: true,
-            // metadata: { cacheControl: 'public, max-age=31536000' }
           });
           
-          finalMessage = `Successfully generated and saved pack to ${fileName}.`;
+          finalMessage = `Success!`;
           success = true;
-          missingPhrases = [];
           console.log(`[AudioPack] Success for ${lang} on attempt ${attempt}.`);
           break; // Exit retry loop
         } catch (storageError) {
           console.error(`[AudioPack] Firebase Storage error for ${lang}:`, storageError);
-          finalMessage = 'Failed to save the generated pack to storage.';
-          missingPhrases = []; // Storage error, not a generation error
+          finalMessage = 'Failed to save to storage.';
+          success = false;
           break; // Don't retry on storage failure
         }
       } else {
         // Some phrases failed, prepare for next attempt or final failure
-        finalMessage = `Attempt ${attempt} failed. Missing ${failedPhrases.length} audio files.`;
-        missingPhrases = failedPhrases;
+        finalMessage = `Attempt ${attempt} failed. Retrying...`;
         if (attempt < MAX_RETRIES) {
           console.log(`[AudioPack] Retrying for ${lang}...`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retrying
         } else {
+           finalMessage = `Failed after ${MAX_RETRIES} attempts.`;
            console.error(`[AudioPack] Final failure for ${lang} after ${MAX_RETRIES} attempts.`);
         }
       }
     }
     
-    results.push({ language: lang, success, message: finalMessage, missingPhrases });
+    results.push({ 
+        language: lang, 
+        success, 
+        message: finalMessage, 
+        generatedCount, 
+        totalCount: totalAudioFiles 
+    });
   }
 
   return results;
