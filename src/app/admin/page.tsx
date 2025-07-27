@@ -1,6 +1,5 @@
 
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -13,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -1344,8 +1343,9 @@ function RoomsTabContent() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex justify-between items-center">
-            <Button onClick={handleFetchRooms} disabled={isLoading}>
-                {isLoading ? <LoaderCircle className="animate-spin" /> : 'Fetch All Rooms'}
+             <Button onClick={handleFetchRooms} disabled={isLoading}>
+                {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
+                {rooms.length > 0 ? 'Refresh List' : 'Fetch All Rooms'}
             </Button>
             {selectedRoomIds.length > 0 && (
                 <AlertDialog>
