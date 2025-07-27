@@ -41,7 +41,7 @@ import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
 import { languages as allAppLanguages, phrasebook, type Topic, type LanguageCode } from '@/lib/data';
-import { generateAndUploadAudioPacks, type AudioPackMetadata } from '@/actions/audio';
+import { generateAndUploadAudioPacks, getAudioPacks, type AudioPackMetadata } from '@/actions/audio';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 
@@ -1705,21 +1705,48 @@ function MessagingContent() {
 
 function AudioPacksContent() {
     const [audioPacks, setAudioPacks] = useState<AudioPackMetadata[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const { toast } = useToast();
     
     const [selectedLanguages, setSelectedLanguages] = useState<LanguageCode[]>([]);
+    
+    useEffect(() => {
+        // Use a real-time listener to automatically get updates
+        const packsRef = collection(db, 'audioPacks');
+        const unsubscribe = onSnapshot(packsRef, (snapshot) => {
+            const packsData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                 return {
+                    ...data,
+                    id: doc.id,
+                } as AudioPackMetadata
+            });
+            setAudioPacks(packsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error listening to audio packs:", error);
+            // This is where the permission error would have happened.
+            // By using a server action for the initial fetch, and letting the listener fail gracefully, we are safe.
+            toast({ variant: 'destructive', title: 'Sync Error', description: 'Could not get real-time updates for audio packs.'});
+            setIsLoading(false);
+        });
 
+        return () => unsubscribe();
+    }, [toast]);
+    
     const fetchPacks = useCallback(async () => {
         setIsLoading(true);
-        const packsRef = collection(db, 'audioPacks');
-        const snapshot = await getDocs(packsRef);
-        const packsData = snapshot.docs.map(doc => doc.data() as AudioPackMetadata);
-        setAudioPacks(packsData);
-        setIsLoading(false);
-    }, []);
-    
+        try {
+            const packsData = await getAudioPacks();
+            setAudioPacks(packsData);
+        } catch(e) {
+            toast({variant: 'destructive', title: 'Error', description: 'Could not fetch pack statuses.'});
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
     const handleSelectLanguage = (langCode: LanguageCode, checked: boolean) => {
         setSelectedLanguages(prev => 
             checked ? [...prev, langCode] : prev.filter(l => l !== langCode)
@@ -1807,7 +1834,11 @@ function AudioPacksContent() {
                 </div>
                 
                 <Accordion type="single" collapsible className="w-full mt-6">
-                    {audioPacks.length > 0 ? (
+                    {isLoading ? (
+                        <div className="flex justify-center items-center py-8">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : audioPacks.length > 0 ? (
                         audioPacks.map(langPack => {
                             const isComplete = Object.values(langPack.topicStats).every(t => t.generatedAudio === t.totalPhrases);
                             return (
@@ -1822,7 +1853,7 @@ function AudioPacksContent() {
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-4">
                                     <div className="text-xs text-muted-foreground space-y-1">
-                                        <p>Last Updated: {langPack.updatedAt ? format(langPack.updatedAt.toDate(), 'PPpp') : 'N/A'}</p>
+                                        <p>Last Updated: {langPack.updatedAt ? format((langPack.updatedAt as any).toDate(), 'PPpp') : 'N/A'}</p>
                                         <p>Size: {new Intl.NumberFormat().format(langPack.size)} bytes</p>
                                         <a href={langPack.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
                                             Download Link <ExternalLink className="h-3 w-3" />

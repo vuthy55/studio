@@ -6,6 +6,8 @@ import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { db, storage } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import type { UserProfile } from '@/lib/types';
+
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
@@ -29,6 +31,29 @@ export interface AudioPackMetadata {
     updatedAt: FieldValue;
     topicStats: Record<string, TopicStats>;
 }
+
+
+/**
+ * Retrieves the metadata for all generated audio packs.
+ * This is a secure server action for admin use.
+ */
+export async function getAudioPacks(): Promise<AudioPackMetadata[]> {
+    const packsRef = db.collection('audioPacks');
+    const snapshot = await packsRef.get();
+    if (snapshot.empty) {
+        return [];
+    }
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            ...data,
+            id: doc.id,
+            // Ensure timestamp is converted if needed, though client-side onSnapshot will handle it.
+            updatedAt: data.updatedAt
+        } as AudioPackMetadata
+    });
+}
+
 
 /**
  * Generates audio packs for a given list of languages, uploads them to Cloud Storage,
