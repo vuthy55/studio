@@ -6,6 +6,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 interface AudioPackResult {
   language: LanguageCode;
@@ -19,9 +20,21 @@ export interface LanguagePackMetadata {
     id: LanguageCode;
     name: string;
     size: number;
+    // User-facing metadata for download list
 }
 
+export interface LanguagePackGenerationMetadata {
+    id: LanguageCode;
+    name: string;
+    generatedCount: number;
+    totalCount: number;
+    lastGeneratedAt: string; // ISO String
+}
+
+
 const MAX_RETRIES = 3;
+const METADATA_FOLDER = 'audio-packs-metadata';
+
 
 // Calculate the total number of audio files required for a full pack
 const calculateTotalAudioFiles = () => {
@@ -38,6 +51,48 @@ const calculateTotalAudioFiles = () => {
 };
 
 const totalAudioFiles = calculateTotalAudioFiles();
+
+
+/**
+ * Saves generation metadata to Firebase Storage.
+ */
+async function saveGenerationMetadata(bucket: any, metadata: LanguagePackGenerationMetadata) {
+    const fileName = `${METADATA_FOLDER}/${metadata.id}.json`;
+    const file = bucket.file(fileName);
+    await file.save(JSON.stringify(metadata), {
+        contentType: 'application/json',
+    });
+}
+
+/**
+ * Fetches all generation metadata files from Firebase Storage.
+ */
+export async function getGenerationMetadata(): Promise<LanguagePackGenerationMetadata[]> {
+    try {
+        const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+        const [files] = await bucket.getFiles({ prefix: `${METADATA_FOLDER}/` });
+        
+        const metadataPromises = files.map(async (file) => {
+            // Skip directory placeholders
+            if (file.name.endsWith('/')) return null;
+            
+            const [contents] = await file.download();
+            try {
+                return JSON.parse(contents.toString());
+            } catch (e) {
+                console.error(`Failed to parse metadata for ${file.name}:`, e);
+                return null;
+            }
+        });
+
+        const allMetadata = (await Promise.all(metadataPromises)).filter(Boolean);
+        return allMetadata as LanguagePackGenerationMetadata[];
+
+    } catch (error) {
+        console.error("Error fetching generation metadata:", error);
+        return [];
+    }
+}
 
 
 /**
@@ -125,6 +180,16 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
       }
     }
     
+    // Always save metadata, regardless of success or failure
+    const langInfo = phrasebook.find(p => p.id === 'greetings')?.phrases.find(ph => ph.id === 'g-1')?.translations[lang];
+    await saveGenerationMetadata(bucket, {
+        id: lang,
+        name: langInfo || lang,
+        generatedCount,
+        totalCount: totalAudioFiles,
+        lastGeneratedAt: new Date().toISOString(),
+    });
+
     results.push({ 
         language: lang, 
         success, 
