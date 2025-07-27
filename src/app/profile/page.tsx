@@ -748,7 +748,6 @@ function ReferralsSection() {
     const { toast } = useToast();
     const [referrals, setReferrals] = useState<ReferredUser[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [hasFetched, setHasFetched] = useState(false);
 
     const copyReferralLink = () => {
         if (user?.uid && typeof window !== 'undefined') {
@@ -759,7 +758,7 @@ function ReferralsSection() {
     };
 
     const fetchReferrals = useCallback(async () => {
-        if (!user || hasFetched) return;
+        if (!user) return;
         setIsLoading(true);
         try {
             const referredUsers = await getReferredUsers(user.uid);
@@ -769,9 +768,12 @@ function ReferralsSection() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load your referrals.' });
         } finally {
             setIsLoading(false);
-            setHasFetched(true);
         }
-    }, [user, hasFetched, toast]);
+    }, [user, toast]);
+    
+    useEffect(() => {
+        fetchReferrals();
+    }, [fetchReferrals]);
     
     return (
         <div className="space-y-6">
@@ -791,22 +793,22 @@ function ReferralsSection() {
             </Card>
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><UsersIcon /> Referred Users</CardTitle>
-                    <CardDescription>A list of users who have signed up using your link.</CardDescription>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle className="flex items-center gap-2"><UsersIcon /> Referred Users</CardTitle>
+                            <CardDescription>A list of users who have signed up using your link.</CardDescription>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={fetchReferrals} disabled={isLoading}>
+                            <RefreshCw className={isLoading ? "animate-spin" : ""} />
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
-                     <Button onClick={fetchReferrals} disabled={isLoading || hasFetched} className="mb-4">
-                        {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        {hasFetched ? 'Referrals Loaded' : 'Load My Referrals'}
-                    </Button>
-                    
-                    {isLoading && !hasFetched && (
+                    {isLoading ? (
                         <div className="flex justify-center items-center py-8">
                             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                         </div>
-                    )}
-
-                    {hasFetched && (
+                    ) : (
                          <div className="border rounded-md min-h-[200px]">
                             <Table>
                                 <TableHeader>
