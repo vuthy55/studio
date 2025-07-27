@@ -15,6 +15,12 @@ interface AudioPackResult {
   totalCount?: number;
 }
 
+export interface LanguagePackMetadata {
+    id: LanguageCode;
+    name: string;
+    size: number;
+}
+
 const MAX_RETRIES = 3;
 
 // Calculate the total number of audio files required for a full pack
@@ -129,4 +135,30 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
   }
 
   return results;
+}
+
+
+const freePacksDocRef = db.collection('settings').doc('freeLanguagePacks');
+
+export async function getFreeLanguagePacks(): Promise<LanguageCode[]> {
+    try {
+        const docSnap = await freePacksDocRef.get();
+        if (docSnap.exists) {
+            return docSnap.data()?.codes || [];
+        }
+        return [];
+    } catch (error) {
+        console.error("Error getting free language packs:", error);
+        return [];
+    }
+}
+
+export async function setFreeLanguagePacks(codes: LanguageCode[]): Promise<{success: boolean, error?: string}> {
+    try {
+        await freePacksDocRef.set({ codes });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error setting free language packs:", error);
+        return { success: false, error: 'Failed to update free packs list.' };
+    }
 }

@@ -94,7 +94,7 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;

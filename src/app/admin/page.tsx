@@ -41,6 +41,7 @@ import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
 import AudioPackGenerator from './AudioPackGenerator';
+import FreeLanguagePacksManager from './FreeLanguagePacksManager';
 
 
 interface UserWithId extends UserProfile {
@@ -348,6 +349,11 @@ function SettingsTabContent() {
                             <Label htmlFor="summaryTranslationCost" className="flex items-center gap-1.5"><Languages/> Summary Translation Cost</Label>
                             <Input id="summaryTranslationCost" type="number" value={settings.summaryTranslationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
                             <p className="text-sm text-muted-foreground">Token cost to translate a summary into one language.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="languagePackCost" className="flex items-center gap-1.5"><Download/> Language Pack Cost</Label>
+                            <Input id="languagePackCost" type="number" value={settings.languagePackCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                            <p className="text-sm text-muted-foreground">Token cost to download one language pack for offline use.</p>
                         </div>
                     </div>
                  </div>
@@ -1701,6 +1707,33 @@ function MessagingContent() {
     );
 }
 
+function LanguagePacksTabContent() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Language Packs</CardTitle>
+                <CardDescription>
+                    Manage offline language packs. Generate new packs and set which ones are free for users to download.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Tabs defaultValue="generate">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="generate">Generate</TabsTrigger>
+                        <TabsTrigger value="free-packs">Free Language Packs</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="generate" className="mt-4">
+                        <AudioPackGenerator />
+                    </TabsContent>
+                    <TabsContent value="free-packs" className="mt-4">
+                        <FreeLanguagePacksManager />
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+    )
+}
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -1739,7 +1772,7 @@ export default function AdminPage() {
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
-        { value: 'audio-packs', label: 'Audio Packs', icon: Music },
+        { value: 'language-packs', label: 'Language Packs', icon: Music },
         { value: 'bulk-actions', label: 'Bulk Actions', icon: Trash2 },
         { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
     ];
@@ -1792,8 +1825,8 @@ export default function AdminPage() {
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
                 </TabsContent>
-                <TabsContent value="audio-packs" className="mt-6">
-                    <AudioPackGenerator />
+                <TabsContent value="language-packs" className="mt-6">
+                    <LanguagePacksTabContent />
                 </TabsContent>
                  <TabsContent value="bulk-actions" className="mt-6">
                     <BulkActionsContent />
