@@ -21,6 +21,11 @@ export const languages = [
 
 export type LanguageCode = typeof languages[number]['value'];
 
+// This list controls which language packs are available for download by users.
+// Add a language code here after generating its pack in the admin panel.
+export const offlineAudioPackLanguages: LanguageCode[] = ['khmer', 'chinese'];
+
+
 type TranslatableText = {
     english: string;
     translations: Partial<Record<LanguageCode, string>>;

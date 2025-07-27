@@ -7,7 +7,7 @@ import type { IDBPDatabase } from 'idb';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getLanguageAudioPack, type AudioPack } from '@/actions/audio';
-import { languages, type LanguageCode } from '@/lib/data';
+import { languages, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw } from 'lucide-react';
 import useLocalStorage from '@/hooks/use-local-storage';
 import type { SavedPhrase } from '@/lib/types';
@@ -213,9 +213,8 @@ export default function OfflineManager() {
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
   }
-
-  const offlineReadyLanguages = ['khmer'];
-  const availableForDownload = offlineReadyLanguages.filter(langCode => !downloadedPacks[langCode]);
+  
+  const availableForDownload = offlineAudioPackLanguages.filter(langCode => !downloadedPacks[langCode]);
   const currentlyDownloaded = Object.keys(downloadedPacks).filter(p => p !== SAVED_PHRASES_KEY);
 
   const savedPhrasesPackInfo = downloadedPacks[SAVED_PHRASES_KEY];
