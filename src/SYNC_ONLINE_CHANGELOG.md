@@ -14,3 +14,4 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
 
 
+
