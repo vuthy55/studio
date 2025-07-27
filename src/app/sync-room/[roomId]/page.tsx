@@ -135,49 +135,6 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
 }
 
 
-// Moved outside the component to stabilize its reference
-const setupMessageListener = (
-    roomId: string, 
-    joinTimestamp: Timestamp,
-    setMessagesLoading: (loading: boolean) => void,
-    setMessages: (updater: (prev: RoomMessage[]) => RoomMessage[]) => void,
-    toast: (options: any) => void
-): (() => void) => {
-
-    console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
-    setMessagesLoading(true);
-    const messagesQuery = query(
-        collection(db, 'syncRooms', roomId, 'messages'),
-        orderBy("createdAt"),
-        where("createdAt", ">=", joinTimestamp)
-    );
-
-    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-        console.log(`[DEBUG] setupMessageListener: Snapshot received with ${snapshot.docChanges().length} changes.`);
-        const newMessages: RoomMessage[] = [];
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-            }
-        });
-
-        if (newMessages.length > 0) {
-             setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a,b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
-        }
-        setMessagesLoading(false);
-    }, (error) => {
-        console.error("[DEBUG] setupMessageListener: Firestore error!", error);
-        setMessagesLoading(false);
-        if (error.code === 'permission-denied') {
-            toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
-        } else {
-            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
-        }
-    });
-
-    return unsubscribe;
-};
-
 export default function SyncRoomPage() {
     const params = useParams();
     const router = useRouter();
@@ -213,6 +170,7 @@ export default function SyncRoomPage() {
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const joinTimestampRef = useRef<Timestamp | null>(null);
 
     const isExiting = useRef(false);
 
@@ -276,15 +234,9 @@ export default function SyncRoomPage() {
     }, [roomData]);
 
     const onJoinSuccess = useCallback((joinTime: Timestamp) => {
-        if (messageListenerUnsubscribe.current) {
-            console.log("[DEBUG] onJoinSuccess aborted: a message listener is already active.");
-            return;
-        }
-        console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
         setIsParticipant('yes');
+        joinTimestampRef.current = joinTime;
         sessionStartTime.current = Date.now();
-        
-        messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
 
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = setInterval(() => {
@@ -309,10 +261,7 @@ export default function SyncRoomPage() {
             timerIntervalRef.current = null;
         }
 
-        console.log("[DEBUG] Exit: Exiting process started.");
-
         if (messageListenerUnsubscribe.current) {
-            console.log("[DEBUG] Exit: Unsubscribing from message listener.");
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
@@ -320,16 +269,12 @@ export default function SyncRoomPage() {
         try {
             if (sessionStartTime.current) {
                 const sessionDurationMs = Date.now() - sessionStartTime.current;
-                console.log(`[DEBUG] Exit: Session duration: ${sessionDurationMs}ms. Calling handleSyncOnlineSessionEnd.`);
                 await handleSyncOnlineSessionEnd(sessionDurationMs);
                 sessionStartTime.current = null;
-            } else {
-                 console.log("[DEBUG] Exit: No session start time found, skipping billing.");
             }
             
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
-            console.log("[DEBUG] Exit: Participant document deleted.");
         } catch (error) {
             console.error("Error leaving room:", error);
         }
@@ -344,21 +289,17 @@ export default function SyncRoomPage() {
     useEffect(() => {
         if (!user || roomLoading) return;
         
-        console.log("[DEBUG] Participant Listener: Setting up...");
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
-            console.log(`[DEBUG] Participant Listener: Snapshot received. Found ${parts.length} participants.`);
             setParticipants(parts);
             setParticipantsLoading(false);
             
             if (isParticipant === 'unknown') {
                 const self = parts.find(p => p.uid === user.uid);
                 if (self && self.joinedAt) {
-                     console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.`);
                      onJoinSuccess(self.joinedAt);
                 } else if (!self) {
-                     console.log(`[DEBUG] Participant Listener: Current user is NOT yet a participant.`);
                      setIsParticipant('no');
                 }
             }
@@ -368,11 +309,51 @@ export default function SyncRoomPage() {
         });
 
         return () => {
-            console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
     }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
     
+     useEffect(() => {
+        if (isParticipant !== 'yes' || !joinTimestampRef.current || messageListenerUnsubscribe.current) {
+            return;
+        }
+
+        setMessagesLoading(true);
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'),
+            orderBy("createdAt"),
+            where("createdAt", ">=", joinTimestampRef.current)
+        );
+
+        messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+
+            if (newMessages.length > 0) {
+                 setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a,b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
+            }
+            setMessagesLoading(false);
+        }, (error) => {
+            console.error("[DEBUG] Message Listener: Firestore error!", error);
+            setMessagesLoading(false);
+             if (error.code === 'permission-denied') {
+                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
+            } else {
+                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
+            }
+        });
+
+        return () => {
+            if (messageListenerUnsubscribe.current) {
+                messageListenerUnsubscribe.current();
+                messageListenerUnsubscribe.current = null;
+            }
+        }
+    }, [isParticipant, roomId, toast]);
     
     useEffect(() => {
         if (currentUserParticipant?.isMuted) {
@@ -392,7 +373,6 @@ export default function SyncRoomPage() {
         const isStillParticipant = participants.some(p => p.uid === user.uid);
         
         if (isParticipant === 'yes' && !isStillParticipant) {
-             console.log('[DEBUG] User is no longer in participant list. Exiting.');
              toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -497,15 +477,12 @@ export default function SyncRoomPage() {
     }, [handleExitRoom]);
 
     const handleEndMeeting = async () => {
-        console.log('[DEBUG] handleEndMeeting called.');
         if (!isCurrentUserEmcee) {
-             console.log(`[DEBUG] handleEndMeeting aborted. isEmcee: ${isCurrentUserEmcee}`);
              return;
         }
         try {
             await handleExitRoom();
             const result = await softDeleteRoom(roomId);
-            console.log('[DEBUG] softDeleteRoom result:', result);
             if (result.success) {
                 router.push('/?tab=sync-online');
             } else {
