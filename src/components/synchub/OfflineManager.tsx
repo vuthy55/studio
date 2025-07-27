@@ -13,8 +13,7 @@ import type { SavedPhrase } from '@/lib/types';
 import { languageToLocaleMap } from '@/lib/utils';
 import { generateSpeech } from '@/services/tts';
 import { useUserData } from '@/context/UserDataContext';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, onSnapshot } from 'firebase/firestore';
+import { getAudioPacks, type AudioPackMetadata } from '@/actions/audio';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -26,14 +25,6 @@ type AudioPack = {
   [phraseId: string]: string;
 };
 
-interface AudioPackMetadata {
-  id: string;
-  language: string;
-  downloadUrl: string;
-  size: number;
-  updatedAt: any;
-  topicStats: Record<string, { totalPhrases: number; generatedAudio: number }>;
-}
 
 async function getDb(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, DB_VERSION, {
@@ -72,6 +63,7 @@ export default function OfflineManager() {
   
   const [availablePacks, setAvailablePacks] = useState<AudioPackMetadata[]>([]);
   const [downloadedPacks, setDownloadedPacks] = useState<string[]>([]);
+  const [isFetchingAvailablePacks, setIsFetchingAvailablePacks] = useState(false);
 
   const [isDownloadListOpen, setIsDownloadListOpen] = useState(false);
   const [isAvailableListOpen, setIsAvailableListOpen] = useState(false);
@@ -91,16 +83,22 @@ export default function OfflineManager() {
     }
   }, []);
 
+  const fetchAvailablePacks = useCallback(async () => {
+    setIsFetchingAvailablePacks(true);
+    try {
+        const packs = await getAudioPacks();
+        setAvailablePacks(packs);
+        setIsDownloadListOpen(true);
+    } catch (e) {
+        console.error("Error fetching available packs:", e);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch available language packs from the server.' });
+    } finally {
+        setIsFetchingAvailablePacks(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     checkForDownloadedPacks();
-
-    const packsRef = collection(db, 'audioPacks');
-    const unsubscribe = onSnapshot(packsRef, (snapshot) => {
-        const packs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AudioPackMetadata));
-        setAvailablePacks(packs);
-    });
-
-    return () => unsubscribe();
   }, [checkForDownloadedPacks]);
 
 
@@ -198,12 +196,12 @@ export default function OfflineManager() {
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Content Management</h4>
        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <Button variant="outline" onClick={() => setIsDownloadListOpen(prev => !prev)} className="justify-between">
-                Download Packages ({packsToDownload.length})
-                <ChevronDown className={`h-4 w-4 transition-transform ${isDownloadListOpen ? 'rotate-180' : ''}`} />
+            <Button variant="outline" onClick={fetchAvailablePacks} disabled={isFetchingAvailablePacks} className="justify-between">
+                 {isFetchingAvailablePacks ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}
+                Download Packages
             </Button>
             <Button variant="outline" onClick={() => setIsAvailableListOpen(prev => !prev)} className="justify-between">
-                Available Offline ({downloadedPacks.length})
+                <span><PackageCheck className="mr-2 h-4 w-4 inline-block"/>Available Offline ({downloadedPacks.length})</span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${isAvailableListOpen ? 'rotate-180' : ''}`} />
             </Button>
             <Button 
@@ -222,6 +220,7 @@ export default function OfflineManager() {
 
         {isDownloadListOpen && (
             <div className="space-y-2 pt-2 border-t">
+                <h5 className="font-semibold text-sm">Available to Download</h5>
                 {packsToDownload.length > 0 ? packsToDownload.map(pack => (
                     <div key={pack.id} className="flex justify-between items-center p-2 rounded-md bg-muted/50">
                         <span>{pack.language} ({formatBytes(pack.size)})</span>
@@ -235,6 +234,7 @@ export default function OfflineManager() {
 
         {isAvailableListOpen && (
              <div className="space-y-2 pt-2 border-t">
+                <h5 className="font-semibold text-sm">Downloaded &amp; Ready Offline</h5>
                 {downloadedPacks.length > 0 ? downloadedPacks.map(packId => {
                     const lang = languages.find(l => l.value === packId);
                     const name = packId === SAVED_PHRASES_KEY ? 'Your Saved Phrases' : lang?.label;
