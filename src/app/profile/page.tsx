@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
-import { getReferredUsers, type ReferredUser } from '@/actions/referrals';
+import { getReferredUsers2, type ReferredUser } from '@/actions/referrals2';
 
 
 export interface PracticeStats {
@@ -762,15 +762,15 @@ function ReferralsSection() {
         if (!user) return;
         console.log(`[CLIENT DEBUG] Fetching referrals for user ID: ${user.uid}`);
         setIsLoading(true);
+        setHasFetched(true);
         try {
-            const referredUsers = await getReferredUsers(user.uid);
+            const referredUsers = await getReferredUsers2(user.uid);
             setReferrals(referredUsers);
         } catch (error) {
             console.error("Error fetching referrals:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load your referrals.' });
         } finally {
             setIsLoading(false);
-            setHasFetched(true);
         }
     }, [user, toast]);
 
