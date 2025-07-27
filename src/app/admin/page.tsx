@@ -41,7 +41,8 @@ import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
 import { languages as allAppLanguages, phrasebook, type Topic, type LanguageCode } from '@/lib/data';
-import { generateAndUploadAudioPack, type AudioPackMetadata } from '@/actions/audio';
+import { generateAndUploadAudioPacks, type AudioPackMetadata } from '@/actions/audio';
+import { ScrollArea } from '../ui/scroll-area';
 
 
 interface UserWithId extends UserProfile {
@@ -1705,8 +1706,10 @@ function MessagingContent() {
 function AudioPacksContent() {
     const [audioPacks, setAudioPacks] = useState<AudioPackMetadata[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isGenerating, setIsGenerating] = useState<LanguageCode | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
     const { toast } = useToast();
+    
+    const [selectedLanguages, setSelectedLanguages] = useState<LanguageCode[]>([]);
 
     const fetchPacks = useCallback(async () => {
         const packsRef = collection(db, 'audioPacks');
@@ -1719,17 +1722,28 @@ function AudioPacksContent() {
     useEffect(() => {
         fetchPacks();
     }, [fetchPacks]);
+    
+    const handleSelectLanguage = (langCode: LanguageCode, checked: boolean) => {
+        setSelectedLanguages(prev => 
+            checked ? [...prev, langCode] : prev.filter(l => l !== langCode)
+        );
+    };
 
-    const handleGeneratePack = async (langCode: LanguageCode) => {
-        setIsGenerating(langCode);
-        const result = await generateAndUploadAudioPack(langCode);
-        if (result.success) {
-            toast({ title: 'Success', description: `Audio pack for ${langCode} has been generated and uploaded.` });
-            await fetchPacks();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to generate pack.' });
+    const handleGeneratePacks = async () => {
+        if (selectedLanguages.length === 0) {
+            toast({ variant: 'destructive', title: 'No Languages Selected', description: 'Please select one or more languages to generate.' });
+            return;
         }
-        setIsGenerating(null);
+        setIsGenerating(true);
+        const result = await generateAndUploadAudioPacks(selectedLanguages);
+        if (result.success) {
+            toast({ title: 'Success', description: `Audio pack generation complete for ${selectedLanguages.length} language(s).` });
+            await fetchPacks();
+            setSelectedLanguages([]);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to generate one or more packs.' });
+        }
+        setIsGenerating(false);
     };
 
     const getPackForLanguage = (langCode: LanguageCode) => {
@@ -1747,7 +1761,47 @@ function AudioPacksContent() {
                 <CardDescription>Generate and verify offline audio packs for each language. These are stored in public Cloud Storage.</CardDescription>
             </CardHeader>
             <CardContent>
-                <Accordion type="single" collapsible className="w-full">
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button><PlusCircle className="mr-2"/> Generate/Update Packs</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>Generate Audio Packs</DialogTitle>
+                            <DialogDescription>
+                                Select the languages you want to generate or update. This will overwrite any existing packs for the selected languages.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <ScrollArea className="h-72 border rounded-md">
+                                <div className="p-4 space-y-2">
+                                {allAppLanguages.map(lang => (
+                                    <div key={lang.value} className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={`lang-check-${lang.value}`}
+                                            checked={selectedLanguages.includes(lang.value)}
+                                            onCheckedChange={(checked) => handleSelectLanguage(lang.value, !!checked)}
+                                        />
+                                        <Label htmlFor={`lang-check-${lang.value}`} className="w-full flex justify-between items-center">
+                                            <span>{lang.label}</span>
+                                            {getPackForLanguage(lang.value) && <Badge variant="secondary">Existing</Badge>}
+                                        </Label>
+                                    </div>
+                                ))}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                            <Button onClick={handleGeneratePacks} disabled={isGenerating || selectedLanguages.length === 0}>
+                                {isGenerating && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                {isGenerating ? 'Generating...' : `Generate (${selectedLanguages.length})`}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                
+                <Accordion type="single" collapsible className="w-full mt-6">
                     {allAppLanguages.map(lang => {
                          const pack = getPackForLanguage(lang.value);
                          const isComplete = pack && Object.values(pack.topicStats).every(t => t.generatedAudio === t.totalPhrases);
@@ -1801,10 +1855,6 @@ function AudioPacksContent() {
                                         })}
                                     </TableBody>
                                 </Table>
-                                <Button onClick={() => handleGeneratePack(lang.value)} disabled={isGenerating !== null}>
-                                    {isGenerating === lang.value ? <LoaderCircle className="animate-spin mr-2" /> : <UploadCloud className="mr-2" />}
-                                    {isGenerating === lang.value ? 'Generating...' : (pack ? 'Regenerate & Upload' : 'Generate & Upload')}
-                                </Button>
                             </AccordionContent>
                         </AccordionItem>
                     )})}
