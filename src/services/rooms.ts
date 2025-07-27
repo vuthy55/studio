@@ -38,11 +38,22 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
     const rooms = snapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
 
-        // Helper to safely convert a Firestore Timestamp to an ISO string
+        // Helper to safely convert a Firestore Timestamp (in any of its forms) to an ISO string
         const toISO = (ts: any): string | undefined => {
-            if (ts && ts instanceof Timestamp) {
+            if (!ts) return undefined;
+            // Case 1: It's already an ISO string
+            if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) {
+                return ts;
+            }
+            // Case 2: It's a Firestore Timestamp object
+            if (ts instanceof Timestamp) {
                 return ts.toDate().toISOString();
             }
+             // Case 3: It's a plain object with seconds/nanoseconds (from client-side conversion)
+            if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
+                return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+            }
+            // If none of the above, we can't convert it.
             return undefined;
         };
         
