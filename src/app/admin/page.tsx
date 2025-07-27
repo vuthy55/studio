@@ -43,6 +43,7 @@ import MarketingRelease from '@/components/marketing/MarketingRelease';
 import { languages as allAppLanguages, phrasebook, type Topic, type LanguageCode } from '@/lib/data';
 import { generateAndUploadAudioPacks, getAudioPacks, type AudioPackMetadata } from '@/actions/audio';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 
 interface UserWithId extends UserProfile {
@@ -1803,7 +1804,7 @@ function AudioPacksContent() {
                             Refresh Status
                         </Button>
                     </div>
-                    <div className="text-sm text-muted-foreground space-y-2 border-l-4 pl-4 py-2">
+                     <div className="text-sm text-muted-foreground space-y-2 border-l-4 pl-4 py-2">
                         <p><strong className="text-foreground">Step 1:</strong> Click "Generate/Update Packs", select the languages you need, and start the generation. This may take some time.</p>
                         <p><strong className="text-foreground">Step 2:</strong> After generation is complete, click "Refresh Status" to view a detailed report of the generated packs below.</p>
                     </div>
@@ -1828,10 +1829,17 @@ function AudioPacksContent() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-4">
-                                     {!isComplete && (
-                                        <p className="text-sm text-destructive font-semibold p-2 bg-destructive/10 rounded-md">
-                                            This pack is incomplete. To fix, please re-run the generation for this language using the "Generate/Update Packs" button above.
-                                        </p>
+                                    {!isComplete && (
+                                        <Alert variant="destructive">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            <AlertTitle>Generation Incomplete</AlertTitle>
+                                            <AlertDescription className="space-y-2">
+                                                <p>To fix, please re-run the generation for this language. If the problem persists, check the server logs for the following errors:</p>
+                                                <ul className="list-disc pl-5 text-xs">
+                                                    {(langPack.errors || []).map((err, i) => <li key={i}>{err}</li>)}
+                                                </ul>
+                                            </AlertDescription>
+                                        </Alert>
                                     )}
                                     <div className="text-xs text-muted-foreground space-y-1">
                                         <p>Last Updated: {langPack.updatedAt ? format(new Date(langPack.updatedAt), 'PPpp') : 'N/A'}</p>

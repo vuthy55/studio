@@ -30,6 +30,7 @@ export interface AudioPackMetadata {
     size: number;
     updatedAt: string | FieldValue; // Send ISO string to client
     topicStats: Record<string, TopicStats>;
+    errors?: string[];
 }
 
 
@@ -89,7 +90,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
         }
     }
     // If all retries fail, throw the last captured error
-    throw new Error(`Failed after ${MAX_RETRIES} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
+    throw new Error(`Failed to generate for phrase "${phraseIdForLog}" after ${MAX_RETRIES} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
   };
 
 
@@ -97,6 +98,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
       console.log(`[AUDIO GEN] Processing language: ${lang}`);
       const audioPack: AudioPack = {};
       const topicStats: Record<string, TopicStats> = {};
+      const errors: string[] = [];
       const locale = languageToLocaleMap[lang];
 
       if (!locale) {
@@ -128,8 +130,9 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
             const audioDataUri = await generateSpeechWithRetry(textToSpeak, locale, phrase.id, lang);
             audioPack[phrase.id] = audioDataUri;
             topicStats[phrase.topicId].generatedAudio++;
-          } catch (error) {
-            console.error(`[AUDIO GEN] Failed to generate audio for phrase "${phrase.id}" in ${lang}:`, error);
+          } catch (error: any) {
+            console.error(`[AUDIO GEN] Final failure for phrase "${phrase.id}" in ${lang}:`, error.message);
+            errors.push(error.message);
           }
         }
 
@@ -140,8 +143,9 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
                     const audioDataUri = await generateSpeechWithRetry(answerTextToSpeak, locale, `${phrase.id}-ans`, lang);
                     audioPack[`${phrase.id}-ans`] = audioDataUri;
                     topicStats[phrase.topicId].generatedAudio++;
-                } catch (error) {
-                    console.error(`[AUDIO GEN] Failed to generate audio for answer of phrase "${phrase.id}" in ${lang}:`, error);
+                } catch (error: any) {
+                    console.error(`[AUDIO GEN] Final failure for answer of phrase "${phrase.id}" in ${lang}:`, error.message);
+                    errors.push(error.message);
                 }
             }
         }
@@ -175,13 +179,14 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
 
           // Save metadata to Firestore
           const metadataDocRef = db.collection('audioPacks').doc(lang);
-          const metadata = {
+          const metadata: AudioPackMetadata = {
               id: lang,
               language: languages.find(l => l.value === lang)?.label || lang,
               downloadUrl,
               size,
               updatedAt: FieldValue.serverTimestamp(),
               topicStats,
+              errors: errors.length > 0 ? errors : [],
           };
           await metadataDocRef.set(metadata, { merge: true });
           console.log(`[AUDIO GEN] Firestore metadata saved for ${lang}.`);
