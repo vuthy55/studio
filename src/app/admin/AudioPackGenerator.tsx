@@ -37,11 +37,17 @@ export default function AudioPackGenerator() {
   });
   const [metadata, setMetadata] = useState<Record<string, LanguagePackGenerationMetadata>>({});
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isFetchingMeta, setIsFetchingMeta] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
   
-  const fetchMetadata = useCallback(async () => {
-    setIsFetchingMeta(true);
+  const fetchMetadata = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+        setIsRefreshing(true);
+    } else {
+        setIsLoading(true);
+    }
+
     try {
         const metaDataArray = await getGenerationMetadata();
         const metaObject = metaDataArray.reduce((acc, meta) => {
@@ -52,7 +58,11 @@ export default function AudioPackGenerator() {
     } catch (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch generation history.' });
     } finally {
-        setIsFetchingMeta(false);
+         if (isRefresh) {
+            setIsRefreshing(false);
+        } else {
+            setIsLoading(false);
+        }
     }
   }, [toast]);
 
@@ -119,7 +129,7 @@ export default function AudioPackGenerator() {
          toast({ title: 'Generation Complete!', description: `Successfully generated ${successCount} language pack(s).` });
     }
     
-    await fetchMetadata(); // Refresh metadata after generation
+    await fetchMetadata(true); // Refresh metadata after generation
     setIsGenerating(false);
   };
 
@@ -146,8 +156,8 @@ export default function AudioPackGenerator() {
                 Select languages to pre-generate their complete audio packs. This provides a generation status for previously built packs.
                 </CardDescription>
             </div>
-             <Button onClick={fetchMetadata} variant="outline" size="sm" disabled={isFetchingMeta}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${isFetchingMeta ? 'animate-spin' : ''}`} />
+             <Button onClick={() => fetchMetadata(true)} variant="outline" size="sm" disabled={isRefreshing || isGenerating}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh Status
             </Button>
         </div>
@@ -166,9 +176,10 @@ export default function AudioPackGenerator() {
             </Label>
           </div>
           <Separator />
-           {isFetchingMeta ? (
+           {isLoading ? (
                 <div className="flex justify-center items-center py-8">
                     <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading initial data...</span>
                 </div>
            ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2">
