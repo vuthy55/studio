@@ -455,9 +455,13 @@ export default function OfflineManager() {
             </div>
         </TabsContent>
       </Tabs>
-        <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
+      <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
+        <DialogContent>
             <BuyTokens />
-        </Dialog>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+    
