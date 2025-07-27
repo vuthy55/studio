@@ -4,8 +4,7 @@
 import { phrasebook, type LanguageCode, type Topic, languages } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
-import { db } from '@/lib/firebase-admin';
-import { getStorage } from 'firebase-admin/storage';
+import { db, storage } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export type AudioPack = {
@@ -109,14 +108,15 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
           if (!bucketName) {
             throw new Error("Firebase Storage bucket name is not configured.");
           }
-          const bucket = getStorage().bucket(bucketName);
+          const bucket = storage.bucket(bucketName);
           const file = bucket.file(fileName);
+          
           await file.save(buffer, {
               contentType: 'application/json',
               public: true, // Make the file public
           });
           
-          // Use the public URL
+          // Use the public URL, which is the standard and correct way.
           const downloadUrl = file.publicUrl();
 
           // Save metadata to Firestore
@@ -129,7 +129,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
               updatedAt: FieldValue.serverTimestamp(),
               topicStats,
           };
-          await metadataDocRef.set(metadata);
+          await metadataDocRef.set(metadata, { merge: true });
           
       } catch(error: any) {
           console.error(`Error uploading pack for ${lang}:`, error);
