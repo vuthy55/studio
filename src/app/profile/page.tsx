@@ -760,8 +760,8 @@ function ReferralsSection() {
 
     const fetchReferrals = useCallback(async () => {
         if (!user) return;
+        console.log(`[CLIENT DEBUG] Fetching referrals for user ID: ${user.uid}`);
         setIsLoading(true);
-        setHasFetched(true);
         try {
             const referredUsers = await getReferredUsers(user.uid);
             setReferrals(referredUsers);
@@ -770,6 +770,7 @@ function ReferralsSection() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load your referrals.' });
         } finally {
             setIsLoading(false);
+            setHasFetched(true);
         }
     }, [user, toast]);
 
@@ -799,45 +800,47 @@ function ReferralsSection() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                     <Button onClick={fetchReferrals} disabled={isLoading || hasFetched} className="mb-4">
-                        {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        {hasFetched ? 'Referrals Loaded' : 'Load My Referrals'}
+                    <Button onClick={fetchReferrals} disabled={isLoading} className="mb-4">
+                        {isLoading ? (
+                            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                        ) : hasFetched ? (
+                             <RefreshCw className="mr-2 h-4 w-4" />
+                        ) : null}
+                        {isLoading ? 'Loading...' : hasFetched ? 'Refresh List' : 'Load My Referrals'}
                     </Button>
-                    {isLoading ? (
-                        <div className="flex justify-center items-center py-8">
-                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                        </div>
-                    ) : hasFetched ? (
-                         <div className="border rounded-md min-h-[200px]">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Date Joined</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {referrals.length > 0 ? (
-                                        referrals.map(ref => (
-                                            <TableRow key={ref.id}>
-                                                <TableCell>{ref.name || 'N/A'}</TableCell>
-                                                <TableCell>{ref.email}</TableCell>
-                                                <TableCell>{ref.createdAt ? format(new Date(ref.createdAt), 'd MMM yyyy') : 'N/A'}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                         <TableRow>
-                                            <TableCell colSpan={3} className="h-24 text-center">No one has signed up with your link yet.</TableCell>
+                    {hasFetched && (
+                        isLoading ? (
+                            <div className="flex justify-center items-center py-8">
+                                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <div className="border rounded-md min-h-[200px]">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Email</TableHead>
+                                            <TableHead>Date Joined</TableHead>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                            <p>Click the button to load your referred users.</p>
-                        </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {referrals.length > 0 ? (
+                                            referrals.map(ref => (
+                                                <TableRow key={ref.id}>
+                                                    <TableCell>{ref.name || 'N/A'}</TableCell>
+                                                    <TableCell>{ref.email}</TableCell>
+                                                    <TableCell>{ref.createdAt ? format(new Date(ref.createdAt), 'd MMM yyyy') : 'N/A'}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="h-24 text-center">No one has signed up with your link yet.</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )
                     )}
                 </CardContent>
             </Card>
