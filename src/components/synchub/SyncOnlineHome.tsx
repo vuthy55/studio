@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send } from 'lucide-react';
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,7 +57,7 @@ import { format } from 'date-fns';
 import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { sendRoomInviteEmail } from '@/actions/email';
+import { sendRoomInviteEmail, sendTestEmail } from '@/actions/email';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -724,6 +724,8 @@ export default function SyncOnlineHome() {
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('scheduled');
 
+    const [isSendingTest, setIsSendingTest] = useState(false);
+    
     const { settings } = useUserData();
 
     // Defer date initialization to client-side to avoid hydration mismatch
@@ -884,6 +886,18 @@ export default function SyncOnlineHome() {
         setIsScheduling(false);
         setEditingRoom(null);
     }
+
+    const handleTestEmail = async () => {
+        if (!user || !user.email) return;
+        setIsSendingTest(true);
+        const result = await sendTestEmail(user.email);
+        if (result.success) {
+            toast({ title: 'Test Email Sent!', description: 'Check your inbox to confirm.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Email Failed', description: result.error });
+        }
+        setIsSendingTest(false);
+    };
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1200,12 +1214,18 @@ export default function SyncOnlineHome() {
                 </CardHeader>
                 <CardContent>
                      <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
-                        <CollapsibleTrigger asChild>
-                             <Button disabled={!user}>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                {isEditMode ? 'Editing Room...' : 'Schedule New Room'}
+                        <div className="flex items-center gap-2">
+                            <CollapsibleTrigger asChild>
+                                <Button disabled={!user}>
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    {isEditMode ? 'Editing Room...' : 'Schedule New Room'}
+                                </Button>
+                            </CollapsibleTrigger>
+                             <Button variant="outline" size="sm" onClick={handleTestEmail} disabled={isSendingTest || !user}>
+                                {isSendingTest ? <LoaderCircle className="animate-spin" /> : <Send className="h-4 w-4" />}
+                                <span className="hidden sm:inline ml-2">Test Email</span>
                             </Button>
-                        </CollapsibleTrigger>
+                        </div>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                         <CollapsibleContent>

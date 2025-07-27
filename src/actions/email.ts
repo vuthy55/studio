@@ -66,3 +66,49 @@ export async function sendRoomInviteEmail({
     return { success: false, error: e.message || 'An unexpected server error occurred.' };
   }
 }
+
+/**
+ * Sends a hardcoded test email to the specified address to verify Resend functionality.
+ * @param toEmail The email address to send the test email to.
+ * @returns A promise indicating success or failure.
+ */
+export async function sendTestEmail(toEmail: string): Promise<{ success: boolean; error?: string }> {
+  if (!toEmail) {
+    return { success: false, error: 'A recipient email is required.' };
+  }
+  
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.error('Email Error: RESEND_API_KEY is not set.');
+      return { success: false, error: 'The RESEND_API_KEY is not configured on the server.' };
+    }
+    
+    const resend = new Resend(apiKey);
+    
+    const { data, error } = await resend.emails.send({
+      from: 'VibeSync <onboarding@resend.dev>',
+      to: [toEmail],
+      subject: 'VibeSync Test Email',
+      html: `
+        <div>
+          <h1>Email Test Successful!</h1>
+          <p>If you are receiving this, your Resend API integration is working correctly.</p>
+          <p>Timestamp: ${new Date().toISOString()}</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error('Resend Test API Error:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('Resend Test API Success:', data);
+    return { success: true };
+
+  } catch (e: any) {
+    console.error('Unexpected Error in sendTestEmail:', e);
+    return { success: false, error: e.message || 'An unexpected server error occurred.' };
+  }
+}
