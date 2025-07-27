@@ -50,7 +50,7 @@ export async function getAudioPacks(): Promise<AudioPackMetadata[]> {
         // Convert Timestamp to ISO string for client-side compatibility
         const safeUpdatedAt = (updatedAt instanceof Timestamp) 
             ? updatedAt.toDate().toISOString() 
-            : new Date().toISOString();
+            : typeof updatedAt === 'string' ? updatedAt : new Date().toISOString();
 
         return {
             ...data,
@@ -74,6 +74,24 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
   }
   
   console.log(`[AUDIO GEN] Starting generation for languages: ${langs.join(', ')}`);
+
+  const generateSpeechWithRetry = async (text: string, locale: string, phraseIdForLog: string, langForLog: string) => {
+    const MAX_RETRIES = 3;
+    let lastError: any = null;
+    for (let i = 0; i < MAX_RETRIES; i++) {
+        try {
+            const { audioDataUri } = await generateSpeech({ text, lang: locale, voice: 'default' });
+            return audioDataUri; // Success
+        } catch (error) {
+            lastError = error;
+            console.warn(`[AUDIO GEN] Attempt ${i + 1}/${MAX_RETRIES} failed for phrase "${phraseIdForLog}" in ${langForLog}. Retrying...`);
+            await new Promise(res => setTimeout(res, 500)); // Wait before retrying
+        }
+    }
+    // If all retries fail, throw the last captured error
+    throw new Error(`Failed after ${MAX_RETRIES} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
+  };
+
 
   for (const lang of langs) {
       console.log(`[AUDIO GEN] Processing language: ${lang}`);
@@ -107,7 +125,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
         const textToSpeak = getTranslation(phrase, lang);
         if (textToSpeak) {
           try {
-            const { audioDataUri } = await generateSpeech({ text: textToSpeak, lang: locale, voice: 'default' });
+            const audioDataUri = await generateSpeechWithRetry(textToSpeak, locale, phrase.id, lang);
             audioPack[phrase.id] = audioDataUri;
             topicStats[phrase.topicId].generatedAudio++;
           } catch (error) {
@@ -119,7 +137,7 @@ export async function generateAndUploadAudioPacks(langs: LanguageCode[]): Promis
             const answerTextToSpeak = getTranslation(phrase.answer, lang);
             if (answerTextToSpeak) {
                 try {
-                    const { audioDataUri } = await generateSpeech({ text: answerTextToSpeak, lang: locale, voice: 'default' });
+                    const audioDataUri = await generateSpeechWithRetry(answerTextToSpeak, locale, `${phrase.id}-ans`, lang);
                     audioPack[`${phrase.id}-ans`] = audioDataUri;
                     topicStats[phrase.topicId].generatedAudio++;
                 } catch (error) {
