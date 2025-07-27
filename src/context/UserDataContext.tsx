@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
@@ -13,6 +13,8 @@ import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import type { Timestamp } from 'firebase/firestore';
 import { getOfflineAudio } from '@/components/synchub/OfflineManager';
+import { getLanguageAudioPack } from '@/actions/audio';
+import { openDB } from 'idb';
 
 // --- Types ---
 
@@ -47,6 +49,17 @@ interface UserDataContextType {
 // --- Context ---
 
 const UserDataContext = createContext<UserDataContextType | undefined>(undefined);
+
+const DB_NAME = 'VibeSync-Offline';
+const STORE_NAME = 'AudioPacks';
+const METADATA_STORE_NAME = 'AudioPackMetadata';
+
+interface PackMetadata {
+  id: string;
+  phraseCount?: number;
+  size: number;
+}
+
 
 // --- Provider ---
 
@@ -86,6 +99,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setIsDataLoading(true);
     }, []);
 
+    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
+        const pack = await getOfflineAudio(lang);
+        if (pack) {
+            setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
+        }
+    }, []);
+
      useEffect(() => {
         if (authLoading) {
             return;
@@ -114,12 +134,33 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             // Set up real-time listener for user profile
             const userDocRef = doc(db, 'users', user.uid);
-            profileUnsubscribe.current = onSnapshot(userDocRef, (docSnap) => {
+            profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
                 if (isLoggingOut.current) return;
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
+
+                    // --- Auto-download logic ---
+                    if (profileData.unlockedLanguages && profileData.unlockedLanguages.length > 0) {
+                        const db = await openDB(DB_NAME, 2);
+                        const downloadedPackIds = await db.getAllKeys(STORE_NAME);
+
+                        for (const langCode of profileData.unlockedLanguages) {
+                            if (!downloadedPackIds.includes(langCode)) {
+                                console.log(`[Auto-Download] User unlocked ${langCode} but it's not offline. Downloading...`);
+                                try {
+                                    const { audioPack, size } = await getLanguageAudioPack(langCode);
+                                    await db.put(STORE_NAME, audioPack, langCode);
+                                    const metadata: PackMetadata = { id: langCode, size };
+                                    await db.put(METADATA_STORE_NAME, metadata);
+                                    loadSingleOfflinePack(langCode);
+                                } catch (e) {
+                                    console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
+                                }
+                            }
+                        }
+                    }
                 } else {
                     setUserProfile({});
                 }
@@ -151,7 +192,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (profileUnsubscribe.current) profileUnsubscribe.current();
             if (historyUnsubscribe.current) historyUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState]);
+    }, [user, authLoading, clearLocalState, loadSingleOfflinePack]);
     
 
     // --- Firestore Synchronization Logic ---
@@ -433,13 +474,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error committing Sync Online session end transaction:", error);
         }
     }, [user, settings]);
-
-    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
-        const pack = await getOfflineAudio(lang);
-        if (pack) {
-            setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
-        }
-    }, []);
 
     const removeOfflinePack = useCallback((lang: LanguageCode | 'user_saved_phrases') => {
         setOfflineAudioPacks(prev => {

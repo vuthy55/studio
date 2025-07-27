@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -137,6 +138,14 @@ export default function OfflineManager() {
       
       await loadSingleOfflinePack(lang);
       
+       // Manually add the new language to the user profile's unlocked list
+       if(user && userProfile.unlockedLanguages && !userProfile.unlockedLanguages.includes(lang)) {
+            const userDocRef = doc(db, 'users', user.uid);
+            await updateDoc(userDocRef, {
+                unlockedLanguages: arrayUnion(lang)
+            });
+        }
+      
       if (cost === 'Free') {
         toast({
             title: 'Download Complete!',
@@ -238,6 +247,15 @@ export default function OfflineManager() {
                 return;
             }
         }
+        
+         // Update the user's downloaded phrase count in Firestore
+        if (user) {
+            const userDocRef = doc(db, 'users', user.uid);
+            await updateDoc(userDocRef, {
+                downloadedPhraseCount: increment(newPhrasesToDownload)
+            });
+        }
+
 
         const audioPack: AudioPack = {};
         const generationPromises = savedPhrases.map(async (phrase) => {
@@ -304,7 +322,7 @@ export default function OfflineManager() {
             
             const packCost = settings?.languageUnlockCost ?? 100;
             const completePacks = metadata
-                .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id])
+                .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
                 .map(meta => ({
                     ...meta,
                     cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
@@ -317,7 +335,7 @@ export default function OfflineManager() {
              setIsFetchingAvailable(false);
         }
     }
-  }, [settings?.languageUnlockCost, downloadedPacks, toast]);
+  }, [settings?.languageUnlockCost, downloadedPacks, toast, userProfile?.unlockedLanguages]);
 
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
