@@ -228,10 +228,10 @@ export default function OfflineManager() {
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
-      <Tabs defaultValue="available">
+      <Tabs defaultValue="downloaded">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="available">Available</TabsTrigger>
           <TabsTrigger value="downloaded">Downloaded</TabsTrigger>
+          <TabsTrigger value="available">Available</TabsTrigger>
           <TabsTrigger value="saved">Saved Phrases</TabsTrigger>
         </TabsList>
         <TabsContent value="available" className="mt-4">
