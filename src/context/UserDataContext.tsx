@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
@@ -97,6 +97,18 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
         }
     }, []);
+    
+     const removeOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
+        const db = await openDB(DB_NAME, 2);
+        await db.delete(STORE_NAME, lang);
+        await db.delete(METADATA_STORE_NAME, lang);
+        setOfflineAudioPacks(prev => {
+            const newState = { ...prev };
+            delete newState[lang];
+            return newState;
+        });
+        console.log(`[DEBUG] Successfully deleted offline pack: ${lang}`);
+    }, []);
 
     const clearLocalState = useCallback(() => {
         if (profileUnsubscribe.current) profileUnsubscribe.current();
@@ -147,28 +159,37 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
 
-                    // --- NEW LOGIC: Check for and grant newly free languages ---
                     const systemFreePacks = await getFreeLanguagePacks();
                     const userUnlocked = profileData.unlockedLanguages || [];
+                    
+                    // --- Logic to GRANT new free languages ---
                     const missingFreePacks = systemFreePacks.filter(p => !userUnlocked.includes(p));
-
                     if (missingFreePacks.length > 0) {
-                        console.log(`[DEBUG] User is missing free packs: ${missingFreePacks.join(', ')}. Updating profile...`);
-                        await updateDoc(userDocRef, {
-                            unlockedLanguages: arrayUnion(...missingFreePacks)
-                        });
-                        // The onSnapshot will re-trigger with the updated profile, which then handles the download.
-                        return; // Exit this execution to wait for the updated snapshot.
+                        console.log(`[DEBUG] User is missing free packs: ${missingFreePacks.join(', ')}. Granting access...`);
+                        await updateDoc(userDocRef, { unlockedLanguages: arrayUnion(...missingFreePacks) });
+                        return; // Exit to wait for the updated snapshot which will trigger auto-download
+                    }
+                    
+                    // --- Logic to REVOKE languages that are no longer free ---
+                    const revokedLanguages = userUnlocked.filter(lang => !systemFreePacks.includes(lang));
+                    if (revokedLanguages.length > 0) {
+                        console.log(`[DEBUG] User has revoked packs: ${revokedLanguages.join(', ')}. Revoking access...`);
+                        await updateDoc(userDocRef, { unlockedLanguages: arrayRemove(...revokedLanguages) });
+                        
+                        // Delete the local data for each revoked language
+                        for (const lang of revokedLanguages) {
+                            await removeOfflinePack(lang);
+                        }
+                        return; // Exit to wait for the final updated snapshot
                     }
 
-                    // --- Auto-download logic ---
-                    const unlockedLanguages = profileData.unlockedLanguages || [];
-                    if (unlockedLanguages.length > 0) {
-                        console.log("[DEBUG] User has unlocked languages:", unlockedLanguages);
+
+                    // --- Auto-download logic for unlocked languages ---
+                    if (userUnlocked.length > 0) {
                         const db = await openDB(DB_NAME, 2);
                         const downloadedPackIds = await db.getAllKeys(STORE_NAME);
 
-                        for (const langCode of unlockedLanguages) {
+                        for (const langCode of userUnlocked) {
                             if (!downloadedPackIds.includes(langCode)) {
                                 console.log(`[Auto-Download] User unlocked ${langCode} but it's not offline. Downloading...`);
                                 try {
@@ -183,8 +204,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                                 }
                             }
                         }
-                    } else {
-                        console.log("[DEBUG] User profile has no unlocked languages array or it's empty.");
                     }
                 } else {
                     console.log("[DEBUG] User document does not exist.");
@@ -219,7 +238,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (profileUnsubscribe.current) profileUnsubscribe.current();
             if (historyUnsubscribe.current) historyUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState, loadSingleOfflinePack]);
+    }, [user, authLoading, clearLocalState, loadSingleOfflinePack, removeOfflinePack]);
     
 
     // --- Firestore Synchronization Logic ---
@@ -501,14 +520,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error committing Sync Online session end transaction:", error);
         }
     }, [user, settings]);
-
-    const removeOfflinePack = useCallback((lang: LanguageCode | 'user_saved_phrases') => {
-        setOfflineAudioPacks(prev => {
-            const newState = { ...prev };
-            delete newState[lang];
-            return newState;
-        });
-    }, []);
 
     const value = {
         user,
