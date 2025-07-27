@@ -40,6 +40,8 @@ interface UserDataContextType {
     spendTokensForTranslation: (description: string, cost?: number) => boolean;
     updateSyncLiveUsage: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
+    loadSingleOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
+    removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => void;
 }
 
 // --- Context ---
@@ -428,6 +430,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, settings]);
 
+    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
+        const pack = await getOfflineAudio(lang);
+        if (pack) {
+            setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
+        }
+    }, []);
+
+    const removeOfflinePack = useCallback((lang: LanguageCode | 'user_saved_phrases') => {
+        setOfflineAudioPacks(prev => {
+            const newState = { ...prev };
+            delete newState[lang];
+            return newState;
+        });
+    }, []);
+
     const value = {
         user,
         loading: authLoading || isDataLoading,
@@ -442,6 +459,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         spendTokensForTranslation,
         updateSyncLiveUsage,
         handleSyncOnlineSessionEnd,
+        loadSingleOfflinePack,
+        removeOfflinePack
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;

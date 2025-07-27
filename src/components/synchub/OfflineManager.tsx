@@ -53,11 +53,12 @@ export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases')
 
 export default function OfflineManager() {
   const { toast } = useToast();
-  const { user, spendTokensForTranslation } = useUserData();
+  const { user, spendTokensForTranslation, loadSingleOfflinePack, removeOfflinePack } = useUserData();
   const [downloading, setDownloading] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
   const [deleting, setDeleting] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
   const [downloadedPacks, setDownloadedPacks] = useState<Record<string, PackMetadata>>({});
   const [isChecking, setIsChecking] = useState(true);
+  const [availableForDownload, setAvailableForDownload] = useState<LanguageCode[]>([]);
 
   const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
 
@@ -92,6 +93,8 @@ export default function OfflineManager() {
 
       const metadata: PackMetadata = { id: lang, size };
       await db.put(METADATA_STORE_NAME, metadata);
+      
+      await loadSingleOfflinePack(lang);
 
       toast({
         title: 'Download Complete!',
@@ -116,6 +119,8 @@ export default function OfflineManager() {
         const db = await getDb();
         await db.delete(STORE_NAME, lang);
         await db.delete(METADATA_STORE_NAME, lang);
+
+        removeOfflinePack(lang);
         
         const langLabel = lang === SAVED_PHRASES_KEY
             ? 'Your Saved Phrases'
@@ -181,6 +186,8 @@ export default function OfflineManager() {
         const size = Buffer.from(JSON.stringify(audioPack)).length;
         const metadata: PackMetadata = { id: SAVED_PHRASES_KEY, phraseCount: savedPhrases.length, size };
         await db.put(METADATA_STORE_NAME, metadata);
+        
+        await loadSingleOfflinePack(SAVED_PHRASES_KEY);
 
         toast({
             title: 'Download Complete!',
@@ -210,11 +217,16 @@ export default function OfflineManager() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
+  const handleTabChange = (value: string) => {
+    if (value === 'available' && availableForDownload.length === 0) {
+        setAvailableForDownload(offlineAudioPackLanguages.filter(langCode => !downloadedPacks[langCode]));
+    }
+  };
+
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
   }
   
-  const availableForDownload = offlineAudioPackLanguages.filter(langCode => !downloadedPacks[langCode]);
   const currentlyDownloaded = Object.keys(downloadedPacks).filter(p => p !== SAVED_PHRASES_KEY);
 
   const savedPhrasesPackInfo = downloadedPacks[SAVED_PHRASES_KEY];
@@ -228,29 +240,12 @@ export default function OfflineManager() {
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
-      <Tabs defaultValue="downloaded">
+      <Tabs defaultValue="downloaded" onValueChange={handleTabChange}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="downloaded">Downloaded</TabsTrigger>
           <TabsTrigger value="available">Available</TabsTrigger>
           <TabsTrigger value="saved">Saved Phrases</TabsTrigger>
         </TabsList>
-        <TabsContent value="available" className="mt-4">
-            <div className="space-y-2">
-            {availableForDownload.length > 0 ? availableForDownload.map(langCode => {
-                const lang = languages.find(l => l.value === langCode)!;
-                const isDownloadingThis = downloading === lang.value;
-
-                return (
-                    <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                        <span>{lang.label}</span>
-                         <Button variant="default" size="sm" onClick={() => handleDownload(lang.value)} disabled={isDownloadingThis}>
-                            {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
-                        </Button>
-                    </div>
-                );
-            }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
-            </div>
-        </TabsContent>
         <TabsContent value="downloaded" className="mt-4">
             <div className="space-y-2">
                 {currentlyDownloaded.length > 0 ? currentlyDownloaded.map(langCode => {
@@ -273,6 +268,23 @@ export default function OfflineManager() {
                         </div>
                     );
                 }) : <p className="text-center text-sm text-muted-foreground py-4">No language packs downloaded yet.</p>}
+            </div>
+        </TabsContent>
+        <TabsContent value="available" className="mt-4">
+            <div className="space-y-2">
+            {availableForDownload.length > 0 ? availableForDownload.map(langCode => {
+                const lang = languages.find(l => l.value === langCode)!;
+                const isDownloadingThis = downloading === lang.value;
+
+                return (
+                    <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                        <span>{lang.label}</span>
+                         <Button variant="default" size="sm" onClick={() => handleDownload(lang.value)} disabled={isDownloadingThis}>
+                            {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
+                        </Button>
+                    </div>
+                );
+            }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
             </div>
         </TabsContent>
         <TabsContent value="saved" className="mt-4">
