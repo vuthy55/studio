@@ -84,9 +84,17 @@ export async function signUpUser(
         const referrerDoc = await referrerRef.get();
 
         if (referrerDoc.exists) {
-            // Add the referrer's ID to the new user's profile
-            newUserProfile.referredBy = referralId;
             
+            // Create a record in the new 'referrals' collection
+            const referralRef = db.collection('referrals').doc();
+            batch.set(referralRef, {
+                referrerId: referralId,
+                referredUserId: uid,
+                referredUserName: name,
+                referredUserEmail: lowerCaseEmail,
+                createdAt: FieldValue.serverTimestamp(),
+            });
+
             // Credit the referrer's account with the bonus
             batch.update(referrerRef, { tokenBalance: FieldValue.increment(referralBonus) });
 
@@ -113,7 +121,7 @@ export async function signUpUser(
         }
     }
     
-    // Set the new user profile data (including referral info if any)
+    // Set the new user profile data (without the old 'referredBy' field)
     batch.set(newUserRef, newUserProfile);
 
     // --- Step 3: Commit the batch ---

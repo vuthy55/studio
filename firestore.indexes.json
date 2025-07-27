@@ -44,11 +44,11 @@
       ]
     },
     {
-      "collectionGroup": "users",
+      "collectionGroup": "referrals",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "referredBy",
+          "fieldPath": "referrerId",
           "order": "ASCENDING"
         },
         {
