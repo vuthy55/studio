@@ -42,7 +42,7 @@ interface LearnPageContentProps {
 function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats } = useUserData();
+    const { user, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
@@ -82,9 +82,8 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
         if (!text || !!assessingPhraseId) return;
 
-        // 1. Try to play from offline storage first
-        const offlineAudioPack = await getOfflineAudio(lang);
-        const audioDataUri = offlineAudioPack?.[phraseId];
+        const langPack = offlineAudioPacks[lang];
+        const audioDataUri = langPack?.[phraseId];
 
         if (audioDataUri) {
             const audio = new Audio(audioDataUri);
@@ -92,9 +91,8 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
             return;
         }
 
-        // 2. Fallback to online fetching
         if (!isOnline) {
-            toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download this language pack for offline listening.' });
+             toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download this language pack for offline listening.' });
             return;
         }
         
@@ -349,6 +347,9 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                         if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
                                         return null;
                                     };
+                                    
+                                    const isAudioAvailableOffline = !!offlineAudioPacks[toLanguage]?.[phrase.id];
+                                    const canPlayAudio = isOnline || isAudioAvailableOffline;
 
                                     return (
                                     <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
@@ -370,10 +371,21 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                                 </div>
                                                 <div className="flex items-center shrink-0">
                                                     {getResultIcon()}
-                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                        <Volume2 className="h-5 w-5" />
-                                                        <span className="sr-only">Play audio</span>
-                                                    </Button>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId}>
+                                                                    <Volume2 className="h-5 w-5" />
+                                                                    <span className="sr-only">Play audio</span>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                             {!canPlayAudio && (
+                                                                <TooltipContent>
+                                                                    <p>Download pack for offline audio.</p>
+                                                                </TooltipContent>
+                                                            )}
+                                                        </Tooltip>
+                                                    </TooltipProvider>
 
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -421,10 +433,21 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                                 <div className="flex justify-between items-center w-full">
                                                     <p className="font-bold text-lg text-primary">{toAnswerText}</p>
                                                     <div className="flex items-center shrink-0">
-                                                        <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage, `${phrase.id}-ans`)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                            <Volume2 className="h-5 w-5" />
-                                                            <span className="sr-only">Play audio</span>
-                                                        </Button>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage, `${phrase.id}-ans`)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId}>
+                                                                        <Volume2 className="h-5 w-5" />
+                                                                        <span className="sr-only">Play audio</span>
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                {!canPlayAudio && (
+                                                                    <TooltipContent>
+                                                                        <p>Download pack for offline audio.</p>
+                                                                    </TooltipContent>
+                                                                )}
+                                                            </Tooltip>
+                                                        </TooltipProvider>
                                                     </div>
                                                 </div>
                                             </>

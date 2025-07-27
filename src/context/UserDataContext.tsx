@@ -10,8 +10,9 @@ import type { UserProfile } from '@/app/profile/page';
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
-import type { PracticeHistoryDoc, PracticeHistoryState } from '@/lib/types';
+import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import type { Timestamp } from 'firebase/firestore';
+import { getOfflineAudio } from '@/components/synchub/OfflineManager';
 
 // --- Types ---
 
@@ -32,6 +33,7 @@ interface UserDataContextType {
     practiceHistory: PracticeHistoryState;
     settings: AppSettings | null;
     syncLiveUsage: number;
+    offlineAudioPacks: Record<string, AudioPack>;
     logout: () => Promise<void>;
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
@@ -53,6 +55,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
     const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
     const [syncLiveUsage, setSyncLiveUsage] = useState(0);
+    const [offlineAudioPacks, setOfflineAudioPacks] = useState<Record<string, AudioPack>>({});
+
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isDataLoading, setIsDataLoading] = useState(true);
@@ -76,6 +80,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setUserProfile({});
         setPracticeHistory({});
         setSyncLiveUsage(0);
+        setOfflineAudioPacks({});
         setIsDataLoading(true);
     }, []);
 
@@ -87,6 +92,23 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             isLoggingOut.current = false;
             setIsDataLoading(true);
+
+            // Fetch offline packs once when user logs in
+            const allLangs: LanguageCode[] = ['khmer'];
+            const packPromises = allLangs.map(lang => getOfflineAudio(lang));
+            packPromises.push(getOfflineAudio('user_saved_phrases'));
+            
+            Promise.all(packPromises).then(packs => {
+                 const loadedPacks: Record<string, AudioPack> = {};
+                 packs.forEach((pack, index) => {
+                    if(pack) {
+                        const key = index < allLangs.length ? allLangs[index] : 'user_saved_phrases';
+                        loadedPacks[key] = pack;
+                    }
+                 });
+                 setOfflineAudioPacks(loadedPacks);
+            });
+
 
             // Set up real-time listener for user profile
             const userDocRef = doc(db, 'users', user.uid);
@@ -413,6 +435,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         practiceHistory,
         settings,
         syncLiveUsage,
+        offlineAudioPacks,
         logout,
         recordPracticeAttempt,
         getTopicStats,

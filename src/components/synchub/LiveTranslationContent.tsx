@@ -35,7 +35,7 @@ type AssessmentResult = {
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation } = useUserData();
+    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation, offlineAudioPacks } = useUserData();
     
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
@@ -82,17 +82,15 @@ export default function LiveTranslationContent() {
     const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
         if (!text || isRecognizing || assessingPhraseId) return;
 
-        // 1. Try to play from offline storage first
-        const offlineAudioPack = await getOfflineAudio('user_saved_phrases');
-        const audioDataUri = offlineAudioPack?.[phraseId];
-
+        const savedPhrasesPack = offlineAudioPacks['user_saved_phrases'];
+        const audioDataUri = savedPhrasesPack?.[phraseId];
+        
         if (audioDataUri) {
             const audio = new Audio(audioDataUri);
             audio.play().catch(e => console.error("Offline audio playback failed.", e));
             return;
         }
 
-        // 2. Fallback to online fetching if offline audio is not found or not available.
         if (!isOnline) {
             toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download your saved phrases for offline listening.' });
             return;
@@ -402,6 +400,9 @@ export default function LiveTranslationContent() {
                                 if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
                                 return null;
                             };
+
+                            const isAudioAvailableOffline = !!offlineAudioPacks['user_saved_phrases']?.[phrase.id];
+                            const canPlayAudio = isOnline || isAudioAvailableOffline;
                             
                             return (
                                 <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
@@ -422,10 +423,15 @@ export default function LiveTranslationContent() {
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                             </Button>
                                                         </TooltipTrigger>
+                                                        {!canPlayAudio && (
+                                                            <TooltipContent>
+                                                                <p>Download pack for offline audio.</p>
+                                                            </TooltipContent>
+                                                        )}
                                                     </Tooltip>
                                                 </TooltipProvider>
 

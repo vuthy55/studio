@@ -181,3 +181,7 @@ export type SavedPhrase = {
     fromText: string;
     toText: string;
 }
+
+export type AudioPack = {
+  [phraseId: string]: string; // phraseId: base64 audio data URI
+};
