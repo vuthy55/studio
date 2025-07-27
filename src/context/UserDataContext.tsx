@@ -7,7 +7,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot } from 'firebase/firestore';
 import type { UserProfile } from '@/app/profile/page';
-import { phrasebook, type LanguageCode } from '@/lib/data';
+import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
@@ -93,16 +93,16 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             isLoggingOut.current = false;
             setIsDataLoading(true);
 
-            // Fetch offline packs once when user logs in
-            const allLangs: LanguageCode[] = ['khmer'];
-            const packPromises = allLangs.map(lang => getOfflineAudio(lang));
-            packPromises.push(getOfflineAudio('user_saved_phrases'));
+            // Fetch all possible offline packs once when user logs in.
+            // This ensures all downloaded data is available in memory for offline use.
+            const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+            const packPromises = allPackKeys.map(key => getOfflineAudio(key));
             
             Promise.all(packPromises).then(packs => {
                  const loadedPacks: Record<string, AudioPack> = {};
                  packs.forEach((pack, index) => {
                     if(pack) {
-                        const key = index < allLangs.length ? allLangs[index] : 'user_saved_phrases';
+                        const key = allPackKeys[index];
                         loadedPacks[key] = pack;
                     }
                  });
