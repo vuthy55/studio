@@ -17,41 +17,48 @@ export interface ReferredUser {
  * @returns {Promise<ReferredUser[]>} A list of users referred by the given user.
  */
 export async function getReferredUsers(referrerId: string): Promise<ReferredUser[]> {
-    console.log(`[DEBUG] getReferredUsers called with referrerId: ${referrerId}`);
+    // Top-level log to ensure the function is even invoked.
+    console.log(`[SERVER-DEBUG] getReferredUsers invoked with referrerId: ${referrerId}`);
+    
     if (!referrerId) {
-        console.log("[DEBUG] No referrerId provided. Returning empty array.");
+        console.log("[SERVER-DEBUG] No referrerId provided. Returning empty array.");
         return [];
     }
 
     try {
+        console.log("[SERVER-DEBUG] Inside try block. Preparing to query Firestore.");
         const usersRef = db.collection('users');
         const q = usersRef.where('referredBy', '==', referrerId).orderBy('createdAt', 'desc');
-        console.log(`[DEBUG] Executing query: users.where('referredBy', '==', '${referrerId}')`);
         
+        console.log(`[SERVER-DEBUG] Executing query: users.where('referredBy', '==', '${referrerId}')`);
         const snapshot = await q.get();
 
         if (snapshot.empty) {
-            console.log("[DEBUG] Query returned no documents. No referred users found.");
+            console.log("[SERVER-DEBUG] Query returned no documents. No referred users found.");
             return [];
         }
 
-        console.log(`[DEBUG] Query found ${snapshot.size} referred user(s).`);
+        console.log(`[SERVER-DEBUG] Query found ${snapshot.size} referred user(s). Mapping results...`);
 
-        return snapshot.docs.map(doc => {
+        const results = snapshot.docs.map(doc => {
             const data = doc.data();
             const createdAt = (data.createdAt as Timestamp)?.toDate()?.toISOString() || new Date(0).toISOString();
-            const referredUser = {
+            
+            const referredUser: ReferredUser = {
                 id: doc.id,
                 name: data.name || null,
                 email: data.email,
                 createdAt: createdAt,
             };
-            console.log("[DEBUG] Mapping document:", referredUser);
+            console.log("[SERVER-DEBUG] Mapped document:", referredUser);
             return referredUser;
         });
 
+        console.log("[SERVER-DEBUG] Finished mapping. Returning results.");
+        return results;
+
     } catch (error) {
-        console.error(`[DEBUG] Error fetching referred users for ${referrerId}:`, error);
+        console.error(`[SERVER-DEBUG] CRITICAL ERROR fetching referred users for ${referrerId}:`, error);
         // Return empty array on error to prevent client crashes
         return [];
     }
