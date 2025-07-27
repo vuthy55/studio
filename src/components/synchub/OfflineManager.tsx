@@ -7,14 +7,17 @@ import type { IDBPDatabase } from 'idb';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getLanguageAudioPack, type AudioPack } from '@/actions/audio';
-import { languages, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
-import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw } from 'lucide-react';
+import { languages, type LanguageCode } from '@/lib/data';
+import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw, Coins } from 'lucide-react';
 import useLocalStorage from '@/hooks/use-local-storage';
 import type { SavedPhrase } from '@/lib/types';
 import { languageToLocaleMap } from '@/lib/utils';
 import { generateSpeech } from '@/services/tts';
 import { useUserData } from '@/context/UserDataContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getGenerationMetadata, LanguagePackGenerationMetadata, getFreeLanguagePacks } from '@/actions/audiopack-admin';
+import { Badge } from '../ui/badge';
+import BuyTokens from '../BuyTokens';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -27,6 +30,10 @@ interface PackMetadata {
   id: string; // e.g., 'khmer' or 'user_saved_phrases'
   phraseCount?: number;
   size: number;
+}
+
+interface AvailablePack extends LanguagePackGenerationMetadata {
+    cost: number | 'Free';
 }
 
 
@@ -53,12 +60,15 @@ export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases')
 
 export default function OfflineManager() {
   const { toast } = useToast();
-  const { user, spendTokensForTranslation, loadSingleOfflinePack, removeOfflinePack } = useUserData();
+  const { user, userProfile, spendTokensForTranslation, loadSingleOfflinePack, removeOfflinePack, settings } = useUserData();
   const [downloading, setDownloading] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
   const [deleting, setDeleting] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
   const [downloadedPacks, setDownloadedPacks] = useState<Record<string, PackMetadata>>({});
   const [isChecking, setIsChecking] = useState(true);
-  const [availableForDownload, setAvailableForDownload] = useState<LanguageCode[]>([]);
+  
+  const [availableForDownload, setAvailableForDownload] = useState<AvailablePack[]>([]);
+  const [isFetchingAvailable, setIsFetchingAvailable] = useState(false);
+  const [isBuyTokensOpen, setIsBuyTokensOpen] = useState(false);
 
   const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
 
@@ -84,7 +94,26 @@ export default function OfflineManager() {
     checkForOfflineData();
   }, [checkForOfflineData]);
 
-  const handleDownload = async (lang: LanguageCode) => {
+  const handleDownload = async (lang: LanguageCode, cost: number | 'Free') => {
+    if (!user || !settings) {
+        toast({ variant: 'destructive', title: 'Please log in', description: 'You need to be logged in to download packs.' });
+        return;
+    }
+    
+    if (cost !== 'Free' && (userProfile?.tokenBalance || 0) < cost) {
+        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to download this pack.` });
+        setIsBuyTokensOpen(true);
+        return;
+    }
+      
+    if (cost !== 'Free') {
+        const spendSuccess = spendTokensForTranslation(`Downloaded language pack: ${lang}`, cost);
+        if (!spendSuccess) {
+             toast({ variant: 'destructive', title: 'Transaction Failed', description: `Could not deduct tokens.` });
+             return;
+        }
+    }
+      
     setDownloading(lang);
     try {
       const { audioPack, size } = await getLanguageAudioPack(lang);
@@ -217,11 +246,31 @@ export default function OfflineManager() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
-  const handleTabChange = (value: string) => {
+  const handleTabChange = useCallback(async (value: string) => {
     if (value === 'available' && availableForDownload.length === 0) {
-        setAvailableForDownload(offlineAudioPackLanguages.filter(langCode => !downloadedPacks[langCode]));
+        setIsFetchingAvailable(true);
+        try {
+             const [metadata, freePacks] = await Promise.all([
+                getGenerationMetadata(),
+                getFreeLanguagePacks()
+            ]);
+            
+            const packCost = settings?.languagePackCost ?? 10;
+            const completePacks = metadata
+                .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id])
+                .map(meta => ({
+                    ...meta,
+                    cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
+                }));
+            
+            setAvailableForDownload(completePacks);
+        } catch(e) {
+            toast({variant: 'destructive', title: 'Error', description: 'Could not fetch available packs.'});
+        } finally {
+             setIsFetchingAvailable(false);
+        }
     }
-  };
+  }, [availableForDownload.length, settings?.languagePackCost, downloadedPacks, toast]);
 
   if (isChecking) {
     return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
@@ -271,21 +320,36 @@ export default function OfflineManager() {
             </div>
         </TabsContent>
         <TabsContent value="available" className="mt-4">
-            <div className="space-y-2">
-            {availableForDownload.length > 0 ? availableForDownload.map(langCode => {
-                const lang = languages.find(l => l.value === langCode)!;
-                const isDownloadingThis = downloading === lang.value;
+             {isFetchingAvailable ? (
+                <div className="flex items-center justify-center py-8">
+                    <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+                </div>
+            ) : (
+                <div className="space-y-2">
+                {availableForDownload.length > 0 ? availableForDownload.map(pack => {
+                    const lang = languages.find(l => l.value === pack.id)!;
+                    const isDownloadingThis = downloading === pack.id;
 
-                return (
-                    <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                        <span>{lang.label}</span>
-                         <Button variant="default" size="sm" onClick={() => handleDownload(lang.value)} disabled={isDownloadingThis}>
-                            {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download</>}
-                        </Button>
-                    </div>
-                );
-            }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
-            </div>
+                    return (
+                        <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                            <div className="flex flex-col">
+                                <span>{lang.label}</span>
+                                <span className="text-xs text-muted-foreground">{formatBytes(pack.totalCount * 12000)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Badge variant={pack.cost === 'Free' ? 'default' : 'secondary'} className="font-bold">
+                                    {pack.cost === 'Free' ? 'Free' : <span className="flex items-center gap-1"><Coins className="h-3 w-3"/>{pack.cost}</span>}
+                                </Badge>
+                                 <Button variant="default" size="sm" onClick={() => handleDownload(lang.value as LanguageCode, pack.cost)} disabled={isDownloadingThis}>
+                                    {isDownloadingThis ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /></> : <><Download className="mr-2 h-4 w-4" /></>}
+                                    Download
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                }) : <p className="text-center text-sm text-muted-foreground py-4">All available packs are downloaded.</p>}
+                </div>
+            )}
         </TabsContent>
         <TabsContent value="saved" className="mt-4">
              <div className="space-y-2">
@@ -323,6 +387,10 @@ export default function OfflineManager() {
             </div>
         </TabsContent>
       </Tabs>
+        <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
+            <BuyTokens />
+        </Dialog>
     </div>
   );
 }
+
