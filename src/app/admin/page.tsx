@@ -1757,8 +1757,8 @@ function AudioPacksContent() {
                 <CardDescription>Generate and verify offline audio packs for each language. These are stored in public Cloud Storage.</CardDescription>
             </CardHeader>
             <CardContent>
-                 <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+                <div className="space-y-4">
+                   <div className="flex items-center gap-2">
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button><PlusCircle className="mr-2"/> Generate/Update Packs</Button>
@@ -1803,7 +1803,7 @@ function AudioPacksContent() {
                             Refresh Status
                         </Button>
                     </div>
-                     <div className="text-sm text-muted-foreground space-y-2">
+                    <div className="text-sm text-muted-foreground space-y-2 border-l-4 pl-4 py-2">
                         <p><strong className="text-foreground">Step 1:</strong> Click "Generate/Update Packs", select the languages you need, and start the generation. This may take some time.</p>
                         <p><strong className="text-foreground">Step 2:</strong> After generation is complete, click "Refresh Status" to view a detailed report of the generated packs below.</p>
                     </div>
@@ -1829,7 +1829,7 @@ function AudioPacksContent() {
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-4">
                                     <div className="text-xs text-muted-foreground space-y-1">
-                                        <p>Last Updated: {langPack.updatedAt ? format((langPack.updatedAt as any).toDate(), 'PPpp') : 'N/A'}</p>
+                                        <p>Last Updated: {langPack.updatedAt ? format(new Date(langPack.updatedAt), 'PPpp') : 'N/A'}</p>
                                         <p>Size: {new Intl.NumberFormat().format(langPack.size)} bytes</p>
                                         <a href={langPack.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
                                             Download Link <ExternalLink className="h-3 w-3" />
