@@ -1,143 +1,142 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { getLanguageAudioPack, type AudioPack } from '@/actions/audio';
-import { languages, type LanguageCode } from '@/lib/data';
-import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw } from 'lucide-react';
+import { languages, type LanguageCode, phrasebook, type Topic } from '@/lib/data';
+import { Download, Trash2, LoaderCircle, CheckCircle2, Bookmark, RefreshCw, ChevronDown, Package, PackageCheck } from 'lucide-react';
 import useLocalStorage from '@/hooks/use-local-storage';
 import type { SavedPhrase } from '@/lib/types';
 import { languageToLocaleMap } from '@/lib/utils';
 import { generateSpeech } from '@/services/tts';
 import { useUserData } from '@/context/UserDataContext';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, doc, onSnapshot } from 'firebase/firestore';
 
 
 const DB_NAME = 'VibeSync-Offline';
 const STORE_NAME = 'AudioPacks';
-const METADATA_STORE_NAME = 'AudioPackMetadata';
-const DB_VERSION = 2; // Incremented version for new object store
+const DB_VERSION = 2;
 const SAVED_PHRASES_KEY = 'user_saved_phrases';
 
-interface PackMetadata {
-  id: string; // e.g., 'khmer' or 'user_saved_phrases'
-  phraseCount?: number;
+type AudioPack = {
+  [phraseId: string]: string;
+};
+
+interface AudioPackMetadata {
+  id: string;
+  language: string;
+  downloadUrl: string;
   size: number;
+  updatedAt: any;
+  topicStats: Record<string, { totalPhrases: number; generatedAudio: number }>;
 }
 
-
-// --- Database Helper Functions ---
 async function getDb(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion) {
+    upgrade(db) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
-      }
-      if (oldVersion < 2 && !db.objectStoreNames.contains(METADATA_STORE_NAME)) {
-        db.createObjectStore(METADATA_STORE_NAME, { keyPath: 'id' });
       }
     },
   });
 }
 
-export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases'): Promise<AudioPack | undefined> {
-    const db = await getDb();
-    return db.get(STORE_NAME, lang);
+
+/**
+ * Retrieves an audio pack from the local IndexedDB.
+ * @param packId The ID of the pack to retrieve (e.g., 'khmer' or 'user_saved_phrases').
+ * @returns The audio pack object or undefined if not found.
+ */
+export async function getOfflineAudio(packId: string): Promise<AudioPack | undefined> {
+    try {
+        const db = await getDb();
+        return await db.get(STORE_NAME, packId);
+    } catch (error) {
+        console.error(`Error fetching offline pack "${packId}":`, error);
+        return undefined;
+    }
 }
 
-// --- Component ---
 
 export default function OfflineManager() {
   const { toast } = useToast();
   const { user, spendTokensForTranslation } = useUserData();
-  const [downloading, setDownloading] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
-  const [deleting, setDeleting] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
-  const [downloadedPacks, setDownloadedPacks] = useState<Record<string, PackMetadata>>({});
-  const [isChecking, setIsChecking] = useState(true);
 
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+  
+  const [availablePacks, setAvailablePacks] = useState<AudioPackMetadata[]>([]);
+  const [downloadedPacks, setDownloadedPacks] = useState<string[]>([]);
+
+  const [isDownloadListOpen, setIsDownloadListOpen] = useState(false);
+  const [isAvailableListOpen, setIsAvailableListOpen] = useState(false);
+  
   const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
 
-  // Check for existing offline data on mount
-  const checkForOfflineData = useCallback(async () => {
+  const checkForDownloadedPacks = useCallback(async () => {
     setIsChecking(true);
     try {
-        const db = await getDb();
-        const allMetadata = await db.getAll(METADATA_STORE_NAME);
-        const packs: Record<string, PackMetadata> = {};
-        allMetadata.forEach(meta => {
-            packs[meta.id] = meta;
-        });
-        setDownloadedPacks(packs);
+      const db = await getDb();
+      const keys = await db.getAllKeys(STORE_NAME);
+      setDownloadedPacks(keys as string[]);
     } catch (error) {
-        console.error("Error checking for offline data:", error);
+      console.error("Error checking for offline data:", error);
     } finally {
-        setIsChecking(false);
+      setIsChecking(false);
     }
   }, []);
 
   useEffect(() => {
-    checkForOfflineData();
-  }, [checkForOfflineData]);
+    checkForDownloadedPacks();
 
-  const handleDownload = async (lang: LanguageCode) => {
-    setDownloading(lang);
+    const packsRef = collection(db, 'audioPacks');
+    const unsubscribe = onSnapshot(packsRef, (snapshot) => {
+        const packs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AudioPackMetadata));
+        setAvailablePacks(packs);
+    });
+
+    return () => unsubscribe();
+  }, [checkForDownloadedPacks]);
+
+
+  const handleDelete = async (packId: string) => {
+    setDeleting(packId);
     try {
-      const { audioPack, size } = await getLanguageAudioPack(lang);
-      const db = await getDb();
-      await db.put(STORE_NAME, audioPack, lang);
-
-      const metadata: PackMetadata = { id: lang, size };
-      await db.put(METADATA_STORE_NAME, metadata);
-
-      toast({
-        title: 'Download Complete!',
-        description: `Offline audio for ${languages.find(l => l.value === lang)?.label} is now available.`,
-      });
-      setDownloadedPacks(prev => ({...prev, [lang]: metadata}));
+        const db = await getDb();
+        await db.delete(STORE_NAME, packId);
+        toast({
+            title: 'Offline Data Removed',
+            description: `Removed offline audio for ${packId}.`
+        });
+        await checkForDownloadedPacks();
     } catch (error) {
-      console.error('Failed to download audio pack:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Download Failed',
-        description: 'Could not download the offline audio pack. Please try again later.',
-      });
+         console.error('Failed to delete audio pack:', error);
+         toast({ variant: 'destructive', title: 'Deletion Failed' });
     } finally {
-      setDownloading(null);
+        setDeleting(null);
     }
   };
 
-  const handleDelete = async (lang: LanguageCode | 'user_saved_phrases') => {
-    setDeleting(lang);
+  const handleDownloadPack = async (pack: AudioPackMetadata) => {
+    setDownloading(pack.id);
     try {
+        const response = await fetch(pack.downloadUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const audioPack = await response.json();
         const db = await getDb();
-        await db.delete(STORE_NAME, lang);
-        await db.delete(METADATA_STORE_NAME, lang);
-        
-        const langLabel = lang === SAVED_PHRASES_KEY
-            ? 'Your Saved Phrases'
-            : languages.find(l => l.value === lang)?.label;
-
-        toast({
-            title: 'Offline Data Removed',
-            description: `Removed offline audio for ${langLabel}.`
-        });
-        setDownloadedPacks(prev => {
-            const newPacks = { ...prev };
-            delete newPacks[lang];
-            return newPacks;
-        });
+        await db.put(STORE_NAME, audioPack, pack.id);
+        toast({ title: 'Download Complete!', description: `Offline audio for ${pack.language} is now available.` });
+        await checkForDownloadedPacks();
     } catch (error) {
-         console.error('Failed to delete audio pack:', error);
-         toast({
-            variant: 'destructive',
-            title: 'Deletion Failed',
-            description: 'Could not remove the offline audio pack.',
-      });
+        console.error(`Failed to download audio pack for ${pack.language}:`, error);
+        toast({ variant: 'destructive', title: 'Download Failed' });
     } finally {
-        setDeleting(null);
+        setDownloading(null);
     }
   };
 
@@ -148,11 +147,7 @@ export default function OfflineManager() {
     const hasSufficientTokens = spendTokensForTranslation(`Downloaded ${savedPhrases.length} saved phrases for offline use.`, cost);
 
     if (!hasSufficientTokens) {
-        toast({
-            variant: 'destructive',
-            title: 'Insufficient Tokens',
-            description: `You need ${cost} tokens to download this pack.`,
-        });
+        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens.` });
         return;
     }
     
@@ -166,9 +161,7 @@ export default function OfflineManager() {
                 try {
                     const { audioDataUri } = await generateSpeech({ text: phrase.toText, lang: toLocale, voice: 'default' });
                     audioPack[phrase.id] = audioDataUri;
-                } catch (error) {
-                    console.error(`Failed to generate audio for saved phrase "${phrase.id}":`, error);
-                }
+                } catch (error) { console.error(`Failed to gen audio for saved phrase "${phrase.id}":`, error); }
             }
         });
 
@@ -176,24 +169,13 @@ export default function OfflineManager() {
 
         const db = await getDb();
         await db.put(STORE_NAME, audioPack, SAVED_PHRASES_KEY);
-        
-        const size = Buffer.from(JSON.stringify(audioPack)).length;
-        const metadata: PackMetadata = { id: SAVED_PHRASES_KEY, phraseCount: savedPhrases.length, size };
-        await db.put(METADATA_STORE_NAME, metadata);
 
-        toast({
-            title: 'Download Complete!',
-            description: 'Your saved phrases are now available for offline practice.',
-        });
-        setDownloadedPacks(prev => ({ ...prev, [SAVED_PHRASES_KEY]: metadata }));
+        toast({ title: 'Download Complete!', description: 'Your saved phrases are now available for offline practice.'});
+        await checkForDownloadedPacks();
 
     } catch (error) {
         console.error('Failed to download saved phrases pack:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Download Failed',
-            description: 'Could not download your saved phrases. Please try again later.',
-        });
+        toast({ variant: 'destructive', title: 'Download Failed' });
     } finally {
         setDownloading(null);
     }
@@ -209,104 +191,68 @@ export default function OfflineManager() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
-  if (isChecking) {
-    return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
-  }
-
-  const offlineReadyLanguages = ['khmer'];
-
-  const savedPhrasesPackInfo = downloadedPacks[SAVED_PHRASES_KEY];
-  const isSavedPhrasesDownloaded = !!savedPhrasesPackInfo;
-  const isUpdateAvailable = isSavedPhrasesDownloaded && savedPhrasesPackInfo.phraseCount !== savedPhrases.length;
-  const isDownloadingSaved = downloading === SAVED_PHRASES_KEY;
-  const isDeletingSaved = deleting === SAVED_PHRASES_KEY;
+  const packsToDownload = availablePacks.filter(p => !downloadedPacks.includes(p.id));
   const savedPhrasesCost = Math.ceil(savedPhrases.length / 5);
-
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
-      <h4 className="font-semibold">Offline Language Packs</h4>
-      <div className="space-y-2">
-        {savedPhrases.length > 0 && user && (
-           <div className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-              <div className="flex flex-col">
-                <span className="flex items-center gap-1.5 font-medium"><Bookmark className="h-4 w-4 text-primary"/> Your Saved Phrases ({savedPhrases.length})</span>
-                 {isSavedPhrasesDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(savedPhrasesPackInfo.size)}</span>}
-              </div>
-              
-              {isSavedPhrasesDownloaded && !isUpdateAvailable && (
-                 <div className="flex items-center gap-2">
-                    <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready for Offline Use</span>
-                    <Button size="icon" variant="ghost" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved} aria-label="Delete offline saved phrases">
-                         {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                    </Button>
-                </div>
-              )}
-              
-              {isUpdateAvailable && (
-                 <Button variant="secondary" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                  {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><RefreshCw className="mr-2 h-4 w-4" />Update ({savedPhrasesCost} Tokens)</>}
-                </Button>
-              )}
-              
-              {!isSavedPhrasesDownloaded && (
-                <Button variant="default" size="sm" onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                  {isDownloadingSaved ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Downloading...</> : <><Download className="mr-2 h-4 w-4" />Download ({savedPhrasesCost} Tokens)</>}
-                </Button>
-              )}
+      <h4 className="font-semibold">Offline Content Management</h4>
+       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <Button variant="outline" onClick={() => setIsDownloadListOpen(prev => !prev)} className="justify-between">
+                Download Packages ({packsToDownload.length})
+                <ChevronDown className={`h-4 w-4 transition-transform ${isDownloadListOpen ? 'rotate-180' : ''}`} />
+            </Button>
+            <Button variant="outline" onClick={() => setIsAvailableListOpen(prev => !prev)} className="justify-between">
+                Available Offline ({downloadedPacks.length})
+                <ChevronDown className={`h-4 w-4 transition-transform ${isAvailableListOpen ? 'rotate-180' : ''}`} />
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleDownloadSavedPhrases}
+              disabled={downloading === SAVED_PHRASES_KEY || savedPhrases.length === 0}
+            >
+                {downloading === SAVED_PHRASES_KEY ? (
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>
+                ) : (
+                    <Bookmark className="mr-2 h-4 w-4"/>
+                )}
+                Saved Phrases ({savedPhrasesCost} Tokens)
+            </Button>
+       </div>
+
+        {isDownloadListOpen && (
+            <div className="space-y-2 pt-2 border-t">
+                {packsToDownload.length > 0 ? packsToDownload.map(pack => (
+                    <div key={pack.id} className="flex justify-between items-center p-2 rounded-md bg-muted/50">
+                        <span>{pack.language} ({formatBytes(pack.size)})</span>
+                        <Button size="sm" onClick={() => handleDownloadPack(pack)} disabled={!!downloading}>
+                            {downloading === pack.id ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
+                        </Button>
+                    </div>
+                )) : <p className="text-sm text-center text-muted-foreground py-2">All language packs are downloaded.</p>}
             </div>
         )}
 
-        {offlineReadyLanguages.map(langCode => {
-          const lang = languages.find(l => l.value === langCode)!;
-          const downloadInfo = downloadedPacks[lang.value];
-          const isDownloaded = !!downloadInfo;
-          const isDownloadingThis = downloading === lang.value;
-          const isDeletingThis = deleting === lang.value;
-
-          return (
-            <div key={lang.value} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-              <div className="flex flex-col">
-                <span>{lang.label}</span>
-                 {isDownloaded && <span className="text-xs text-muted-foreground">{formatBytes(downloadInfo.size)}</span>}
-              </div>
-              {isDownloaded ? (
-                <div className="flex items-center gap-2">
-                    <span className="flex items-center text-sm text-green-600 font-medium"><CheckCircle2 className="h-4 w-4 mr-1.5"/> Ready for Offline Use</span>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDelete(lang.value)}
-                        disabled={isDeletingThis}
-                        aria-label={`Delete offline audio for ${lang.label}`}
-                    >
-                         {isDeletingThis ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4 text-destructive" />}
-                    </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleDownload(lang.value)}
-                  disabled={isDownloadingThis}
-                >
-                  {isDownloadingThis ? (
-                    <>
-                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </>
-                  )}
-                </Button>
-              )}
+        {isAvailableListOpen && (
+             <div className="space-y-2 pt-2 border-t">
+                {downloadedPacks.length > 0 ? downloadedPacks.map(packId => {
+                    const lang = languages.find(l => l.value === packId);
+                    const name = packId === SAVED_PHRASES_KEY ? 'Your Saved Phrases' : lang?.label;
+                    return (
+                        <div key={packId} className="flex justify-between items-center p-2 rounded-md bg-muted/50">
+                            <span className="flex items-center gap-2 text-green-600 font-medium">
+                                <PackageCheck className="h-4 w-4"/>
+                                {name}
+                            </span>
+                             <Button size="icon" variant="ghost" onClick={() => handleDelete(packId)} disabled={!!deleting}>
+                                {deleting === packId ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                            </Button>
+                        </div>
+                    )
+                }) : <p className="text-sm text-center text-muted-foreground py-2">No packages downloaded yet.</p>}
             </div>
-          );
-        })}
-      </div>
+        )}
+
     </div>
   );
 }

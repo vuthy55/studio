@@ -94,7 +94,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             setIsDataLoading(true);
 
             // Fetch offline packs once when user logs in
-            const allLangs: LanguageCode[] = ['khmer'];
+            const allLangs: LanguageCode[] = ['khmer']; // This is just an example, more languages can be added
             const packPromises = allLangs.map(lang => getOfflineAudio(lang));
             packPromises.push(getOfflineAudio('user_saved_phrases'));
             

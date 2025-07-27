@@ -5,14 +5,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc, onSnapshot } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
+import { languages as allAppLanguages, phrasebook, type Topic, type LanguageCode } from '@/lib/data';
+import { generateAndUploadAudioPack, type AudioPackMetadata } from '@/actions/audio';
 
 
 interface UserWithId extends UserProfile {
@@ -1700,6 +1702,119 @@ function MessagingContent() {
     );
 }
 
+function AudioPacksContent() {
+    const [audioPacks, setAudioPacks] = useState<AudioPackMetadata[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isGenerating, setIsGenerating] = useState<LanguageCode | null>(null);
+    const { toast } = useToast();
+
+    const fetchPacks = useCallback(async () => {
+        const packsRef = collection(db, 'audioPacks');
+        const snapshot = await getDocs(packsRef);
+        const packsData = snapshot.docs.map(doc => doc.data() as AudioPackMetadata);
+        setAudioPacks(packsData);
+        setIsLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchPacks();
+    }, [fetchPacks]);
+
+    const handleGeneratePack = async (langCode: LanguageCode) => {
+        setIsGenerating(langCode);
+        const result = await generateAndUploadAudioPack(langCode);
+        if (result.success) {
+            toast({ title: 'Success', description: `Audio pack for ${langCode} has been generated and uploaded.` });
+            await fetchPacks();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to generate pack.' });
+        }
+        setIsGenerating(null);
+    };
+
+    const getPackForLanguage = (langCode: LanguageCode) => {
+        return audioPacks.find(p => p.id === langCode);
+    }
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center py-10"><LoaderCircle className="h-8 w-8 animate-spin text-primary" /></div>
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Audio Packs</CardTitle>
+                <CardDescription>Generate and verify offline audio packs for each language. These are stored in public Cloud Storage.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Accordion type="single" collapsible className="w-full">
+                    {allAppLanguages.map(lang => {
+                         const pack = getPackForLanguage(lang.value);
+                         const isComplete = pack && Object.values(pack.topicStats).every(t => t.generatedAudio === t.totalPhrases);
+                        return (
+                        <AccordionItem value={lang.value} key={lang.value}>
+                            <AccordionTrigger>
+                                <div className="flex items-center justify-between w-full pr-4">
+                                    <span>{lang.label}</span>
+                                     {pack ? (
+                                        <Badge variant={isComplete ? 'default' : 'destructive'} className={isComplete ? 'bg-green-100 text-green-800' : ''}>
+                                            {isComplete ? 'Complete' : 'Incomplete'}
+                                        </Badge>
+                                     ) : (
+                                        <Badge variant="secondary">Not Generated</Badge>
+                                     )}
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4">
+                                {pack && (
+                                     <div className="text-xs text-muted-foreground space-y-1">
+                                        <p>Last Updated: {pack.updatedAt ? format(pack.updatedAt.toDate(), 'PPpp') : 'N/A'}</p>
+                                        <p>Size: {new Intl.NumberFormat().format(pack.size)} bytes</p>
+                                        <a href={pack.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
+                                            Download Link <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                    </div>
+                                )}
+                               <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Topic</TableHead>
+                                            <TableHead className="text-right">Total Phrases</TableHead>
+                                            <TableHead className="text-right">Audio Generated</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {phrasebook.map(topic => {
+                                            const stats = pack?.topicStats[topic.id];
+                                            const total = stats?.totalPhrases ?? topic.phrases.length + topic.phrases.filter(p => p.answer).length;
+                                            const generated = stats?.generatedAudio ?? 0;
+                                            const isTopicComplete = total === generated;
+                                            return (
+                                                <TableRow key={topic.id}>
+                                                    <TableCell>{topic.title}</TableCell>
+                                                    <TableCell className="text-right">{total}</TableCell>
+                                                    <TableCell className={`text-right font-bold ${isTopicComplete ? 'text-green-600' : 'text-destructive'}`}>
+                                                        {generated}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
+                                <Button onClick={() => handleGeneratePack(lang.value)} disabled={isGenerating !== null}>
+                                    {isGenerating === lang.value ? <LoaderCircle className="animate-spin mr-2" /> : <UploadCloud className="mr-2" />}
+                                    {isGenerating === lang.value ? 'Generating...' : (pack ? 'Regenerate & Upload' : 'Generate & Upload')}
+                                </Button>
+                            </AccordionContent>
+                        </AccordionItem>
+                    )})}
+                </Accordion>
+            </CardContent>
+        </Card>
+    )
+}
+
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -1738,6 +1853,7 @@ export default function AdminPage() {
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
+        { value: 'audio-packs', label: 'Audio Packs', icon: Music },
         { value: 'bulk-actions', label: 'Bulk Actions', icon: Trash2 },
         { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
     ];
@@ -1746,7 +1862,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-7 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1789,6 +1905,9 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="tokens" className="mt-6">
                     <TokensTabContent />
+                </TabsContent>
+                <TabsContent value="audio-packs" className="mt-6">
+                    <AudioPacksContent />
                 </TabsContent>
                  <TabsContent value="bulk-actions" className="mt-6">
                     <BulkActionsContent />
