@@ -1828,6 +1828,11 @@ function AudioPacksContent() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-4">
+                                     {!isComplete && (
+                                        <p className="text-sm text-destructive font-semibold p-2 bg-destructive/10 rounded-md">
+                                            This pack is incomplete. To fix, please re-run the generation for this language using the "Generate/Update Packs" button above.
+                                        </p>
+                                    )}
                                     <div className="text-xs text-muted-foreground space-y-1">
                                         <p>Last Updated: {langPack.updatedAt ? format(new Date(langPack.updatedAt), 'PPpp') : 'N/A'}</p>
                                         <p>Size: {new Intl.NumberFormat().format(langPack.size)} bytes</p>
