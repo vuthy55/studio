@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
-import { getReferredUsers2, type ReferredUser } from '@/actions/referrals2';
+import { getReferredUsers, type ReferredUser } from '@/services/referrals';
 
 
 export interface PracticeStats {
@@ -760,11 +760,10 @@ function ReferralsSection() {
 
     const fetchReferrals = useCallback(async () => {
         if (!user) return;
-        console.log(`[CLIENT DEBUG] Fetching referrals for user ID: ${user.uid}`);
         setIsLoading(true);
         setHasFetched(true);
         try {
-            const referredUsers = await getReferredUsers2(user.uid);
+            const referredUsers = await getReferredUsers(user.uid);
             setReferrals(referredUsers);
         } catch (error) {
             console.error("Error fetching referrals:", error);
@@ -907,5 +906,7 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
 
     
