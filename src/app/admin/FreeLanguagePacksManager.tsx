@@ -4,12 +4,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { languages, type LanguageCode } from '@/lib/data';
-import { getFreeLanguagePacks, setFreeLanguagePacks, getGenerationMetadata, LanguagePackGenerationMetadata } from '@/actions/audiopack-admin';
-import { LoaderCircle, Check, Save } from 'lucide-react';
+import { getFreeLanguagePacks, setFreeLanguagePacks, getGenerationMetadata, LanguagePackGenerationMetadata, applyFreeLanguagesToAllUsers } from '@/actions/audiopack-admin';
+import { LoaderCircle, Check, Save, Users } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 export default function FreeLanguagePacksManager() {
     const { toast } = useToast();
@@ -18,6 +20,7 @@ export default function FreeLanguagePacksManager() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
+    const [isApplying, setIsApplying] = useState(false);
 
     const fetchInitialData = useCallback(async () => {
         setIsLoading(true);
@@ -81,6 +84,17 @@ export default function FreeLanguagePacksManager() {
         }
         setIsSaving(false);
     };
+    
+     const handleApplyToAll = async () => {
+        setIsApplying(true);
+        const result = await applyFreeLanguagesToAllUsers();
+        if (result.success) {
+            toast({ title: 'Success!', description: 'The current free languages have been applied to all existing users.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to apply changes to all users.' });
+        }
+        setIsApplying(false);
+    };
 
     if (isLoading) {
         return (
@@ -131,7 +145,31 @@ export default function FreeLanguagePacksManager() {
                 </div>
             )}
             
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-4 gap-2">
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button variant="secondary" disabled={isApplying || hasChanges}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Apply to All Users
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Apply to all existing users?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will grant all current users access to the currently selected free languages ({freePacks.length} languages). This action cannot be undone. New users will get this list automatically.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleApplyToAll} disabled={isApplying}>
+                                {isApplying ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Confirm & Apply
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
                 <Button onClick={handleSaveChanges} disabled={isSaving || !hasChanges}>
                     {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     Save Changes
