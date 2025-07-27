@@ -438,13 +438,13 @@ export default function SyncRoomPage() {
             try {
                 setIsSpeaking(true);
                 
-                const fromLangSimple = mapAzureCodeToLanguageCode(msg.speakerLanguage);
-                const toLangSimple = mapAzureCodeToLanguageCode(currentUserParticipant.selectedLanguage!);
+                const fromLangLabel = getAzureLanguageLabel(msg.speakerLanguage);
+                const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage!);
                 
                 const translated = await translateText({
                     text: msg.text,
-                    fromLanguage: fromLangSimple,
-                    toLanguage: toLangSimple,
+                    fromLanguage: fromLangLabel,
+                    toLanguage: toLangLabel,
                 });
 
                 setTranslatedMessages(prev => ({...prev, [msg.id]: translated.translatedText}));
@@ -549,11 +549,16 @@ export default function SyncRoomPage() {
                 invitedEmails: arrayUnion(...emails)
             });
             
+            // Check if roomData.scheduledAt exists and is valid before creating Date object
+            const scheduledAtDate = roomData.scheduledAt
+                ? (roomData.scheduledAt instanceof Timestamp ? roomData.scheduledAt.toDate() : new Date(roomData.scheduledAt))
+                : new Date();
+
             await sendRoomInviteEmail({
                 to: emails,
                 roomTopic: roomData.topic,
                 creatorName: user.displayName || 'A user',
-                scheduledAt: roomData.scheduledAt ? new Date(roomData.scheduledAt) : new Date(),
+                scheduledAt: scheduledAtDate,
                 joinUrl: `${window.location.origin}/join/${roomId}?ref=${roomData.creatorUid}`
             });
 
