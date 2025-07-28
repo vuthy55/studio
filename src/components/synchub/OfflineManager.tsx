@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -328,7 +327,7 @@ export default function OfflineManager() {
         ]);
         
         const packCost = settings?.languageUnlockCost ?? 100;
-        const completePacks = metadata
+        const completePacks: AvailablePack[] = metadata
             .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
             .map(meta => ({
                 ...meta,
