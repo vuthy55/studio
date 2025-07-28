@@ -184,6 +184,18 @@ const Tour = () => {
           case '[data-tour="so-schedule-button"]':
                 finalTargetRect.y = 220;
                 break;
+          case '[data-tour="so-room-list"]':
+                finalTargetRect.y = 250;
+                break;
+          case '[data-tour="so-start-room-0"]':
+                finalTargetRect.y = 320;
+                break;
+          case '[data-tour="so-share-link-0"]':
+                finalTargetRect.y = 320;
+                break;
+          case '[data-tour="so-settings-0"]':
+                finalTargetRect.y = 320;
+                break;
           default:
               break;
       }
