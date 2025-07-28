@@ -24,7 +24,7 @@ export default function MarketingRelease3() {
             </p>
         </div>
         <Image 
-            src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
+            src="https://placehold.co/600x400.png"
             alt="A solo traveler looking a bit lost in a bustling Asian market"
             width={600}
             height={400}
@@ -35,7 +35,7 @@ export default function MarketingRelease3() {
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
          <Image 
-            src="https://images.unsplash.com/photo-1528271537-646763841974?q=80&w=2070&auto=format&fit=crop"
+            src="https://placehold.co/600x400.png"
             alt="Traveler confidently ordering street food"
             width={600}
             height={400}
@@ -64,7 +64,7 @@ export default function MarketingRelease3() {
             </Button>
         </div>
         <Image 
-            src="https://images.unsplash.com/photo-1559592233-b36a13127883?q=80&w=2070&auto=format&fit=crop"
+            src="https://placehold.co/600x400.png"
             alt="A diverse group of young friends laughing together at a landmark"
             width={600}
             height={400}
@@ -75,7 +75,7 @@ export default function MarketingRelease3() {
 
        <div className="grid md:grid-cols-2 gap-8 items-center">
         <Image 
-            src="https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=2073&auto=format&fit=crop"
+            src="https://placehold.co/600x400.png"
             alt="A group of people looking at a phone together and planning"
             width={600}
             height={400}
