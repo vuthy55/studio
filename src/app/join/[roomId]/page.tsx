@@ -56,10 +56,8 @@ export default function JoinRoomPage() {
     }, []);
 
     const fetchRoomAndRedirect = useCallback(async (user: any) => {
-        console.log(`[DEBUG] fetchRoomAndRedirect: Called for authenticated user ${user.uid}.`);
         setIsSubmitting(true);
         try {
-            console.log(`[DEBUG] fetchRoomAndRedirect: Attempting to get room document: syncRooms/${roomId}`);
             const roomDocRef = doc(db, 'syncRooms', roomId);
             const roomDoc = await getDoc(roomDocRef);
             if (!roomDoc.exists()) {
@@ -71,7 +69,6 @@ export default function JoinRoomPage() {
              setRoomTopic(roomData.topic);
 
             // Add user to room and redirect.
-            console.log(`[DEBUG] fetchRoomAndRedirect: Adding user ${user.uid} to participants.`);
             
             if (!roomData.invitedEmails.includes(user.email!)) {
                 await updateDoc(roomDocRef, {
@@ -79,11 +76,10 @@ export default function JoinRoomPage() {
                 });
             }
             
-            console.log(`[DEBUG] fetchRoomAndRedirect: Redirecting to /sync-room/${roomId}`);
             router.push(`/sync-room/${roomId}`);
 
         } catch (error) {
-             console.error("[DEBUG] Error in fetchRoomAndRedirect:", error);
+             console.error("Error in fetchRoomAndRedirect:", error);
              toast({ variant: 'destructive', title: 'Error', description: 'Could not load room details or join the room.' });
              setIsSubmitting(false);
         }
@@ -91,17 +87,13 @@ export default function JoinRoomPage() {
 
 
     useEffect(() => {
-        console.log(`[DEBUG] Main Effect: Auth loading state is ${authLoading}. User object is ${user ? 'present' : 'null'}. New user flow is ${isNewUserFlow}.`);
         if (authLoading || isNewUserFlow) {
-            console.log(`[DEBUG] Main Effect: Auth is loading or new user flow is active, waiting...`);
             return; 
         }
 
         if (user) {
-            console.log("[DEBUG] Main Effect: User is authenticated. Running fetchRoomAndRedirect.");
             fetchRoomAndRedirect(user);
         } else {
-            console.log("[DEBUG] Main Effect: User is not authenticated. Displaying sign-up form.");
             setIsLoading(false);
         }
     }, [authLoading, user, fetchRoomAndRedirect, isNewUserFlow]);
@@ -119,7 +111,6 @@ export default function JoinRoomPage() {
     
     const handleSignUpAndJoin = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log("[DEBUG] handleSignUpAndJoin: Form submitted.");
         if (!name || !email || !password || !country || !spokenLanguage) {
             toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill out all required fields.'});
             return;
@@ -141,15 +132,11 @@ export default function JoinRoomPage() {
             // Now that the user exists in Auth and Firestore, log them in on the client
             await signInWithEmailAndPassword(auth, email, password);
             
-            console.log("[DEBUG] handleSignUpAndJoin: User created and signed in.");
-
             const isRoomActive = result.roomStatus === 'active' || (result.roomStatus === 'scheduled' && new Date(result.scheduledAt!) < new Date());
 
             if (isRoomActive) {
-                console.log("[DEBUG] Room is active. Redirecting to room.");
                 router.push(`/sync-room/${roomId}`);
             } else {
-                console.log("[DEBUG] Room is scheduled for later. Redirecting to SyncHub.");
                 toast({
                     title: "Welcome to VibeSync!",
                     description: `Your account is ready. Your room is scheduled for ${format(new Date(result.scheduledAt!), 'PPpp')}.`,
@@ -159,7 +146,7 @@ export default function JoinRoomPage() {
             }
             
         } catch (error: any) {
-            console.error("[DEBUG] Sign-up and join error:", error);
+            console.error("Sign-up and join error:", error);
             toast({ variant: 'destructive', title: 'Sign-up Failed', description: error.message });
             setIsSubmitting(false);
             setIsNewUserFlow(false);

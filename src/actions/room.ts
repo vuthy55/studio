@@ -28,7 +28,6 @@ async function getAdminUids(): Promise<string[]> {
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
 export async function softDeleteRoom(roomId: string): Promise<{success: boolean, error?: string}> {
-  console.log(`[ACTION] softDeleteRoom invoked for roomId: ${roomId}`);
   if (!roomId) {
     console.error('softDeleteRoom error: No roomId provided.');
     return { success: false, error: 'Room ID is required.' };
@@ -68,10 +67,9 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
         }
     });
 
-    console.log(`[ACTION] Successfully soft-deleted room ${roomId}`);
     return { success: true };
   } catch (error: any) {
-    console.error(`[ACTION] Failed to soft delete room ${roomId}:`, error);
+    console.error(`Failed to soft delete room ${roomId}:`, error);
     return { success: false, error: 'Failed to close the room on the server.' };
   }
 }
@@ -107,7 +105,7 @@ export async function checkRoomActivity(roomId: string, userId: string): Promise
         return { success: true, hasActivity: !snapshot.empty };
 
     } catch (error: any) {
-        console.error(`[ACTION] Failed to check activity for room ${roomId}:`, error);
+        console.error(`Failed to check activity for room ${roomId}:`, error);
         return { success: false, error: 'Failed to check room activity on the server.' };
     }
 }
@@ -122,7 +120,6 @@ export async function checkRoomActivity(roomId: string, userId: string): Promise
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
  */
 export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{success: boolean, error?: string}> {
-  console.log(`[ACTION] permanentlyDeleteRooms invoked for ${roomIds.length} rooms.`);
   if (!roomIds || roomIds.length === 0) {
     return { success: false, error: 'At least one room ID is required.' };
   }
@@ -197,10 +194,9 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
     
     await batch.commit();
 
-    console.log(`[ACTION] Successfully deleted ${roomIds.length} rooms.`);
     return { success: true };
   } catch (error: any) {
-    console.error(`[ACTION] Failed to permanently delete rooms:`, error);
+    console.error(`Failed to permanently delete rooms:`, error);
     return { success: false, error: 'Failed to delete rooms on the server.' };
   }
 }
@@ -228,7 +224,7 @@ export async function updateRoomSummary(roomId: string, summary: any): Promise<{
     return { success: true };
 
   } catch (error: any) {
-    console.error(`[ACTION] Failed to update room summary for ${roomId}:`, error);
+    console.error(`Failed to update room summary for ${roomId}:`, error);
     return { success: false, error: 'Failed to update summary on the server.' };
   }
 }
