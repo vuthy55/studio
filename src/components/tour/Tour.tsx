@@ -2,7 +2,7 @@
 "use client";
 
 import { useTour } from '@/context/TourContext';
-import { useState, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useLayoutEffect, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -16,8 +16,9 @@ const Tour = () => {
     if (isOpen && currentStep) {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
-        const rect = element.getBoundingClientRect();
-        setTargetRect(rect);
+        setTargetRect(element.getBoundingClientRect());
+      } else {
+        setTargetRect(null); // Element not found, hide highlight
       }
     }
   }, [isOpen, currentStep]);
@@ -27,21 +28,34 @@ const Tour = () => {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+        const handleResize = () => {
+          // Give a brief moment for layout to settle after scroll/resize
+          setTimeout(updateTargetRect, 50);
+        };
         
-        const timer = setTimeout(() => {
-            updateTargetRect();
-        }, 300);
+        handleResize(); // Initial placement
 
-        const scrollAndResizeHandler = () => updateTargetRect();
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('scroll', handleResize, true);
+        
+        // Observer for more robust tracking of element position changes
+        const resizeObserver = new ResizeObserver(handleResize);
+        resizeObserver.observe(document.body);
+        resizeObserver.observe(element);
+        
+        const mutationObserver = new MutationObserver(handleResize);
+        mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
 
-        window.addEventListener('scroll', scrollAndResizeHandler, true);
-        window.addEventListener('resize', scrollAndResizeHandler);
 
         return () => {
-          clearTimeout(timer);
-          window.removeEventListener('scroll', scrollAndResizeHandler, true);
-          window.removeEventListener('resize', scrollAndResizeHandler);
+          window.removeEventListener('resize', handleResize);
+          window.removeEventListener('scroll', handleResize, true);
+          resizeObserver.disconnect();
+          mutationObserver.disconnect();
         };
+      } else {
+        setTargetRect(null);
       }
     } else {
       setTargetRect(null);
@@ -103,21 +117,39 @@ const Tour = () => {
   if (!isOpen || !targetRect || !currentStep) {
     return null;
   }
+  
+  const highlightPadding = 5;
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isOpen && targetRect && (
         <>
-          {/* This is the new, robust overlay system */}
-          <div className="pointer-events-none fixed inset-0 z-[10000]">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute left-0 top-0 h-full w-full bg-black/70"
-              style={{ clipPath: `polygon(0% 0%, 0% 100%, ${targetRect.left}px 100%, ${targetRect.left}px ${targetRect.top}px, ${targetRect.right}px ${targetRect.top}px, ${targetRect.right}px ${targetRect.bottom}px, ${targetRect.left}px ${targetRect.bottom}px, ${targetRect.left}px 100%, 100% 100%, 100% 0%)`}}
+          <motion.div
+            className="fixed inset-0 z-[10000] pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Top overlay */}
+            <div className="absolute left-0 top-0 bg-black/70" style={{ width: '100%', height: `${targetRect.top - highlightPadding}px` }} />
+            {/* Bottom overlay */}
+            <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.bottom + highlightPadding}px`, width: '100%', height: `calc(100vh - ${targetRect.bottom + highlightPadding}px)` }} />
+            {/* Left overlay */}
+            <div className="absolute top-0 left-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, width: `${targetRect.left - highlightPadding}px`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+            {/* Right overlay */}
+            <div className="absolute top-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, left: `${targetRect.right + highlightPadding}px`, width: `calc(100vw - ${targetRect.right + highlightPadding}px)`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+            
+             {/* Highlight border */}
+            <div
+              className="absolute border-2 border-primary border-dashed rounded-md transition-all duration-300"
+              style={{
+                top: `${targetRect.top - highlightPadding}px`,
+                left: `${targetRect.left - highlightPadding}px`,
+                width: `${targetRect.width + highlightPadding * 2}px`,
+                height: `${targetRect.height + highlightPadding * 2}px`,
+              }}
             />
-          </div>
+          </motion.div>
 
           <motion.div
             ref={popoverRef}
@@ -159,3 +191,4 @@ const Tour = () => {
 };
 
 export default Tour;
+
