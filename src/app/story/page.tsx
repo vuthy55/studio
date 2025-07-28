@@ -28,30 +28,26 @@ export default function StoryPage() {
           </div>
           <div>
             <Image 
-                src="https://images.unsplash.com/photo-1528260346029-9a8b27441463?q=80&w=2070&auto=format&fit=crop"
-                alt="A solo male backpacker looking lost in a bustling Asian market. Source: https://images.unsplash.com/photo-1528260346029-9a8b27441463?q=80&w=2070&auto=format&fit=crop"
+                src="https://placehold.co/600x400.png"
+                alt="A solo male backpacker looking lost in a bustling Asian market."
                 width={600}
                 height={400}
                 className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                unoptimized
                 data-ai-hint="backpacker market"
             />
-            <p className="text-xs text-muted-foreground mt-1">Image Source: https://unsplash.com/photos/a-man-with-a-backpack-walking-through-a-market-1528260346029-9a8b27441463</p>
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div>
             <Image 
-                src="https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop"
-                alt="Traveler confidently ordering street food. Source: https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop"
+                src="https://placehold.co/600x400.png"
+                alt="Traveler confidently ordering street food."
                 width={600}
                 height={400}
                 className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
-                unoptimized
                 data-ai-hint="ordering food"
             />
-            <p className="text-xs text-muted-foreground mt-1 md:text-right">Image Source: https://unsplash.com/photos/a-man-standing-in-front-of-a-food-stand-1574068468668-a05a11f871da</p>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
@@ -76,30 +72,26 @@ export default function StoryPage() {
           </div>
            <div>
             <Image 
-                src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
-                alt="A diverse group of young friends laughing together at a landmark. Source: https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
+                src="https://placehold.co/600x400.png"
+                alt="A diverse group of young friends laughing together at a landmark."
                 width={600}
                 height={400}
                 className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                unoptimized
                 data-ai-hint="diverse friends"
             />
-            <p className="text-xs text-muted-foreground mt-1">Image Source: https://unsplash.com/photos/a-group-of-people-standing-on-top-of-a-building-1542037104-91ad67d9692a</p>
           </div>
         </div>
 
          <div className="grid md:grid-cols-2 gap-8 items-center">
           <div>
             <Image 
-                src="https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop"
-                alt="A group of people looking at a phone together and planning. Source: https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop"
+                src="https://placehold.co/600x400.png"
+                alt="A group of people looking at a phone together and planning."
                 width={600}
                 height={400}
                 className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
-                unoptimized
                 data-ai-hint="friends phone"
             />
-            <p className="text-xs text-muted-foreground mt-1 md:text-right">Image Source: https://unsplash.com/photos/a-group-of-people-looking-at-a-cell-phone-1516589178581-6e3a4f11413a</p>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
