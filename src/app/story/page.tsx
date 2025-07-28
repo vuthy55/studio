@@ -32,8 +32,8 @@ export default function StoryPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="flex items-center justify-start p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2] md:order-2">
-            <div className="text-left">
+          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2] md:order-2">
+            <div className="text-center">
               <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">អរគុណ</div>
               <div className="text-2xl md:text-3xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
             </div>
