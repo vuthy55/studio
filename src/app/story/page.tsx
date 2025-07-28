@@ -71,15 +71,8 @@ export default function StoryPage() {
                    <Link href="/synchub?tab=sync-live">Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
-           <div>
-            <Image 
-                src="https://placehold.co/600x400.png"
-                alt="A diverse group of young friends laughing together at a landmark."
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                data-ai-hint="diverse friends"
-            />
+           <div className="rounded-lg shadow-xl bg-accent/20 flex items-center justify-center aspect-[3/2]">
+            <h2 className="text-6xl font-bold text-accent font-headline tracking-wider transform -rotate-6">Sync Live</h2>
           </div>
         </div>
 
