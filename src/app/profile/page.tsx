@@ -721,7 +721,7 @@ function BuddiesSection() {
                  <Card>
                     <CardHeader><CardTitle>Incoming Requests ({userProfile.buddyRequests.length})</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
-                        {userProfile.buddyRequests.map(req => (
+                        {userProfile.buddyRequests.map((req: BuddyRequest) => (
                             <div key={req.fromUid} className="p-3 border rounded-lg flex justify-between items-center">
                                 <div>
                                     <p className="font-semibold">{req.fromName}</p>
@@ -937,5 +937,6 @@ export default function ProfilePage() {
     
 
     
+
 
 
