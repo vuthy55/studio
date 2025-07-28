@@ -200,7 +200,7 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
-        <div style={{ position: 'fixed', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px', borderRadius: '5px', zIndex: 10003, fontSize: '12px', fontFamily: 'monospace' }}>
+        <div style={{ position: 'fixed', top: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px', borderRadius: '5px', zIndex: 10003, fontSize: '12px', fontFamily: 'monospace' }}>
               <p>Target Rect:</p>
               {targetRect ? (
                   <>
