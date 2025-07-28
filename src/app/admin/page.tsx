@@ -46,6 +46,7 @@ import FreeLanguagePacksManager from './FreeLanguagePacksManager';
 import MarketingRelease3 from '@/components/marketing/MarketingRelease3';
 import { getFeedbackSubmissions, type FeedbackSubmission } from '@/actions/feedback';
 import Image from 'next/image';
+import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 
 
 interface UserWithId extends UserProfile {
@@ -141,7 +142,7 @@ function UsersTabContent() {
                     description: "A Firestore index is required. Please check the browser console for a link to create it.",
                     duration: 10000
                 });
-                console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
+                
             } else {
                  toast({ 
                     variant: "destructive", 
@@ -256,7 +257,7 @@ function SettingsTabContent() {
                 toast({ variant: "destructive", title: "Error", description: result.error || "Could not save settings." });
             }
         } catch (error: any) {
-            console.error("Error saving settings:", error);
+            
             toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
         } finally {
             setIsSaving(false);
@@ -455,7 +456,7 @@ function FinancialTabContent() {
                 setUserMap(prev => ({...prev, ...fetchedUserMap}));
             }
         } catch (error) {
-            console.error("Error fetching financial data:", error);
+            
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch financial data.' });
         } finally {
             setIsLoading(false);
@@ -527,7 +528,7 @@ function FinancialTabContent() {
             await fetchData(debouncedSearchTerm);
 
         } catch (error) {
-            console.error(`Error adding ${type}:`, error);
+            
             toast({ variant: 'destructive', title: 'Error', description: `Could not add ${type}.` });
         } finally {
             setIsSubmitting(false);
@@ -873,7 +874,7 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
             }
         } catch (error) {
-            console.error('Error issuing tokens:', error);
+            
             toast({ variant: 'destructive', title: 'Client Error', description: 'An unexpected error occurred.' });
         } finally {
             setIsSubmitting(false);
@@ -973,7 +974,7 @@ function TokensTabContent() {
             setAnalytics(analyticsData);
             setLedger(ledgerData);
         } catch (err: any) {
-             console.error("Error fetching token data:", err);
+             
             toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not fetch token data.' });
         } finally {
             setIsLoading(false);
@@ -1331,7 +1332,7 @@ function RoomsTabContent() {
         }
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete rooms and their subcollections.' });
-        console.error(e);
+        
     } finally {
         setIsDeleting(false);
     }
@@ -1705,6 +1706,12 @@ function MessagingContent() {
             </CardHeader>
             <CardContent>
                  <Accordion type="single" collapsible className="w-full">
+                     <AccordionItem value="item-beta">
+                        <AccordionTrigger>Beta Tester Information</AccordionTrigger>
+                        <AccordionContent>
+                           <BetaTesterInfo />
+                        </AccordionContent>
+                    </AccordionItem>
                     <AccordionItem value="item-1">
                         <AccordionTrigger>Admin Standard Operating Procedures (SOP)</AccordionTrigger>
                         <AccordionContent>
@@ -1780,7 +1787,7 @@ function FeedbackTabContent() {
             const submissions = await getFeedbackSubmissions();
             setFeedback(submissions);
         } catch (error) {
-            console.error(error);
+            
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load feedback submissions.' });
         } finally {
             setIsLoading(false);
