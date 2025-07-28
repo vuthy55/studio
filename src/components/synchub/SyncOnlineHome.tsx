@@ -115,7 +115,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
     const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
     const availableLanguages = useMemo(() => {
-        if (!editableSummary) return { participantLanguages: [], otherLanguages: [] };
+        if (!editableSummary) return { participantLanguages: [], otherLanguages: [] };;
         const langSet = new Set<string>();
         
         const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
@@ -814,10 +814,15 @@ export default function SyncOnlineHome() {
             setDuration(editingRoom.durationMinutes || 30);
             setStartNow(false); // "Start Now" is not applicable for editing
             
-             const validDate = editingRoom.scheduledAt && typeof editingRoom.scheduledAt === 'string' && !isNaN(new Date(editingRoom.scheduledAt).getTime())
-                ? new Date(editingRoom.scheduledAt)
-                : new Date();
-            setScheduledDate(validDate);
+            const scheduled = editingRoom.scheduledAt;
+            // Safely create a date object
+            if (scheduled instanceof Timestamp) {
+                setScheduledDate(scheduled.toDate());
+            } else if (typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
+                setScheduledDate(new Date(scheduled));
+            } else {
+                 setScheduledDate(new Date());
+            }
         }
     }, [editingRoom, isEditMode, user?.email]);
 
@@ -874,20 +879,20 @@ export default function SyncOnlineHome() {
                         return undefined;
                     };
 
-                    return { 
+                    return {
                         id: doc.id,
                         topic: data.topic,
                         creatorUid: data.creatorUid,
                         creatorName: data.creatorName,
-                        createdAt: toISO(data.createdAt as Timestamp),
+                        createdAt: toISO(data.createdAt),
                         status: data.status,
                         invitedEmails: data.invitedEmails,
                         emceeEmails: data.emceeEmails,
-                        lastActivityAt: toISO(data.lastActivityAt as Timestamp),
+                        lastActivityAt: toISO(data.lastActivityAt),
                         blockedUsers: data.blockedUsers,
                         summary: data.summary,
                         transcript: data.transcript,
-                        scheduledAt: toISO(data.scheduledAt as Timestamp),
+                        scheduledAt: toISO(data.scheduledAt),
                         durationMinutes: data.durationMinutes,
                         initialCost: data.initialCost,
                         paymentLogId: data.paymentLogId,
@@ -1129,7 +1134,7 @@ export default function SyncOnlineHome() {
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
                                             {room.status === 'scheduled' && room.scheduledAt 
-                                                ? format((room.scheduledAt instanceof Timestamp ? room.scheduledAt.toDate() : new Date(room.scheduledAt)), 'PPpp')
+                                                ? format(typeof room.scheduledAt === 'string' ? new Date(room.scheduledAt) : (room.scheduledAt as Timestamp).toDate(), 'PPpp')
                                                 : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                             }
                                         </p>
