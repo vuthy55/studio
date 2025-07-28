@@ -18,16 +18,19 @@ const Tour = () => {
     if (isOpen && currentStep) {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
-        const rect = element.getBoundingClientRect();
-        setTargetRect(rect);
-        
-        // Debugging values
-        const mainScrollContainer = document.querySelector('main');
-        setDebugValues({
-          targetTop: rect.top.toFixed(2),
-          targetLeft: rect.left.toFixed(2),
-          scrollTop: mainScrollContainer ? mainScrollContainer.scrollTop.toFixed(2) : 'N/A',
-        });
+        // A small delay to wait for layout shifts to complete after scrolling
+        setTimeout(() => {
+            const rect = element.getBoundingClientRect();
+            setTargetRect(rect);
+            
+            // Debugging values
+            const mainScrollContainer = document.querySelector('main');
+            setDebugValues({
+              targetTop: rect.top.toFixed(2),
+              targetLeft: rect.left.toFixed(2),
+              scrollTop: mainScrollContainer ? mainScrollContainer.scrollTop.toFixed(2) : 'N/A',
+            });
+        }, 50);
 
       } else {
         setTargetRect(null);
@@ -50,18 +53,19 @@ const Tour = () => {
     
     element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     
-    // Using a timeout to wait for layout shifts to complete after scrolling
-    const timerId = setTimeout(() => {
-        updateTargetRect();
-    }, 150);
+    updateTargetRect();
 
     window.addEventListener('resize', updateTargetRect);
     window.addEventListener('scroll', updateTargetRect, true);
 
+    const observer = new MutationObserver(updateTargetRect);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+
     return () => {
-        clearTimeout(timerId);
         window.removeEventListener('resize', updateTargetRect);
         window.removeEventListener('scroll', updateTargetRect, true);
+        observer.disconnect();
     };
   }, [isOpen, currentStep, updateTargetRect]);
 
@@ -120,12 +124,40 @@ const Tour = () => {
     return null;
   }
   
-  const highlightPadding = 5;
+  let highlightPadding = 5;
 
-  let finalTargetRect = targetRect;
-  if (stepIndex === 0 && finalTargetRect) {
-      finalTargetRect = new DOMRect(finalTargetRect.x, 200, finalTargetRect.width, finalTargetRect.height);
+  let finalTargetRect = targetRect ? new DOMRect(targetRect.x, targetRect.y, targetRect.width, targetRect.height) : null;
+  
+  if (finalTargetRect) {
+      // Manual adjustments based on user feedback
+      switch (stepIndex) {
+          case 0: // Step 1
+              finalTargetRect.y = 200;
+              break;
+          case 1: // Step 2
+              finalTargetRect.y = 200;
+              break;
+          case 2: // Step 3
+              finalTargetRect.y -= 10;
+              finalTargetRect.height += 20;
+              break;
+          case 3: // Step 4
+              finalTargetRect.y = 150;
+              break;
+          case 4: // Step 5
+              finalTargetRect.y = 200;
+              break;
+          case 5: // Step 6
+              finalTargetRect.y = 200;
+              break;
+          case 6: // Step 7
+              finalTargetRect.y = 180;
+              break;
+          default:
+              break;
+      }
   }
+
 
   return (
     <AnimatePresence>
