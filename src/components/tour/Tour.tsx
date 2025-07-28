@@ -2,7 +2,7 @@
 "use client";
 
 import { useTour } from '@/context/TourContext';
-import { useState, useLayoutEffect, useRef, useCallback, useEffect } from 'react';
+import { useState, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -29,28 +29,27 @@ const Tour = () => {
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
-        const handleResize = () => {
-          // Give a brief moment for layout to settle after scroll/resize
-          setTimeout(updateTargetRect, 50);
+        // A more robust handler that waits for the next animation frame to ensure layout is stable
+        const handleUpdate = () => {
+            requestAnimationFrame(updateTargetRect);
         };
         
-        handleResize(); // Initial placement
+        handleUpdate(); // Initial placement
 
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('scroll', handleResize, true);
+        window.addEventListener('resize', handleUpdate);
+        window.addEventListener('scroll', handleUpdate, true);
         
         // Observer for more robust tracking of element position changes
-        const resizeObserver = new ResizeObserver(handleResize);
+        const resizeObserver = new ResizeObserver(handleUpdate);
         resizeObserver.observe(document.body);
-        resizeObserver.observe(element);
         
-        const mutationObserver = new MutationObserver(handleResize);
+        const mutationObserver = new MutationObserver(handleUpdate);
         mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
 
 
         return () => {
-          window.removeEventListener('resize', handleResize);
-          window.removeEventListener('scroll', handleResize, true);
+          window.removeEventListener('resize', handleUpdate);
+          window.removeEventListener('scroll', handleUpdate, true);
           resizeObserver.disconnect();
           mutationObserver.disconnect();
         };
@@ -95,10 +94,10 @@ const Tour = () => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    if (left + popoverWidth > viewportWidth) {
+    if (left + popoverWidth > viewportWidth - spacing) {
         left = viewportWidth - popoverWidth - spacing;
     }
-    if (left < 0) {
+    if (left < spacing) {
         left = spacing;
     }
     
@@ -114,7 +113,7 @@ const Tour = () => {
 };
 
 
-  if (!isOpen || !targetRect || !currentStep) {
+  if (!isOpen || !currentStep) {
     return null;
   }
   
@@ -135,9 +134,9 @@ const Tour = () => {
             {/* Bottom overlay */}
             <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.bottom + highlightPadding}px`, width: '100%', height: `calc(100vh - ${targetRect.bottom + highlightPadding}px)` }} />
             {/* Left overlay */}
-            <div className="absolute top-0 left-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, width: `${targetRect.left - highlightPadding}px`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+            <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, width: `${targetRect.left - highlightPadding}px`, height: `${targetRect.height + highlightPadding * 2}px` }} />
             {/* Right overlay */}
-            <div className="absolute top-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, left: `${targetRect.right + highlightPadding}px`, width: `calc(100vw - ${targetRect.right + highlightPadding}px)`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+            <div className="absolute bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, left: `${targetRect.right + highlightPadding}px`, width: `calc(100vw - ${targetRect.right + highlightPadding}px)`, height: `${targetRect.height + highlightPadding * 2}px` }} />
             
              {/* Highlight border */}
             <div
