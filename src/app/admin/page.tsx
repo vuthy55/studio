@@ -47,6 +47,7 @@ import MarketingRelease3 from '@/components/marketing/MarketingRelease3';
 import { getFeedbackSubmissions, type FeedbackSubmission } from '@/actions/feedback';
 import Image from 'next/image';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 interface UserWithId extends UserProfile {
@@ -408,9 +409,15 @@ function FinancialTabContent() {
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [hasSearched, setHasSearched] = useState(false);
 
-    const [formState, setFormState] = useState({
+    const [formState, setFormState] = useState<{
+        description: string;
+        amount: number | '';
+        userEmail: string;
+        link: string;
+        source: 'manual' | 'paypal' | 'paypal-donation';
+    }>({
         description: '',
-        amount: '' as number | '',
+        amount: '',
         userEmail: '',
         link: '',
         source: 'manual'
@@ -511,7 +518,7 @@ function FinancialTabContent() {
                 description,
                 amount: Number(amount),
                 timestamp: new Date(),
-                source: source || 'manual',
+                source: source,
                 userId: userId,
             };
 
@@ -612,7 +619,16 @@ function FinancialTabContent() {
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="revenue-source">Method</Label>
-                                            <Input id="revenue-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
+                                            <Select value={formState.source} onValueChange={(value) => setFormState(prev => ({...prev, source: value as 'manual' | 'paypal'}))}>
+                                                <SelectTrigger id="revenue-source">
+                                                    <SelectValue placeholder="Select method..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="manual">Manual</SelectItem>
+                                                    <SelectItem value="paypal">PayPal</SelectItem>
+                                                    <SelectItem value="paypal-donation">PayPal Donation</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="revenue-user-email">User Email (Optional)</Label>
@@ -655,7 +671,15 @@ function FinancialTabContent() {
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="expense-source">Method</Label>
-                                            <Input id="expense-source" value={formState.source} onChange={(e) => setFormState(prev => ({...prev, source: e.target.value}))} placeholder="e.g., manual" />
+                                             <Select value={formState.source} onValueChange={(value) => setFormState(prev => ({...prev, source: value as 'manual' | 'paypal'}))}>
+                                                <SelectTrigger id="expense-source">
+                                                    <SelectValue placeholder="Select method..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="manual">Manual</SelectItem>
+                                                    <SelectItem value="paypal">PayPal</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="expense-user-email">User Email (Optional)</Label>
