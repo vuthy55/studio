@@ -9,9 +9,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { generateSpeech } from '@/services/tts';
-import { assessPronunciationFromMic, abortRecognition, recognizeFromMic } from '@/services/speech';
-import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
@@ -20,9 +17,13 @@ import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
 import type { SavedPhrase } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { getOfflineAudio } from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
+import { recognizeFromMic, abortRecognition, assessPronunciationFromMic } from '@/services/speech';
+import { azureLanguages } from '@/lib/azure-languages';
+import { translateText } from '@/ai/flows/translate-flow';
+import { generateSpeech } from '@/services/tts';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
