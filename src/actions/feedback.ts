@@ -27,7 +27,7 @@ export interface FeedbackSubmission {
     userEmail: string;
     userName: string;
     userId: string;
-    createdAt: Timestamp;
+    createdAt: string; // Changed from Timestamp to string for serialization
     screenshotUrl?: string;
 }
 
@@ -88,7 +88,14 @@ export async function getFeedbackSubmissions(): Promise<FeedbackSubmission[]> {
             return [];
         }
 
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSubmission));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return { 
+                id: doc.id,
+                ...data,
+                createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+             } as FeedbackSubmission;
+        });
 
     } catch (error) {
         console.error("Error fetching feedback submissions:", error);
