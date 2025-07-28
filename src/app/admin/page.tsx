@@ -1816,7 +1816,7 @@ function FeedbackTabContent() {
                                         <div>
                                             <CardTitle className="text-lg">{item.category}</CardTitle>
                                             <CardDescription>
-                                                Submitted by <a href={`mailto:${item.userEmail}`} className="text-primary hover:underline">{item.userEmail}</a> on {format((item.createdAt as Timestamp).toDate(), 'PPpp')}
+                                                Submitted by <a href={`mailto:${item.userEmail}`} className="text-primary hover:underline">{item.userEmail}</a> on {format(new Date(item.createdAt), 'PPpp')}
                                             </CardDescription>
                                         </div>
                                         {item.screenshotUrl && (
