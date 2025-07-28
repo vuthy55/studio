@@ -118,7 +118,8 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
  */
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
     const ledgerCol = collection(db, 'financialLedger');
-    const entryData: any = { ...entry, timestamp: Timestamp.fromDate(entry.timestamp as Date) };
+    // The timestamp is already a Date object from the client, no conversion needed.
+    const entryData: any = { ...entry };
     
     if (entry.link) {
         entryData.link = entry.link;
@@ -278,4 +279,5 @@ export async function getTokenLedger(emailFilter: string = ''): Promise<TokenLed
     throw error;
   }
 }
+
 
