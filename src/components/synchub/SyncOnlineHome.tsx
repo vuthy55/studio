@@ -769,10 +769,10 @@ export default function SyncOnlineHome() {
         } else if (editingRoom?.scheduledAt) {
             const scheduled = editingRoom.scheduledAt;
             // Safely create a date object
-            if (typeof scheduled === 'string') {
-                setScheduledDate(new Date(scheduled));
-            } else if (scheduled instanceof Timestamp) {
+            if (scheduled instanceof Timestamp) {
                 setScheduledDate(scheduled.toDate());
+            } else if (typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
+                setScheduledDate(new Date(scheduled));
             }
         }
     }, [isScheduling, isEditMode, editingRoom]);
@@ -860,7 +860,7 @@ export default function SyncOnlineHome() {
             const querySnapshot = await getDocs(q);
             const rooms = querySnapshot.docs
                 .map(doc => {
-                    const data = doc.data();
+                    const data = doc.data() as SyncRoom;
                      const toISO = (ts: any): string | undefined => {
                         if (ts instanceof Timestamp) {
                             return ts.toDate().toISOString();
@@ -875,11 +875,24 @@ export default function SyncOnlineHome() {
                     };
 
                     return { 
-                        id: doc.id, 
-                        ...data,
-                        createdAt: toISO(data.createdAt),
-                        lastActivityAt: toISO(data.lastActivityAt),
-                        scheduledAt: data.scheduledAt,
+                        id: doc.id,
+                        topic: data.topic,
+                        creatorUid: data.creatorUid,
+                        creatorName: data.creatorName,
+                        createdAt: toISO(data.createdAt as Timestamp),
+                        status: data.status,
+                        invitedEmails: data.invitedEmails,
+                        emceeEmails: data.emceeEmails,
+                        lastActivityAt: toISO(data.lastActivityAt as Timestamp),
+                        blockedUsers: data.blockedUsers,
+                        summary: data.summary,
+                        transcript: data.transcript,
+                        scheduledAt: toISO(data.scheduledAt as Timestamp),
+                        durationMinutes: data.durationMinutes,
+                        initialCost: data.initialCost,
+                        paymentLogId: data.paymentLogId,
+                        hasStarted: data.hasStarted,
+                        reminderMinutes: data.reminderMinutes,
                     } as InvitedRoom;
                 })
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
