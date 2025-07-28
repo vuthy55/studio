@@ -2,40 +2,52 @@
 "use client";
 
 import { useTour } from '@/context/TourContext';
-import { useState, useLayoutEffect, useRef } from 'react';
+import { useState, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const Tour = () => {
   const { isOpen, stopTour, currentStep, goToNextStep, goToPrevStep, stepIndex, steps } = useTour();
-  const [highlightedElement, setHighlightedElement] = useState<HTMLElement | null>(null);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
-
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  const updateTargetRect = useCallback(() => {
+    if (isOpen && currentStep) {
+      const element = document.querySelector(currentStep.selector) as HTMLElement;
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        setTargetRect(rect);
+      }
+    }
+  }, [isOpen, currentStep]);
 
   useLayoutEffect(() => {
     if (isOpen && currentStep) {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
-        setHighlightedElement(element);
-        const rect = element.getBoundingClientRect();
-        setTargetRect(rect);
-        // Temporarily modify style of the target element
+        updateTargetRect(); // Initial position calculation
+
+        // Temporarily modify style of the target element for visibility
         element.style.zIndex = '10001';
         element.style.position = 'relative';
 
+        // Add scroll and resize listeners to keep the popover in place
+        window.addEventListener('scroll', updateTargetRect, true);
+        window.addEventListener('resize', updateTargetRect);
+
         return () => {
-            // Cleanup style on step change or tour end
-            element.style.zIndex = '';
-            element.style.position = '';
+          // Cleanup style and listeners on step change or tour end
+          element.style.zIndex = '';
+          element.style.position = '';
+          window.removeEventListener('scroll', updateTargetRect, true);
+          window.removeEventListener('resize', updateTargetRect);
         };
       }
     } else {
-      setHighlightedElement(null);
       setTargetRect(null);
     }
-  }, [isOpen, currentStep]);
+  }, [isOpen, currentStep, updateTargetRect]);
 
   if (!isOpen || !targetRect || !currentStep) {
     return null;
