@@ -821,7 +821,7 @@ export default function SyncRoomPage() {
                         <div className="p-4 space-y-2">
                              <Separator />
                              <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground pt-2"><RemoveUserIcon/> Invited ({absentParticipantEmails.length})</h3>
-                            {absentParticipantEmails.map(email => (
+                            {absentParticipantEmails.map((email: string) => (
                                 <div key={email} className="flex items-center gap-3 p-1 rounded-md opacity-60">
                                     <Avatar>
                                         <AvatarFallback>{email.charAt(0).toUpperCase()}</AvatarFallback>
