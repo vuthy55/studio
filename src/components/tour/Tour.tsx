@@ -153,9 +153,7 @@ const Tour = () => {
               finalTargetRect.y = 150;
               break;
           case '[data-tour="listen-button-0"]':
-              finalTargetRect.y = 210;
-              break;
-           case '[data-tour="practice-button-0"]':
+          case '[data-tour="practice-button-0"]':
               finalTargetRect.y = 210;
               break;
           case '[data-tour="offline-manager"]':
@@ -170,14 +168,17 @@ const Tour = () => {
               finalTargetRect.y = 140;
               break;
           case '[data-tour="lt-mic-button"]':
-              finalTargetRect.y = 220;
-              break;
           case '[data-tour="lt-output-actions"]':
               finalTargetRect.y = 220;
               break;
           case '[data-tour="lt-saved-phrases"]':
               finalTargetRect.y = 30;
               break;
+        
+          // Sync Live Tour
+          case '[data-tour="sl-usage-card"]':
+                finalTargetRect.y = 160;
+                break;
           default:
               break;
       }
