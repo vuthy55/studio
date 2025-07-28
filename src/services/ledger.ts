@@ -2,7 +2,7 @@
 
 'use client';
 
-import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc, writeBatch, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, collectionGroup, where, limit, getDoc, doc, writeBatch, increment, serverTimestamp, FieldValue } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; 
 import type { TransactionLog } from '@/lib/types';
 
@@ -35,11 +35,22 @@ export interface TokenAnalytics {
     p2pTotalVolume: number;
 }
 
-export interface TokenLedgerEntry extends TransactionLog {
+// Redefined as a standalone interface with client-safe types
+export interface TokenLedgerEntry {
   id: string;
   userId: string;
   userEmail: string;
-  timestamp: Date;
+  timestamp: Date; // Use JS Date object for client
+  actionType: TransactionLog['actionType']; // Reuse the literal type from TransactionLog
+  tokenChange: number;
+  description: string;
+  reason?: string;
+  duration?: number;
+  fromUserId?: string;
+  fromUserEmail?: string;
+  toUserId?: string;
+  toUserEmail?: string;
+  refundsTransactionId?: string;
 }
 
 export interface IssueTokensPayload {
@@ -265,7 +276,7 @@ export async function getTokenLedger(emailFilter: string = ''): Promise<TokenLed
         const logData = logDoc.data() as TransactionLog;
         if(logData.tokenChange !== 0 || logData.actionType === 'p2p_transfer') {
             userLogs.push({
-            ...logData,
+            ...(logData as any), // Cast to any to spread properties
             id: logDoc.id,
             userId: userId,
             userEmail: userEmail,
@@ -287,6 +298,7 @@ export async function getTokenLedger(emailFilter: string = ''): Promise<TokenLed
     throw error;
   }
 }
+
 
 
 
