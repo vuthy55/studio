@@ -39,12 +39,6 @@ export type PronunciationAssessmentResult = {
 export function abortRecognition() {
     if (activeRecognizer) {
         try {
-            // For continuous recognition, we need to stop it first.
-            // For recognizeOnceAsync, close() is sufficient but stopping doesn't hurt.
-            activeRecognizer.stopContinuousRecognitionAsync(
-                () => { },
-                (err) => { }
-            );
             activeRecognizer.close();
         } catch (e) {
             // Errors are expected if the recognizer is already closing.
@@ -65,6 +59,7 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     const locale = languageToLocaleMap[lang];
     if (!locale) throw new Error(`[SPEECH] Unsupported language for assessment: ${lang}`);
     
+    abortRecognition();
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     
@@ -108,7 +103,8 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 
 export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise<string> {
     if (!fromLanguage) throw new Error("A valid language code must be provided for recognition.");
-
+    
+    abortRecognition();
     const speechConfig = getSpeechConfig();
     speechConfig.speechRecognitionLanguage = fromLanguage;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -120,19 +116,15 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
             } else if (result.reason === sdk.ResultReason.NoMatch) {
-                // Resolve with an empty string if no speech was matched.
-                // This is a valid outcome (e.g., user didn't speak).
                 resolve('');
             } else if (result.reason === sdk.ResultReason.Canceled) {
                 const cancellation = sdk.CancellationDetails.fromResult(result);
-                // Provide a more specific error for common issues like permissions.
                 let errorMessage = `Recognition canceled: ${cancellation.errorDetails}`;
                 if (cancellation.errorCode === sdk.CancellationErrorCode.PermissionDenied) {
                     errorMessage = "Recognition failed: Microphone permissions may not be granted.";
                 }
                 reject(new Error(errorMessage));
             } else {
-                // Catch-all for other unexpected reasons.
                 reject(new Error(`Could not recognize speech. Reason: ${result.reason}`));
             }
         }, err => {

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
-import { assessPronunciationFromMic, abortRecognition } from '@/services/speech';
+import { assessPronunciationFromMic, abortRecognition, recognizeFromMic } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ import type { SavedPhrase } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { getOfflineAudio } from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
-import { recognizeOnce } from '@/actions/recognize';
+import type { AzureLanguageCode } from '@/lib/azure-languages';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -57,6 +57,16 @@ export default function LiveTranslationContent() {
         if (!userProfile?.unlockedLanguages) return languages.filter(l => l.value === 'english');
         return languages.filter(l => userProfile.unlockedLanguages?.includes(l.value));
     }, [userProfile?.unlockedLanguages]);
+
+    const azureFromLanguage = useMemo(() => {
+        const locale = languageToLocaleMap[fromLanguage];
+        if (locale) {
+            // Find the first Azure language that matches the simple locale prefix
+            return azureLanguages.find(az => az.value.startsWith(locale.split('-')[0]))?.value || 'en-US';
+        }
+        return 'en-US';
+    }, [fromLanguage]);
+
 
     useEffect(() => {
         // If the current 'from' or 'to' language is not in the available list, reset it.
@@ -187,30 +197,19 @@ export default function LiveTranslationContent() {
     }, [inputText, fromLanguage, toLanguage, isOnline]);
 
     const doRecognizeFromMicrophone = async () => {
-        console.log('[DEBUG] doRecognizeFromMicrophone: Function called.');
-        if (isRecognizing || assessingPhraseId) {
-            console.log('[DEBUG] doRecognizeFromMicrophone: Aborted, already recognizing.');
-            return;
-        }
+        if (isRecognizing || assessingPhraseId) return;
         
-        console.log('[DEBUG] doRecognizeFromMicrophone: Setting isRecognizing to true.');
         setIsRecognizing(true);
         try {
-            console.log(`[DEBUG] doRecognizeFromMicrophone: Calling recognizeOnce with lang: ${fromLanguage}`);
-            const result = await recognizeOnce({ lang: fromLanguage });
-            console.log('[DEBUG] doRecognizeFromMicrophone: recognizeOnce returned:', result);
-
-            if (result.text) {
-                setInputText(result.text);
-            }
-            if (result.error) {
-                toast({ variant: 'destructive', title: 'Recognition Failed', description: result.error });
+            const resultText = await recognizeFromMic(azureFromLanguage as AzureLanguageCode);
+            if (resultText) {
+                setInputText(resultText);
             }
         } catch (error: any) {
-            console.error('[DEBUG] doRecognizeFromMicrophone: CATCH block triggered.', error);
-            toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred during recognition." });
+             if (error.message !== "Recognition was aborted.") {
+               toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
+            }
         } finally {
-            console.log('[DEBUG] doRecognizeFromMicrophone: FINALLY block, setting isRecognizing to false.');
             setIsRecognizing(false);
         }
     }
