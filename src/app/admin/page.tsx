@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -518,7 +517,7 @@ function FinancialTabContent() {
                 description,
                 amount: Number(amount),
                 timestamp: new Date(),
-                source: source,
+                source,
                 userId: userId,
             };
 
@@ -547,7 +546,7 @@ function FinancialTabContent() {
         const headers = ["ID", "Date", "Type", "Amount", "Source", "Description", "User Email", "Link"];
         const rows = ledger.map(item => [
             item.id,
-            format((item.timestamp as Timestamp).toDate(), 'yyyy-MM-dd HH:mm:ss'),
+            format(item.timestamp, 'yyyy-MM-dd HH:mm:ss'),
             item.type,
             item.amount,
             item.source || 'N/A',
@@ -619,7 +618,7 @@ function FinancialTabContent() {
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="revenue-source">Method</Label>
-                                            <Select value={formState.source} onValueChange={(value) => setFormState(prev => ({...prev, source: value as 'manual' | 'paypal'}))}>
+                                            <Select value={formState.source} onValueChange={(value) => setFormState(prev => ({...prev, source: value as 'manual' | 'paypal' | 'paypal-donation'}))}>
                                                 <SelectTrigger id="revenue-source">
                                                     <SelectValue placeholder="Select method..." />
                                                 </SelectTrigger>
@@ -671,7 +670,7 @@ function FinancialTabContent() {
                                         </div>
                                          <div className="space-y-2">
                                             <Label htmlFor="expense-source">Method</Label>
-                                             <Select value={formState.source} onValueChange={(value) => setFormState(prev => ({...prev, source: value as 'manual' | 'paypal'}))}>
+                                             <Select value={formState.source} onValueChange={(value) => setFormState(prev => ({...prev, source: value as 'manual' | 'paypal' | 'paypal-donation'}))}>
                                                 <SelectTrigger id="expense-source">
                                                     <SelectValue placeholder="Select method..." />
                                                 </SelectTrigger>
@@ -806,7 +805,7 @@ function FinancialTabContent() {
                                                     <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={item.id}>{item.id}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{format((item.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm')}</TableCell>
+                                            <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                             <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                                 {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                             </TableCell>
@@ -1030,7 +1029,7 @@ function TokensTabContent() {
         const headers = ["ID", "Date", "From/To", "QTY", "Reason", "Description"];
         const rows = ledger.map((log) => [
             log.id,
-            format((log.timestamp as Timestamp).toDate(), 'yyyy-MM-dd HH:mm:ss'),
+            format(log.timestamp, 'yyyy-MM-dd HH:mm:ss'),
             getFromToCell(log),
             log.tokenChange,
             getReasonText(log),
@@ -1229,7 +1228,7 @@ function TokensTabContent() {
                                                             <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={log.id}>{log.id}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell>{format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm')}</TableCell>
+                                                    <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
                                                     <TableCell className="whitespace-pre-line">
                                                         <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
                                                             {getFromToCell(log)}
@@ -1985,3 +1984,5 @@ export default function AdminPage() {
         </div>
     );
 }
+
+    
