@@ -17,7 +17,14 @@ const Tour = () => {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
         const rect = element.getBoundingClientRect();
-        setTargetRect(rect);
+        // Create a new DOMRect with scroll-adjusted coordinates
+        const adjustedRect = new DOMRect(
+            rect.x + window.scrollX,
+            rect.y + window.scrollY,
+            rect.width,
+            rect.height
+        );
+        setTargetRect(adjustedRect);
       }
     }
   }, [isOpen, currentStep]);
@@ -94,6 +101,9 @@ const Tour = () => {
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="fixed rounded-lg border-2 border-primary border-dashed bg-primary/10 pointer-events-none z-[10000]"
+            style={{ 
+                transform: `translate(${targetRect.x - 4}px, ${targetRect.y - 4}px)` 
+            }}
           />
 
           <motion.div
