@@ -32,13 +32,13 @@ export default function StoryPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2] md:order-2">
+          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
             <div className="text-center">
               <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">អរគុណ</div>
               <div className="text-2xl md:text-3xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
             </div>
           </div>
-          <div className="space-y-4 md:order-1">
+          <div className="space-y-4">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
               <p className="text-muted-foreground">
                   Back at the hostel, Alex finds VibeSync. The "Prep Your Vibe" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
@@ -65,13 +65,13 @@ export default function StoryPage() {
         </div>
 
          <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div>
+          <div className="md:order-2">
             <Image 
                 src="https://placehold.co/600x400.png"
                 alt="A group of people looking at a phone together and planning."
                 width={600}
                 height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
+                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
                 data-ai-hint="friends phone"
             />
           </div>
