@@ -317,7 +317,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = useCallback(async () => {
         isLoggingOut.current = true;
-        debouncedCommitToFirestore.flush(); 
+        debouncedCommitToFirestore.flush();
         await auth.signOut();
         clearLocalState();
     }, [debouncedCommitToFirestore, clearLocalState]);

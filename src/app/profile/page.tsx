@@ -282,7 +282,7 @@ function TokenWalletCard() {
 }
 
 function ProfileSection() {
-    const { user, userProfile } = useUserData();
+    const { user, userProfile, logout } = useUserData();
     const { toast } = useToast();
 
     // This state ONLY holds the fields that have been changed.
@@ -345,8 +345,10 @@ function ProfileSection() {
         }
 
         setIsDeleting(true);
+        // We call the server action first, and then the client-side logout
         const result = await anonymizeAndDeactivateUser({ userId: user.uid });
         if (result.success) {
+            await logout(); // This will trigger the auth state listener and clear all local data.
             toast({ title: "Your VibeSync Journey Is Paused", description: "Your account has been deleted, but we'll be here to welcome you back whenever you're ready to sync with the local vibe again." });
             // The auth state listener in UserDataContext will handle logout and redirect.
         } else {
@@ -910,3 +912,4 @@ export default function ProfilePage() {
     
 
     
+
