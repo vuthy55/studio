@@ -20,16 +20,31 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
+// Connect to emulators in development
+if (process.env.NODE_ENV === 'development') {
+    // console.log("Connecting to Firebase Emulators");
+    // connectAuthEmulator(auth, "http://localhost:9099");
+    // connectFirestoreEmulator(db, "localhost", 8080);
+    // connectStorageEmulator(storage, "localhost", 9199);
+}
+
+
 // Enable offline persistence
 if (typeof window !== 'undefined') {
   try {
     enableIndexedDbPersistence(db)
-      .then(() => console.log("[FIREBASE] Offline persistence enabled."))
+      .then(() => {
+        if (process.env.NODE_ENV === 'development') {
+            console.log("[FIREBASE] Offline persistence enabled.");
+        }
+      })
       .catch((err) => {
-        if (err.code == 'failed-precondition') {
-          console.warn("[FIREBASE] Multiple tabs open, persistence can only be enabled in one. Functionality may be limited.");
-        } else if (err.code == 'unimplemented') {
-          console.warn("[FIREBASE] The current browser does not support all of the features required for offline persistence.");
+        if (process.env.NODE_ENV === 'development') {
+            if (err.code == 'failed-precondition') {
+            console.warn("[FIREBASE] Multiple tabs open, persistence can only be enabled in one. Functionality may be limited.");
+            } else if (err.code == 'unimplemented') {
+            console.warn("[FIREBASE] The current browser does not support all of the features required for offline persistence.");
+            }
         }
       });
   } catch (error) {

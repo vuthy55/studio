@@ -9,7 +9,6 @@ if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT
 
 
 if (!admin.apps.length) {
-    console.log("[FIREBASE ADMIN] Attempting to initialize Firebase Admin SDK...");
     try {
         admin.initializeApp({
             credential: admin.credential.cert({
@@ -19,12 +18,9 @@ if (!admin.apps.length) {
                 privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
             })
         });
-        console.log("[FIREBASE ADMIN] Firebase Admin SDK initialized successfully.");
     } catch (error: any) {
         console.error('[FIREBASE ADMIN] CRITICAL: Firebase admin initialization error. Check your environment variables and private key format.', error.stack);
     }
-} else {
-    console.log("[FIREBASE ADMIN] Firebase Admin SDK already initialized.");
 }
 
 const db = admin.firestore();
