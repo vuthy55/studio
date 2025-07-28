@@ -24,12 +24,12 @@ export default function MarketingRelease3() {
             </p>
         </div>
         <Image 
-            src="https://images.unsplash.com/photo-1543373014-cfe4f4216380?q=80&w=2070&auto=format&fit=crop"
-            alt="A solo traveler looking a bit lost in a bustling Asian market"
+            src="https://images.unsplash.com/photo-1534323382794-4b5b34149e91?q=80&w=2070&auto=format&fit=crop"
+            alt="A solo male backpacker looking lost in a bustling Asian market"
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-            data-ai-hint="confused traveler"
+            data-ai-hint="backpacker market"
         />
       </div>
 
