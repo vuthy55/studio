@@ -41,8 +41,8 @@ export async function getAzureVoices(): Promise<VoiceInfo[]> {
             styleList: v.styleList,
         }));
     } else if (result.reason === sdk.ResultReason.Canceled) {
-        const cancellation = sdk.SpeechSynthesisCancellationDetails.fromResult(result);
-        throw new Error(`Could not get voices list: ${cancellation.errorDetails}`);
+        // For a SynthesisVoicesResult, the error details are directly on the result object.
+        throw new Error(`Could not get voices list: ${result.errorDetails}`);
     } else {
         throw new Error(`Failed to retrieve voices list. Reason: ${result.reason}`);
     }
