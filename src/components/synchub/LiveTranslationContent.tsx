@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSpeech } from '@/services/tts';
-import { recognizeFromMic, assessPronunciationFromMic, abortRecognition } from '@/services/speech';
+import { assessPronunciationFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,7 @@ import type { SavedPhrase } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { getOfflineAudio } from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
+import { recognizeOnce } from '@/actions/recognize';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -190,12 +191,15 @@ export default function LiveTranslationContent() {
         
         setIsRecognizing(true);
         try {
-            const recognizedText = await recognizeFromMic(fromLanguage);
-            setInputText(recognizedText);
-        } catch (error: any) {
-            if (error.message !== "Recognition was aborted.") {
-               toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
+            const result = await recognizeOnce({ lang: fromLanguage });
+            if (result.text) {
+                setInputText(result.text);
             }
+            if (result.error) {
+                toast({ variant: 'destructive', title: 'Recognition Failed', description: result.error });
+            }
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred during recognition." });
         } finally {
             setIsRecognizing(false);
         }
