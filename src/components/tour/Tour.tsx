@@ -28,30 +28,20 @@ const Tour = () => {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-
-        // A more robust handler that waits for the next animation frame to ensure layout is stable
-        const handleUpdate = () => {
-            requestAnimationFrame(updateTargetRect);
-        };
         
-        handleUpdate(); // Initial placement
+        // This function will be called to update the position.
+        const handleUpdate = () => updateTargetRect();
+
+        // A small delay to allow the scroll animation to settle before measuring.
+        const timeoutId = setTimeout(handleUpdate, 300);
 
         window.addEventListener('resize', handleUpdate);
         window.addEventListener('scroll', handleUpdate, true);
-        
-        // Observer for more robust tracking of element position changes
-        const resizeObserver = new ResizeObserver(handleUpdate);
-        resizeObserver.observe(document.body);
-        
-        const mutationObserver = new MutationObserver(handleUpdate);
-        mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
-
 
         return () => {
+          clearTimeout(timeoutId);
           window.removeEventListener('resize', handleUpdate);
           window.removeEventListener('scroll', handleUpdate, true);
-          resizeObserver.disconnect();
-          mutationObserver.disconnect();
         };
       } else {
         setTargetRect(null);
@@ -101,10 +91,10 @@ const Tour = () => {
         left = spacing;
     }
     
-    if (top + popoverHeight > viewportHeight) {
+    if (top + popoverHeight > viewportHeight - spacing) {
         top = viewportHeight - popoverHeight - spacing;
     }
-    if (top < 0) {
+    if (top < spacing) {
         top = spacing;
     }
 
