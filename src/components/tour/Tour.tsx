@@ -179,7 +179,7 @@ const Tour = () => {
                 finalTargetRect.y = 230;
                 break;
           case '[data-tour="so-room-list"]':
-                finalTargetRect.y = 100;
+                finalTargetRect.y = 150;
                 break;
           case '[data-tour="so-start-room-0"]':
                 finalTargetRect.y = 330;
@@ -200,15 +200,6 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
-        <div style={{ position: 'fixed', top: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px', borderRadius: '5px', zIndex: 10003, fontSize: '12px', fontFamily: 'monospace' }}>
-              <p>Target Rect:</p>
-              {targetRect ? (
-                  <>
-                      <p>T: {targetRect.top.toFixed(2)}, L: {targetRect.left.toFixed(2)}</p>
-                      <p>W: {targetRect.width.toFixed(2)}, H: {targetRect.height.toFixed(2)}</p>
-                  </>
-              ) : <p>No Target</p>}
-          </div>
           {finalTargetRect && (
             <>
                 <motion.div
