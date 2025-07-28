@@ -40,6 +40,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import AdminSOP from '@/components/marketing/AdminSOP';
 import BackpackerMarketing from '@/components/marketing/BackpackerMarketing';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
+import MarketingRelease2 from '@/components/marketing/MarketingRelease2';
 import AudioPackGenerator from './AudioPackGenerator';
 import FreeLanguagePacksManager from './FreeLanguagePacksManager';
 
@@ -1717,6 +1718,12 @@ function MessagingContent() {
                         <AccordionTrigger>Release 0.1 Marketing Page</AccordionTrigger>
                         <AccordionContent>
                            <MarketingRelease />
+                        </AccordionContent>
+                    </AccordionItem>
+                     <AccordionItem value="item-5">
+                        <AccordionTrigger>Release 0.1 Marketing Page 2</AccordionTrigger>
+                        <AccordionContent>
+                           <MarketingRelease2 />
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
