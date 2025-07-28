@@ -5,9 +5,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2 } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,7 @@ import { recognizeFromMic, abortRecognition, assessPronunciationFromMic } from '
 import { azureLanguages } from '@/lib/azure-languages';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
+import { useTour, TourStep } from '@/context/TourContext';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -32,6 +33,36 @@ type AssessmentResult = {
   accuracy?: number;
   fluency?: number;
 };
+
+const liveTranslationTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="lt-language-selectors"]',
+    content: "First, select the language you want to translate FROM and TO. You can swap them with the arrow button.",
+  },
+  {
+    selector: '[data-tour="lt-input-textarea"]',
+    content: "Type the text you want to translate into this box. The translation will appear on the right automatically.",
+    position: 'bottom',
+
+  },
+  {
+    selector: '[data-tour="lt-mic-button"]',
+    content: "Alternatively, click the microphone to speak. The app will transcribe your speech into the text box for you.",
+    position: 'bottom',
+
+  },
+   {
+    selector: '[data-tour="lt-output-actions"]',
+    content: "Once you have a translation, you can listen to its pronunciation with the speaker icon, or save it for later practice with the bookmark icon.",
+    position: 'bottom',
+
+  },
+  {
+    selector: '[data-tour="lt-saved-phrases"]',
+    content: "Your saved phrases will appear here. You can practice your pronunciation and get feedback just like in the 'Prep Your Vibe' section.",
+    position: 'top',
+  },
+];
 
 
 export default function LiveTranslationContent() {
@@ -53,6 +84,8 @@ export default function LiveTranslationContent() {
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
     
     const [isOnline, setIsOnline] = useState(true);
+
+    const { startTour } = useTour();
 
     const availableLanguages = useMemo(() => {
         if (!userProfile?.unlockedLanguages) return languages.filter(l => l.value === 'english');
@@ -295,9 +328,28 @@ export default function LiveTranslationContent() {
 
     return (
         <div className="space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        Live Translation
+                    </CardTitle>
+                    <CardDescription>
+                        A simple utility for translating typed or spoken text from a source to a target language.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <div className="flex flex-col items-center gap-4 text-center">
+                        <Button onClick={() => startTour(liveTranslationTourSteps)} size="lg">
+                            <HelpCircle className="mr-2" />
+                            Take a Tour
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6" data-tour="lt-language-selectors">
                         <div className="flex-1 w-full">
                             <Label htmlFor="from-language-select-live">From</Label>
                             <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
@@ -347,13 +399,13 @@ export default function LiveTranslationContent() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2" data-tour="lt-input-textarea">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="from-language-live">{languages.find(l => l.value === fromLanguage)?.label}</Label>
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                             <div className="relative">
+                                             <div className="relative" data-tour="lt-mic-button">
                                                 <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={!isOnline || isRecognizing || !!assessingPhraseId}>
                                                     {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                                                     <span className="sr-only">Record from microphone</span>
@@ -377,7 +429,7 @@ export default function LiveTranslationContent() {
                             />
                         </div>
                         
-                        <div className="space-y-2">
+                        <div className="space-y-2" data-tour="lt-output-textarea">
                             <div className="flex justify-between items-center">
                             <Label htmlFor="to-language-live" className="text-sm">
                                 {languages.find(l => l.value === toLanguage)?.label} 
@@ -385,7 +437,7 @@ export default function LiveTranslationContent() {
                                      <span className="text-muted-foreground"> (Cost: {settings?.translationCost || '...'} / Bal: {userProfile?.tokenBalance ?? '...'})</span>
                                 )}
                             </Label>
-                            <div className="flex items-center">
+                            <div className="flex items-center" data-tour="lt-output-actions">
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -412,7 +464,7 @@ export default function LiveTranslationContent() {
             </Card>
 
             {savedPhrases.length > 0 && user && (
-                <div className="space-y-4">
+                <div className="space-y-4" data-tour="lt-saved-phrases">
                     <h3 id="saved-phrases" className="text-xl font-bold font-headline scroll-mt-20">Your Saved Phrases for Practice</h3>
                     <div className="w-full space-y-2">
                         {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
