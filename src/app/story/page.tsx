@@ -32,20 +32,20 @@ export default function StoryPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-            <div className="text-center">
-              <div className="text-5xl font-bold text-primary opacity-50">អរគុណ</div>
-              <div className="text-2xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
-            </div>
-          </div>
-          <div className="space-y-4">
+          <div className="md:order-2 space-y-4">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
               <p className="text-muted-foreground">
                   Back at the hostel, Alex finds VibeSync. The "Prep Your Vibe" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                  <Link href="/synchub?tab=prep-vibe">Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Link href="/login">Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
+          </div>
+          <div className="md:order-1 flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
+            <div className="text-center">
+              <div className="text-5xl font-bold text-primary opacity-50">អរគុណ</div>
+              <div className="text-2xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
+            </div>
           </div>
         </div>
         
