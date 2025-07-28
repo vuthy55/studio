@@ -6,8 +6,16 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
+import { useUserData } from '@/context/UserDataContext';
 
 export default function MarketingRelease3() {
+  const { user } = useUserData();
+  
+  const prepVibeLink = user ? "/synchub?tab=prep-vibe" : "/login";
+  const syncLiveLink = user ? "/synchub?tab=sync-live" : "/login";
+  const syncOnlineLink = user ? "/synchub?tab=sync-online" : "/login";
+  const adventureLink = user ? "/synchub" : "/login";
+
   return (
     <div className="space-y-12 text-lg">
       
@@ -50,7 +58,7 @@ export default function MarketingRelease3() {
                 Back at the hostel, Alex finds VibeSync. The "Prep Your Vibe" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
             </p>
             <Button variant="link" asChild className="p-0 h-auto">
-                <Link href="/synchub?tab=prep-vibe">Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                <Link href={prepVibeLink}>Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
       </div>
@@ -62,7 +70,7 @@ export default function MarketingRelease3() {
                 At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
             </p>
             <Button variant="link" asChild className="p-0 h-auto">
-                 <Link href="/synchub?tab=sync-live">Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                 <Link href={syncLiveLink}>Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
         <Image 
@@ -92,7 +100,7 @@ export default function MarketingRelease3() {
                 The trip ends, but the friendship doesn't. Using "Sync Online," the group chats from different countries. Aisha speaks Malay, Linh speaks Vietnamese, but everyone hears the conversation in their own language. They're planning their next adventure, already.
             </p>
             <Button variant="link" asChild className="p-0 h-auto">
-                 <Link href="/synchub?tab=sync-online">See how Sync Online works <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                 <Link href={syncOnlineLink}>See how Sync Online works <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
       </div>
@@ -101,7 +109,7 @@ export default function MarketingRelease3() {
         <h2 className="text-3xl font-bold">Your turn.</h2>
         <p className="text-muted-foreground max-w-xl mx-auto">Stop just seeing the world. Start connecting with it.</p>
         <Button size="lg" variant="default" asChild>
-            <Link href="/login">Start Your Adventure & Get Free Tokens</Link>
+            <Link href={adventureLink}>Start Your Adventure & Get Free Tokens</Link>
         </Button>
       </section>
     </div>

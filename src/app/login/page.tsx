@@ -32,6 +32,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useUserData();
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -48,6 +49,12 @@ export default function LoginPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
+
+  useEffect(() => {
+      if (!authLoading && user) {
+        router.push('/synchub');
+      }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     getAppSettingsAction().then(setSettings);
@@ -89,7 +96,7 @@ export default function LoginPage() {
       }
       
       toast({ title: "Welcome!", description: "Logged in successfully." });
-      router.push('/synchub');
+      // The useEffect will handle the redirect
 
     } catch (error: any) {
       console.error("Google sign-in error", error);
@@ -131,7 +138,7 @@ export default function LoginPage() {
        await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
 
        toast({ title: "Success", description: "Account created successfully." });
-       router.push('/synchub');
+       // The useEffect will handle the redirect
       
     } catch (error: any) {
       console.error("Email sign-up error", error);
@@ -147,7 +154,7 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
-      router.push('/synchub');
+      // The useEffect will handle the redirect
     } catch (error: any) {
       console.error("Email login error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -156,7 +163,7 @@ export default function LoginPage() {
     }
   };
   
-  if (!settings) {
+  if (authLoading || (!authLoading && user) || !settings) {
      return (
         <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
             <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
