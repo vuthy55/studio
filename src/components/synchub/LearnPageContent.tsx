@@ -195,7 +195,6 @@ export default function LearnPageContent() {
             
             const { wasRewardable, rewardAmount } = recordPracticeAttempt({
                 phraseId,
-                phraseText: referenceText,
                 topicId,
                 lang: toLanguage,
                 isPass,
