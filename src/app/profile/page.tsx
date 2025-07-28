@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
-import { getReferredUsers } from '@/services/referrals';
+import { getReferredUsers, type ReferredUser } from '@/services/referrals';
 import { Switch } from '@/components/ui/switch';
 
 
@@ -937,6 +937,7 @@ export default function ProfilePage() {
     
 
     
+
 
 
 
