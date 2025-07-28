@@ -121,13 +121,13 @@ const Tour = () => {
     "absolute w-0 h-0 border-solid",
     {
         // Popover is below the element, arrow points up
-        'border-x-8 border-x-transparent border-b-8 border-b-card -top-2 left-1/2 -translate-x-1/2': currentStep?.position === 'bottom' || !currentStep?.position,
+        'border-x-8 border-x-transparent border-b-8 border-b-primary -top-2 left-1/2 -translate-x-1/2': currentStep?.position === 'bottom' || !currentStep?.position,
         // Popover is above the element, arrow points down
-        'border-x-8 border-x-transparent border-t-8 border-t-card -bottom-2 left-1/2 -translate-x-1/2': currentStep?.position === 'top',
+        'border-x-8 border-x-transparent border-t-8 border-t-primary -bottom-2 left-1/2 -translate-x-1/2': currentStep?.position === 'top',
         // Popover is to the left of the element, arrow points right
-        'border-y-8 border-y-transparent border-l-8 border-l-card -right-2 top-1/2 -translate-y-1/2': currentStep?.position === 'left',
+        'border-y-8 border-y-transparent border-l-8 border-l-primary -right-2 top-1/2 -translate-y-1/2': currentStep?.position === 'left',
         // Popover is to the right of the element, arrow points left
-        'border-y-8 border-y-transparent border-r-8 border-r-card -left-2 top-1/2 -translate-y-1/2': currentStep?.position === 'right'
+        'border-y-8 border-y-transparent border-r-8 border-r-primary -left-2 top-1/2 -translate-y-1/2': currentStep?.position === 'right'
     }
   );
 
@@ -145,8 +145,7 @@ const Tour = () => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1 }}
-            className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4 border"
-            style={getPopoverPosition()}
+            className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4 border border-primary/50"
         >
             <div className={arrowClasses} />
             <button
