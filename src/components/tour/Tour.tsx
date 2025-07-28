@@ -163,7 +163,6 @@ const Tour = () => {
 
           // Live Translation Tour
           case '[data-tour="lt-language-selectors"]':
-              // No override needed yet
               break;
           case '[data-tour="lt-input-textarea"]':
               finalTargetRect.y = 140;
@@ -179,6 +178,11 @@ const Tour = () => {
           // Sync Live Tour
           case '[data-tour="sl-usage-card"]':
                 finalTargetRect.y = 160;
+                break;
+          
+          // Sync Online Tour
+          case '[data-tour="so-schedule-button"]':
+                finalTargetRect.y = 220;
                 break;
           default:
               break;

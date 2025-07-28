@@ -76,6 +76,21 @@ const syncOnlineTourSteps: TourStep[] = [
     content: "Your scheduled, active, and past rooms will appear here. You can join active rooms or view summaries of past ones.",
     position: 'top'
   },
+  {
+    selector: '[data-tour="so-start-room-0"]',
+    content: "Click 'Start Room' to enter the live conversation for an active or scheduled room.",
+    position: 'bottom'
+  },
+  {
+    selector: '[data-tour="so-share-link-0"]',
+    content: "Use this button to copy the invite link and share it with others.",
+    position: 'bottom'
+  },
+  {
+    selector: '[data-tour="so-settings-0"]',
+    content: "Manage settings for a specific room, like deleting it or managing participants.",
+    position: 'bottom'
+  },
 ];
 
 
@@ -738,7 +753,7 @@ export default function SyncOnlineHome() {
 
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
-    const [activeRoomTab, setActiveRoomTab] = useState('scheduled');
+    const [activeRoomTab, setActiveRoomTab] = useState('active');
     
     const { settings } = useUserData();
 
@@ -1067,31 +1082,21 @@ export default function SyncOnlineHome() {
     };
 
 
-    if (loading) {
-        return (
-             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                    <CardDescription>Create a private room for a real-time, multi-language voice conversation.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                        <LoaderCircle className="animate-spin h-5 w-5" />
-                        <p>Loading user data...</p>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    }
-    
-    const renderRoomList = (rooms: InvitedRoom[]) => (
+    const renderRoomList = (rooms: InvitedRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
-                    {rooms.map(room => {
+                    {rooms.map((room, index) => {
                         const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
                         const isCreator = room.creatorUid === user!.uid;
                         const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
+                        const tourProps = roomType === 'active' && index === 0 
+                            ? {
+                                start: {'data-tour': `so-start-room-${index}`},
+                                share: {'data-tour': `so-share-link-${index}`},
+                                settings: {'data-tour': `so-settings-${index}`}
+                            }
+                            : {start: {}, share: {}, settings: {}};
 
                         return (
                             <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
@@ -1135,13 +1140,13 @@ export default function SyncOnlineHome() {
                                     )}
 
                                     {isCreator && canJoin && (
-                                        <Button asChild disabled={isBlocked}>
+                                        <Button asChild disabled={isBlocked} {...tourProps.start}>
                                             <Link href={`/sync-room/${room.id}`}>Start Room</Link>
                                         </Button>
                                     )}
                                     
                                     {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
-                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)}><LinkIcon className="h-4 w-4"/></Button>
+                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
                                     )}
 
                                     {isCreator && room.status === 'scheduled' && (
@@ -1153,7 +1158,9 @@ export default function SyncOnlineHome() {
                                     )}
                                     
                                     {isCreator && (
-                                        <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                        <div {...tourProps.settings}>
+                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                        </div>
                                     )}
 
                                     {isCreator && room.blockedUsers && room.blockedUsers.length > 0 && (
@@ -1434,13 +1441,13 @@ export default function SyncOnlineHome() {
                                     <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="scheduled" className="mt-4">
-                                    {renderRoomList(scheduled)}
+                                    {renderRoomList(scheduled, 'scheduled')}
                                 </TabsContent>
                                 <TabsContent value="active" className="mt-4">
-                                     {renderRoomList(active)}
+                                     {renderRoomList(active, 'active')}
                                 </TabsContent>
                                 <TabsContent value="closed" className="mt-4">
-                                     {renderRoomList(closed)}
+                                     {renderRoomList(closed, 'closed')}
                                 </TabsContent>
                             </Tabs>
                         )}
