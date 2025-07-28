@@ -96,7 +96,7 @@ const Tour = () => {
     }
 
 
-    return { top: `${top}px`, left: `${left}px` };
+    return { top, left };
 };
 
 
@@ -104,31 +104,20 @@ const Tour = () => {
     return null;
   }
 
-
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 z-[10000]"
-            onClick={stopTour}
-          />
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ 
-                opacity: 1,
-                x: targetRect.left - 4,
-                y: targetRect.top - 4,
-                width: targetRect.width + 8,
-                height: targetRect.height + 8,
-            }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed rounded-lg border-2 border-primary border-dashed bg-primary/10 pointer-events-none z-[10000]"
-          />
+          {/* This is the new, robust overlay system */}
+          <div className="pointer-events-none fixed inset-0 z-[10000]">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute left-0 top-0 h-full w-full bg-black/70"
+              style={{ clipPath: `polygon(0% 0%, 0% 100%, ${targetRect.left}px 100%, ${targetRect.left}px ${targetRect.top}px, ${targetRect.right}px ${targetRect.top}px, ${targetRect.right}px ${targetRect.bottom}px, ${targetRect.left}px ${targetRect.bottom}px, ${targetRect.left}px 100%, 100% 100%, 100% 0%)`}}
+            />
+          </div>
 
           <motion.div
             ref={popoverRef}
