@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
@@ -119,7 +120,7 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
             } else if (result.reason === sdk.ResultReason.Canceled) {
                 const cancellation = sdk.CancellationDetails.fromResult(result);
                 let errorMessage = `Recognition canceled: ${cancellation.errorDetails}`;
-                if (cancellation.errorCode === sdk.CancellationErrorCode.PermissionDenied) {
+                if (cancellation.ErrorCode === sdk.CancellationErrorCode.PermissionDenied) {
                     errorMessage = "Recognition failed: Microphone permissions may not be granted.";
                 }
                 reject(new Error(errorMessage));
