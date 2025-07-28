@@ -1,13 +1,9 @@
 
 'use server';
 
-import {ai} from '@/ai/genkit';
+// This file is retained as a placeholder but the Genkit functionality is removed.
+// To re-enable, Genkit dependencies must be added back and build issues resolved.
 
 export async function runTestFlow(name: string): Promise<string> {
-  const llmResponse = await ai.generate({
-    model: 'googleai/gemini-2.0-flash',
-    prompt: `Tell me a joke about ${name}.`,
-  });
-
-  return llmResponse.text;
+  throw new Error('Genkit functionality has been removed due to build conflicts. This feature is disabled.');
 }

@@ -1,17 +1,15 @@
 
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+// This file is retained as a placeholder but the Genkit functionality is removed.
+// To re-enable, Genkit dependencies must be added back and build issues resolved.
 
-if (!process.env.GEMINI_API_KEY) {
-  console.warn(
-    'GEMINI_API_KEY is not set. Genkit flows will not work. Please add it to your .env.local file.'
-  );
-}
+console.warn(
+    'Genkit dependencies have been removed due to build conflicts. Genkit flows will not work.'
+);
 
-export const ai = genkit({
-  plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})],
-  logSinks: [],
-  enableTracing: true,
-  // We will rely on the model specified in the flow itself for now
-  // to allow the model listing to work without a default model error.
-});
+// Dummy 'ai' object to prevent crashes in files that import it.
+// The methods will throw an error if called.
+export const ai: any = {
+    defineFlow: () => () => { throw new Error('Genkit is disabled.'); },
+    definePrompt: () => () => { throw new Error('Genkit is disabled.'); },
+    generate: () => { throw new Error('Genkit is disabled.'); },
+};
