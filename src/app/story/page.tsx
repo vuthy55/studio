@@ -62,6 +62,7 @@ export default function StoryPage() {
         
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="space-y-4">
+              <h1 className="text-4xl font-bold text-accent">Sync Live</h1>
               <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
               <p className="text-muted-foreground">
                   At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
