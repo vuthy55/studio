@@ -767,7 +767,13 @@ export default function SyncOnlineHome() {
             defaultDate.setMilliseconds(0);
             setScheduledDate(defaultDate);
         } else if (editingRoom?.scheduledAt) {
-            setScheduledDate(new Date(editingRoom.scheduledAt));
+            const scheduled = editingRoom.scheduledAt;
+            // Safely create a date object
+            if (typeof scheduled === 'string') {
+                setScheduledDate(new Date(scheduled));
+            } else if (scheduled instanceof Timestamp) {
+                setScheduledDate(scheduled.toDate());
+            }
         }
     }, [isScheduling, isEditMode, editingRoom]);
 
@@ -873,7 +879,7 @@ export default function SyncOnlineHome() {
                         ...data,
                         createdAt: toISO(data.createdAt),
                         lastActivityAt: toISO(data.lastActivityAt),
-                        scheduledAt: toISO(data.scheduledAt),
+                        scheduledAt: data.scheduledAt,
                     } as InvitedRoom;
                 })
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
@@ -1068,9 +1074,14 @@ export default function SyncOnlineHome() {
     }, [invitedRooms]);
 
     const canJoinRoom = (room: InvitedRoom) => {
-        if (!room.scheduledAt || typeof room.scheduledAt !== 'string') return true; 
+        const scheduledAt = room.scheduledAt;
+        if (!scheduledAt) return true; 
+
+        const scheduledTime = (scheduledAt instanceof Timestamp) 
+            ? scheduledAt.toDate().getTime() 
+            : new Date(scheduledAt as string).getTime();
+
         const now = Date.now();
-        const scheduledTime = new Date(room.scheduledAt).getTime();
         const gracePeriod = 5 * 60 * 1000; // 5 minutes
         return now >= scheduledTime - gracePeriod;
     };
@@ -1104,9 +1115,9 @@ export default function SyncOnlineHome() {
                                     <p className="font-semibold">{room.topic}</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                            {room.status === 'scheduled' && room.scheduledAt && typeof room.scheduledAt === 'string'
-                                                ? format(new Date(room.scheduledAt), 'PPpp')
-                                                : `Created: ${room.createdAt && typeof room.createdAt === 'string' ? format(new Date(room.createdAt), 'PPp') : '...'}`
+                                            {room.status === 'scheduled' && room.scheduledAt 
+                                                ? format((room.scheduledAt instanceof Timestamp ? room.scheduledAt.toDate() : new Date(room.scheduledAt)), 'PPpp')
+                                                : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                             }
                                         </p>
                                         {room.status === 'closed' && (
