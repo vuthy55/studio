@@ -135,28 +135,48 @@ const Tour = () => {
   
   if (finalTargetRect) {
       // Manual adjustments based on user feedback
-      switch (stepIndex) {
-          case 0: // Step 1
+      const selector = currentStep.selector;
+      
+      switch (currentStep.selector) {
+          // Prep Your Vibe Tour
+          case '[data-tour="language-selectors"]':
               finalTargetRect.y = 200;
               break;
-          case 1: // Step 2
+          case '[data-tour="voice-selector"]':
               finalTargetRect.y = 200;
               break;
-          case 2: // Step 3
+          case '[data-tour="topic-selector"]':
               finalTargetRect.y -= 10;
               finalTargetRect.height += 20;
               break;
-          case 3: // Step 4
+          case '[data-tour="phrase-item-0"]':
               finalTargetRect.y = 150;
               break;
-          case 4: // Step 5
+          case '[data-tour="listen-button-0"]':
               finalTargetRect.y = 210;
               break;
-          case 5: // Step 6
+           case '[data-tour="practice-button-0"]':
               finalTargetRect.y = 210;
               break;
-          case 6: // Step 7
+          case '[data-tour="offline-manager"]':
               finalTargetRect.y = 180;
+              break;
+
+          // Live Translation Tour
+          case '[data-tour="lt-language-selectors"]':
+              // No override needed yet
+              break;
+          case '[data-tour="lt-input-textarea"]':
+              finalTargetRect.y = 140;
+              break;
+          case '[data-tour="lt-mic-button"]':
+              finalTargetRect.y = 220;
+              break;
+          case '[data-tour="lt-output-actions"]':
+              finalTargetRect.y = 220;
+              break;
+          case '[data-tour="lt-saved-phrases"]':
+              finalTargetRect.y = 30;
               break;
           default:
               break;
@@ -168,13 +188,6 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
-         {debugValues && (
-            <div className="fixed bottom-4 left-4 z-[10003] bg-destructive text-destructive-foreground p-2 rounded-md font-mono text-xs shadow-lg">
-              <div>Target Top: {debugValues.targetTop}</div>
-              <div>Target Left: {debugValues.targetLeft}</div>
-              <div>ScrollTop: {debugValues.scrollTop}</div>
-            </div>
-          )}
           {finalTargetRect && (
             <>
                 <motion.div

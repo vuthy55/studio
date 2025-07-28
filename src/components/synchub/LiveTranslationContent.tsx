@@ -59,7 +59,7 @@ const liveTranslationTourSteps: TourStep[] = [
   },
   {
     selector: '[data-tour="lt-saved-phrases"]',
-    content: "Your saved phrases will appear here. You can practice your pronunciation and get feedback just like in the 'Prep Your Vibe' section.",
+    content: "Your saved phrases will appear here. You can practice your pronunciation, get feedback, and earn tokens for correct attempts, just like in the 'Prep Your Vibe' section.",
     position: 'top',
   },
 ];
