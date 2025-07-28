@@ -187,11 +187,19 @@ export default function LiveTranslationContent() {
     }, [inputText, fromLanguage, toLanguage, isOnline]);
 
     const doRecognizeFromMicrophone = async () => {
-        if (isRecognizing || assessingPhraseId) return;
+        console.log('[DEBUG] doRecognizeFromMicrophone: Function called.');
+        if (isRecognizing || assessingPhraseId) {
+            console.log('[DEBUG] doRecognizeFromMicrophone: Aborted, already recognizing.');
+            return;
+        }
         
+        console.log('[DEBUG] doRecognizeFromMicrophone: Setting isRecognizing to true.');
         setIsRecognizing(true);
         try {
+            console.log(`[DEBUG] doRecognizeFromMicrophone: Calling recognizeOnce with lang: ${fromLanguage}`);
             const result = await recognizeOnce({ lang: fromLanguage });
+            console.log('[DEBUG] doRecognizeFromMicrophone: recognizeOnce returned:', result);
+
             if (result.text) {
                 setInputText(result.text);
             }
@@ -199,8 +207,10 @@ export default function LiveTranslationContent() {
                 toast({ variant: 'destructive', title: 'Recognition Failed', description: result.error });
             }
         } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred during recognition." });
+            console.error('[DEBUG] doRecognizeFromMicrophone: CATCH block triggered.', error);
+            toast({ variant: 'destructive', title: 'Client Error', description: "An unexpected error occurred during recognition." });
         } finally {
+            console.log('[DEBUG] doRecognizeFromMicrophone: FINALLY block, setting isRecognizing to false.');
             setIsRecognizing(false);
         }
     }
