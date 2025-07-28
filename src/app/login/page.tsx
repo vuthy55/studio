@@ -89,7 +89,7 @@ export default function LoginPage() {
       }
       
       toast({ title: "Welcome!", description: "Logged in successfully." });
-      router.push('/profile');
+      router.push('/synchub');
 
     } catch (error: any) {
       console.error("Google sign-in error", error);
@@ -131,7 +131,7 @@ export default function LoginPage() {
        await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
 
        toast({ title: "Success", description: "Account created successfully." });
-       router.push('/profile');
+       router.push('/synchub');
       
     } catch (error: any) {
       console.error("Email sign-up error", error);
@@ -147,7 +147,7 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
-      router.push('/profile');
+      router.push('/synchub');
     } catch (error: any) {
       console.error("Email login error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });

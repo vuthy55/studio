@@ -149,13 +149,13 @@ export default function JoinRoomPage() {
                 console.log("[DEBUG] Room is active. Redirecting to room.");
                 router.push(`/sync-room/${roomId}`);
             } else {
-                console.log("[DEBUG] Room is scheduled for later. Redirecting to profile.");
+                console.log("[DEBUG] Room is scheduled for later. Redirecting to SyncHub.");
                 toast({
                     title: "Welcome to VibeSync!",
                     description: `Your account is ready. Your room is scheduled for ${format(new Date(result.scheduledAt!), 'PPpp')}.`,
                     duration: 10000
                 });
-                router.push('/profile');
+                router.push('/synchub');
             }
             
         } catch (error: any) {
