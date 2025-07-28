@@ -43,6 +43,7 @@ import MarketingRelease from '@/components/marketing/MarketingRelease';
 import MarketingRelease2 from '@/components/marketing/MarketingRelease2';
 import AudioPackGenerator from './AudioPackGenerator';
 import FreeLanguagePacksManager from './FreeLanguagePacksManager';
+import MarketingRelease3 from '@/components/marketing/MarketingRelease3';
 
 
 interface UserWithId extends UserProfile {
@@ -1724,6 +1725,12 @@ function MessagingContent() {
                         <AccordionTrigger>Release 0.1 Marketing Page 2</AccordionTrigger>
                         <AccordionContent>
                            <MarketingRelease2 />
+                        </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="item-6">
+                        <AccordionTrigger>Release 0.1 Marketing Page 3</AccordionTrigger>
+                        <AccordionContent>
+                           <MarketingRelease3 />
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
