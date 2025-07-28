@@ -131,7 +131,7 @@ export default function MarketingRelease() {
             <h2 className="text-3xl font-bold">Your Adventure is Waiting.</h2>
             <p className="text-muted-foreground max-w-xl mx-auto">Don't let language be a barrier. Get the app, get the tokens, get talking!</p>
             <Button size="lg" variant="secondary" asChild>
-                <Link href="/login">Start Your Adventure</Link>
+                <Link href="/story">Read Our Story</Link>
             </Button>
       </div>
 
