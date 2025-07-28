@@ -36,7 +36,7 @@ export default function StoryPage() {
                 unoptimized
                 data-ai-hint="backpacker market"
             />
-            <p className="text-xs text-muted-foreground mt-1">Image Source: https://images.unsplash.com/photo-1528260346029-9a8b27441463</p>
+            <p className="text-xs text-muted-foreground mt-1">Image Source: https://unsplash.com/photos/a-man-with-a-backpack-walking-through-a-market-1528260346029-9a8b27441463</p>
           </div>
         </div>
 
@@ -51,7 +51,7 @@ export default function StoryPage() {
                 unoptimized
                 data-ai-hint="ordering food"
             />
-            <p className="text-xs text-muted-foreground mt-1 md:text-right">Image Source: https://images.unsplash.com/photo-1574068468668-a05a11f871da</p>
+            <p className="text-xs text-muted-foreground mt-1 md:text-right">Image Source: https://unsplash.com/photos/a-man-standing-in-front-of-a-food-stand-1574068468668-a05a11f871da</p>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
@@ -84,7 +84,7 @@ export default function StoryPage() {
                 unoptimized
                 data-ai-hint="diverse friends"
             />
-            <p className="text-xs text-muted-foreground mt-1">Image Source: https://images.unsplash.com/photo-1542037104-91ad67d9692a</p>
+            <p className="text-xs text-muted-foreground mt-1">Image Source: https://unsplash.com/photos/a-group-of-people-standing-on-top-of-a-building-1542037104-91ad67d9692a</p>
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export default function StoryPage() {
                 unoptimized
                 data-ai-hint="friends phone"
             />
-            <p className="text-xs text-muted-foreground mt-1 md:text-right">Image Source: https://images.unsplash.com/photo-1516589178581-6e3a4f11413a</p>
+            <p className="text-xs text-muted-foreground mt-1 md:text-right">Image Source: https://unsplash.com/photos/a-group-of-people-looking-at-a-cell-phone-1516589178581-6e3a4f11413a</p>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
