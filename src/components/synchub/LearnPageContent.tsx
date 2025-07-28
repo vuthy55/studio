@@ -249,6 +249,12 @@ function LearnPage() {
 
     return (
         <div className="space-y-6">
+            <div className="flex flex-col items-center gap-4 text-center">
+                 <Button onClick={() => startTour(learnPageTourSteps)} size="lg">
+                    <HelpCircle className="mr-2" />
+                    Take a Tour
+                </Button>
+            </div>
             <div data-tour="offline-manager">
                 <OfflineManager />
             </div>
@@ -307,16 +313,6 @@ function LearnPage() {
                         <div className="space-y-2">
                             <div className="flex items-center gap-2">
                                 <Label>Select a Topic</Label>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startTour(learnPageTourSteps)}><HelpCircle className="h-5 w-5 text-accent" /></Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>Show me a tour of this page</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
                             </div>
                             <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1" data-tour="topic-selector">
                                 {phrasebook.map((topic) => (
@@ -525,4 +521,3 @@ export default function LearnPageContent(props: LearnPageContentProps) {
         </TourProvider>
     )
 }
-
