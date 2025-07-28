@@ -188,3 +188,14 @@ export type SavedPhrase = {
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
 };
+
+export interface FeedbackSubmission {
+    id: string;
+    category: string;
+    comment: string;
+    userEmail: string;
+    userName: string;
+    userId: string;
+    createdAt: Timestamp;
+    screenshotUrl?: string;
+}

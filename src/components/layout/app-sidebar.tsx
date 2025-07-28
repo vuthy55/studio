@@ -3,7 +3,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -25,6 +25,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import React, { useState } from 'react';
 import { sendBuddyAlert } from '@/actions/friends';
 import { cn } from '@/lib/utils';
+import { Badge } from '../ui/badge';
 
 
 function BuddyAlertButton() {
@@ -251,6 +252,16 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
        <SidebarFooter>
+        {user && (
+            <div className="mb-2">
+                <Link href="/feedback" onClick={closeSidebar}>
+                    <div className="flex items-center justify-center p-2 rounded-lg bg-accent/50 text-accent-foreground/80 hover:bg-accent hover:text-accent-foreground transition-colors">
+                        <LifeBuoy className="h-5 w-5 mr-2"/>
+                        <span className="font-semibold text-sm">Give Feedback</span>
+                    </div>
+                </Link>
+            </div>
+        )}
         <TooltipProvider>
           <div className="flex items-center justify-start gap-2 w-full">
               {user ? (

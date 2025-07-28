@@ -5,14 +5,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/app/profile/page';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,8 @@ import MarketingRelease2 from '@/components/marketing/MarketingRelease2';
 import AudioPackGenerator from './AudioPackGenerator';
 import FreeLanguagePacksManager from './FreeLanguagePacksManager';
 import MarketingRelease3 from '@/components/marketing/MarketingRelease3';
+import { getFeedbackSubmissions, type FeedbackSubmission } from '@/actions/feedback';
+import Image from 'next/image';
 
 
 interface UserWithId extends UserProfile {
@@ -537,7 +539,7 @@ function FinancialTabContent() {
         const headers = ["ID", "Date", "Type", "Amount", "Source", "Description", "User Email", "Link"];
         const rows = ledger.map(item => [
             item.id,
-            format(item.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+            format((item.timestamp as Timestamp).toDate(), 'yyyy-MM-dd HH:mm:ss'),
             item.type,
             item.amount,
             item.source || 'N/A',
@@ -779,7 +781,7 @@ function FinancialTabContent() {
                                                     <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={item.id}>{item.id}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{format(item.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
+                                            <TableCell>{format((item.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm')}</TableCell>
                                             <TableCell className={`text-right font-medium ${item.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>
                                                 {item.type === 'revenue' ? '+' : '-'}${item.amount.toFixed(2)}
                                             </TableCell>
@@ -1003,7 +1005,7 @@ function TokensTabContent() {
         const headers = ["ID", "Date", "From/To", "QTY", "Reason", "Description"];
         const rows = ledger.map((log) => [
             log.id,
-            format(log.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+            format((log.timestamp as Timestamp).toDate(), 'yyyy-MM-dd HH:mm:ss'),
             getFromToCell(log),
             log.tokenChange,
             getReasonText(log),
@@ -1202,7 +1204,7 @@ function TokensTabContent() {
                                                             <span className="font-mono text-[10px] text-muted-foreground/60 truncate" title={log.id}>{log.id}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell>{format(log.timestamp, 'd MMM yyyy, HH:mm')}</TableCell>
+                                                    <TableCell>{format((log.timestamp as Timestamp).toDate(), 'd MMM yyyy, HH:mm')}</TableCell>
                                                     <TableCell className="whitespace-pre-line">
                                                         <Link href={`/admin/${log.userId}`} className="text-primary underline hover:text-primary/80">
                                                             {getFromToCell(log)}
@@ -1766,6 +1768,81 @@ function LanguagePacksTabContent() {
     )
 }
 
+function FeedbackTabContent() {
+    const [feedback, setFeedback] = useState<FeedbackSubmission[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    const fetchFeedback = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const submissions = await getFeedbackSubmissions();
+            setFeedback(submissions);
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load feedback submissions.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchFeedback();
+    }, [fetchFeedback]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>User Feedback</CardTitle>
+                <CardDescription>Review feedback, feature requests, and bug reports from users.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button onClick={fetchFeedback} disabled={isLoading}>
+                    <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
+                    Refresh
+                </Button>
+                {isLoading ? (
+                    <div className="flex justify-center items-center py-10">
+                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : feedback.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-10">No feedback submissions yet.</p>
+                ) : (
+                    <div className="mt-4 space-y-4">
+                        {feedback.map(item => (
+                            <Card key={item.id}>
+                                <CardHeader>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-lg">{item.category}</CardTitle>
+                                            <CardDescription>
+                                                Submitted by <a href={`mailto:${item.userEmail}`} className="text-primary hover:underline">{item.userEmail}</a> on {format((item.createdAt as Timestamp).toDate(), 'PPpp')}
+                                            </CardDescription>
+                                        </div>
+                                        {item.screenshotUrl && (
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="outline">View Screenshot</Button>
+                                                </DialogTrigger>
+                                                <DialogContent className="max-w-4xl">
+                                                    <Image src={item.screenshotUrl} alt="User screenshot" width={1200} height={800} className="w-full h-auto rounded-md" />
+                                                </DialogContent>
+                                            </Dialog>
+                                        )}
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="whitespace-pre-wrap">{item.comment}</p>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AdminPage() {
     const [user, authLoading] = useAuthState(auth);
     const router = useRouter();
@@ -1801,6 +1878,7 @@ export default function AdminPage() {
     const adminTabs = [
         { value: 'rooms', label: 'Rooms', icon: RadioTower },
         { value: 'users', label: 'Users', icon: Users },
+        { value: 'feedback', label: 'Feedback', icon: LifeBuoy },
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
@@ -1813,7 +1891,7 @@ export default function AdminPage() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-8 gap-1">
+            <div className="p-1 bg-muted rounded-md grid grid-cols-9 gap-1">
                 {adminTabs.map(tab => (
                     <TooltipProvider key={tab.value}>
                         <Tooltip>
@@ -1847,6 +1925,9 @@ export default function AdminPage() {
                 </TabsContent>
                 <TabsContent value="users" className="mt-6">
                     <UsersTabContent />
+                </TabsContent>
+                 <TabsContent value="feedback" className="mt-6">
+                    <FeedbackTabContent />
                 </TabsContent>
                 <TabsContent value="settings" className="mt-6">
                     <SettingsTabContent />
