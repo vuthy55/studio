@@ -26,10 +26,12 @@ const Tour = () => {
     if (isOpen && currentStep) {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
-        updateTargetRect(); // Initial position calculation
-
-        element.style.zIndex = '10001';
-        element.style.position = 'relative';
+        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        
+        // Use a timeout to wait for the scroll to finish before calculating the rect
+        const timer = setTimeout(() => {
+            updateTargetRect();
+        }, 300); // 300ms should be enough for smooth scroll
 
         const scrollAndResizeHandler = () => updateTargetRect();
 
@@ -37,8 +39,7 @@ const Tour = () => {
         window.addEventListener('resize', scrollAndResizeHandler);
 
         return () => {
-          element.style.zIndex = '';
-          element.style.position = '';
+          clearTimeout(timer);
           window.removeEventListener('scroll', scrollAndResizeHandler, true);
           window.removeEventListener('resize', scrollAndResizeHandler);
         };
@@ -48,26 +49,64 @@ const Tour = () => {
     }
   }, [isOpen, currentStep, updateTargetRect]);
 
+  const getPopoverPosition = () => {
+    if (!popoverRef.current || !targetRect) return {};
+
+    const popoverHeight = popoverRef.current.offsetHeight;
+    const popoverWidth = popoverRef.current.offsetWidth;
+    const spacing = 10;
+
+    let top = 0;
+    let left = 0;
+
+    switch (currentStep?.position) {
+        case 'top':
+            top = targetRect.top - popoverHeight - spacing;
+            left = targetRect.left + (targetRect.width - popoverWidth) / 2;
+            break;
+        case 'left':
+            top = targetRect.top + (targetRect.height - popoverHeight) / 2;
+            left = targetRect.left - popoverWidth - spacing;
+            break;
+        case 'right':
+            top = targetRect.top + (targetRect.height - popoverHeight) / 2;
+            left = targetRect.right + spacing;
+            break;
+        case 'bottom':
+        default:
+            top = targetRect.bottom + spacing;
+            left = targetRect.left + (targetRect.width - popoverWidth) / 2;
+            break;
+    }
+    
+    // --- Viewport Collision Detection & Correction ---
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Horizontal correction
+    if (left + popoverWidth > viewportWidth) {
+        left = viewportWidth - popoverWidth - spacing;
+    }
+    if (left < 0) {
+        left = spacing;
+    }
+    
+    // Vertical correction
+    if (top + popoverHeight > viewportHeight) {
+        top = viewportHeight - popoverHeight - spacing;
+    }
+    if (top < 0) {
+        top = spacing;
+    }
+
+
+    return { top: `${top}px`, left: `${left}px` };
+};
+
+
   if (!isOpen || !targetRect || !currentStep) {
     return null;
   }
-
-  const getPopoverPosition = () => {
-      const popoverHeight = popoverRef.current?.offsetHeight || 0;
-      const popoverWidth = popoverRef.current?.offsetWidth || 0;
-
-      switch(currentStep.position) {
-          case 'top':
-              return { top: `${targetRect.top - popoverHeight - 10}px`, left: `${targetRect.left}px` };
-          case 'left':
-              return { top: `${targetRect.top}px`, left: `${targetRect.left - popoverWidth - 10}px` };
-          case 'right':
-              return { top: `${targetRect.top}px`, left: `${targetRect.right + 10}px` };
-          case 'bottom':
-          default:
-              return { top: `${targetRect.bottom + 10}px`, left: `${targetRect.left}px` };
-      }
-  };
 
 
   return (
