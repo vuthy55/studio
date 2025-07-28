@@ -12,7 +12,6 @@ const Tour = () => {
   const { isOpen, stopTour, currentStep, goToNextStep, goToPrevStep, stepIndex, steps } = useTour();
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [debugValues, setDebugValues] = useState<any>(null);
 
 
   const updateTargetRect = useCallback(() => {
@@ -23,19 +22,10 @@ const Tour = () => {
         setTimeout(() => {
             const rect = element.getBoundingClientRect();
             setTargetRect(rect);
-            
-            // Debugging values
-            const mainScrollContainer = document.querySelector('main');
-            setDebugValues({
-              targetTop: rect.top.toFixed(2),
-              targetLeft: rect.left.toFixed(2),
-              scrollTop: mainScrollContainer ? mainScrollContainer.scrollTop.toFixed(2) : 'N/A',
-            });
         }, 50);
 
       } else {
         setTargetRect(null);
-        setDebugValues(null);
       }
     }
   }, [isOpen, currentStep]);
@@ -182,19 +172,19 @@ const Tour = () => {
           
           // Sync Online Tour
           case '[data-tour="so-schedule-button"]':
-                finalTargetRect.y = 220;
+                finalTargetRect.y = 230;
                 break;
           case '[data-tour="so-room-list"]':
-                finalTargetRect.y = 250;
+                finalTargetRect.y = 100;
                 break;
           case '[data-tour="so-start-room-0"]':
-                finalTargetRect.y = 320;
+                finalTargetRect.y = 330;
                 break;
           case '[data-tour="so-share-link-0"]':
-                finalTargetRect.y = 320;
+                finalTargetRect.y = 330;
                 break;
           case '[data-tour="so-settings-0"]':
-                finalTargetRect.y = 320;
+                finalTargetRect.y = 330;
                 break;
           default:
               break;
@@ -206,13 +196,6 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
-        {debugValues && (
-             <div className="fixed bottom-0 right-0 bg-black/70 text-white p-2 z-[10003] text-xs font-mono">
-                <p>Target Top: {debugValues.targetTop}</p>
-                <p>Target Left: {debugValues.targetLeft}</p>
-                <p>Scroll Top: {debugValues.scrollTop}</p>
-            </div>
-        )}
           {finalTargetRect && (
             <>
                 <motion.div
