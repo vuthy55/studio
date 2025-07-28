@@ -34,8 +34,8 @@ export default function StoryPage() {
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
             <div className="text-center">
-              <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">អរគុណ</div>
-              <div className="text-2xl md:text-3xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
+              <div className="text-5xl font-bold text-primary opacity-50">អរគុណ</div>
+              <div className="text-2xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
             </div>
           </div>
           <div className="space-y-4">
@@ -59,8 +59,10 @@ export default function StoryPage() {
                    <Link href="/synchub?tab=sync-live">Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
-           <div className="flex items-center justify-center bg-muted rounded-lg shadow-xl aspect-[3/2]">
-            <span className="text-9xl font-bold text-primary opacity-20">?</span>
+           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
+            <div className="text-center">
+              <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Sync Live</div>
+            </div>
           </div>
         </div>
 
