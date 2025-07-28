@@ -63,7 +63,7 @@ export default function StoryPage() {
           <div className="space-y-4">
               <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
               <p className="text-muted-foreground">
-                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
+                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Later, they add each other as buddies in the app. A quick tap on the Buddy Alert button lets everyone share their location instantly, making it easy to regroup after exploring different parts of the temple complex.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
                    <Link href={syncLiveLink}>Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
