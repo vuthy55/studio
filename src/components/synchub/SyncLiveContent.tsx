@@ -31,7 +31,7 @@ const syncLiveTourSteps: TourStep[] = [
   },
   {
     selector: '[data-tour="sl-mic-button"]',
-    content: "When you're ready, press and hold this button to speak. The app will automatically detect the language you're speaking.",
+    content: "When you're ready, press this button to speak. The app will automatically detect the language you're speaking.",
     position: 'top',
   },
   {
@@ -214,7 +214,7 @@ export default function SyncLiveContent() {
                     Tap the mic to talk. Your speech will be translated and spoken aloud for the group. This is a 1-to-many solo translation feature.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
+             <CardContent>
                 <div className="flex flex-col items-center gap-4 text-center">
                     <Button onClick={() => startTour(syncLiveTourSteps)} size="lg">
                         <HelpCircle className="mr-2" />

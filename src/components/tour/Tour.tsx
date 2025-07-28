@@ -188,6 +188,11 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
+        <div className="fixed top-2 right-2 bg-black/80 text-white p-2 rounded-md z-[10003] text-xs font-mono">
+            <div>Target Top: {debugValues?.targetTop}</div>
+            <div>Target Left: {debugValues?.targetLeft}</div>
+            <div>Scroll Top: {debugValues?.scrollTop}</div>
+        </div>
           {finalTargetRect && (
             <>
                 <motion.div
