@@ -6,6 +6,7 @@ import { useState, useLayoutEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 const Tour = () => {
   const { isOpen, stopTour, currentStep, goToNextStep, goToPrevStep, stepIndex, steps } = useTour();
@@ -70,7 +71,7 @@ const Tour = () => {
 
     const popoverHeight = popoverRef.current.offsetHeight;
     const popoverWidth = popoverRef.current.offsetWidth;
-    const spacing = 10;
+    const spacing = 15; // Increased spacing for the arrow
 
     let top = 0;
     let left = 0;
@@ -98,6 +99,7 @@ const Tour = () => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
+    // Keep popover within viewport bounds
     if (left + popoverWidth > viewportWidth - spacing) {
         left = viewportWidth - popoverWidth - spacing;
     }
@@ -115,6 +117,21 @@ const Tour = () => {
     return { top, left };
   };
 
+  const arrowClasses = cn(
+    "absolute w-0 h-0 border-solid",
+    {
+        // Popover is below the element, arrow points up
+        'border-x-8 border-x-transparent border-b-8 border-b-card -top-2 left-1/2 -translate-x-1/2': currentStep?.position === 'bottom' || !currentStep?.position,
+        // Popover is above the element, arrow points down
+        'border-x-8 border-x-transparent border-t-8 border-t-card -bottom-2 left-1/2 -translate-x-1/2': currentStep?.position === 'top',
+        // Popover is to the left of the element, arrow points right
+        'border-y-8 border-y-transparent border-l-8 border-l-card -right-2 top-1/2 -translate-y-1/2': currentStep?.position === 'left',
+        // Popover is to the right of the element, arrow points left
+        'border-y-8 border-y-transparent border-r-8 border-r-card -left-2 top-1/2 -translate-y-1/2': currentStep?.position === 'right'
+    }
+  );
+
+
   if (!isOpen || !currentStep) {
     return null;
   }
@@ -124,12 +141,14 @@ const Tour = () => {
       {isOpen && targetRect && (
         <motion.div
             ref={popoverRef}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
             className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4 border"
             style={getPopoverPosition()}
         >
+            <div className={arrowClasses} />
             <button
             onClick={stopTour}
             className="absolute top-2 right-2 p-1 rounded-full text-muted-foreground hover:bg-accent"
