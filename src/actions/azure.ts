@@ -41,7 +41,7 @@ export async function getAzureVoices(): Promise<VoiceInfo[]> {
             styleList: v.styleList,
         }));
     } else if (result.reason === sdk.ResultReason.Canceled) {
-        const cancellation = sdk.CancellationDetails.fromResult(result);
+        const cancellation = sdk.SpeechSynthesisCancellationDetails.fromResult(result);
         throw new Error(`Could not get voices list: ${cancellation.errorDetails}`);
     } else {
         throw new Error(`Failed to retrieve voices list. Reason: ${result.reason}`);
