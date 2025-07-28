@@ -44,8 +44,10 @@ const TabsContent = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
+    tabIndex={-1} // prevent content from being focused
     className={cn(
       "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      "data-[state=inactive]:hidden", // Hide inactive tabs
       className
     )}
     {...props}

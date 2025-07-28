@@ -13,6 +13,8 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
 
 // --- Singleton Manager for the active recognizer ---
 let activeRecognizer: sdk.SpeechRecognizer | null = null;
+let activeRecognizerPromise: Promise<any> | null = null;
+
 
 function getSpeechConfig(): sdk.SpeechConfig {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
@@ -38,12 +40,15 @@ export type PronunciationAssessmentResult = {
  */
 export function abortRecognition() {
     if (activeRecognizer) {
+        console.log('[SPEECH] Aborting active recognition.');
         try {
+            // This forces the recognizer to stop and release the microphone.
             activeRecognizer.close();
         } catch (e) {
-            // Errors are expected if the recognizer is already closing.
+            console.warn('[SPEECH] Error closing recognizer (may already be closed):', e);
         } finally {
             activeRecognizer = null;
+            activeRecognizerPromise = null;
         }
     }
 }
@@ -56,10 +61,10 @@ export function abortRecognition() {
  * @returns {Promise<PronunciationAssessmentResult>}
  */
 export async function assessPronunciationFromMic(referenceText: string, lang: LanguageCode): Promise<PronunciationAssessmentResult> {
+    abortRecognition();
     const locale = languageToLocaleMap[lang];
     if (!locale) throw new Error(`[SPEECH] Unsupported language for assessment: ${lang}`);
     
-    abortRecognition();
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     
@@ -77,7 +82,7 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 
     pronunciationConfig.applyTo(recognizer);
 
-    return new Promise<PronunciationAssessmentResult>((resolve, reject) => {
+    const promise = new Promise<PronunciationAssessmentResult>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
             if (result.reason === sdk.ResultReason.RecognizedSpeech) {
                 const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
@@ -92,26 +97,33 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                  reject(new Error("Could not recognize speech. Please try again."));
             } else if (result.reason === sdk.ResultReason.Canceled) {
                  const cancellation = sdk.CancellationDetails.fromResult(result);
-                 reject(new Error(`Recognition failed: ${cancellation.errorDetails}`));
+                 if (cancellation.reason !== sdk.CancellationReason.EndOfStream) { // Don't reject on manual abort
+                    reject(new Error(`Recognition failed: ${cancellation.errorDetails}`));
+                 }
             }
+             activeRecognizer = null;
         }, err => {
+            activeRecognizer = null;
             reject(new Error(`Recognition error: ${err}`));
         });
     });
+    
+    activeRecognizerPromise = promise;
+    return promise;
 }
 
 
 export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise<string> {
+    abortRecognition();
     if (!fromLanguage) throw new Error("A valid language code must be provided for recognition.");
     
-    abortRecognition();
     const speechConfig = getSpeechConfig();
     speechConfig.speechRecognitionLanguage = fromLanguage;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     activeRecognizer = recognizer;
 
-    return new Promise<string>((resolve, reject) => {
+    const promise = new Promise<string>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
@@ -119,18 +131,25 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                 resolve('');
             } else if (result.reason === sdk.ResultReason.Canceled) {
                 const cancellation = sdk.CancellationDetails.fromResult(result);
-                let errorMessage = `Recognition canceled: ${cancellation.errorDetails}`;
-                if (cancellation.errorCode === sdk.CancellationErrorCode.PermissionDenied) {
-                    errorMessage = "Recognition failed: Microphone permissions may not be granted.";
+                if (cancellation.reason !== sdk.CancellationReason.EndOfStream) {
+                    let errorMessage = `Recognition canceled: ${cancellation.errorDetails}`;
+                    if (cancellation.errorCode === sdk.CancellationErrorCode.PermissionDenied) {
+                        errorMessage = "Recognition failed: Microphone permissions may not be granted.";
+                    }
+                    reject(new Error(errorMessage));
                 }
-                reject(new Error(errorMessage));
             } else {
                 reject(new Error(`Could not recognize speech. Reason: ${result.reason}`));
             }
+            activeRecognizer = null;
         }, err => {
+             activeRecognizer = null;
             reject(new Error(`Recognition error: ${err}`));
         });
     });
+
+    activeRecognizerPromise = promise;
+    return promise;
 }
 
 export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
@@ -142,7 +161,7 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
     
     activeRecognizer = recognizer;
     
-    return new Promise((resolve, reject) => {
+    const promise = new Promise<{ detectedLang: string, text: string }>((resolve, reject) => {
          recognizer.recognizeOnceAsync(result => {
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
@@ -150,13 +169,23 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                     detectedLang: autoDetectResult.language,
                     text: result.text
                 });
+            } else if (result.reason === sdk.ResultReason.Canceled) {
+                 const cancellation = sdk.CancellationDetails.fromResult(result);
+                 if (cancellation.reason !== sdk.CancellationReason.EndOfStream) {
+                    reject(new Error("Recognition canceled."));
+                 }
             } else {
                 reject(new Error("No recognized speech"));
             }
+             activeRecognizer = null;
         }, err => {
+             activeRecognizer = null;
             reject(new Error(`Auto-detect recognition error: ${err}`));
         });
     });
+    
+    activeRecognizerPromise = promise;
+    return promise;
 }
 
 export function getContinuousRecognizerForRoom(

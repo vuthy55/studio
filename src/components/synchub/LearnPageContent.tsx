@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef, memo, Dispatch, SetStateAction } from 'react';
+import { useState, useMemo, useEffect, useRef, memo, Dispatch, SetStateAction, useCallback } from 'react';
 import Link from 'next/link';
 import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -122,15 +122,14 @@ export default function LearnPageContent() {
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
-
+    
+    // This effect ensures that any active speech recognition is stopped when the component unmounts.
     useEffect(() => {
         return () => {
-            if (assessingPhraseId) {
-                abortRecognition();
-            }
+            abortRecognition();
         };
-    }, [assessingPhraseId]);
-    
+    }, []);
+
     const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
         if (!text || !!assessingPhraseId) return;
 
@@ -170,7 +169,7 @@ export default function LearnPageContent() {
         return textObj.translations[lang] || textObj.english;
     }
 
-    const doAssessPronunciation = async (phrase: Phrase, topicId: string) => {
+    const doAssessPronunciation = useCallback(async (phrase: Phrase, topicId: string) => {
         if (assessingPhraseId) return;
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
@@ -216,14 +215,17 @@ export default function LearnPageContent() {
             }
 
         } catch (error: any) {
-            console.error(`[LearnPageContent] Assessment failed for ${phraseId}:`, error);
-            if (error.message !== "Recognition was aborted.") {
-                toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
+            if (String(error).includes('aborted') || String(error).includes('canceled')) {
+                // Do not show toast if user manually cancels.
+                console.log('Pronunciation assessment canceled by user.');
+            } else {
+                 console.error(`[LearnPageContent] Assessment failed for ${phraseId}:`, error);
+                 toast({ variant: 'destructive', title: 'Assessment Error', description: error.message || `An unexpected error occurred.`});
             }
         } finally {
             setAssessingPhraseId(null);
         }
-    };
+    }, [assessingPhraseId, user, settings, toLanguage, recordPracticeAttempt, toast]);
     
     const sortedPhrases = useMemo(() => {
         return [...selectedTopic.phrases];

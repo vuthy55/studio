@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, memo, useEffect, Suspense } from 'react';
+import { useState, memo, useEffect, Suspense, use } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LearnPageContent from '@/components/synchub/LearnPageContent';
@@ -13,13 +13,13 @@ import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 import { useUserData } from '@/context/UserDataContext';
 import { TourProvider } from '@/context/TourContext';
 import Tour from '@/components/tour/Tour';
+import { cn } from '@/lib/utils';
 
-// Statically import all components to ensure they are available in offline mode.
+// Memoize components to prevent re-renders when switching tabs
 const MemoizedLearnPage = memo(LearnPageContent);
-const MemoizedSyncLive = memo(SyncLiveContent);
 const MemoizedLiveTranslation = memo(LiveTranslationContent);
+const MemoizedSyncLive = memo(SyncLiveContent);
 const MemoizedSyncOnline = memo(SyncOnlineHome);
-
 
 function SyncHubTabs() {
     const searchParams = useSearchParams();
@@ -27,32 +27,30 @@ function SyncHubTabs() {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab) {
+        if (tab && tab !== activeTab) {
             setActiveTab(tab);
         }
-    }, [searchParams]);
+    }, [searchParams, activeTab]);
     
+    // We render all tab content at once and use CSS to show/hide them.
+    // This makes tab switching feel instant.
     return (
-         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
-                <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
-                <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
-                <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
-            </TabsList>
-            <TabsContent value="prep-vibe" className="mt-6">
-                <MemoizedLearnPage />
-            </TabsContent>
-            <TabsContent value="live-translation" className="mt-6">
-                <MemoizedLiveTranslation />
-            </TabsContent>
-            <TabsContent value="sync-live" className="mt-6">
-                <MemoizedSyncLive />
-            </TabsContent>
-            <TabsContent value="sync-online" className="mt-6">
-                <MemoizedSyncOnline />
-            </TabsContent>
-        </Tabs>
+        <div className="relative">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="prep-vibe">Prep Your Vibe</TabsTrigger>
+                    <TabsTrigger value="live-translation">Live Translation</TabsTrigger>
+                    <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
+                    <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
+                </TabsList>
+            </Tabs>
+            <div className="mt-6">
+                <div className={cn(activeTab !== 'prep-vibe' && 'hidden')}><MemoizedLearnPage /></div>
+                <div className={cn(activeTab !== 'live-translation' && 'hidden')}><MemoizedLiveTranslation /></div>
+                <div className={cn(activeTab !== 'sync-live' && 'hidden')}><MemoizedSyncLive /></div>
+                <div className={cn(activeTab !== 'sync-online' && 'hidden')}><MemoizedSyncOnline /></div>
+            </div>
+        </div>
     );
 }
 
