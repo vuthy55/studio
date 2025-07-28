@@ -15,6 +15,7 @@ import { getOfflineAudio } from '@/components/synchub/OfflineManager';
 import { getLanguageAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
+import type { User } from 'firebase/auth';
 
 
 // --- Types ---
@@ -30,7 +31,7 @@ interface RecordPracticeAttemptArgs {
 }
 
 interface UserDataContextType {
-    user: typeof auth.currentUser | null;
+    user: User | null | undefined;
     loading: boolean;
     userProfile: Partial<UserProfile>;
     practiceHistory: PracticeHistoryState;
@@ -508,7 +509,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, settings]);
 
-    const value = {
+    const value: UserDataContextType = {
         user,
         loading: authLoading || isDataLoading,
         userProfile,
