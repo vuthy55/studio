@@ -17,14 +17,7 @@ const Tour = () => {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
         const rect = element.getBoundingClientRect();
-        // Create a new DOMRect with scroll-adjusted coordinates
-        const adjustedRect = new DOMRect(
-            rect.x + window.scrollX,
-            rect.y + window.scrollY,
-            rect.width,
-            rect.height
-        );
-        setTargetRect(adjustedRect);
+        setTargetRect(rect);
       }
     }
   }, [isOpen, currentStep]);
@@ -35,20 +28,19 @@ const Tour = () => {
       if (element) {
         updateTargetRect(); // Initial position calculation
 
-        // Temporarily modify style of the target element for visibility
         element.style.zIndex = '10001';
         element.style.position = 'relative';
 
-        // Add scroll and resize listeners to keep the popover in place
-        window.addEventListener('scroll', updateTargetRect, true);
-        window.addEventListener('resize', updateTargetRect);
+        const scrollAndResizeHandler = () => updateTargetRect();
+
+        window.addEventListener('scroll', scrollAndResizeHandler, true);
+        window.addEventListener('resize', scrollAndResizeHandler);
 
         return () => {
-          // Cleanup style and listeners on step change or tour end
           element.style.zIndex = '';
           element.style.position = '';
-          window.removeEventListener('scroll', updateTargetRect, true);
-          window.removeEventListener('resize', updateTargetRect);
+          window.removeEventListener('scroll', scrollAndResizeHandler, true);
+          window.removeEventListener('resize', scrollAndResizeHandler);
         };
       }
     } else {
@@ -60,22 +52,22 @@ const Tour = () => {
     return null;
   }
 
-  const popoverPosition = {
-    top: `${targetRect.bottom + 10}px`,
-    left: `${targetRect.left}px`,
+  const getPopoverPosition = () => {
+      const popoverHeight = popoverRef.current?.offsetHeight || 0;
+      const popoverWidth = popoverRef.current?.offsetWidth || 0;
+
+      switch(currentStep.position) {
+          case 'top':
+              return { top: `${targetRect.top - popoverHeight - 10}px`, left: `${targetRect.left}px` };
+          case 'left':
+              return { top: `${targetRect.top}px`, left: `${targetRect.left - popoverWidth - 10}px` };
+          case 'right':
+              return { top: `${targetRect.top}px`, left: `${targetRect.right + 10}px` };
+          case 'bottom':
+          default:
+              return { top: `${targetRect.bottom + 10}px`, left: `${targetRect.left}px` };
+      }
   };
-  
-  if (currentStep.position === 'top') {
-    popoverPosition.top = `${targetRect.top - 10 - (popoverRef.current?.offsetHeight || 0)}px`;
-  } else if (currentStep.position === 'bottom') {
-    popoverPosition.top = `${targetRect.bottom + 10}px`;
-  } else if (currentStep.position === 'left') {
-    popoverPosition.top = `${targetRect.top}px`;
-    popoverPosition.left = `${targetRect.left - 10 - (popoverRef.current?.offsetWidth || 0)}px`;
-  } else if (currentStep.position === 'right') {
-     popoverPosition.top = `${targetRect.top}px`;
-     popoverPosition.left = `${targetRect.right + 10}px`;
-  }
 
 
   return (
@@ -93,17 +85,14 @@ const Tour = () => {
             initial={{ opacity: 0 }}
             animate={{ 
                 opacity: 1,
-                x: targetRect.x - 4,
-                y: targetRect.y - 4,
+                x: targetRect.left - 4,
+                y: targetRect.top - 4,
                 width: targetRect.width + 8,
                 height: targetRect.height + 8,
             }}
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="fixed rounded-lg border-2 border-primary border-dashed bg-primary/10 pointer-events-none z-[10000]"
-            style={{ 
-                transform: `translate(${targetRect.x - 4}px, ${targetRect.y - 4}px)` 
-            }}
           />
 
           <motion.div
@@ -112,7 +101,7 @@ const Tour = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4"
-            style={popoverPosition}
+            style={getPopoverPosition()}
           >
             <button
               onClick={stopTour}
