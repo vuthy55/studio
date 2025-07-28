@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -57,7 +58,7 @@ import { format } from 'date-fns';
 import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { sendRoomInviteEmail, sendTestEmail } from '@/actions/email';
+import { sendRoomInviteEmail } from '@/actions/email';
 
 
 interface InvitedRoom extends SyncRoom {
@@ -723,8 +724,6 @@ export default function SyncOnlineHome() {
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('scheduled');
-
-    const [isSendingTest, setIsSendingTest] = useState(false);
     
     const { settings } = useUserData();
 
@@ -886,18 +885,6 @@ export default function SyncOnlineHome() {
         setIsScheduling(false);
         setEditingRoom(null);
     }
-
-    const handleTestEmail = async () => {
-        if (!user || !user.email) return;
-        setIsSendingTest(true);
-        const result = await sendTestEmail(user.email);
-        if (result.success) {
-            toast({ title: 'Test Email Sent!', description: 'Check your inbox to confirm.' });
-        } else {
-            toast({ variant: 'destructive', title: 'Email Failed', description: result.error });
-        }
-        setIsSendingTest(false);
-    };
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1221,10 +1208,6 @@ export default function SyncOnlineHome() {
                                     {isEditMode ? 'Editing Room...' : 'Schedule New Room'}
                                 </Button>
                             </CollapsibleTrigger>
-                             <Button variant="outline" size="sm" onClick={handleTestEmail} disabled={isSendingTest || !user}>
-                                {isSendingTest ? <LoaderCircle className="animate-spin" /> : <Send className="h-4 w-4" />}
-                                <span className="hidden sm:inline ml-2">Test Email</span>
-                            </Button>
                         </div>
                         {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
@@ -1443,3 +1426,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
