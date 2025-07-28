@@ -41,7 +41,7 @@ export async function submitFeedback(data: FeedbackInput, user: UserInfo): Promi
   let screenshotUrl: string | undefined = undefined;
 
   try {
-    if (screenshot) {
+    if (screenshot && screenshot.size > 0) {
       const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
       const fileName = `feedback/${user.uid}/${new Date().getTime()}-${screenshot.name}`;
       const file = bucket.file(fileName);
@@ -81,8 +81,12 @@ export async function submitFeedback(data: FeedbackInput, user: UserInfo): Promi
 export async function getFeedbackSubmissions(): Promise<FeedbackSubmission[]> {
     try {
         const feedbackRef = db.collection('feedback');
-        const q = query(feedbackRef.orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
+        const q = feedbackRef.orderBy('createdAt', 'desc');
+        const snapshot = await q.get();
+
+        if (snapshot.empty) {
+            return [];
+        }
 
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeedbackSubmission));
 
