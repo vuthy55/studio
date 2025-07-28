@@ -37,6 +37,7 @@ import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
 import { getReferredUsers, type ReferredUser } from '@/services/referrals';
+import { Switch } from '../ui/switch';
 
 
 export interface PracticeStats {
@@ -443,12 +444,25 @@ function ProfileSection() {
                     <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Danger Zone</CardTitle>
                 </CardHeader>
                 <CardContent className="grid sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                    <div className="space-y-2 p-4 border rounded-lg">
+                        <h4 className="font-semibold">Immediate Buddy Alert</h4>
+                        <p className="text-xs text-muted-foreground">Enable this to send a Buddy Alert immediately upon clicking the button in the sidebar, skipping the confirmation dialog.</p>
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Switch
+                                id="immediateBuddyAlert"
+                                checked={!!displayProfile.immediateBuddyAlert}
+                                onCheckedChange={(checked) => handleInputChange('immediateBuddyAlert', checked)}
+                            />
+                            <Label htmlFor="immediateBuddyAlert">Enable Immediate Alert</Label>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 p-4 border rounded-lg">
                         <h4 className="font-semibold">Reset Practice Stats</h4>
                         <p className="text-xs text-muted-foreground">This will permanently delete all your practice history (passes, fails, accuracy). This is useful for clearing old or buggy data but cannot be undone.</p>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="destructive" disabled={isResettingStats}>
+                                <Button variant="outline" disabled={isResettingStats}>
                                     <RefreshCw className="mr-2"/> 
                                     {isResettingStats ? 'Resetting...' : 'Reset All Practice Stats'}
                                 </Button>
@@ -471,7 +485,7 @@ function ProfileSection() {
                         </AlertDialog>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 p-4 border rounded-lg sm:col-span-2">
                         <h4 className="font-semibold">Delete Account</h4>
                          <p className="text-xs text-muted-foreground">This will permanently deactivate and anonymize your account. Personal info will be deleted, while financial records will be retained anonymously.</p>
                         <AlertDialog>
@@ -912,4 +926,3 @@ export default function ProfilePage() {
     
 
     
-

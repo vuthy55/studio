@@ -1,4 +1,5 @@
 
+
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -34,21 +35,6 @@ function BuddyAlertButton() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const buddiesCount = userProfile?.buddies?.length || 0;
 
-  const handleSendBuddyAlert = () => {
-    if (!user) return;
-    
-    if (buddiesCount === 0) {
-      router.push('/profile?tab=buddies');
-      toast({
-        title: "Add a Buddy",
-        description: "You need to add at least one buddy to use this feature."
-      });
-      return;
-    }
-    
-    setIsDialogOpen(true);
-  };
-  
   const confirmAndSend = () => {
     if (!user) return;
     setIsSendingAlert(true);
@@ -75,6 +61,25 @@ function BuddyAlertButton() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
+  
+  const handleSendBuddyAlert = () => {
+    if (!user) return;
+    
+    if (buddiesCount === 0) {
+      router.push('/profile?tab=buddies');
+      toast({
+        title: "Add a Buddy",
+        description: "You need to add at least one buddy to use this feature."
+      });
+      return;
+    }
+    
+    if (userProfile?.immediateBuddyAlert) {
+        confirmAndSend();
+    } else {
+        setIsDialogOpen(true);
+    }
+  };
 
   return (
      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -95,6 +100,8 @@ function BuddyAlertButton() {
           <AlertDialogTitle>Confirm Buddy Alert?</AlertDialogTitle>
           <AlertDialogDescription>
             This will send an in-app notification with your current location to all {buddiesCount} of your buddies.
+            <br/><br/>
+            <strong className="font-semibold">For a faster experience next time:</strong> You can enable "Immediate Buddy Alert" in your account settings. You can also grant your browser permanent location access for this site to avoid future permission prompts.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
