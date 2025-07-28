@@ -1770,7 +1770,8 @@ function LanguagePacksTabContent() {
 
 function FeedbackTabContent() {
     const [feedback, setFeedback] = useState<FeedbackSubmission[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasFetched, setHasFetched] = useState(false);
     const { toast } = useToast();
 
     const fetchFeedback = useCallback(async () => {
@@ -1783,12 +1784,9 @@ function FeedbackTabContent() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load feedback submissions.' });
         } finally {
             setIsLoading(false);
+            setHasFetched(true);
         }
     }, [toast]);
-
-    useEffect(() => {
-        fetchFeedback();
-    }, [fetchFeedback]);
 
     return (
         <Card>
@@ -1799,44 +1797,48 @@ function FeedbackTabContent() {
             <CardContent>
                 <Button onClick={fetchFeedback} disabled={isLoading}>
                     <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
-                    Refresh
+                    {hasFetched ? "Refresh" : "Load Feedback"}
                 </Button>
                 {isLoading ? (
                     <div className="flex justify-center items-center py-10">
                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : feedback.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-10">No feedback submissions yet.</p>
-                ) : (
-                    <div className="mt-4 space-y-4">
-                        {feedback.map(item => (
-                            <Card key={item.id}>
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <CardTitle className="text-lg">{item.category}</CardTitle>
-                                            <CardDescription>
-                                                Submitted by <a href={`mailto:${item.userEmail}`} className="text-primary hover:underline">{item.userEmail}</a> on {format(new Date(item.createdAt), 'PPpp')}
-                                            </CardDescription>
+                ) : hasFetched ? (
+                    feedback.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-10">No feedback submissions yet.</p>
+                    ) : (
+                        <div className="mt-4 space-y-4">
+                            {feedback.map(item => (
+                                <Card key={item.id}>
+                                    <CardHeader>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <CardTitle className="text-lg">{item.category}</CardTitle>
+                                                <CardDescription>
+                                                    Submitted by <a href={`mailto:${item.userEmail}`} className="text-primary hover:underline">{item.userEmail}</a> on {format(new Date(item.createdAt), 'PPpp')}
+                                                </CardDescription>
+                                            </div>
+                                            {item.screenshotUrl && (
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <Button variant="outline">View Screenshot</Button>
+                                                    </DialogTrigger>
+                                                    <DialogContent className="max-w-4xl">
+                                                        <Image src={item.screenshotUrl} alt="User screenshot" width={1200} height={800} className="w-full h-auto rounded-md" />
+                                                    </DialogContent>
+                                                </Dialog>
+                                            )}
                                         </div>
-                                        {item.screenshotUrl && (
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button variant="outline">View Screenshot</Button>
-                                                </DialogTrigger>
-                                                <DialogContent className="max-w-4xl">
-                                                    <Image src={item.screenshotUrl} alt="User screenshot" width={1200} height={800} className="w-full h-auto rounded-md" />
-                                                </DialogContent>
-                                            </Dialog>
-                                        )}
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="whitespace-pre-wrap">{item.comment}</p>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="whitespace-pre-wrap">{item.comment}</p>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    )
+                ) : (
+                     <p className="text-center text-muted-foreground py-10">Click the button to load user feedback.</p>
                 )}
             </CardContent>
         </Card>
