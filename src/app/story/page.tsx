@@ -56,7 +56,7 @@ export default function StoryPage() {
                   At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                   <Link href="/synchub?tab=sync-live">Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                   <Link href="/login">Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
