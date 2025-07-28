@@ -164,7 +164,7 @@ export function AppSidebar() {
            ) : user ? (
             <>
                <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/'} prefetch={true}>
+                <SidebarMenuButton asChild isActive={pathname === '/'}>
                   <Link href="/" onClick={closeSidebar}>
                     <Info />
                     Homepage
@@ -172,7 +172,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/synchub'} prefetch={true}>
+                <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
                   <Link href="/synchub" onClick={closeSidebar}>
                     <Share2 />
                     SyncHub
@@ -206,7 +206,7 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/profile'} prefetch={true}>
+                <SidebarMenuButton asChild isActive={pathname === '/profile'}>
                   <Link href="/profile" onClick={closeSidebar}>
                     <User />
                     My Account
