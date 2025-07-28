@@ -99,10 +99,8 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                  const cancellation = sdk.CancellationDetails.fromResult(result);
                  reject(new Error(`Recognition failed: ${cancellation.errorDetails}`));
             }
-            abortRecognition();
         }, err => {
             reject(new Error(`Recognition error: ${err}`));
-            abortRecognition();
         });
     });
 }
@@ -119,7 +117,6 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
 
     return new Promise<string>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
-            abortRecognition();
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 resolve(result.text);
             } else if (result.reason === sdk.ResultReason.NoMatch) {
@@ -139,7 +136,6 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                 reject(new Error(`Could not recognize speech. Reason: ${result.reason}`));
             }
         }, err => {
-            abortRecognition();
             reject(new Error(`Recognition error: ${err}`));
         });
     });
@@ -156,7 +152,6 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
     
     return new Promise((resolve, reject) => {
          recognizer.recognizeOnceAsync(result => {
-            abortRecognition();
             if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                 const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
                 resolve({
@@ -167,7 +162,6 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                 reject(new Error("No recognized speech"));
             }
         }, err => {
-            abortRecognition();
             reject(new Error(`Auto-detect recognition error: ${err}`));
         });
     });
