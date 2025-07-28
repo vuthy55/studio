@@ -24,32 +24,37 @@ const Tour = () => {
   }, [isOpen, currentStep]);
 
   useLayoutEffect(() => {
-    if (isOpen && currentStep) {
-      const element = document.querySelector(currentStep.selector) as HTMLElement;
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-        
-        // This function will be called to update the position.
-        const handleUpdate = () => updateTargetRect();
-
-        // A small delay to allow the scroll animation to settle before measuring.
-        const timeoutId = setTimeout(handleUpdate, 300);
-
-        window.addEventListener('resize', handleUpdate);
-        window.addEventListener('scroll', handleUpdate, true);
-
-        return () => {
-          clearTimeout(timeoutId);
-          window.removeEventListener('resize', handleUpdate);
-          window.removeEventListener('scroll', handleUpdate, true);
-        };
-      } else {
-        setTargetRect(null);
-      }
-    } else {
+    if (!isOpen || !currentStep) {
       setTargetRect(null);
+      return;
     }
+
+    const element = document.querySelector(currentStep.selector) as HTMLElement;
+    if (!element) {
+      setTargetRect(null);
+      return;
+    }
+    
+    element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+    // This is the key fix. By using setTimeout, we wait for the browser's
+    // event loop to finish and the layout to stabilize *after* the scroll
+    // and any potential re-renders from the step change.
+    const timerId = setTimeout(() => {
+        updateTargetRect();
+    }, 150); // A small delay is enough to ensure layout is settled.
+
+
+    window.addEventListener('resize', updateTargetRect);
+    window.addEventListener('scroll', updateTargetRect, true);
+
+    return () => {
+        clearTimeout(timerId);
+        window.removeEventListener('resize', updateTargetRect);
+        window.removeEventListener('scroll', updateTargetRect, true);
+    };
   }, [isOpen, currentStep, updateTargetRect]);
+
 
   const getPopoverPosition = () => {
     if (!popoverRef.current || !targetRect) return {};
@@ -118,6 +123,7 @@ const Tour = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
           >
             {/* Top overlay */}
             <div className="absolute left-0 top-0 bg-black/70" style={{ width: '100%', height: `${targetRect.top - highlightPadding}px` }} />
