@@ -12,7 +12,6 @@ const Tour = () => {
   const { isOpen, stopTour, currentStep, goToNextStep, goToPrevStep, stepIndex, steps } = useTour();
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [debugInfo, setDebugInfo] = useState('');
 
 
   const updateTargetRect = useCallback(() => {
@@ -30,30 +29,6 @@ const Tour = () => {
       }
     }
   }, [isOpen, currentStep]);
-
-  useLayoutEffect(() => {
-    const updateDebug = () => {
-        if (isOpen && targetRect) {
-            setDebugInfo(
-                `Scroll: X=${window.scrollX.toFixed(0)}, Y=${window.scrollY.toFixed(0)} | Target: T=${targetRect.top.toFixed(0)}, L=${targetRect.left.toFixed(0)}, W=${targetRect.width.toFixed(0)}, H=${targetRect.height.toFixed(0)}`
-            );
-        } else {
-            setDebugInfo('');
-        }
-    };
-    
-    if (isOpen) {
-        updateDebug();
-        window.addEventListener('scroll', updateDebug, true);
-        window.addEventListener('resize', updateDebug);
-    }
-    
-    return () => {
-        window.removeEventListener('scroll', updateDebug, true);
-        window.removeEventListener('resize', updateDebug);
-    };
-
-}, [isOpen, targetRect]);
 
   useLayoutEffect(() => {
     if (!isOpen || !currentStep) {
@@ -201,19 +176,19 @@ const Tour = () => {
           
           // Sync Online Tour
           case '[data-tour="so-schedule-button"]':
-                finalTargetRect.y = 230;
+                finalTargetRect.y = 263;
                 break;
           case '[data-tour="so-room-list"]':
-                finalTargetRect.y = 150;
+                finalTargetRect.y = 247;
                 break;
           case '[data-tour="so-start-room-0"]':
-                finalTargetRect.y = 330;
+                finalTargetRect.y = 360;
                 break;
           case '[data-tour="so-share-link-0"]':
-                finalTargetRect.y = 330;
+                finalTargetRect.y = 360;
                 break;
           case '[data-tour="so-settings-0"]':
-                finalTargetRect.y = 330;
+                finalTargetRect.y = 360;
                 break;
           default:
               break;
@@ -225,23 +200,6 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
-            <div
-              style={{
-                position: 'fixed',
-                top: '10px',
-                left: '10px',
-                zIndex: 10003,
-                background: 'rgba(0,0,0,0.7)',
-                color: 'white',
-                padding: '5px',
-                borderRadius: '3px',
-                fontSize: '12px',
-                pointerEvents: 'none'
-              }}
-            >
-              {debugInfo}
-            </div>
-
           {finalTargetRect && (
             <>
                 <motion.div
