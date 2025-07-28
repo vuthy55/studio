@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
-import { getReferredUsers, type ReferredUser } from '@/services/referrals';
+import { getReferredUsers } from '@/services/referrals';
 import { Switch } from '@/components/ui/switch';
 
 
@@ -398,48 +398,48 @@ function ProfileSection() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSaveProfile} className="space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Name</Label>
-                            <Input id="name" value={displayProfile.name || ''} onChange={(e) => handleInputChange('name', e.target.value)} />
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name</Label>
+                                <Input id="name" value={displayProfile.name || ''} onChange={(e) => handleInputChange('name', e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input id="email" type="email" value={displayProfile.email || ''} disabled />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="defaultLanguage">Default Spoken Language</Label>
+                                <Select value={displayProfile.defaultLanguage || ''} onValueChange={(v) => handleInputChange('defaultLanguage', v)}>
+                                    <SelectTrigger id="defaultLanguage">
+                                        <SelectValue placeholder="Select your preferred language" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <ScrollArea className="h-72">
+                                        {azureLanguages.map((lang: any) => (
+                                            <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                        ))}
+                                        </ScrollArea>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="country">Country</Label>
+                                <Select value={displayProfile.country || ''} onValueChange={(v) => handleInputChange('country', v)}>
+                                    <SelectTrigger id="country">
+                                        <SelectValue placeholder="Select your country" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {countryOptions.map((country: any) => (
+                                            <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="mobile">Mobile Number</Label>
+                                <Input id="mobile" type="tel" value={displayProfile.mobile || ''} onChange={(e) => handleInputChange('mobile', e.target.value)} placeholder="e.g., +1 123 456 7890" />
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={displayProfile.email || ''} disabled />
-                            <p className="text-xs text-muted-foreground">Your email address cannot be changed from this page.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="defaultLanguage">Default Spoken Language</Label>
-                            <Select value={displayProfile.defaultLanguage || ''} onValueChange={(v) => handleInputChange('defaultLanguage', v)}>
-                                <SelectTrigger id="defaultLanguage">
-                                    <SelectValue placeholder="Select your preferred language" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <ScrollArea className="h-72">
-                                    {azureLanguages.map((lang: any) => (
-                                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                                    ))}
-                                    </ScrollArea>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="country">Country</Label>
-                            <Select value={displayProfile.country || ''} onValueChange={(v) => handleInputChange('country', v)}>
-                                <SelectTrigger id="country">
-                                    <SelectValue placeholder="Select your country" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {countryOptions.map((country: any) => (
-                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="mobile">Mobile Number</Label>
-                            <Input id="mobile" type="tel" value={displayProfile.mobile || ''} onChange={(e) => handleInputChange('mobile', e.target.value)} placeholder="e.g., +1 123 456 7890" />
-                        </div>
-
                         <div className="flex justify-end pt-4">
                             <Button type="submit" disabled={isSaving || Object.keys(edits).length === 0}>
                                 {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -937,4 +937,5 @@ export default function ProfilePage() {
     
 
     
+
 
