@@ -20,11 +20,9 @@ function getPayPalClient() {
     throw new Error('PayPal client ID or secret is not configured.');
   }
 
-  // Use LiveEnvironment for production, Sandbox for anything else
-  const environment =
-    process.env.NODE_ENV === 'production'
-      ? new paypal.core.LiveEnvironment(clientId, clientSecret)
-      : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+  // NOTE: Forcing SandboxEnvironment for beta testing.
+  // In a full production release, this would be conditional based on process.env.NODE_ENV.
+  const environment = new paypal.core.SandboxEnvironment(clientId, clientSecret);
 
   return new paypal.core.PayPalHttpClient(environment);
 }
