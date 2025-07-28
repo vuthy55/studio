@@ -11,6 +11,7 @@ import SyncLiveContent from '@/components/synchub/SyncLiveContent';
 import LiveTranslationContent from '@/components/synchub/LiveTranslationContent';
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 import { useUserData } from '@/context/UserDataContext';
+import { TourProvider } from '@/context/TourContext';
 
 // Statically import all components to ensure they are available in offline mode.
 const MemoizedLearnPage = memo(LearnPageContent);
@@ -39,7 +40,7 @@ function SyncHubTabs() {
                 <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
             </TabsList>
             <TabsContent value="prep-vibe" className="mt-6">
-                <MemoizedLearnPage setActiveTab={setActiveTab} />
+                <MemoizedLearnPage />
             </TabsContent>
             <TabsContent value="live-translation" className="mt-6">
                 <MemoizedLiveTranslation />

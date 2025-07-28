@@ -7,7 +7,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -26,6 +26,9 @@ import { useUserData } from '@/context/UserDataContext';
 import { getOfflineAudio } from './OfflineManager';
 import OfflineManager from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
+import { TourProvider, useTour, TourStep } from '@/context/TourContext';
+import Tour from '@/components/tour/Tour';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -39,7 +42,44 @@ interface LearnPageContentProps {
   setActiveTab: Dispatch<SetStateAction<string>>;
 }
 
-function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
+
+const learnPageTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="language-selectors"]',
+    content: "First, select the language you want to learn FROM and the language you want to learn TO. You can swap them anytime with the arrow button.",
+  },
+  {
+    selector: '[data-tour="voice-selector"]',
+    content: "Choose a voice for the audio playback. 'Default' uses the standard voice for the selected language.",
+  },
+  {
+    selector: '[data-tour="topic-selector"]',
+    content: "Next, pick a topic to practice. Icons represent different categories like greetings, food, and directions.",
+  },
+  {
+    selector: '[data-tour="phrase-item-0"]',
+    content: "This is a phrase card. The top line is the 'from' language, and the bottom (in primary color) is the language you're learning.",
+    position: 'bottom',
+  },
+  {
+    selector: '[data-tour="listen-button-0"]',
+    content: "Click the speaker icon to listen to the pronunciation of the phrase. You can listen as many times as you need.",
+    position: 'bottom',
+  },
+  {
+    selector: '[data-tour="practice-button-0"]',
+    content: "Click the microphone icon to practice your own pronunciation. After you speak, you'll get a score and a chance to earn tokens!",
+    position: 'bottom',
+  },
+  {
+    selector: '[data-tour="offline-manager"]',
+    content: "Finally, you can download language packs here for offline access to audio, which is great for when you're traveling without an internet connection.",
+    position: 'top',
+  },
+];
+
+
+function LearnPage() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
@@ -53,6 +93,8 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
     const [isOnline, setIsOnline] = useState(true);
+
+    const { startTour } = useTour();
 
     const availableLanguages = useMemo(() => {
         if (!userProfile?.unlockedLanguages) return languages.filter(l => l.value === 'english');
@@ -207,10 +249,12 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
 
     return (
         <div className="space-y-6">
-            <OfflineManager />
+            <div data-tour="offline-manager">
+                <OfflineManager />
+            </div>
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
-                    <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4" data-tour="language-selectors">
                         <div className="flex-1 w-full">
                             <Label htmlFor="from-language">From</Label>
                             <Select value={fromLanguage} onValueChange={(value) => setFromLanguage(value as LanguageCode)}>
@@ -244,7 +288,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                             </Select>
                         </div>
 
-                        <div className="w-full sm:w-auto sm:flex-1">
+                        <div className="w-full sm:w-auto sm:flex-1" data-tour="voice-selector">
                         <Label htmlFor="tts-voice">Voice</Label>
                         <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
                             <SelectTrigger id="tts-voice">
@@ -266,21 +310,15 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <Info className="h-5 w-5 text-accent cursor-help" />
+                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startTour(learnPageTourSteps)}><HelpCircle className="h-5 w-5 text-accent" /></Button>
                                         </TooltipTrigger>
-                                        <TooltipContent className="max-w-xs" side="right">
-                                            <p className="font-bold text-base mb-2">How to use the Phrasebook:</p>
-                                            <ul className="list-disc pl-4 space-y-1 text-sm">
-                                                <li>Select a topic to learn relevant phrases.</li>
-                                                <li>Click the <Volume2 className="inline-block h-4 w-4 mx-1" /> icon to hear the pronunciation.</li>
-                                                <li>Click the <Mic className="inline-block h-4 w-4 mx-1" /> icon to practice your pronunciation. The mic will stop automatically when you pause.</li>
-                                                { !user && <li className="font-bold">Log in to save your progress!</li> }
-                                            </ul>
+                                        <TooltipContent>
+                                            <p>Show me a tour of this page</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
                             </div>
-                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1">
+                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1" data-tour="topic-selector">
                                 {phrasebook.map((topic) => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                     <Tooltip>
@@ -309,7 +347,6 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                         <TooltipTrigger asChild>
                                             <Button
                                                 variant="ghost"
-                                                onClick={() => setActiveTab('live-translation')}
                                                 className={cn(
                                                     'h-auto w-full p-2 transition-all duration-200 text-muted-foreground hover:bg-background/50 hover:text-foreground'
                                                 )}
@@ -342,7 +379,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                 </div>
                             )}
                             <div className="space-y-4">
-                                {sortedPhrases.map((phrase) => {
+                                {sortedPhrases.map((phrase, index) => {
                                     const fromText = getTranslation(phrase, fromLanguage);
                                     const toText = getTranslation(phrase, toLanguage);
                                     const fromAnswerText = phrase.answer ? getTranslation(phrase.answer, fromLanguage) : '';
@@ -367,7 +404,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                     const canPlayAudio = isOnline || isAudioAvailableOffline;
 
                                     return (
-                                    <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
+                                    <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border" data-tour={`phrase-item-${index}`}>
                                         <div className="flex flex-col gap-2">
                                             <div className="flex justify-between items-center w-full">
                                                 <p className="font-semibold text-lg">{fromText}</p>
@@ -389,7 +426,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId}>
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId} data-tour={`listen-button-${index}`}>
                                                                     <Volume2 className="h-5 w-5" />
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
@@ -406,7 +443,7 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <div className="relative">
-                                                                    <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                                    <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId} data-tour={`practice-button-${index}`}>
                                                                         {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-destructive" /> : <Mic className={cn("h-5 w-5")} /> }
                                                                         <span className="sr-only">Record pronunciation</span>
                                                                     </Button>
@@ -479,4 +516,13 @@ function LearnPageContent({ setActiveTab }: LearnPageContentProps) {
     );
 }
 
-export default memo(LearnPageContent);
+
+export default function LearnPageContent(props: LearnPageContentProps) {
+    return (
+        <TourProvider>
+            <LearnPage />
+            <Tour />
+        </TourProvider>
+    )
+}
+

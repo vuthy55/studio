@@ -6,6 +6,7 @@ import ClientSidebar from '@/components/layout/client-sidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { UserDataProvider } from '@/context/UserDataContext';
 import MainHeader from '@/components/layout/MainHeader';
+import { TourProvider } from '@/context/TourContext';
 
 export const metadata: Metadata = {
   title: 'VibeSync',
@@ -30,15 +31,17 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <UserDataProvider>
           <LanguageProvider>
-            <SidebarProvider>
-              <ClientSidebar />
-              <SidebarInset>
-                <main className="relative flex-1 p-4 sm:p-6 lg:p-8">
-                  {children}
-                </main>
-              </SidebarInset>
-              <Toaster />
-            </SidebarProvider>
+            <TourProvider>
+              <SidebarProvider>
+                <ClientSidebar />
+                <SidebarInset>
+                  <main className="relative flex-1 p-4 sm:p-6 lg:p-8">
+                    {children}
+                  </main>
+                </SidebarInset>
+                <Toaster />
+              </SidebarProvider>
+            </TourProvider>
           </LanguageProvider>
         </UserDataProvider>
       </body>
