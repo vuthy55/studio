@@ -68,14 +68,11 @@ export default function StoryPage() {
 
          <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
-            <Image 
-                src="https://placehold.co/600x400.png"
-                alt="A group of people looking at a phone together and planning."
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                data-ai-hint="friends phone"
-            />
+            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
+                <div className="text-center">
+                <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Sync Online</div>
+                </div>
+            </div>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
