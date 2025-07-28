@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db as firestoreDb } from '@/lib/firebase';
 import { ScrollArea } from '../ui/scroll-area';
 
 
@@ -148,7 +148,7 @@ export default function OfflineManager() {
       
        // Manually add the new language to the user profile's unlocked list
        if(user) {
-            const userDocRef = doc(db, 'users', user.uid);
+            const userDocRef = doc(firestoreDb, 'users', user.uid);
             await updateDoc(userDocRef, {
                 unlockedLanguages: arrayUnion(lang)
             });
@@ -259,7 +259,7 @@ export default function OfflineManager() {
         
          // Update the user's downloaded phrase count in Firestore
         if (user) {
-            const userDocRef = doc(db, 'users', user.uid);
+            const userDocRef = doc(firestoreDb, 'users', user.uid);
             await updateDoc(userDocRef, {
                 downloadedPhraseCount: increment(newPhrasesToDownload)
             });
@@ -533,3 +533,5 @@ export default function OfflineManager() {
     </div>
   );
 }
+
+    
