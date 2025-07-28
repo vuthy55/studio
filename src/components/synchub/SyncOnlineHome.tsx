@@ -62,8 +62,11 @@ import { sendRoomInviteEmail } from '@/actions/email';
 import { useTour, TourStep } from '@/context/TourContext';
 
 
-interface InvitedRoom extends SyncRoom {
+interface InvitedRoomClient extends Omit<SyncRoom, 'createdAt' | 'lastActivityAt' | 'scheduledAt'> {
     id: string;
+    createdAt: string;
+    lastActivityAt?: string;
+    scheduledAt?: string;
 }
 
 const syncOnlineTourSteps: TourStep[] = [
@@ -94,7 +97,7 @@ const syncOnlineTourSteps: TourStep[] = [
 ];
 
 
-function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () => void }) {
+function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpdate: () => void }) {
     const { userProfile, user } = useUserData();
     const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
@@ -115,7 +118,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
     const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
     const availableLanguages = useMemo(() => {
-        if (!editableSummary) return { participantLanguages: [], otherLanguages: [] };;
+        if (!editableSummary) return { participantLanguages: [], otherLanguages: [] };
         const langSet = new Set<string>();
         
         const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
@@ -546,7 +549,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
     )
 }
 
-function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: any; onUpdate: () => void }) {
+function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; user: any; onUpdate: () => void }) {
     const { toast, dismiss } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [hasCheckedActivity, setHasCheckedActivity] = useState(false);
@@ -748,10 +751,10 @@ export default function SyncOnlineHome() {
     const [startNow, setStartNow] = useState(false);
     
     // Edit Mode State
-    const [editingRoom, setEditingRoom] = useState<InvitedRoom | null>(null);
+    const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
 
-    const [invitedRooms, setInvitedRooms] = useState<InvitedRoom[]>([]);
+    const [invitedRooms, setInvitedRooms] = useState<InvitedRoomClient[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     
@@ -769,9 +772,7 @@ export default function SyncOnlineHome() {
         } else if (editingRoom?.scheduledAt) {
             const scheduled = editingRoom.scheduledAt;
             // Safely create a date object
-            if (scheduled instanceof Timestamp) {
-                setScheduledDate(scheduled.toDate());
-            } else if (typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
+            if (scheduled && typeof scheduled === 'string') {
                 setScheduledDate(new Date(scheduled));
             }
         }
@@ -816,9 +817,7 @@ export default function SyncOnlineHome() {
             
             const scheduled = editingRoom.scheduledAt;
             // Safely create a date object
-            if (scheduled instanceof Timestamp) {
-                setScheduledDate(scheduled.toDate());
-            } else if (typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
+            if (scheduled && typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
                 setScheduledDate(new Date(scheduled));
             } else {
                  setScheduledDate(new Date());
@@ -863,10 +862,11 @@ export default function SyncOnlineHome() {
             const roomsRef = collection(db, 'syncRooms');
             const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
             const querySnapshot = await getDocs(q);
-            const rooms = querySnapshot.docs
-                .map(doc => {
-                    const data = doc.data() as SyncRoom;
-                     const toISO = (ts: any): string | undefined => {
+            const roomsData = querySnapshot.docs
+                .map(docSnapshot => {
+                    const data = docSnapshot.data() as SyncRoom;
+                     const toISO = (ts: any): string => {
+                        if (!ts) return new Date(0).toISOString();
                         if (ts instanceof Timestamp) {
                             return ts.toDate().toISOString();
                         }
@@ -876,11 +876,11 @@ export default function SyncOnlineHome() {
                         if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
                              return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
                         }
-                        return undefined;
+                        return new Date(0).toISOString();
                     };
 
                     return {
-                        id: doc.id,
+                        id: docSnapshot.id,
                         topic: data.topic,
                         creatorUid: data.creatorUid,
                         creatorName: data.creatorName,
@@ -898,11 +898,11 @@ export default function SyncOnlineHome() {
                         paymentLogId: data.paymentLogId,
                         hasStarted: data.hasStarted,
                         reminderMinutes: data.reminderMinutes,
-                    } as InvitedRoom;
+                    } as InvitedRoomClient;
                 })
-                .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
+                .sort((a, b) => (new Date(b.createdAt).getTime()) - (new Date(a.createdAt).getTime()));
             
-            setInvitedRooms(rooms);
+            setInvitedRooms(roomsData);
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
             if (error.code === 'failed-precondition') {
@@ -930,7 +930,7 @@ export default function SyncOnlineHome() {
         }
     }, [user, loading, fetchInvitedRooms]);
     
-    const handleOpenEditDialog = (room: InvitedRoom) => {
+    const handleOpenEditDialog = (room: InvitedRoomClient) => {
         setEditingRoom(room);
         setIsScheduling(true);
     };
@@ -1060,7 +1060,7 @@ export default function SyncOnlineHome() {
         }
     };
 
-    const handleUnblockUser = useCallback(async (room: InvitedRoom, userToUnblock: any) => {
+    const handleUnblockUser = useCallback(async (room: InvitedRoomClient, userToUnblock: any) => {
         try {
             const roomRef = doc(db, 'syncRooms', room.id);
             await updateDoc(roomRef, {
@@ -1088,17 +1088,14 @@ export default function SyncOnlineHome() {
                 acc.closed.push(room);
             }
             return acc;
-        }, { active: [] as InvitedRoom[], scheduled: [] as InvitedRoom[], closed: [] as InvitedRoom[] });
+        }, { active: [] as InvitedRoomClient[], scheduled: [] as InvitedRoomClient[], closed: [] as InvitedRoomClient[] });
     }, [invitedRooms]);
 
-    const canJoinRoom = (room: InvitedRoom) => {
+    const canJoinRoom = (room: InvitedRoomClient) => {
         const scheduledAt = room.scheduledAt;
         if (!scheduledAt) return true; 
 
-        const scheduledTime = (scheduledAt instanceof Timestamp) 
-            ? scheduledAt.toDate().getTime() 
-            : new Date(scheduledAt as string).getTime();
-
+        const scheduledTime = new Date(scheduledAt).getTime();
         const now = Date.now();
         const gracePeriod = 5 * 60 * 1000; // 5 minutes
         return now >= scheduledTime - gracePeriod;
@@ -1111,7 +1108,7 @@ export default function SyncOnlineHome() {
     };
 
 
-    const renderRoomList = (rooms: InvitedRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
+    const renderRoomList = (rooms: InvitedRoomClient[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
@@ -1134,7 +1131,7 @@ export default function SyncOnlineHome() {
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm text-muted-foreground">
                                             {room.status === 'scheduled' && room.scheduledAt 
-                                                ? format(typeof room.scheduledAt === 'string' ? new Date(room.scheduledAt) : (room.scheduledAt as Timestamp).toDate(), 'PPpp')
+                                                ? format(new Date(room.scheduledAt), 'PPpp')
                                                 : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                             }
                                         </p>

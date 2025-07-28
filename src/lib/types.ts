@@ -59,15 +59,15 @@ export type SyncRoom = {
     topic: string;
     creatorUid: string;
     creatorName: string;
-    createdAt: FieldValue | Timestamp | string; // Allow for server, client, and serialized forms
+    createdAt: any; // Allow for server, client, and serialized forms
     status: 'active' | 'closed' | 'scheduled';
     invitedEmails: string[];
     emceeEmails: string[];
-    lastActivityAt?: FieldValue | Timestamp | string;
+    lastActivityAt?: any;
     blockedUsers?: BlockedUser[];
     summary?: RoomSummary;
     transcript?: Transcript;
-    scheduledAt?: FieldValue | Timestamp | string;
+    scheduledAt?: any;
     durationMinutes?: number;
     initialCost?: number;
     paymentLogId?: string; // ID of the transaction log for the current cost
