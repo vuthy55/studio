@@ -24,7 +24,7 @@ export default function MarketingRelease3() {
             </p>
         </div>
         <Image 
-            src="https://placehold.co/600x400.png"
+            src="https://images.unsplash.com/photo-1543373014-cfe4f4216380?q=80&w=2070&auto=format&fit=crop"
             alt="A solo traveler looking a bit lost in a bustling Asian market"
             width={600}
             height={400}
@@ -35,12 +35,12 @@ export default function MarketingRelease3() {
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
          <Image 
-            src="https://placehold.co/600x400.png"
+            src="https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop"
             alt="Traveler confidently ordering street food"
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
-            data-ai-hint="ordering street food"
+            data-ai-hint="ordering food"
         />
         <div className="space-y-4 md:order-1">
             <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
@@ -64,23 +64,23 @@ export default function MarketingRelease3() {
             </Button>
         </div>
         <Image 
-            src="https://placehold.co/600x400.png"
+            src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
             alt="A diverse group of young friends laughing together at a landmark"
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-            data-ai-hint="diverse friends travel"
+            data-ai-hint="diverse friends"
         />
       </div>
 
        <div className="grid md:grid-cols-2 gap-8 items-center">
         <Image 
-            src="https://placehold.co/600x400.png"
+            src="https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop"
             alt="A group of people looking at a phone together and planning"
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
-            data-ai-hint="friends phone travel"
+            data-ai-hint="friends phone"
         />
         <div className="space-y-4 md:order-1">
             <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
