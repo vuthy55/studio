@@ -62,7 +62,6 @@ export default function StoryPage() {
         
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="space-y-4">
-              <h1 className="text-4xl font-bold text-accent">Sync Live</h1>
               <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
               <p className="text-muted-foreground">
                   At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
@@ -71,8 +70,15 @@ export default function StoryPage() {
                    <Link href="/synchub?tab=sync-live">Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
-           <div className="rounded-lg shadow-xl bg-accent/20 flex items-center justify-center aspect-[3/2]">
-            <h2 className="text-6xl font-bold text-accent font-headline tracking-wider transform -rotate-6">Sync Live</h2>
+           <div>
+            <Image 
+                src="https://placehold.co/600x400.png"
+                alt="A diverse group of young friends laughing together at a landmark"
+                width={600}
+                height={400}
+                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+                data-ai-hint="diverse friends"
+            />
           </div>
         </div>
 
