@@ -145,6 +145,7 @@ const Tour = () => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1 }}
+            style={getPopoverPosition()}
             className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4 border border-primary/50"
         >
             <div className={arrowClasses} />
