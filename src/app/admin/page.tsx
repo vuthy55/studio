@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { UserProfile } from '@/app/profile/page';
+import type { UserProfile } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -899,7 +899,7 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="issue-amount">Amount</Label>
-                            <Input id="issue-amount" type="number" value={formState.amount} onChange={e => setFormState(p => ({ ...p, amount: Number(e.target.value) }))} placeholder="e.g., 100" required min="1" />
+                            <Input id="issue-amount" type="number" value={formState.amount} onChange={e => setFormState(p => ({...p, amount: Number(e.target.value) }))} placeholder="e.g., 100" required min="1" />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="issue-reason">Reason (for Transaction Log)</Label>
