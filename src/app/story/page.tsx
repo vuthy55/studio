@@ -26,15 +26,8 @@ export default function StoryPage() {
                   Alex lands in Siem Reap. The energy is epic, but the language barrier is a brick wall. How do you even ask for a bottle of water? Pointing and smiling only gets you so far. The feeling of being totally alone starts to creep in.
               </p>
           </div>
-          <div>
-            <Image 
-                src="https://placehold.co/600x400.png"
-                alt="A solo male backpacker looking lost in a bustling Asian market."
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                data-ai-hint="backpacker market"
-            />
+          <div className="flex items-center justify-center bg-muted rounded-lg shadow-xl aspect-[3/2]">
+            <span className="text-9xl font-bold text-primary opacity-20">?</span>
           </div>
         </div>
 
