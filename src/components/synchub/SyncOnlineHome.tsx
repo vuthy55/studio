@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -62,8 +61,10 @@ import { sendRoomInviteEmail } from '@/actions/email';
 import { useTour, TourStep } from '@/context/TourContext';
 
 
-interface InvitedRoomClient extends Omit<SyncRoom, 'createdAt' | 'lastActivityAt' | 'scheduledAt'> {
+interface InvitedRoomClient extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt'> {
     id: string;
+    topic: string;
+    status: 'active' | 'closed' | 'scheduled';
     createdAt: string;
     lastActivityAt?: string;
     scheduledAt?: string;
@@ -98,7 +99,7 @@ const syncOnlineTourSteps: TourStep[] = [
 
 
 function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpdate: () => void }) {
-    const { userProfile, user } = useUserData();
+    const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
@@ -522,7 +523,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
                                                 </div>
                                             </ScrollArea>
                                             <Button onClick={handleTranslate} disabled={isTranslating || selectedLanguages.length === 0}>
-                                                {isTranslating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : `Translate for ${userProfile?.settings?.summaryTranslationCost! * selectedLanguages.length} Tokens`}
+                                                {isTranslating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : `Translate for ${settings?.summaryTranslationCost! * selectedLanguages.length} Tokens`}
                                             </Button>
                                         </div>
                                     </PopoverContent>
@@ -862,7 +863,7 @@ export default function SyncOnlineHome() {
             const roomsRef = collection(db, 'syncRooms');
             const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
             const querySnapshot = await getDocs(q);
-            const roomsData = querySnapshot.docs
+            const roomsData: InvitedRoomClient[] = querySnapshot.docs
                 .map(docSnapshot => {
                     const data = docSnapshot.data() as SyncRoom;
                      const toISO = (ts: any): string => {
@@ -898,9 +899,9 @@ export default function SyncOnlineHome() {
                         paymentLogId: data.paymentLogId,
                         hasStarted: data.hasStarted,
                         reminderMinutes: data.reminderMinutes,
-                    } as InvitedRoomClient;
+                    };
                 })
-                .sort((a, b) => (new Date(b.createdAt).getTime()) - (new Date(a.createdAt).getTime()));
+                .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
             
             setInvitedRooms(roomsData);
         } catch (error: any) {
