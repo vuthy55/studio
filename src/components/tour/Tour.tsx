@@ -11,14 +11,27 @@ const Tour = () => {
   const { isOpen, stopTour, currentStep, goToNextStep, goToPrevStep, stepIndex, steps } = useTour();
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [debugValues, setDebugValues] = useState<any>(null);
+
 
   const updateTargetRect = useCallback(() => {
     if (isOpen && currentStep) {
       const element = document.querySelector(currentStep.selector) as HTMLElement;
       if (element) {
-        setTargetRect(element.getBoundingClientRect());
+        const rect = element.getBoundingClientRect();
+        setTargetRect(rect);
+        
+        // Debugging values
+        const mainScrollContainer = document.querySelector('main');
+        setDebugValues({
+          targetTop: rect.top.toFixed(2),
+          targetLeft: rect.left.toFixed(2),
+          scrollTop: mainScrollContainer ? mainScrollContainer.scrollTop.toFixed(2) : 'N/A',
+        });
+
       } else {
-        setTargetRect(null); // Element not found, hide highlight
+        setTargetRect(null);
+        setDebugValues(null);
       }
     }
   }, [isOpen, currentStep]);
@@ -36,14 +49,10 @@ const Tour = () => {
     }
     
     element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-
-    // This is the key fix. By using setTimeout, we wait for the browser's
-    // event loop to finish and the layout to stabilize *after* the scroll
-    // and any potential re-renders from the step change.
+    
     const timerId = setTimeout(() => {
         updateTargetRect();
-    }, 150); // A small delay is enough to ensure layout is settled.
-
+    }, 150);
 
     window.addEventListener('resize', updateTargetRect);
     window.addEventListener('scroll', updateTargetRect, true);
@@ -103,10 +112,8 @@ const Tour = () => {
         top = spacing;
     }
 
-
     return { top, left };
-};
-
+  };
 
   if (!isOpen || !currentStep) {
     return null;
@@ -116,69 +123,80 @@ const Tour = () => {
 
   return (
     <AnimatePresence>
-      {isOpen && targetRect && (
+      {isOpen && (
         <>
-          <motion.div
-            className="fixed inset-0 z-[10000] pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {/* Top overlay */}
-            <div className="absolute left-0 top-0 bg-black/70" style={{ width: '100%', height: `${targetRect.top - highlightPadding}px` }} />
-            {/* Bottom overlay */}
-            <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.bottom + highlightPadding}px`, width: '100%', height: `calc(100vh - ${targetRect.bottom + highlightPadding}px)` }} />
-            {/* Left overlay */}
-            <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, width: `${targetRect.left - highlightPadding}px`, height: `${targetRect.height + highlightPadding * 2}px` }} />
-            {/* Right overlay */}
-            <div className="absolute bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, left: `${targetRect.right + highlightPadding}px`, width: `calc(100vw - ${targetRect.right + highlightPadding}px)`, height: `${targetRect.height + highlightPadding * 2}px` }} />
-            
-             {/* Highlight border */}
-            <div
-              className="absolute border-2 border-primary border-dashed rounded-md transition-all duration-300"
-              style={{
-                top: `${targetRect.top - highlightPadding}px`,
-                left: `${targetRect.left - highlightPadding}px`,
-                width: `${targetRect.width + highlightPadding * 2}px`,
-                height: `${targetRect.height + highlightPadding * 2}px`,
-              }}
-            />
-          </motion.div>
-
-          <motion.div
-            ref={popoverRef}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4"
-            style={getPopoverPosition()}
-          >
-            <button
-              onClick={stopTour}
-              className="absolute top-2 right-2 p-1 rounded-full text-muted-foreground hover:bg-accent"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <div className="text-sm">{currentStep.content}</div>
-            <div className="flex justify-between items-center mt-4">
-                <div className="text-xs text-muted-foreground">
-                    Step {stepIndex + 1} of {steps.length}
-                </div>
-              <div className="flex items-center gap-2">
-                {stepIndex > 0 && (
-                  <Button variant="ghost" size="sm" onClick={goToPrevStep}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Prev
-                  </Button>
-                )}
-                <Button size="sm" onClick={goToNextStep}>
-                  {stepIndex === steps.length - 1 ? 'Finish' : 'Next'}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+         {debugValues && (
+            <div className="fixed bottom-4 left-4 z-[10003] bg-destructive text-destructive-foreground p-2 rounded-md font-mono text-xs shadow-lg">
+              <div>Target Top: {debugValues.targetTop}</div>
+              <div>Target Left: {debugValues.targetLeft}</div>
+              <div>ScrollTop: {debugValues.scrollTop}</div>
             </div>
-          </motion.div>
+          )}
+          {targetRect && (
+            <>
+                <motion.div
+                    className="fixed inset-0 z-[10000] pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                >
+                    {/* Top overlay */}
+                    <div className="absolute left-0 top-0 bg-black/70" style={{ width: '100%', height: `${targetRect.top - highlightPadding}px` }} />
+                    {/* Bottom overlay */}
+                    <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.bottom + highlightPadding}px`, width: '100%', height: `calc(100vh - ${targetRect.bottom + highlightPadding}px)` }} />
+                    {/* Left overlay */}
+                    <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, width: `${targetRect.left - highlightPadding}px`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+                    {/* Right overlay */}
+                    <div className="absolute bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, left: `${targetRect.right + highlightPadding}px`, width: `calc(100vw - ${targetRect.right + highlightPadding}px)`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+                    
+                    {/* Highlight border */}
+                    <div
+                    className="absolute border-2 border-primary border-dashed rounded-md transition-all duration-300"
+                    style={{
+                        top: `${targetRect.top - highlightPadding}px`,
+                        left: `${targetRect.left - highlightPadding}px`,
+                        width: `${targetRect.width + highlightPadding * 2}px`,
+                        height: `${targetRect.height + highlightPadding * 2}px`,
+                    }}
+                    />
+                </motion.div>
+
+                <motion.div
+                    ref={popoverRef}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="fixed z-[10002] w-72 rounded-lg bg-card text-card-foreground shadow-xl p-4"
+                    style={getPopoverPosition()}
+                >
+                    <button
+                    onClick={stopTour}
+                    className="absolute top-2 right-2 p-1 rounded-full text-muted-foreground hover:bg-accent"
+                    >
+                    <X className="h-4 w-4" />
+                    </button>
+                    <div className="text-sm">{currentStep.content}</div>
+                    <div className="flex justify-between items-center mt-4">
+                        <div className="text-xs text-muted-foreground">
+                            Step {stepIndex + 1} of {steps.length}
+                        </div>
+                    <div className="flex items-center gap-2">
+                        {stepIndex > 0 && (
+                        <Button variant="ghost" size="sm" onClick={goToPrevStep}>
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Prev
+                        </Button>
+                        )}
+                        <Button size="sm" onClick={goToNextStep}>
+                        {stepIndex === steps.length - 1 ? 'Finish' : 'Next'}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                    </div>
+                    </div>
+                </motion.div>
+            </>
+          )}
         </>
       )}
     </AnimatePresence>
