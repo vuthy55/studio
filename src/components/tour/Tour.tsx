@@ -28,10 +28,9 @@ const Tour = () => {
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         
-        // Use a timeout to wait for the scroll to finish before calculating the rect
         const timer = setTimeout(() => {
             updateTargetRect();
-        }, 300); // 300ms should be enough for smooth scroll
+        }, 300);
 
         const scrollAndResizeHandler = () => updateTargetRect();
 
@@ -79,11 +78,9 @@ const Tour = () => {
             break;
     }
     
-    // --- Viewport Collision Detection & Correction ---
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Horizontal correction
     if (left + popoverWidth > viewportWidth) {
         left = viewportWidth - popoverWidth - spacing;
     }
@@ -91,7 +88,6 @@ const Tour = () => {
         left = spacing;
     }
     
-    // Vertical correction
     if (top + popoverHeight > viewportHeight) {
         top = viewportHeight - popoverHeight - spacing;
     }
