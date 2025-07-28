@@ -53,16 +53,21 @@ const Tour = () => {
     
     element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     
-    updateTargetRect();
+    // A small delay to allow for the scroll to finish before measuring
+    const scrollTimeout = setTimeout(() => {
+        updateTargetRect();
+    }, 300);
+
 
     window.addEventListener('resize', updateTargetRect);
     window.addEventListener('scroll', updateTargetRect, true);
 
     const observer = new MutationObserver(updateTargetRect);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
 
     return () => {
+        clearTimeout(scrollTimeout);
         window.removeEventListener('resize', updateTargetRect);
         window.removeEventListener('scroll', updateTargetRect, true);
         observer.disconnect();
@@ -145,10 +150,10 @@ const Tour = () => {
               finalTargetRect.y = 150;
               break;
           case 4: // Step 5
-              finalTargetRect.y = 200;
+              finalTargetRect.y = 210;
               break;
           case 5: // Step 6
-              finalTargetRect.y = 200;
+              finalTargetRect.y = 210;
               break;
           case 6: // Step 7
               finalTargetRect.y = 180;
