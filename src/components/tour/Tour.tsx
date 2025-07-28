@@ -50,6 +50,7 @@ const Tour = () => {
     
     element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     
+    // Using a timeout to wait for layout shifts to complete after scrolling
     const timerId = setTimeout(() => {
         updateTargetRect();
     }, 150);
@@ -121,6 +122,11 @@ const Tour = () => {
   
   const highlightPadding = 5;
 
+  let finalTargetRect = targetRect;
+  if (stepIndex === 0 && finalTargetRect) {
+      finalTargetRect = new DOMRect(finalTargetRect.x, 200, finalTargetRect.width, finalTargetRect.height);
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -132,7 +138,7 @@ const Tour = () => {
               <div>ScrollTop: {debugValues.scrollTop}</div>
             </div>
           )}
-          {targetRect && (
+          {finalTargetRect && (
             <>
                 <motion.div
                     className="fixed inset-0 z-[10000] pointer-events-none"
@@ -142,22 +148,22 @@ const Tour = () => {
                     transition={{ duration: 0.3 }}
                 >
                     {/* Top overlay */}
-                    <div className="absolute left-0 top-0 bg-black/70" style={{ width: '100%', height: `${targetRect.top - highlightPadding}px` }} />
+                    <div className="absolute left-0 top-0 bg-black/70" style={{ width: '100%', height: `${finalTargetRect.top - highlightPadding}px` }} />
                     {/* Bottom overlay */}
-                    <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.bottom + highlightPadding}px`, width: '100%', height: `calc(100vh - ${targetRect.bottom + highlightPadding}px)` }} />
+                    <div className="absolute left-0 bg-black/70" style={{ top: `${finalTargetRect.bottom + highlightPadding}px`, width: '100%', height: `calc(100vh - ${finalTargetRect.bottom + highlightPadding}px)` }} />
                     {/* Left overlay */}
-                    <div className="absolute left-0 bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, width: `${targetRect.left - highlightPadding}px`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+                    <div className="absolute left-0 bg-black/70" style={{ top: `${finalTargetRect.top - highlightPadding}px`, width: `${finalTargetRect.left - highlightPadding}px`, height: `${finalTargetRect.height + highlightPadding * 2}px` }} />
                     {/* Right overlay */}
-                    <div className="absolute bg-black/70" style={{ top: `${targetRect.top - highlightPadding}px`, left: `${targetRect.right + highlightPadding}px`, width: `calc(100vw - ${targetRect.right + highlightPadding}px)`, height: `${targetRect.height + highlightPadding * 2}px` }} />
+                    <div className="absolute bg-black/70" style={{ top: `${finalTargetRect.top - highlightPadding}px`, left: `${finalTargetRect.right + highlightPadding}px`, width: `calc(100vw - ${finalTargetRect.right + highlightPadding}px)`, height: `${finalTargetRect.height + highlightPadding * 2}px` }} />
                     
                     {/* Highlight border */}
                     <div
                     className="absolute border-2 border-primary border-dashed rounded-md transition-all duration-300"
                     style={{
-                        top: `${targetRect.top - highlightPadding}px`,
-                        left: `${targetRect.left - highlightPadding}px`,
-                        width: `${targetRect.width + highlightPadding * 2}px`,
-                        height: `${targetRect.height + highlightPadding * 2}px`,
+                        top: `${finalTargetRect.top - highlightPadding}px`,
+                        left: `${finalTargetRect.left - highlightPadding}px`,
+                        width: `${finalTargetRect.width + highlightPadding * 2}px`,
+                        height: `${finalTargetRect.height + highlightPadding * 2}px`,
                     }}
                     />
                 </motion.div>
