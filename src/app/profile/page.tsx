@@ -19,7 +19,7 @@ import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { TransactionLog, PaymentLog, BuddyRequest, UserProfile } from '@/lib/types';
+import type { TransactionLog, PaymentLog, BuddyRequest, UserProfile as UserProfileType } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
@@ -286,8 +286,7 @@ function ProfileSection() {
     const { user, userProfile, logout } = useUserData();
     const { toast } = useToast();
 
-    // This state ONLY holds the fields that have been changed.
-    const [edits, setEdits] = useState<Partial<UserProfile>>({});
+    const [edits, setEdits] = useState<Partial<UserProfileType>>({});
     const [isSaving, setIsSaving] = useState(false);
     const countryOptions = useMemo(() => lightweightCountries, []);
     
@@ -295,14 +294,12 @@ function ProfileSection() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isResettingStats, setIsResettingStats] = useState(false);
     
-    // Create a merged view of the profile for the form to display.
-    // It prioritizes the edited value, falling back to the context value.
     const displayProfile = useMemo(() => ({
         ...userProfile,
         ...edits
     }), [userProfile, edits]);
 
-    const handleInputChange = (field: keyof UserProfile, value: any) => {
+    const handleInputChange = (field: keyof UserProfileType, value: any) => {
         setEdits(prev => ({ ...prev, [field]: value }));
     };
 
@@ -311,13 +308,11 @@ function ProfileSection() {
         if (!user || Object.keys(edits).length === 0) return;
         setIsSaving(true);
         try {
-            // Merge the original profile with the edits for saving
-            const dataToSave: Partial<UserProfile> = {
+            const dataToSave: Partial<UserProfileType> = {
                 ...edits,
                 searchableName: (displayProfile.name || '').toLowerCase(),
             };
             
-            // Handle auth profile update separately if name changed
             if (edits.name && edits.name !== user.displayName) {
                 await updateAuthProfile(user, { displayName: edits.name });
             }
@@ -325,7 +320,7 @@ function ProfileSection() {
             const userDocRef = doc(db, 'users', user.uid);
             await setDoc(userDocRef, dataToSave, { merge: true });
             
-            setEdits({}); // Clear pending edits on successful save
+            setEdits({});
             toast({ title: 'Success', description: 'Profile updated successfully.' });
         } catch (error: any) {
             console.error("Error updating profile: ", error);
@@ -346,15 +341,31 @@ function ProfileSection() {
         }
 
         setIsDeleting(true);
-        // We call the server action first, and then the client-side logout
         const result = await anonymizeAndDeactivateUser({ userId: user.uid });
         if (result.success) {
-            await logout(); // This will trigger the auth state listener and clear all local data.
+            await logout();
             toast({ title: "Your VibeSync Journey Is Paused", description: "Your account has been deleted, but we'll be here to welcome you back whenever you're ready to sync with the local vibe again." });
-            // The auth state listener in UserDataContext will handle logout and redirect.
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete your account.' });
             setIsDeleting(false);
+        }
+    };
+
+    const handleImmediateAlertChange = async (checked: boolean) => {
+        if (!user) return;
+        
+        // Optimistically update the UI
+        handleInputChange('immediateBuddyAlert', checked);
+
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            await setDoc(userDocRef, { immediateBuddyAlert: checked }, { merge: true });
+            // The user context will update automatically via its listener, so no success toast is needed here to avoid duplication.
+        } catch (error: any) {
+            console.error("Error updating immediate alert setting:", error);
+            // Revert UI change on failure
+            handleInputChange('immediateBuddyAlert', !checked);
+            toast({ variant: "destructive", title: "Error", description: "Could not save setting." });
         }
     };
 
@@ -451,7 +462,7 @@ function ProfileSection() {
                             <Switch
                                 id="immediateBuddyAlert"
                                 checked={!!displayProfile.immediateBuddyAlert}
-                                onCheckedChange={(checked) => handleInputChange('immediateBuddyAlert', checked)}
+                                onCheckedChange={handleImmediateAlertChange}
                             />
                             <Label htmlFor="immediateBuddyAlert">Enable Immediate Alert</Label>
                         </div>
@@ -613,16 +624,16 @@ function BuddiesSection() {
     const { user, userProfile } = useUserData();
     const { toast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchResults, setSearchResults] = useState<UserProfile | null>(null);
+    const [searchResults, setSearchResults] = useState<UserProfileType | null>(null);
     const [isSearching, setIsSearching] = useState(false);
-    const [buddiesDetails, setBuddiesDetails] = useState<UserProfile[]>([]);
+    const [buddiesDetails, setBuddiesDetails] = useState<UserProfileType[]>([]);
 
     useEffect(() => {
         const fetchBuddiesDetails = async () => {
             if (userProfile?.buddies && userProfile.buddies.length > 0) {
                 const buddiesQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.buddies));
                 const snapshot = await getDocs(buddiesQuery);
-                const details = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+                const details = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfileType));
                 setBuddiesDetails(details);
             } else {
                 setBuddiesDetails([]);
@@ -636,7 +647,7 @@ function BuddiesSection() {
         if (!searchTerm.trim()) return;
         setIsSearching(true);
         const result = await findUserByEmail(searchTerm);
-        setSearchResults(result as UserProfile | null);
+        setSearchResults(result as UserProfileType | null);
         setIsSearching(false);
     };
 
@@ -926,3 +937,4 @@ export default function ProfilePage() {
     
 
     
+
