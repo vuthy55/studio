@@ -106,7 +106,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             delete newState[lang];
             return newState;
         });
-        console.log(`[DEBUG] Successfully deleted offline pack: ${lang}`);
     }, []);
 
     const clearLocalState = useCallback(() => {
@@ -121,12 +120,10 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         if (authLoading) {
-            console.log("[DEBUG] Auth state is loading...");
             return;
         }
 
         if (user) {
-            console.log("[DEBUG] User found. Setting up data listeners and checks.");
             isLoggingOut.current = false;
             setIsDataLoading(true);
 
@@ -143,7 +140,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     }
                  });
                  setOfflineAudioPacks(loadedPacks);
-                 console.log("[DEBUG] Initial offline packs loaded into state:", Object.keys(loadedPacks));
             });
 
             const userDocRef = doc(db, 'users', user.uid);
@@ -151,7 +147,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // --- Listen for profile changes ---
             profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
                 if (isLoggingOut.current) return;
-                console.log("[DEBUG] User profile snapshot received.");
 
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
@@ -164,7 +159,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     // --- Logic to GRANT new free languages ---
                     const missingFreePacks = systemFreePacks.filter(p => !userUnlocked.includes(p));
                     if (missingFreePacks.length > 0) {
-                        console.log(`[DEBUG] User is missing free packs: ${missingFreePacks.join(', ')}. Granting access...`);
                         await updateDoc(userDocRef, { unlockedLanguages: arrayUnion(...missingFreePacks) });
                         return; // Exit to wait for the updated snapshot which will trigger auto-download
                     }
@@ -172,7 +166,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     // --- Logic to REVOKE languages that are no longer free ---
                     const revokedLanguages = userUnlocked.filter(lang => !systemFreePacks.includes(lang));
                     if (revokedLanguages.length > 0) {
-                        console.log(`[DEBUG] User has revoked packs: ${revokedLanguages.join(', ')}. Revoking access...`);
                         await updateDoc(userDocRef, { unlockedLanguages: arrayRemove(...revokedLanguages) });
                         
                         // Delete the local data for each revoked language
@@ -190,14 +183,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
                         for (const langCode of userUnlocked) {
                             if (!downloadedPackIds.includes(langCode)) {
-                                console.log(`[Auto-Download] User unlocked ${langCode} but it's not offline. Downloading...`);
                                 try {
                                     const { audioPack, size } = await getLanguageAudioPack(langCode);
                                     await db.put(STORE_NAME, audioPack, langCode);
                                     const metadata: PackMetadata = { id: langCode, size };
                                     await db.put(METADATA_STORE_NAME, metadata);
                                     loadSingleOfflinePack(langCode);
-                                    console.log(`[Auto-Download] Successfully downloaded and stored ${langCode}.`);
                                 } catch (e) {
                                     console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
                                 }
@@ -205,7 +196,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                         }
                     }
                 } else {
-                    console.log("[DEBUG] User document does not exist.");
                     setUserProfile({});
                 }
             }, (error) => {
@@ -227,13 +217,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             });
 
         } else {
-            console.log("[DEBUG] No user found. Clearing local state.");
             clearLocalState();
             setIsDataLoading(false);
         }
         
         return () => {
-             console.log("[DEBUG] Cleanup effect running. Unsubscribing from listeners.");
             if (profileUnsubscribe.current) profileUnsubscribe.current();
             if (historyUnsubscribe.current) historyUnsubscribe.current();
         };
