@@ -144,6 +144,8 @@ const Tour = () => {
               finalTargetRect.y = 150;
               break;
           case '[data-tour="listen-button-0"]':
+              finalTargetRect.y = 210;
+              break;
           case '[data-tour="practice-button-0"]':
               finalTargetRect.y = 210;
               break;
@@ -158,6 +160,8 @@ const Tour = () => {
               finalTargetRect.y = 140;
               break;
           case '[data-tour="lt-mic-button"]':
+              finalTargetRect.y = 220;
+              break;
           case '[data-tour="lt-output-actions"]':
               finalTargetRect.y = 220;
               break;
@@ -196,6 +200,15 @@ const Tour = () => {
     <AnimatePresence>
       {isOpen && (
         <>
+        <div style={{ position: 'fixed', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px', borderRadius: '5px', zIndex: 10003, fontSize: '12px', fontFamily: 'monospace' }}>
+              <p>Target Rect:</p>
+              {targetRect ? (
+                  <>
+                      <p>T: {targetRect.top.toFixed(2)}, L: {targetRect.left.toFixed(2)}</p>
+                      <p>W: {targetRect.width.toFixed(2)}, H: {targetRect.height.toFixed(2)}</p>
+                  </>
+              ) : <p>No Target</p>}
+          </div>
           {finalTargetRect && (
             <>
                 <motion.div
