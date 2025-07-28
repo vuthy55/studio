@@ -115,7 +115,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
     const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
     const availableLanguages = useMemo(() => {
-        if (!editableSummary) return [];
+        if (!editableSummary) return { participantLanguages: [], otherLanguages: [] };
         const langSet = new Set<string>();
         
         const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
