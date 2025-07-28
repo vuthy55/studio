@@ -26,7 +26,7 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
+import { getAllRooms2, type ClientSyncRoom } from '@/services/rooms2';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
 import { deleteUsers, clearAllNotifications } from '@/actions/admin';
@@ -1250,12 +1250,12 @@ function RoomsTabContent() {
   const [editability, setEditability] = useState<Record<string, boolean>>({});
 
 
-  const handleFetchRooms = async () => {
+  const handleFetchRooms = useCallback(async () => {
     setIsLoading(true);
     setError('');
     setSelectedRoomIds([]);
     try {
-      const fetchedRooms = await getAllRooms();
+      const fetchedRooms = await getAllRooms2();
       setRooms(fetchedRooms);
       const initialEditability: Record<string, boolean> = {};
       fetchedRooms.forEach(room => {
@@ -1269,7 +1269,7 @@ function RoomsTabContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleEditabilityChange = async (roomId: string, canEdit: boolean) => {
     setEditability(prev => ({ ...prev, [roomId]: canEdit }));
@@ -1325,7 +1325,7 @@ function RoomsTabContent() {
         const result = await permanentlyDeleteRooms(selectedRoomIds);
         if (result.success) {
             toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
-            handleFetchRooms();
+            await handleFetchRooms();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
