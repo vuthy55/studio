@@ -83,6 +83,7 @@ export default function MarketingRelease() {
                 width={600}
                 height={400}
                 className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+                unoptimized
                 data-ai-hint="backpackers travel"
             />
         </div>

@@ -24,6 +24,7 @@ export default function MarketingRelease2() {
             width={800}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[2/1] w-full"
+            unoptimized
             data-ai-hint="solo traveler cambodia"
         />
         <figcaption className="text-center text-xs text-muted-foreground mt-2">Alex arriving in Cambodia, ready for adventure but daunted by the language barrier.</figcaption>
@@ -57,6 +58,7 @@ export default function MarketingRelease2() {
             width={800}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[2/1] w-full"
+            unoptimized
             data-ai-hint="cambodian homestay"
         />
         <figcaption className="text-center text-xs text-muted-foreground mt-2">Breaking the ice at the local homestay.</figcaption>
@@ -79,6 +81,7 @@ export default function MarketingRelease2() {
             width={800}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[2/1] w-full"
+            unoptimized
             data-ai-hint="diverse travelers laughing"
         />
         <figcaption className="text-center text-xs text-muted-foreground mt-2">New friends made at the temple, thanks to a little help from VibeSync.</figcaption>

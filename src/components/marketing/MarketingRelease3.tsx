@@ -29,6 +29,7 @@ export default function MarketingRelease3() {
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+            unoptimized
             data-ai-hint="backpacker market"
         />
       </div>
@@ -40,6 +41,7 @@ export default function MarketingRelease3() {
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
+            unoptimized
             data-ai-hint="ordering food"
         />
         <div className="space-y-4 md:order-1">
@@ -69,6 +71,7 @@ export default function MarketingRelease3() {
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+            unoptimized
             data-ai-hint="diverse friends"
         />
       </div>
@@ -80,6 +83,7 @@ export default function MarketingRelease3() {
             width={600}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
+            unoptimized
             data-ai-hint="friends phone"
         />
         <div className="space-y-4 md:order-1">
