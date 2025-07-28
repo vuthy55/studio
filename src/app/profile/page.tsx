@@ -446,7 +446,7 @@ function ProfileSection() {
                 <CardContent className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2 p-4 border rounded-lg">
                         <h4 className="font-semibold">Immediate Buddy Alert</h4>
-                        <p className="text-xs text-muted-foreground">Enable this to send a Buddy Alert immediately upon clicking the button in the sidebar, skipping the confirmation dialog.</p>
+                        <p className="text-xs text-muted-foreground">Enable this to send a Buddy Alert immediately upon clicking the button in the sidebar, skipping the confirmation dialog. For a true one-click experience, you must also grant the browser permission to access your location.</p>
                         <div className="flex items-center space-x-2 pt-2">
                             <Switch
                                 id="immediateBuddyAlert"
