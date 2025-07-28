@@ -94,36 +94,36 @@ export default function MarketingRelease() {
             <CardTitle className="text-center text-3xl">Your Ultimate Travel Companion</CardTitle>
         </CardHeader>
         <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Link href="/synchub?tab=prep-vibe" className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg hover:bg-muted/50 transition-colors">
+            <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg">
                 <Share2 className="h-12 w-12 text-primary" />
                 <h3 className="font-semibold text-lg">Prep Your Vibe</h3>
                 <p className="text-sm text-muted-foreground">Master key phrases before you go. Earn free tokens just for practicing!</p>
-            </Link>
-             <Link href="/profile?tab=buddies" className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg hover:bg-muted/50 transition-colors">
+            </div>
+             <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg">
                 <AlertTriangle className="h-12 w-12 text-primary" />
                 <h3 className="font-semibold text-lg">Buddy Alert</h3>
                 <p className="text-sm text-muted-foreground">Add friends and send your location to the group for extra peace of mind. A safety net, powered by your friends.</p>
-            </Link>
-             <Link href="/synchub?tab=sync-live" className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg hover:bg-muted/50 transition-colors">
+            </div>
+             <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg">
                 <Mic className="h-12 w-12 text-primary" />
                 <h3 className="font-semibold text-lg">Sync Live</h3>
                 <p className="text-sm text-muted-foreground">Have a 1-on-1 chat with anyone. Speak in your language, and the app translates for you.</p>
-            </Link>
-             <Link href="/synchub?tab=sync-online" className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg hover:bg-muted/50 transition-colors">
+            </div>
+             <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg">
                 <RadioTower className="h-12 w-12 text-primary" />
                 <h3 className="font-semibold text-lg">Sync Online</h3>
                 <p className="text-sm text-muted-foreground">Create group chat rooms where everyone hears the conversation in their own language.</p>
-            </Link>
-             <Link href="/profile?tab=referrals" className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg hover:bg-muted/50 transition-colors">
+            </div>
+             <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg">
                 <Award className="h-12 w-12 text-primary" />
                 <h3 className="font-semibold text-lg">Earn As You Learn</h3>
                 <p className="text-sm text-muted-foreground">Start with 100 free tokens! Earn more by practicing and referring friends.</p>
-            </Link>
-             <Link href="/profile?tab=wallet" className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg hover:bg-muted/50 transition-colors">
+            </div>
+             <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg">
                 <Coins className="h-12 w-12 text-primary" />
                 <h3 className="font-semibold text-lg">Affordable Tokens</h3>
                 <p className="text-sm text-muted-foreground">Need more? Top up your balance easily. Packs start at just $5 for 500 tokens.</p>
-            </Link>
+            </div>
         </CardContent>
       </Card>
       
