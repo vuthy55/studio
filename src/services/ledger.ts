@@ -12,7 +12,7 @@ export interface FinancialLedgerEntry {
   type: 'revenue' | 'expense';
   description: string;
   amount: number;
-  timestamp: Date | Timestamp;
+  timestamp: Date; // Ensure this is always a Date object for client-side consistency
   source?: 'paypal' | 'manual' | 'paypal-donation';
   orderId?: string;
   userId?: string;
@@ -86,11 +86,19 @@ export async function getFinancialLedger(emailFilter: string = ''): Promise<Fina
 
     const snapshot = await getDocs(finalQuery);
     
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: (doc.data().timestamp as Timestamp).toDate()
-    })) as FinancialLedgerEntry[];
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const timestamp = data.timestamp;
+        
+        // Ensure timestamp is always a JS Date object
+        const finalTimestamp = timestamp instanceof Timestamp ? timestamp.toDate() : (timestamp instanceof Date ? timestamp : new Date());
+
+        return {
+            id: doc.id,
+            ...data,
+            timestamp: finalTimestamp,
+        } as FinancialLedgerEntry;
+    });
 }
 
 /**
@@ -118,8 +126,8 @@ export async function getLedgerAnalytics(): Promise<{ revenue: number, expenses:
  */
 export async function addLedgerEntry(entry: Omit<FinancialLedgerEntry, 'id'>) {
     const ledgerCol = collection(db, 'financialLedger');
-    // The timestamp is already a Date object from the client, no conversion needed.
-    const entryData: any = { ...entry };
+    // Ensure the timestamp sent to Firestore is a server timestamp for consistency
+    const entryData: any = { ...entry, timestamp: serverTimestamp() };
     
     if (entry.link) {
         entryData.link = entry.link;
@@ -279,5 +287,6 @@ export async function getTokenLedger(emailFilter: string = ''): Promise<TokenLed
     throw error;
   }
 }
+
 
 
