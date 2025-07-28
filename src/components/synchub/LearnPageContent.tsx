@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useRef, memo, Dispatch, SetStateAction } 
 import Link from 'next/link';
 import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle } from 'lucide-react';
 import {
