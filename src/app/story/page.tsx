@@ -32,10 +32,10 @@ export default function StoryPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="flex items-center justify-center bg-muted rounded-lg shadow-xl aspect-[3/2] md:order-2">
-            <div className="text-center">
-              <div className="text-8xl font-bold text-primary opacity-50">អរគុណ</div>
-              <div className="text-4xl font-semibold text-primary/80 mt-2">(Arkoun)</div>
+          <div className="flex items-center justify-start p-8 bg-muted rounded-lg shadow-xl aspect-[3/2] md:order-2">
+            <div className="text-left">
+              <div className="text-7xl md:text-8xl font-bold text-primary opacity-50">អរគុណ</div>
+              <div className="text-3xl md:text-4xl font-semibold text-primary/80 mt-2">(Arkoun)</div>
             </div>
           </div>
           <div className="space-y-4 md:order-1">
