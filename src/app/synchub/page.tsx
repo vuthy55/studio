@@ -12,6 +12,7 @@ import LiveTranslationContent from '@/components/synchub/LiveTranslationContent'
 import SyncOnlineHome from '@/components/synchub/SyncOnlineHome';
 import { useUserData } from '@/context/UserDataContext';
 import { TourProvider } from '@/context/TourContext';
+import Tour from '@/components/tour/Tour';
 
 // Statically import all components to ensure they are available in offline mode.
 const MemoizedLearnPage = memo(LearnPageContent);
@@ -78,7 +79,10 @@ export default function SyncHubPage() {
         <div className="space-y-8">
             <MainHeader title="SyncHub" description="Prepare, practice, and connect." />
              <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
-                <SyncHubTabs />
+                <TourProvider>
+                    <SyncHubTabs />
+                    <Tour />
+                </TourProvider>
             </Suspense>
         </div>
     );

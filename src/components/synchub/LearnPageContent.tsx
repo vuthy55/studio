@@ -26,8 +26,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { getOfflineAudio } from './OfflineManager';
 import OfflineManager from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
-import { TourProvider, useTour, TourStep } from '@/context/TourContext';
-import Tour from '@/components/tour/Tour';
+import { useTour, TourStep } from '@/context/TourContext';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -37,10 +36,6 @@ type AssessmentResult = {
   accuracy?: number;
   fluency?: number;
 };
-
-interface LearnPageContentProps {
-  setActiveTab: Dispatch<SetStateAction<string>>;
-}
 
 
 const learnPageTourSteps: TourStep[] = [
@@ -79,7 +74,7 @@ const learnPageTourSteps: TourStep[] = [
 ];
 
 
-function LearnPage() {
+export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
@@ -249,15 +244,29 @@ function LearnPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col items-center gap-4 text-center">
-                 <Button onClick={() => startTour(learnPageTourSteps)} size="lg">
-                    <HelpCircle className="mr-2" />
-                    Take a Tour
-                </Button>
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        Prep Your Vibe
+                    </CardTitle>
+                    <CardDescription>
+                        Learn essential phrases and practice your pronunciation before you travel.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <div className="flex flex-col items-center gap-4 text-center">
+                        <Button onClick={() => startTour(learnPageTourSteps)} size="lg">
+                            <HelpCircle className="mr-2" />
+                            Take a Tour
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
             <div data-tour="offline-manager">
                 <OfflineManager />
             </div>
+            
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
                     <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4" data-tour="language-selectors">
@@ -311,10 +320,10 @@ function LearnPage() {
                 
                     <div className="space-y-4 pt-6">
                         <div className="space-y-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2" data-tour="topic-selector">
                                 <Label>Select a Topic</Label>
                             </div>
-                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1" data-tour="topic-selector">
+                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1">
                                 {phrasebook.map((topic) => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                     <Tooltip>
@@ -510,14 +519,4 @@ function LearnPage() {
             </Card>
         </div>
     );
-}
-
-
-export default function LearnPageContent(props: LearnPageContentProps) {
-    return (
-        <TourProvider>
-            <LearnPage />
-            <Tour />
-        </TourProvider>
-    )
 }

@@ -1,5 +1,5 @@
 
-      
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -34,7 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle } from 'lucide-react';
 import type { SyncRoom, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -59,11 +59,25 @@ import BuyTokens from '../BuyTokens';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sendRoomInviteEmail } from '@/actions/email';
+import { useTour, TourStep } from '@/context/TourContext';
 
 
 interface InvitedRoom extends SyncRoom {
     id: string;
 }
+
+const syncOnlineTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="so-schedule-button"]',
+    content: "Click here to schedule a new room. This is where you'll set the topic, invite friends, and set the meeting time.",
+  },
+  {
+    selector: '[data-tour="so-room-list"]',
+    content: "Your scheduled, active, and past rooms will appear here. You can join active rooms or view summaries of past ones.",
+    position: 'top'
+  },
+];
+
 
 function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: () => void }) {
     const { userProfile, user } = useUserData();
@@ -704,6 +718,7 @@ export default function SyncOnlineHome() {
     const { user, userProfile, loading } = useUserData();
     const router = useRouter();
     const { toast } = useToast();
+    const { startTour } = useTour();
 
     const [isScheduling, setIsScheduling] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1197,11 +1212,14 @@ export default function SyncOnlineHome() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                    <CardDescription>Schedule a private room and invite others for a real-time, multi-language voice conversation.</CardDescription>
+                    <CardDescription>
+                        Schedule a private room and invite others for a real-time, multi-language voice conversation.
+                        <Button variant="link" className="px-1" onClick={() => startTour(syncOnlineTourSteps)}>Take a tour of this feature.</Button>
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                      <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" data-tour="so-schedule-button">
                             <CollapsibleTrigger asChild>
                                 <Button disabled={!user}>
                                     <PlusCircle className="mr-2 h-4 w-4" />
@@ -1394,7 +1412,7 @@ export default function SyncOnlineHome() {
             </Card>
 
             {user && (
-                <Card>
+                <Card data-tour="so-room-list">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><List /> Your Rooms</CardTitle>
                         <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
@@ -1426,5 +1444,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    

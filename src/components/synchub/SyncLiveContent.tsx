@@ -6,7 +6,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, LoaderCircle, X, Languages, Users, Volume2, Coins, Clock } from 'lucide-react';
+import { Mic, LoaderCircle, X, Languages, Users, Volume2, Coins, Clock, HelpCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -18,9 +18,32 @@ import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { Separator } from '../ui/separator';
+import { useTour, TourStep } from '@/context/TourContext';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
+
+const syncLiveTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="sl-languages"]',
+    content: "First, select up to 4 languages for the conversation. This tells the app which languages to listen for and translate to.",
+  },
+  {
+    selector: '[data-tour="sl-mic-button"]',
+    content: "When you're ready, press and hold this button to speak. The app will automatically detect the language you're speaking.",
+    position: 'top',
+  },
+  {
+    selector: '[data-tour="sl-status-display"]',
+    content: "The app will then translate your speech into the other selected languages and play them out loud. This area will show you what's happening.",
+    position: 'top',
+  },
+  {
+    selector: '[data-tour="sl-usage-card"]',
+    content: "Keep an eye on your usage here. You have free minutes each month, and after that, usage will cost tokens from your balance.",
+  },
+];
+
 
 export default function SyncLiveContent() {
   const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
@@ -35,6 +58,7 @@ export default function SyncLiveContent() {
   const sessionUsageRef = useRef(0);
   
   const { toast } = useToast();
+  const { startTour } = useTour();
 
   const costPerMinute = settings?.costPerSyncLiveMinute || 1;
   const freeMinutesMs = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000;
@@ -187,12 +211,13 @@ export default function SyncLiveContent() {
             </CardTitle>
             <CardDescription>
                 Tap the mic to talk. Your speech will be translated and spoken aloud for the group. This is a 1-to-many solo translation feature.
+                 <Button variant="link" className="px-1" onClick={() => startTour(syncLiveTourSteps)}>Take a tour of this feature.</Button>
             </CardDescription>
         </CardHeader>
       <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
         
         {user && settings && (
-            <Card className="w-full bg-muted/50">
+            <Card className="w-full bg-muted/50" data-tour="sl-usage-card">
                 <CardContent className="p-4">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                         <div className="space-y-1">
@@ -228,7 +253,7 @@ export default function SyncLiveContent() {
             </Card>
         )}
 
-        <div className="w-full space-y-4">
+        <div className="w-full space-y-4" data-tour="sl-languages">
             <Label className="flex items-center gap-2 font-semibold"><Languages className="h-5 w-5"/> Conversation Languages ({selectedLanguages.length}/4)</Label>
             <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
                 {selectedLanguages.map(lang => (
@@ -267,6 +292,7 @@ export default function SyncLiveContent() {
           )}
           onClick={startConversationTurn}
           disabled={status !== 'idle'}
+          data-tour="sl-mic-button"
         >
           {status === 'idle' && <Mic className="h-10 w-10"/>}
           {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
@@ -274,7 +300,7 @@ export default function SyncLiveContent() {
           {status === 'disabled' && <X className="h-10 w-10"/>}
         </Button>
 
-        <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center">
+        <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center" data-tour="sl-status-display">
              {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
              {status === 'listening' && <p className="font-semibold text-muted-foreground text-sm">Listening...</p>}
              {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
