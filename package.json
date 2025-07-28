@@ -41,6 +41,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^10.12.2",
     "firebase-admin": "^12.2.0",
+    "framer-motion": "^11.2.12",
     "genkit": "^1.14.1",
     "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
