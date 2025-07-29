@@ -542,6 +542,7 @@ export default function SyncRoomPage() {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
+        sessionStartTime.current = null; // Reset session start time
 
         console.log("[DEBUG] Exit: Exiting process started.");
 
@@ -561,7 +562,6 @@ export default function SyncRoomPage() {
                 const sessionDurationMs = Date.now() - sessionStartTime.current;
                 console.log(`[DEBUG] Exit: Session duration: ${sessionDurationMs}ms. Calling handleSyncOnlineSessionEnd.`);
                 await handleSyncOnlineSessionEnd(sessionDurationMs);
-                sessionStartTime.current = null;
             } else {
                  console.log("[DEBUG] Exit: No session start time found, skipping billing.");
             }
@@ -572,8 +572,13 @@ export default function SyncRoomPage() {
     
     const handleManualExit = async () => {
         if (isExiting.current) return;
-        await handleExitRoom();
-        router.push('/?tab=sync-online');
+        try {
+            await handleExitRoom();
+        } catch (error) {
+            console.error("Error during manual exit:", error);
+        } finally {
+            router.push('/?tab=sync-online');
+        }
     };
 
     useEffect(() => {
