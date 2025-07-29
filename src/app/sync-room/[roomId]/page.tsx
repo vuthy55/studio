@@ -212,7 +212,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>());
+    const processedMessages = useRef(new Set<string>>();
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -711,10 +711,32 @@ export default function SyncRoomPage() {
                             <p className="text-sm text-primary/80">Sync Room</p>
                         </div>
                          {isSessionActive && (
-                            <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
-                                <Clock className="h-5 w-5" />
-                                {sessionTimer}
-                            </div>
+                             <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
+                                            <Clock className="h-5 w-5" />
+                                            {sessionTimer}
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
+                                            <div className="flex justify-between" title="Your current token balance">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
+                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
+                                            </div>
+                                                <div className="flex justify-between" title="Cost per minute after free minutes are used">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
+                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
+                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
+                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                            </div>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                             </TooltipProvider>
                          )}
                      </div>
                      <div className="flex items-center justify-between pt-2">
@@ -864,21 +886,6 @@ export default function SyncRoomPage() {
                     )}
                 </ScrollArea>
                  <footer className="p-4 border-t flex flex-col gap-4">
-                    <div className="text-xs text-muted-foreground space-y-2 border rounded-lg p-3">
-                        <div className="flex justify-between" title="Your current token balance">
-                           <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                           <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                        </div>
-                         <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                            <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                            <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
-                        </div>
-                        <div className="flex justify-between" title="Your free minutes remaining for this month">
-                            <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Minutes:</span>
-                            <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                        </div>
-                    </div>
-
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
                             <LogOut className="mr-2 h-4 w-4"/>
@@ -918,7 +925,7 @@ export default function SyncRoomPage() {
                                                 <TooltipTrigger asChild>
                                                     <Button type="button" variant="destructive" onClick={handleEndMeeting}>
                                                         <Trash2 className="mr-2 h-4 w-4" />
-                                                        End & Delete
+                                                        End &amp; Delete
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
@@ -989,5 +996,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
