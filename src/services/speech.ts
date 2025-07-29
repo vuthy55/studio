@@ -18,7 +18,7 @@ function getSpeechConfig(): sdk.SpeechConfig {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
     if (!azureKey || !azureRegion) {
-        throw new Error("Azure credentials are not configured in your .env file.");
+        throw new Error("Azure Speech credentials are not configured. Please check your .env.local file for NEXT_PUBLIC_AZURE_TTS_KEY and NEXT_PUBLIC_AZURE_TTS_REGION.");
     }
     return sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
 }
