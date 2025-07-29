@@ -133,8 +133,8 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                 const cancellation = sdk.CancellationDetails.fromResult(result);
                 if (cancellation.reason !== sdk.CancellationReason.EndOfStream) {
                     let errorMessage = `Recognition canceled: ${cancellation.errorDetails}`;
-                    if (cancellation.ErrorCode === sdk.CancellationErrorCode.ServicePermissionDenied) {
-                        errorMessage = "Recognition failed: Microphone permissions may not be granted.";
+                    if (cancellation.ErrorCode === sdk.CancellationErrorCode.AuthenticationFailure) {
+                        errorMessage = "Recognition failed: Microphone permissions may not be granted or Azure credentials may be invalid.";
                     }
                     reject(new Error(errorMessage));
                 }
