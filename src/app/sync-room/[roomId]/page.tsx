@@ -536,6 +536,8 @@ export default function SyncRoomPage() {
 
     const handleExitRoom = useCallback(async () => {
         if (!user || isExiting.current) return;
+        
+        sessionStartTime.current = null; // Reset session start time immediately
         isExiting.current = true;
         
         console.log("[DEBUG] Exit: Exiting process started.");
@@ -545,9 +547,7 @@ export default function SyncRoomPage() {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-        
-        // This is now done first
-        sessionStartTime.current = null; // Reset session start time immediately
+        console.log('[DEBUG] Exit: sessionStartTime has been reset to null.');
 
         if (messageListenerUnsubscribe.current) {
             console.log("[DEBUG] Exit: Unsubscribing from message listener.");
@@ -582,6 +582,7 @@ export default function SyncRoomPage() {
             console.error("Error during manual exit:", error);
         } finally {
             router.push('/synchub?tab=sync-online');
+            isExiting.current = false;
         }
     };
 
@@ -750,6 +751,14 @@ export default function SyncRoomPage() {
             handleExitRoom();
         };
     }, [handleExitRoom]);
+    
+    // This is the definitive cleanup effect.
+    useEffect(() => {
+        return () => {
+            handleExitRoom();
+        }
+    }, [handleExitRoom]);
+
 
     const handleEndMeeting = async () => {
         console.log('[DEBUG] handleEndMeeting called.');
