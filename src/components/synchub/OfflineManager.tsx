@@ -81,13 +81,41 @@ export default function OfflineManager() {
   const [isChecking, setIsChecking] = useState(true);
   
   const [availableForDownload, setAvailableForDownload] = useState<AvailablePack[]>([]);
-  const [isFetchingAvailable, setIsFetchingAvailable] = useState(false);
+  const [isFetchingAvailable, setIsFetchingAvailable] = useState(true);
   
   const [isDownloadedOpen, setIsDownloadedOpen] = useState(false);
   const [isAvailableOpen, setIsAvailableOpen] = useState(false);
   const [isBuyTokensOpen, setIsBuyTokensOpen] = useState(false);
 
   const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
+
+  const fetchAvailablePacks = useCallback(async () => {
+    if (!user || !settings) {
+        setIsFetchingAvailable(false);
+        return;
+    };
+    setIsFetchingAvailable(true);
+    try {
+        const [metadata, freePacks] = await Promise.all([
+            getGenerationMetadata(),
+            getFreeLanguagePacks()
+        ]);
+        
+        const packCost = settings?.languageUnlockCost ?? 100;
+        const completePacks: AvailablePack[] = metadata
+            .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
+            .map(meta => ({
+                ...meta,
+                cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
+            }));
+        
+        setAvailableForDownload(completePacks);
+    } catch(e) {
+        toast({variant: 'destructive', title: 'Error', description: 'Could not fetch available packs.'});
+    } finally {
+        setIsFetchingAvailable(false);
+    }
+  }, [settings, downloadedPacks, toast, user, userProfile?.unlockedLanguages]);
 
   // Check for existing offline data on mount
   const checkForOfflineData = useCallback(async () => {
@@ -110,6 +138,14 @@ export default function OfflineManager() {
   useEffect(() => {
     checkForOfflineData();
   }, [checkForOfflineData]);
+
+   // Fetch available packs on mount and when downloaded packs change
+  useEffect(() => {
+    if (!isChecking) {
+        fetchAvailablePacks();
+    }
+  }, [isChecking, fetchAvailablePacks]);
+
 
   const handleDownload = async (lang: LanguageCode, cost: number | 'Free') => {
     if (!user || !settings) {
@@ -321,34 +357,6 @@ export default function OfflineManager() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
-
-  const fetchAvailablePacks = useCallback(async () => {
-    setIsFetchingAvailable(true);
-    try {
-        const [metadata, freePacks] = await Promise.all([
-            getGenerationMetadata(),
-            getFreeLanguagePacks()
-        ]);
-        
-        const packCost = settings?.languageUnlockCost ?? 100;
-        const completePacks: AvailablePack[] = metadata
-            .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
-            .map(meta => ({
-                ...meta,
-                cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
-            }));
-        
-        setAvailableForDownload(completePacks);
-    } catch(e) {
-        toast({variant: 'destructive', title: 'Error', description: 'Could not fetch available packs.'});
-    } finally {
-        setIsFetchingAvailable(false);
-    }
-  }, [settings?.languageUnlockCost, downloadedPacks, toast, userProfile?.unlockedLanguages]);
-
-  if (isChecking) {
-    return <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-4 w-4" /><span>Checking for offline data...</span></div>
-  }
   
   const currentlyDownloaded = Object.keys(downloadedPacks).filter(p => p !== SAVED_PHRASES_KEY);
 
@@ -414,10 +422,10 @@ export default function OfflineManager() {
         {/* Available Packs Button & Dialog */}
         <Dialog open={isAvailableOpen} onOpenChange={setIsAvailableOpen}>
              <DialogTrigger asChild>
-                <Button variant="outline" onClick={fetchAvailablePacks}>
+                <Button variant="outline">
                     <ArrowDownToLine className="mr-2" />
                     Available
-                    {availableForDownload.length > 0 && <Badge variant="secondary" className="ml-2">{availableForDownload.length}</Badge>}
+                    {isFetchingAvailable ? <LoaderCircle className="h-4 w-4 animate-spin ml-2"/> : availableForDownload.length > 0 && <Badge variant="secondary" className="ml-2">{availableForDownload.length}</Badge>}
                 </Button>
             </DialogTrigger>
             <DialogContent>
