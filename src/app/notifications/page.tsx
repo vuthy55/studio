@@ -37,14 +37,16 @@ export default function NotificationsPage() {
         }
 
         const notificationsRef = collection(db, 'notifications');
+        // The query is simplified to only filter by userId. Sorting is handled on the client.
         const q = query(
             notificationsRef,
-            where("userId", "==", user.uid),
-            orderBy("createdAt", "desc")
+            where("userId", "==", user.uid)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            // Sort the notifications by date here on the client-side
+            fetchedNotifications.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
             setNotifications(fetchedNotifications);
             setIsLoading(false);
         }, (error) => {
