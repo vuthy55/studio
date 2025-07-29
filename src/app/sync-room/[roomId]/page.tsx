@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -11,10 +12,8 @@ import { doc, setDoc, onSnapshot, collection, query, orderBy, serverTimestamp, a
 import type { SyncRoom, Participant, BlockedUser, RoomMessage } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzureCodeToLanguageCode } from '@/lib/azure-languages';
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
-import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
 import { softDeleteRoom } from '@/actions/room';
-import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
 
@@ -433,38 +432,12 @@ export default function SyncRoomPage() {
             if (msg.speakerUid === user.uid || processedMessages.current.has(msg.id)) {
                 return;
             }
-            processedMessages.current.add(msg.id);
             
-            try {
-                setIsSpeaking(true);
-                
-                const fromLangLabel = getAzureLanguageLabel(msg.speakerLanguage);
-                const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage!);
-                
-                const translated = await translateText({
-                    text: msg.text,
-                    fromLanguage: fromLangLabel,
-                    toLanguage: toLangLabel,
-                });
-
-                setTranslatedMessages(prev => ({...prev, [msg.id]: translated.translatedText}));
-                
-                const { audioDataUri } = await generateSpeech({ 
-                    text: translated.translatedText, 
-                    lang: currentUserParticipant.selectedLanguage!,
-                });
-                
-                if (audioPlayerRef.current) {
-                    audioPlayerRef.current.src = audioDataUri;
-                    await audioPlayerRef.current.play();
-                    await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
-                }
-            } catch(e: any) {
-                console.error("Error processing message:", e);
-                toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-            } finally {
-                setIsSpeaking(false);
-            }
+            toast({
+                variant: 'destructive',
+                title: 'Temporarily Unavailable',
+                description: 'The AI translation feature is currently disabled. We are working to restore it.',
+            });
         };
         
         const playQueue = async () => {
@@ -521,18 +494,8 @@ export default function SyncRoomPage() {
     const handleSaveAndEndMeeting = async () => {
         if (!isCurrentUserEmcee) return;
         setIsSummarizing(true);
-        toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.' });
-        try {
-            await handleExitRoom();
-            await summarizeRoom({ roomId });
-            toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            router.push('/?tab=sync-online');
-        } catch (error) {
-            console.error("Error saving and ending meeting:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
-        } finally {
-            setIsSummarizing(false);
-        }
+        toast({ title: 'Feature Disabled', description: 'The AI summarization feature is temporarily disabled.' });
+        setIsSummarizing(false);
     };
 
     const handleSendInvites = async () => {

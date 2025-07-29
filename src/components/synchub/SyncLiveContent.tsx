@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
@@ -77,84 +76,12 @@ export default function SyncLiveContent() {
 
 
   const startConversationTurn = async () => {
-    if (!user || !settings) {
-        toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use Sync Live.' });
-        return;
-    }
-    
-    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
-    
-    if (!hasSufficientTokens && (syncLiveUsage || 0) + sessionUsageRef.current >= freeMinutesMs) {
-        setStatus('disabled');
-        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
-        return;
-    }
-
-    setStatus('listening');
-    setSpeakingLanguage(null);
-    
-    timeoutRef.current = setTimeout(() => {
-        abortRecognition();
-        setStatus('idle');
-        toast({ variant: 'destructive', title: 'Timeout', description: 'Recognition timed out after 30 seconds.' });
-    }, 30000);
-    
-    const turnStartTime = Date.now();
-    
-    try {
-        const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-        setStatus('speaking');
-
-        const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
-        
-        for (const targetLangLocale of targetLanguages) {
-            const toLangLabel = getAzureLanguageLabel(targetLangLocale);
-            setSpeakingLanguage(toLangLabel);
-            
-            const translationResult = await translateText({
-                text: originalText,
-                fromLanguage: getAzureLanguageLabel(detectedLang),
-                toLanguage: toLangLabel,
-            });
-            const translatedText = translationResult.translatedText;
-            
-            const { audioDataUri } = await generateSpeech({ text: translatedText, lang: targetLangLocale });
-
-            if (audioPlayerRef.current) {
-                audioPlayerRef.current.src = audioDataUri;
-                await audioPlayerRef.current.play();
-                await new Promise<void>(resolve => {
-                    if(audioPlayerRef.current) {
-                        audioPlayerRef.current.onended = () => resolve();
-                        audioPlayerRef.current.onerror = (e) => {
-                            console.error("Audio playback error:", e);
-                            resolve(); 
-                        };
-                    } else {
-                        resolve();
-                    }
-                });
-            }
-        }
-    } catch (error: any) {
-         if (error.message !== 'Recognition was aborted.') {
-             toast({ variant: "destructive", title: "Recognition Error", description: "Could not recognize speech. Please try again." });
-        }
-    } finally {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        const turnDuration = Date.now() - turnStartTime;
-        
-        sessionUsageRef.current += turnDuration;
-        setSessionUsage(sessionUsageRef.current);
-
-        const tokensIncurred = updateSyncLiveUsage(turnDuration);
-        setSessionTokensUsed(prev => prev + tokensIncurred);
-
-        setStatus('idle');
-        setSpeakingLanguage(null);
-    }
+    toast({
+        variant: 'destructive',
+        title: 'Temporarily Unavailable',
+        description: 'The AI translation feature is currently disabled. We are working to restore it.',
+    });
+    return;
   };
 
   const calculateCostForDuration = useCallback((durationMs: number) => {

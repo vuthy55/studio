@@ -21,7 +21,6 @@ import { languageToLocaleMap } from '@/lib/utils';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
 import { recognizeFromMic, abortRecognition, assessPronunciationFromMic } from '@/services/speech';
 import { azureLanguages } from '@/lib/azure-languages';
-import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
 import { useTour, TourStep } from '@/context/TourContext';
 
@@ -173,46 +172,14 @@ export default function LiveTranslationContent() {
     
     const handleTranslation = async () => {
         if (!inputText.trim()) return;
+        
+        toast({
+            variant: 'destructive',
+            title: 'Temporarily Unavailable',
+            description: 'The AI translation feature is currently disabled. We are working to restore it.',
+        });
+        setTranslatedText('');
 
-        if (!isOnline) {
-            toast({ variant: 'destructive', title: 'Offline', description: 'Translation services require an internet connection.' });
-            setTranslatedText('');
-            return;
-        }
-
-        if (!user || !settings) {
-            if (!user) toast({ variant: 'destructive', title: 'Not Logged In', description: 'Please log in to use translation.' });
-            setTranslatedText('');
-            return;
-        }
-
-        setIsTranslating(true);
-        try {
-            const description = `Translated: "${inputText.substring(0, 50)}..."`;
-            
-            const spendSuccess = spendTokensForTranslation(description);
-            
-            if (!spendSuccess) {
-                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens for this translation.' });
-                setTranslatedText('');
-                setIsTranslating(false);
-                return;
-            }
-            
-            const fromLangLabel = languages.find(l => l.value === fromLanguage)?.label || fromLanguage;
-            const toLangLabel = languages.find(l => l.value === toLanguage)?.label || toLanguage;
-            
-            const result = await translateText({ text: inputText, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
-            
-            setTranslatedText(result.translatedText);
-
-        } catch (error: any) {
-            const errorMessage = typeof error === 'string' ? error : (error.message || 'Could not translate the text.');
-            toast({ variant: 'destructive', title: 'Translation Error', description: errorMessage });
-            setTranslatedText(''); // Clear translation on error
-        } finally {
-            setIsTranslating(false);
-        }
     };
 
     useEffect(() => {
