@@ -1,4 +1,3 @@
-
 // This file is retained as a placeholder but the Genkit functionality is removed.
 // To re-enable, Genkit dependencies must be added back and build issues resolved.
 
