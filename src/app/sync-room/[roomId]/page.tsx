@@ -100,7 +100,7 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
     };
     
     const handleCancel = () => {
-        router.push('/?tab=sync-online');
+        router.push('/synchub?tab=sync-online');
     }
 
     return (
@@ -577,7 +577,7 @@ export default function SyncRoomPage() {
         } catch (error) {
             console.error("Error during manual exit:", error);
         } finally {
-            router.push('/?tab=sync-online');
+            router.push('/synchub?tab=sync-online');
         }
     };
 
@@ -754,7 +754,7 @@ export default function SyncRoomPage() {
             const result = await softDeleteRoom(roomId);
             console.log('[DEBUG] softDeleteRoom result:', result);
             if (result.success) {
-                router.push('/?tab=sync-online');
+                router.push('/synchub?tab=sync-online');
             } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
             }
@@ -772,7 +772,7 @@ export default function SyncRoomPage() {
             await handleExitRoom();
             await summarizeRoom({ roomId });
             toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            router.push('/?tab=sync-online');
+            router.push('/synchub?tab=sync-online');
         } catch (error) {
             console.error("Error saving and ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
@@ -924,7 +924,7 @@ export default function SyncRoomPage() {
 
     if (roomError) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load room data.' });
-        router.push('/?tab=sync-online');
+        router.push('/synchub?tab=sync-online');
         return null;
     }
 
