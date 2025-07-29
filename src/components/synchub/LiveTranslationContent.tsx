@@ -171,15 +171,12 @@ export default function LiveTranslationContent() {
     };
     
     const handleTranslation = async () => {
-        if (!inputText.trim()) return;
-        
         toast({
             variant: 'destructive',
             title: 'Temporarily Unavailable',
             description: 'The AI translation feature is currently disabled. We are working to restore it.',
         });
-        setTranslatedText('');
-
+        return;
     };
 
     useEffect(() => {
