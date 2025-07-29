@@ -47,10 +47,8 @@ import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity, requestSummaryEditAccess, updateScheduledRoom } from '@/actions/room';
-import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
-import { translateSummary } from '@/ai/flows/translate-summary-flow';
 import { useUserData } from '@/context/UserDataContext';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
@@ -287,26 +285,8 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoom; onUpdate: ()
             return;
         }
         setIsTranslating(true);
-        const { id: toastId } = toast({ title: 'Translating Summary...', description: 'This may take a moment.' });
-        try {
-            const result = await translateSummary({
-                summary: editableSummary,
-                targetLanguages: selectedLanguages,
-                roomId: room.id,
-                userId: user.uid,
-            });
-            setEditableSummary(result);
-            dismiss(toastId);
-            toast({ title: 'Success', description: 'Summary translated and saved.' });
-            onUpdate();
-        } catch (error: any) {
-             console.error(error);
-             dismiss(toastId);
-            toast({ variant: 'destructive', title: 'Translation Failed', description: error.message || 'Could not translate the summary.' });
-        } finally {
-            setIsTranslating(false);
-            setSelectedLanguages([]);
-        }
+        toast({ title: 'Feature Disabled', description: 'The AI translation feature is temporarily disabled.' });
+        setIsTranslating(false);
     }
 
     if (!editableSummary) return null;
@@ -613,19 +593,8 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoom; user: a
     
     const handleSummarizeAndEnd = async () => {
         setIsActionLoading(true);
-        const { id: toastId } = toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.', duration: 120000 });
-        try {
-            await summarizeRoom({ roomId: room.id });
-            toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            onUpdate();
-            setIsOpen(false);
-        } catch (error) {
-            console.error("Error summarizing and ending meeting:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary.' });
-        } finally {
-             setIsActionLoading(false);
-             if (toastId) dismiss(toastId);
-        }
+        toast({ title: 'Feature Disabled', description: 'The AI summarization feature is temporarily disabled.' });
+        setIsActionLoading(false);
     };
 
     return (
