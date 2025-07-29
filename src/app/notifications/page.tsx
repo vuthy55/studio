@@ -5,25 +5,29 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, writeBatch } from 'firebase/firestore';
-import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle, Award } from 'lucide-react';
+import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle, Award, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
+import { deleteNotifications } from '@/actions/admin';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 import type { Notification } from '@/lib/types';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import useLocalStorage from '@/hooks/use-local-storage';
 
 export default function NotificationsPage() {
     const [user, loading] = useAuthState(auth);
     const router = useRouter();
+    const { toast } = useToast();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [soundEnabled, setSoundEnabled] = useLocalStorage('notificationSoundEnabled', true);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         if (loading) return;
@@ -35,12 +39,12 @@ export default function NotificationsPage() {
         const notificationsRef = collection(db, 'notifications');
         const q = query(
             notificationsRef,
-            where("userId", "==", user.uid)
+            where("userId", "==", user.uid),
+            orderBy("createdAt", "desc")
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-            fetchedNotifications.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
             setNotifications(fetchedNotifications);
             setIsLoading(false);
         }, (error) => {
@@ -68,6 +72,34 @@ export default function NotificationsPage() {
             console.error("Error marking all as read:", error);
         }
     }
+    
+    const handleSelectAll = (checked: boolean | 'indeterminate') => {
+        if (checked) {
+            setSelectedIds(notifications.map(n => n.id));
+        } else {
+            setSelectedIds([]);
+        }
+    };
+    
+    const handleSelectOne = (id: string, checked: boolean) => {
+        if (checked) {
+            setSelectedIds(prev => [...prev, id]);
+        } else {
+            setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
+        }
+    };
+
+    const handleDeleteSelected = async () => {
+        setIsDeleting(true);
+        const result = await deleteNotifications(selectedIds);
+        if (result.success) {
+            toast({ title: 'Success', description: `${selectedIds.length} notification(s) deleted.` });
+            setSelectedIds([]);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete notifications.' });
+        }
+        setIsDeleting(false);
+    };
     
     const getNotificationIcon = (type: Notification['type']) => {
         switch (type) {
@@ -135,7 +167,31 @@ export default function NotificationsPage() {
                              <CardDescription>All your alerts will appear here.</CardDescription>
                         </div>
                         <div className="flex items-center gap-4">
-                            
+                            {selectedIds.length > 0 && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm" disabled={isDeleting}>
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Delete ({selectedIds.length})
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete the selected {selectedIds.length} notification(s). This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteSelected} disabled={isDeleting}>
+                                                {isDeleting && <LoaderCircle className="animate-spin mr-2"/>}
+                                                Confirm Delete
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                             <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={notifications.every(n => n.read)}>
                                 Mark all as read
                             </Button>
@@ -150,14 +206,30 @@ export default function NotificationsPage() {
                         </div>
                     ) : (
                         <ul className="space-y-4">
+                            <li className="flex items-center p-2">
+                                <Checkbox
+                                    id="select-all"
+                                    onCheckedChange={handleSelectAll}
+                                    checked={selectedIds.length === notifications.length && notifications.length > 0}
+                                    aria-label="Select all notifications"
+                                />
+                                <label htmlFor="select-all" className="ml-3 text-sm font-medium">
+                                    Select All
+                                </label>
+                            </li>
                             {notifications.map(n => {
                                 const { href, isExternal } = getNotificationLink(n);
                                 const Wrapper = isExternal ? 'a' : Link;
                                 const props = isExternal ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href };
 
                                 return (
-                                <li key={n.id}>
-                                    <Wrapper {...props} className={`block p-4 rounded-lg border transition-colors ${n.read ? 'bg-background hover:bg-muted/50' : 'bg-primary/10 hover:bg-primary/20'}`}>
+                                <li key={n.id} className="flex items-center gap-4 p-4 rounded-lg border transition-colors bg-background hover:bg-muted/50 has-[:checked]:bg-primary/10">
+                                    <Checkbox
+                                        id={n.id}
+                                        onCheckedChange={(checked) => handleSelectOne(n.id, !!checked)}
+                                        checked={selectedIds.includes(n.id)}
+                                    />
+                                    <Wrapper {...props} className="block w-full">
                                         <div className="flex items-start gap-4">
                                             <div className="mt-1">
                                                 {getNotificationIcon(n.type)}

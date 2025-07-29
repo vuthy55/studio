@@ -134,6 +134,31 @@ export async function clearAllNotifications(): Promise<{success: boolean, error?
 }
 
 /**
+ * Deletes specified notifications from the 'notifications' collection.
+ * @param {string[]} notificationIds An array of notification IDs to delete.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function deleteNotifications(notificationIds: string[]): Promise<{success: boolean, error?: string}> {
+    if (!notificationIds || notificationIds.length === 0) {
+        return { success: false, error: "No notification IDs provided." };
+    }
+
+    try {
+        const batch = db.batch();
+        notificationIds.forEach(id => {
+            const notificationRef = db.collection('notifications').doc(id);
+            batch.delete(notificationRef);
+        });
+        await batch.commit();
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error deleting notifications:", error);
+        return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
+
+/**
  * Resets a user's entire practice history by deleting the subcollection.
  * @param {string} userId The ID of the user whose practice history will be cleared.
  * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
