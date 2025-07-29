@@ -7,7 +7,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { doc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc } from 'firebase/firestore';
-import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw, Users as UsersIcon } from "lucide-react";
+import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw, Users as UsersIcon, User as UserIcon } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -38,6 +38,8 @@ import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy,
 import { resetUserPracticeHistory } from '@/actions/admin';
 import { getReferredUsers, type ReferredUser } from '@/services/referrals';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 
 export interface PracticeStats {
@@ -893,6 +895,14 @@ function ProfilePageContent() {
         }
     }, [searchParams]);
 
+    const profileTabs = [
+        { value: 'profile', label: 'Profile', icon: UserIcon },
+        { value: 'buddies', label: 'Buddies', icon: Users },
+        { value: 'wallet', label: 'Token Wallet', icon: Wallet },
+        { value: 'billing', label: 'Payment History', icon: CreditCard },
+        { value: 'referrals', label: 'Referrals', icon: UsersIcon }
+    ];
+
     if (authLoading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -906,12 +916,22 @@ function ProfilePageContent() {
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="profile">Profile</TabsTrigger>
-                    <TabsTrigger value="buddies">Buddies</TabsTrigger>
-                    <TabsTrigger value="wallet">Token Wallet</TabsTrigger>
-                    <TabsTrigger value="billing">Payment History</TabsTrigger>
-                    <TabsTrigger value="referrals">Referrals</TabsTrigger>
+                 <TabsList className="grid w-full grid-cols-5">
+                    {profileTabs.map((tab) => (
+                        <TooltipProvider key={tab.value} delayDuration={0}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <TabsTrigger value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
+                                        <tab.icon className="h-5 w-5" />
+                                        <span className="hidden md:inline">{tab.label}</span>
+                                    </TabsTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="md:hidden">
+                                    <p>{tab.label}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ))}
                 </TabsList>
 
                 <TabsContent value="profile" className="mt-6">
