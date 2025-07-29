@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -336,7 +335,7 @@ function ParticipantsPanel({
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction onClick={() => handleRemoveParticipant(p as Participant)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                                        Remove & Block
+                                                        Remove &amp; Block
                                                     </AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
@@ -553,6 +552,11 @@ export default function SyncRoomPage() {
         }
 
         try {
+            // Client-side cleanup MUST happen before server-side billing
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            await deleteDoc(participantRef);
+            console.log("[DEBUG] Exit: Participant document deleted.");
+
             if (sessionStartTime.current) {
                 const sessionDurationMs = Date.now() - sessionStartTime.current;
                 console.log(`[DEBUG] Exit: Session duration: ${sessionDurationMs}ms. Calling handleSyncOnlineSessionEnd.`);
@@ -561,10 +565,6 @@ export default function SyncRoomPage() {
             } else {
                  console.log("[DEBUG] Exit: No session start time found, skipping billing.");
             }
-            
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-            await deleteDoc(participantRef);
-            console.log("[DEBUG] Exit: Participant document deleted.");
         } catch (error) {
             console.error("Error leaving room:", error);
         }
@@ -1067,7 +1067,3 @@ export default function SyncRoomPage() {
 }
 
     
-
-    
-
-
