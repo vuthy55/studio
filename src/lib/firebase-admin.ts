@@ -4,7 +4,7 @@ import admin from 'firebase-admin';
 // This check provides a clear error message if the developer hasn't configured the .env.local file.
 if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
     console.error("FIREBASE_ADMIN_* environment variables not set.");
-    console.error("Please ensure NEXT_PUBLIC_FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are in your .env file.");
+    console.error("Please ensure NEXT_PUBLIC_FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are in your .env.local file.");
 }
 
 
