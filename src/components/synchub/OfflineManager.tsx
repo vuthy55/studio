@@ -417,6 +417,7 @@ export default function OfflineManager() {
                 <Button variant="outline" onClick={fetchAvailablePacks}>
                     <ArrowDownToLine className="mr-2" />
                     Available
+                    {availableForDownload.length > 0 && <Badge variant="secondary" className="ml-2">{availableForDownload.length}</Badge>}
                 </Button>
             </DialogTrigger>
             <DialogContent>
