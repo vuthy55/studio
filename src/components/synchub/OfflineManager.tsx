@@ -32,6 +32,8 @@ import {
 import { doc, updateDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
 import { db as firestoreDb } from '@/lib/firebase';
 import { ScrollArea } from '../ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { cn } from '@/lib/utils';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -377,16 +379,26 @@ export default function OfflineManager() {
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
       
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
         {/* Downloaded Packs Button & Dialog */}
         <Dialog open={isDownloadedOpen} onOpenChange={setIsDownloadedOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline">
-                    <Package className="mr-2" />
-                    Downloaded
-                    <Badge variant="secondary" className="ml-2">{currentlyDownloaded.length}</Badge>
-                </Button>
-            </DialogTrigger>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                         <DialogTrigger asChild>
+                            <Button variant="outline" className="w-full">
+                                <Package className="h-5 w-5 md:mr-2" />
+                                <span className="hidden md:inline">Downloaded</span>
+                                <Badge variant="secondary" className="ml-2">{currentlyDownloaded.length}</Badge>
+                            </Button>
+                        </DialogTrigger>
+                    </TooltipTrigger>
+                     <TooltipContent className="md:hidden">
+                        <p>Downloaded Packs</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Downloaded Language Packs</DialogTitle>
@@ -421,13 +433,23 @@ export default function OfflineManager() {
 
         {/* Available Packs Button & Dialog */}
         <Dialog open={isAvailableOpen} onOpenChange={setIsAvailableOpen}>
-             <DialogTrigger asChild>
-                <Button variant="outline">
-                    <ArrowDownToLine className="mr-2" />
-                    Available
-                    {isFetchingAvailable ? <LoaderCircle className="h-4 w-4 animate-spin ml-2"/> : availableForDownload.length > 0 && <Badge variant="secondary" className="ml-2">{availableForDownload.length}</Badge>}
-                </Button>
-            </DialogTrigger>
+             <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                         <DialogTrigger asChild>
+                            <Button variant="outline" className="w-full">
+                                <ArrowDownToLine className="h-5 w-5 md:mr-2" />
+                                <span className="hidden md:inline">Available</span>
+                                {isFetchingAvailable ? <LoaderCircle className="h-4 w-4 animate-spin ml-2"/> : availableForDownload.length > 0 && <Badge variant="secondary" className="ml-2">{availableForDownload.length}</Badge>}
+                            </Button>
+                        </DialogTrigger>
+                    </TooltipTrigger>
+                     <TooltipContent className="md:hidden">
+                        <p>Available Packs</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Available Language Packs</DialogTitle>
@@ -469,15 +491,25 @@ export default function OfflineManager() {
         </Dialog>
 
         {/* Saved Phrases Section */}
-        {savedPhrases.length > 0 && user ? (
+        {user ? (
             <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button variant="outline" disabled={isDownloadingSaved}>
-                        {isDownloadingSaved ? <LoaderCircle className="mr-2 animate-spin"/> : <Bookmark className="mr-2" />}
-                        Saved Phrases
-                        <Badge variant="secondary" className="ml-2">{savedPhrases.length}</Badge>
-                    </Button>
-                </AlertDialogTrigger>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" disabled={isDownloadingSaved} className="w-full">
+                                    {isDownloadingSaved ? <LoaderCircle className="h-5 w-5 md:mr-2 animate-spin"/> : <Bookmark className="h-5 w-5 md:mr-2" />}
+                                    <span className="hidden md:inline">Saved Phrases</span>
+                                    <Badge variant="secondary" className="ml-2">{savedPhrases.length}</Badge>
+                                </Button>
+                            </AlertDialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent className="md:hidden">
+                            <p>Saved Phrases</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+                
                 {isSavedPhrasesDownloaded && !isUpdateAvailable && (
                     <AlertDialogContent>
                         <AlertDialogHeader>
@@ -522,11 +554,20 @@ export default function OfflineManager() {
                  )}
             </AlertDialog>
         ) : (
-             <Button variant="outline" disabled>
-                <Bookmark className="mr-2" />
-                Saved Phrases
-                <Badge variant="secondary" className="ml-2">0</Badge>
-            </Button>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="outline" disabled>
+                            <Bookmark className="h-5 w-5 md:mr-2" />
+                            <span className="hidden md:inline">Saved Phrases</span>
+                            <Badge variant="secondary" className="ml-2">0</Badge>
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="md:hidden">
+                        <p>Saved Phrases</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         )}
       </div>
       
@@ -544,3 +585,5 @@ export default function OfflineManager() {
     </div>
   );
 }
+
+    
