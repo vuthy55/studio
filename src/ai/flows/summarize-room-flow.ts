@@ -205,7 +205,7 @@ const summarizeRoomFlow = ai.defineFlow(
 
       Based on the chat history, provide a neutral, one-paragraph summary of the meeting. Then, list any concrete action items, specifying the task, the person in charge, and the due date if mentioned.
       `,
-      model: 'googleai/gemini-1.5-flash-preview',
+      model: 'googleai/gemini-1.5-flash',
       output: {
         schema: AISummaryOutputSchema,
       },

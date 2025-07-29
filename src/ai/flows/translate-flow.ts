@@ -14,7 +14,7 @@ const translateTextFlow = ai.defineFlow(
   async ({ text, fromLanguage, toLanguage }) => {
     const {output} = await ai.generate({
         prompt: `Translate the following text from ${fromLanguage} to ${toLanguage}: ${text}`,
-        model: 'googleai/gemini-1.5-flash-preview',
+        model: 'googleai/gemini-1.5-flash',
         output: {
             schema: TranslateTextOutputSchema,
         },

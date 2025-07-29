@@ -66,7 +66,7 @@ const translateSummaryFlow = ai.defineFlow(
     translationPromises.push(
       ai.generate({
         prompt: `Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`,
-        model: 'googleai/gemini-1.5-flash-preview',
+        model: 'googleai/gemini-1.5-flash',
         output: { schema: z.record(z.string()) }, // Expects an object like { "es": "...", "fr": "..." }
       }).then(res => ({ index: -1, translations: res.output! }))
     );
@@ -76,7 +76,7 @@ const translateSummaryFlow = ai.defineFlow(
       translationPromises.push(
         ai.generate({
           prompt: `Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`,
-          model: 'googleai/gemini-1.5-flash-preview',
+          model: 'googleai/gemini-1.5-flash',
           output: { schema: z.record(z.string()) },
         }).then(res => ({ index, translations: res.output! }))
       );
