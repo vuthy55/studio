@@ -423,7 +423,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, [practiceHistory, settings]);
 
     const handleSyncOnlineSessionEnd = useCallback(async (durationMs: number) => {
-        if (!user || !settings) return;
+        if (!user || !settings || durationMs <= 0) return;
 
         const userDocRef = doc(db, 'users', user.uid);
         

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -206,6 +207,7 @@ export default function SyncRoomPage() {
     const [isSendingInvites, setIsSendingInvites] = useState(false);
     
     const [sessionTimer, setSessionTimer] = useState('00:00');
+    const [isSessionActive, setIsSessionActive] = useState(false);
     const [isSummarizing, setIsSummarizing] = useState(false);
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -283,20 +285,9 @@ export default function SyncRoomPage() {
         }
         console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
         setIsParticipant('yes');
-        sessionStartTime.current = Date.now();
         
         messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
 
-        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = setInterval(() => {
-            if (sessionStartTime.current) {
-                const elapsedMs = Date.now() - sessionStartTime.current;
-                const totalSeconds = Math.floor(elapsedMs / 1000);
-                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                setSessionTimer(`${minutes}:${seconds}`);
-            }
-        }, 1000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId]);
     
@@ -341,6 +332,25 @@ export default function SyncRoomPage() {
         await handleExitRoom();
         router.push('/?tab=sync-online');
     };
+
+    useEffect(() => {
+        if (roomData?.firstMessageAt) {
+            if (!isSessionActive) {
+                const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
+                sessionStartTime.current = startTime;
+                setIsSessionActive(true);
+
+                if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = setInterval(() => {
+                    const elapsedMs = Date.now() - startTime;
+                    const totalSeconds = Math.floor(elapsedMs / 1000);
+                    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                    setSessionTimer(`${minutes}:${secs}`);
+                }, 1000);
+            }
+        }
+    }, [roomData, isSessionActive]);
 
     useEffect(() => {
         if (!user || roomLoading) return;
@@ -581,13 +591,24 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
-                await addDoc(collection(db, 'syncRooms', roomId, 'messages'), {
+                 const batch = writeBatch(db);
+                 const roomRef = doc(db, 'syncRooms', roomId);
+
+                // If this is the first message, set the start time
+                if (!roomData?.firstMessageAt) {
+                    batch.update(roomRef, { firstMessageAt: serverTimestamp() });
+                }
+
+                const messageRef = doc(collection(db, 'syncRooms', roomId, 'messages'));
+                 batch.set(messageRef, {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
                     speakerUid: currentUserParticipant.uid,
                     speakerLanguage: currentUserParticipant.selectedLanguage,
                     createdAt: serverTimestamp(),
                 });
+
+                await batch.commit();
             }
         } catch (error: any) {
              if (error.message !== "Recognition was aborted.") {
@@ -684,9 +705,17 @@ export default function SyncRoomPage() {
             {/* Left Panel - Participants */}
             <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
-                     <div className="bg-primary/10 p-3 rounded-lg">
-                        <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                        <p className="text-sm text-primary/80">Sync Room</p>
+                     <div className="bg-primary/10 p-3 rounded-lg flex justify-between items-center">
+                        <div>
+                            <p className="font-bold text-lg text-primary">{roomData.topic}</p>
+                            <p className="text-sm text-primary/80">Sync Room</p>
+                        </div>
+                         {isSessionActive && (
+                            <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
+                                <Clock className="h-5 w-5" />
+                                {sessionTimer}
+                            </div>
+                         )}
                      </div>
                      <div className="flex items-center justify-between pt-2">
                          <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
@@ -847,31 +876,6 @@ export default function SyncRoomPage() {
                         <div className="flex justify-between" title="Your free minutes remaining for this month">
                             <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Minutes:</span>
                             <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                        </div>
-                        <div className="flex justify-between font-mono text-sm" title="Session duration timer">
-                            <div className="flex items-center gap-1.5">
-                                Session:
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger>
-                                            <Info className="h-4 w-4 cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" align="start" className="max-w-xs text-sm">
-                                            <p className="font-bold">About the Timer & Billing</p>
-                                            <p className="mt-2">This timer is a visual estimate of your current session duration.</p>
-                                            <p className="mt-1">Final billing is calculated securely on the server when your session ends.</p>
-                                            <p className="mt-2 font-semibold">A session ends if you:</p>
-                                            <ul className="list-disc list-inside mt-1 space-y-1">
-                                                <li>Click "Exit Room" or "End Meeting"</li>
-                                                <li>Navigate to another page in the app</li>
-                                                <li>Close your browser tab/window</li>
-                                                <li>Are removed by an emcee</li>
-                                            </ul>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </div>
-                            <span>{sessionTimer}</span>
                         </div>
                     </div>
 
