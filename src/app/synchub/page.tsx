@@ -21,7 +21,8 @@ const MemoizedLiveTranslation = memo(LiveTranslationContent);
 const MemoizedSyncLive = memo(SyncLiveContent);
 const MemoizedSyncOnline = memo(SyncOnlineHome);
 
-function SyncHubTabs() {
+
+function SyncHubPageContent() {
     const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'prep-vibe');
 
@@ -32,8 +33,6 @@ function SyncHubTabs() {
         }
     }, [searchParams, activeTab]);
     
-    // We render all tab content at once and use CSS to show/hide them.
-    // This makes tab switching feel instant.
     return (
         <div className="relative">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -43,17 +42,22 @@ function SyncHubTabs() {
                     <TabsTrigger value="sync-live">Sync Live</TabsTrigger>
                     <TabsTrigger value="sync-online">Sync Online</TabsTrigger>
                 </TabsList>
+                 <TabsContent value="prep-vibe">
+                    <MemoizedLearnPage />
+                </TabsContent>
+                <TabsContent value="live-translation">
+                    <MemoizedLiveTranslation />
+                </TabsContent>
+                <TabsContent value="sync-live">
+                    <MemoizedSyncLive />
+                </TabsContent>
+                <TabsContent value="sync-online">
+                    <MemoizedSyncOnline />
+                </TabsContent>
             </Tabs>
-            <div className="mt-6">
-                <div className={cn(activeTab !== 'prep-vibe' && 'hidden')}><MemoizedLearnPage /></div>
-                <div className={cn(activeTab !== 'live-translation' && 'hidden')}><MemoizedLiveTranslation /></div>
-                <div className={cn(activeTab !== 'sync-live' && 'hidden')}><MemoizedSyncLive /></div>
-                <div className={cn(activeTab !== 'sync-online' && 'hidden')}><MemoizedSyncOnline /></div>
-            </div>
         </div>
     );
 }
-
 
 export default function SyncHubPage() {
     const { user, loading: authLoading } = useUserData();
@@ -78,7 +82,7 @@ export default function SyncHubPage() {
             <MainHeader title="SyncHub" description="Prepare, practice, and connect." />
              <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
                 <TourProvider>
-                    <SyncHubTabs />
+                    <SyncHubPageContent />
                     <Tour />
                 </TourProvider>
             </Suspense>

@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, getDocs, where, orderBy, documentId, updateDoc, doc, Timestamp } from 'firebase/firestore';
@@ -1876,37 +1876,16 @@ function FeedbackTabContent() {
     );
 }
 
-export default function AdminPage() {
-    const [user, authLoading] = useAuthState(auth);
-    const router = useRouter();
+function AdminPageContent() {
     const searchParams = useSearchParams();
-    const [isClient, setIsClient] = useState(false);
-    
-    const initialTab = searchParams.get('tab') || 'rooms';
-    const [activeTab, setActiveTab] = useState(initialTab);
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'rooms');
 
     useEffect(() => {
-        setIsClient(true);
         const tab = searchParams.get('tab');
         if (tab && tab !== activeTab) {
             setActiveTab(tab);
         }
     }, [searchParams, activeTab]);
-
-    useEffect(() => {
-        if (authLoading) return;
-        if (!user) {
-            router.push('/login');
-        }
-    }, [user, authLoading, router]);
-    
-    if (authLoading || !isClient) {
-        return (
-            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
-            </div>
-        );
-    }
 
     const adminTabs = [
         { value: 'rooms', label: 'Rooms', icon: RadioTower },
@@ -1981,9 +1960,38 @@ export default function AdminPage() {
                     <MessagingContent />
                 </TabsContent>
             </Tabs>
-
         </div>
     );
 }
 
+export default function AdminPage() {
+    const [user, authLoading] = useAuthState(auth);
+    const router = useRouter();
+    const [isClient, setIsClient] = useState(false);
+    
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
+
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
+    
+    if (authLoading || !isClient) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <AdminPageContent />
+        </Suspense>
+    );
+}
     

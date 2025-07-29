@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -41,19 +42,15 @@ TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
-    tabIndex={-1} // prevent content from being focused
     className={cn(
       "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-      "data-[state=inactive]:hidden", // Hide inactive tabs
       className
     )}
     {...props}
-  >
-    {children}
-  </TabsPrimitive.Content>
+  />
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
