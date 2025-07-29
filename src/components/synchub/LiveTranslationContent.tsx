@@ -171,12 +171,31 @@ export default function LiveTranslationContent() {
     };
     
     const handleTranslation = async () => {
-        toast({
-            variant: 'destructive',
-            title: 'Temporarily Unavailable',
-            description: 'The AI translation feature is currently disabled. We are working to restore it.',
-        });
-        return;
+        if (!isOnline) {
+            toast({ variant: 'destructive', title: 'Offline', description: 'Translation services are unavailable offline.' });
+            return;
+        }
+
+        if (user && !spendTokensForTranslation('Live Translation')) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You need more tokens for translation.' });
+            return;
+        }
+
+        setIsTranslating(true);
+        try {
+            // AI features are temporarily disabled
+            toast({
+                variant: 'destructive',
+                title: 'Temporarily Unavailable',
+                description: 'The AI translation feature is currently disabled. We are working to restore it.',
+            });
+            setTranslatedText('');
+        } catch (error: any) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Translation Error', description: error.message || 'The translation service failed.' });
+        } finally {
+            setIsTranslating(false);
+        }
     };
 
     useEffect(() => {

@@ -76,13 +76,37 @@ export default function SyncLiveContent() {
 
 
   const startConversationTurn = async () => {
-    toast({
-        variant: 'destructive',
-        title: 'Temporarily Unavailable',
-        description: 'The AI translation feature is currently disabled. We are working to restore it.',
-    });
-    return;
-  };
+    setStatus('listening');
+    let turnDuration = 0;
+    
+    try {
+        const { detectedLang, text } = await recognizeWithAutoDetect(selectedLanguages);
+        if (!text) {
+            setStatus('idle');
+            return;
+        }
+
+        setStatus('speaking');
+        
+        const sourceLangLabel = getAzureLanguageLabel(detectedLang);
+        setSpeakingLanguage(`Translating from ${sourceLangLabel}...`);
+
+        // AI features are temporarily disabled
+        toast({
+            variant: 'destructive',
+            title: 'Temporarily Unavailable',
+            description: 'The AI translation feature is currently disabled. We are working to restore it.',
+        });
+
+    } catch (error: any) {
+        if (error.message !== 'No recognized speech' && error.message !== 'Recognition was aborted.') {
+          toast({ variant: 'destructive', title: 'Error', description: error.message || 'An unexpected error occurred.' });
+        }
+    } finally {
+        setStatus('idle');
+        setSpeakingLanguage(null);
+    }
+};
 
   const calculateCostForDuration = useCallback((durationMs: number) => {
     const chargeableMs = Math.max(0, durationMs - freeMinutesMs);

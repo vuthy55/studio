@@ -433,11 +433,16 @@ export default function SyncRoomPage() {
                 return;
             }
             
-            toast({
-                variant: 'destructive',
-                title: 'Temporarily Unavailable',
-                description: 'The AI translation feature is currently disabled. We are working to restore it.',
-            });
+            try {
+                // AI features are temporarily disabled
+                setTranslatedMessages(prev => ({...prev, [msg.id]: `${msg.text} (translation unavailable)`}));
+            } catch (error: any) {
+                 console.error("Translation or TTS failed for incoming message:", error);
+                 // Display original text as fallback on error
+                 setTranslatedMessages(prev => ({...prev, [msg.id]: `${msg.text} (translation unavailable)`}));
+            } finally {
+                processedMessages.current.add(msg.id);
+            }
         };
         
         const playQueue = async () => {
