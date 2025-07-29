@@ -153,7 +153,6 @@ const setupMessageListener = (
     toast: (options: any) => void
 ): (() => void) => {
 
-    console.log(`[DEBUG] setupMessageListener: Attempting to set up listener for messages after ${joinTimestamp.toDate()}.`);
     setMessagesLoading(true);
     const messagesQuery = query(
         collection(db, 'syncRooms', roomId, 'messages'),
@@ -162,7 +161,6 @@ const setupMessageListener = (
     );
 
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-        console.log(`[DEBUG] setupMessageListener: Snapshot received with ${snapshot.docChanges().length} changes.`);
         const newMessages: RoomMessage[] = [];
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
@@ -175,7 +173,6 @@ const setupMessageListener = (
         }
         setMessagesLoading(false);
     }, (error) => {
-        console.error("[DEBUG] setupMessageListener: Firestore error!", error);
         setMessagesLoading(false);
         if (error.code === 'permission-denied') {
             toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
@@ -522,10 +519,8 @@ export default function SyncRoomPage() {
 
     const onJoinSuccess = useCallback((joinTime: Timestamp) => {
         if (messageListenerUnsubscribe.current) {
-            console.log("[DEBUG] onJoinSuccess aborted: a message listener is already active.");
             return;
         }
-        console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
         setIsParticipant('yes');
         
         messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
@@ -537,20 +532,15 @@ export default function SyncRoomPage() {
     const handleExitRoom = useCallback(async () => {
         if (!user || isExiting.current) return;
         
-        sessionStartTime.current = null; // Reset session start time immediately
+        sessionStartTime.current = null;
         isExiting.current = true;
         
-        console.log("[DEBUG] Exit: Exiting process started.");
-
         if (timerIntervalRef.current) {
-            console.log(`[DEBUG] Exit: Clearing timer interval ID: ${timerIntervalRef.current}`);
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-        console.log('[DEBUG] Exit: sessionStartTime has been reset to null.');
 
         if (messageListenerUnsubscribe.current) {
-            console.log("[DEBUG] Exit: Unsubscribing from message listener.");
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
@@ -559,14 +549,10 @@ export default function SyncRoomPage() {
             // Client-side cleanup MUST happen before server-side billing
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
-            console.log("[DEBUG] Exit: Participant document deleted.");
 
             if (sessionStartTime.current) {
                 const sessionDurationMs = Date.now() - sessionStartTime.current;
-                console.log(`[DEBUG] Exit: Session duration: ${sessionDurationMs}ms. Calling handleSyncOnlineSessionEnd.`);
                 await handleSyncOnlineSessionEnd(sessionDurationMs);
-            } else {
-                 console.log("[DEBUG] Exit: No session start time found, skipping billing.");
             }
         } catch (error) {
             console.error("Error leaving room:", error);
@@ -576,7 +562,6 @@ export default function SyncRoomPage() {
     const handleManualExit = async () => {
         if (isExiting.current) return;
         try {
-            console.log('[DEBUG] handleManualExit called');
             await handleExitRoom();
         } catch (error) {
             console.error("Error during manual exit:", error);
@@ -592,7 +577,6 @@ export default function SyncRoomPage() {
                 const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
                 sessionStartTime.current = startTime;
                 setIsSessionActive(true);
-                console.log(`[DEBUG] Timer: Session started at ${new Date(startTime).toLocaleTimeString()}`);
 
                 if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = setInterval(() => {
@@ -602,7 +586,6 @@ export default function SyncRoomPage() {
                     const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                     setSessionTimer(`${minutes}:${seconds}`);
                 }, 1000);
-                 console.log(`[DEBUG] Timer: Interval set with ID ${timerIntervalRef.current}`);
             }
         }
     }, [roomData, isSessionActive]);
@@ -610,31 +593,25 @@ export default function SyncRoomPage() {
     useEffect(() => {
         if (!user || roomLoading) return;
         
-        console.log("[DEBUG] Participant Listener: Setting up...");
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
-            console.log(`[DEBUG] Participant Listener: Snapshot received. Found ${parts.length} participants.`);
             setParticipants(parts);
             setParticipantsLoading(false);
             
             if (isParticipant === 'unknown') {
                 const self = parts.find(p => p.uid === user.uid);
                 if (self && self.joinedAt) {
-                     console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.`);
                      onJoinSuccess(self.joinedAt);
                 } else if (!self) {
-                     console.log(`[DEBUG] Participant Listener: Current user is NOT yet a participant.`);
                      setIsParticipant('no');
                 }
             }
         }, (error) => {
-            console.error("[DEBUG] Participant Listener: Firestore error!", error);
             setParticipantsLoading(false);
         });
 
         return () => {
-            console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
     }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
@@ -646,7 +623,6 @@ export default function SyncRoomPage() {
         const isStillParticipant = participants.some(p => p.uid === user.uid);
         
         if (isParticipant === 'yes' && !isStillParticipant) {
-             console.log('[DEBUG] User is no longer in participant list. Exiting.');
              toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -736,21 +712,6 @@ export default function SyncRoomPage() {
             router.push('/login');
         }
     }, [user, authLoading, router]);
-
-    useEffect(() => {
-        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            console.log('[DEBUG] beforeunload event triggered.');
-            handleExitRoom();
-        };
-
-        window.addEventListener('beforeunload', handleBeforeUnload);
-
-        return () => {
-            console.log('[DEBUG] Component unmounting. Running cleanup...');
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            handleExitRoom();
-        };
-    }, [handleExitRoom]);
     
     // This is the definitive cleanup effect.
     useEffect(() => {
@@ -761,15 +722,12 @@ export default function SyncRoomPage() {
 
 
     const handleEndMeeting = async () => {
-        console.log('[DEBUG] handleEndMeeting called.');
         if (!isCurrentUserEmcee) {
-             console.log(`[DEBUG] handleEndMeeting aborted. isEmcee: ${isCurrentUserEmcee}`);
              return;
         }
         try {
             await handleExitRoom();
             const result = await softDeleteRoom(roomId);
-            console.log('[DEBUG] softDeleteRoom result:', result);
             if (result.success) {
                 router.push('/synchub?tab=sync-online');
             } else {
@@ -1087,3 +1045,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
