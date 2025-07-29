@@ -346,7 +346,7 @@ export default function SyncRoomPage() {
                     const totalSeconds = Math.floor(elapsedMs / 1000);
                     const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
                     const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                    setSessionTimer(`${minutes}:${secs}`);
+                    setSessionTimer(`${minutes}:${seconds}`);
                 }, 1000);
             }
         }
@@ -989,3 +989,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
