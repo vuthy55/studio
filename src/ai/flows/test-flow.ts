@@ -1,9 +1,25 @@
 
 'use server';
 
-// This file is retained as a placeholder but the Genkit functionality is removed.
-// To re-enable, Genkit dependencies must be added back and build issues resolved.
+import { ai } from '@/ai/genkit';
+import { z } from 'zod';
+
+
+const testFlow = ai.defineFlow(
+  {
+    name: 'testFlow',
+    inputSchema: z.string(),
+    outputSchema: z.string(),
+  },
+  async (name) => {
+    const {output} = await ai.generate({
+      prompt: `You are a helpful AI assistant. Say hello to ${name}.`,
+      model: 'googleai/gemini-1.5-flash-preview',
+    });
+    return output!;
+  }
+);
 
 export async function runTestFlow(name: string): Promise<string> {
-  throw new Error('Genkit functionality has been removed due to build conflicts. This feature is disabled.');
+  return testFlow(name);
 }

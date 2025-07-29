@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { ai } from '@/ai/genkit';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { RoomMessage, Participant, RoomSummary } from '@/lib/types';
@@ -71,8 +72,146 @@ async function getAdminUids(): Promise<string[]> {
  * Main exported function that wraps and calls the Genkit flow.
  */
 export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSummary> {
-  // Since Genkit is removed, this function is a placeholder and would need to be reimplemented
-  // with a different AI service or library.
-  // For now, it will throw an error if called.
-  throw new Error('Genkit functionality has been removed due to build conflicts. This feature is disabled.');
+  const result = await summarizeRoomFlow(input);
+
+  // After the AI generates the summary, we need to save it to Firestore.
+  // This logic is kept separate from the flow itself for clarity.
+  if (result) {
+    const roomRef = db.collection('syncRooms').doc(input.roomId);
+    
+    // Create a notification for the room creator
+    const roomDoc = await roomRef.get();
+    const creatorUid = roomDoc.data()?.creatorUid;
+    const roomTopic = roomDoc.data()?.topic;
+
+    const batch = db.batch();
+
+    batch.update(roomRef, { 
+      summary: result,
+      status: 'closed', // Mark room as fully closed once summary is generated
+      lastActivityAt: FieldValue.serverTimestamp()
+    });
+
+    if (creatorUid) {
+       const notificationRef = db.collection('notifications').doc();
+       batch.set(notificationRef, {
+            userId: creatorUid,
+            type: 'room_closed_summary',
+            message: `A meeting summary has been generated for your room: "${roomTopic}"`,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+            roomId: input.roomId,
+       });
+    }
+
+    // Also notify all admins that a summary was generated
+    const adminUids = await getAdminUids();
+    for (const adminId of adminUids) {
+        if (adminId !== creatorUid) { // Avoid duplicate notification for admin creator
+             const adminNotificationRef = db.collection('notifications').doc();
+             batch.set(adminNotificationRef, {
+                userId: adminId,
+                type: 'room_closed_summary',
+                message: `AI summary generated for room: "${roomTopic}"`,
+                createdAt: FieldValue.serverTimestamp(),
+                read: false,
+                roomId: input.roomId,
+            });
+        }
+    }
+    
+    await batch.commit();
+  }
+  
+  return result;
 }
+
+// --- Genkit Flow and Prompt Definitions ---
+
+const summarizeRoomFlow = ai.defineFlow(
+  {
+    name: 'summarizeRoomFlow',
+    inputSchema: SummarizeRoomInputSchema,
+    outputSchema: AISummaryOutputSchema,
+  },
+  async ({ roomId }) => {
+    // 1. Fetch data from Firestore
+    const roomRef = db.collection('syncRooms').doc(roomId);
+    const messagesRef = roomRef.collection('messages').orderBy('createdAt');
+    const participantsRef = roomRef.collection('participants');
+    
+    const [roomSnap, messagesSnap, participantsHistorySnap] = await Promise.all([
+      roomRef.get(),
+      messagesRef.get(),
+      participantsRef.get(),
+    ]);
+
+    if (!roomSnap.exists) {
+      throw new Error(`Room with ID ${roomId} not found.`);
+    }
+
+    const roomData = roomSnap.data();
+    const messages = messagesSnap.docs.map(doc => doc.data() as RoomMessage);
+    const participantHistory = participantsHistorySnap.docs.map(doc => doc.data() as Participant);
+    
+    const presentParticipantEmails = new Set(participantHistory.map(p => p.email));
+    
+    const allInvitedUsers = (roomData?.invitedEmails || []).map((email: string) => {
+        const participantDetail = participantHistory.find(p => p.email === email);
+        return {
+            name: participantDetail?.name || email.split('@')[0],
+            email,
+            language: participantDetail?.selectedLanguage || 'Not specified'
+        };
+    });
+    
+    const presentParticipants = allInvitedUsers.filter(p => presentParticipantEmails.has(p.email));
+    const absentParticipants = allInvitedUsers.filter(p => !presentParticipantEmails.has(p.email));
+
+    const chatHistory = messages
+      .map(msg => `${msg.speakerName}: ${msg.text}`)
+      .join('\n');
+
+    // 2. Define the prompt payload
+    const promptPayload = {
+      title: roomData?.topic || 'Meeting Summary',
+      date: (roomData?.createdAt as Timestamp).toDate().toISOString().split('T')[0],
+      chatHistory,
+      presentParticipants,
+      absentParticipants,
+    };
+    
+    // 3. Call the AI model
+    const {output} = await ai.generate({
+      prompt: `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
+
+      Meeting Title: {{{title}}}
+      Date: {{{date}}}
+      
+      Participants Present:
+      {{#each presentParticipants}}
+      - {{name}} ({{email}})
+      {{/each}}
+
+      Participants Absent:
+      {{#each absentParticipants}}
+      - {{name}} ({{email}})
+      {{/each}}
+      
+      Chat History:
+      ---
+      {{{chatHistory}}}
+      ---
+
+      Based on the chat history, provide a neutral, one-paragraph summary of the meeting. Then, list any concrete action items, specifying the task, the person in charge, and the due date if mentioned.
+      `,
+      model: 'googleai/gemini-1.5-flash-preview',
+      output: {
+        schema: AISummaryOutputSchema,
+      },
+      context: promptPayload,
+    });
+    
+    return output!;
+  }
+);

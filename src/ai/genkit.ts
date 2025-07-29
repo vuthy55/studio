@@ -1,14 +1,19 @@
-// This file is retained as a placeholder but the Genkit functionality is removed.
-// To re-enable, Genkit dependencies must be added back and build issues resolved.
 
-console.warn(
-    'Genkit dependencies have been removed due to build conflicts. Genkit flows will not work.'
-);
+import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
-// Dummy 'ai' object to prevent crashes in files that import it.
-// The methods will throw an error if called.
-export const ai: any = {
-    defineFlow: () => () => { throw new Error('Genkit is disabled.'); },
-    definePrompt: () => () => { throw new Error('Genkit is disabled.'); },
-    generate: () => { throw new Error('Genkit is disabled.'); },
-};
+if (!process.env.GEMINI_API_KEY) {
+  console.warn(
+    'GEMINI_API_KEY environment variable not set. Genkit flows will not work.'
+  );
+}
+
+export const ai = genkit({
+  plugins: [
+    googleAI({
+      apiVersion: ['v1', 'v1beta'],
+    }),
+  ],
+  logLevel: 'debug',
+  enableTracingAndMetrics: true,
+});

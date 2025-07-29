@@ -1,17 +1,31 @@
 
 'use server';
 
+import { ai } from '@/ai/genkit';
 import { TranslateTextInputSchema, TranslateTextOutputSchema, type TranslateTextInput, type TranslateTextOutput } from './types';
 
 
-// This file is retained as a placeholder but the Genkit functionality is removed.
-// To re-enable, Genkit dependencies must be added back and build issues resolved.
-// A different translation service would need to be implemented here.
+const translateTextFlow = ai.defineFlow(
+  {
+    name: 'translateTextFlow',
+    inputSchema: TranslateTextInputSchema,
+    outputSchema: TranslateTextOutputSchema,
+  },
+  async ({ text, fromLanguage, toLanguage }) => {
+    const {output} = await ai.generate({
+        prompt: `Translate the following text from ${fromLanguage} to ${toLanguage}: ${text}`,
+        model: 'googleai/gemini-1.5-flash-preview',
+        output: {
+            schema: TranslateTextOutputSchema,
+        },
+    });
+    return output!;
+  }
+);
+
 
 export async function translateText(
   input: TranslateTextInput
 ): Promise<TranslateTextOutput> {
-  // Dummy implementation: returns the original text.
-  console.warn("Genkit is disabled. Translation will not occur.");
-  return { translatedText: input.text };
+  return translateTextFlow(input);
 }
