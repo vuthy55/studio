@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,7 +26,7 @@ const feedbackSchema = z.object({
   screenshot: z.any().optional()
 });
 
-export default function FeedbackPage() {
+function FeedbackForm() {
   const { user, userProfile } = useUserData();
   const router = useRouter();
   const { toast } = useToast();
@@ -101,90 +101,99 @@ export default function FeedbackPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <MainHeader title="Submit Feedback" description="Help us improve VibeSync for everyone." />
-      <Card>
-        <CardHeader>
-          <CardTitle>Feedback Form</CardTitle>
-          <CardDescription>
-            Your feedback is confidential and sent directly to the VibeSync admin team. We appreciate you taking the time to help us!
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a feedback category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Bug Report">Bug Report</SelectItem>
-                        <SelectItem value="Feature Request">Feature Request</SelectItem>
-                        <SelectItem value="Translation Issue">Translation Issue</SelectItem>
-                        <SelectItem value="UI/UX Feedback">UI/UX Feedback</SelectItem>
-                        <SelectItem value="General Comment">General Comment</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="comment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Your Feedback</FormLabel>
+    <Card>
+      <CardHeader>
+        <CardTitle>Feedback Form</CardTitle>
+        <CardDescription>
+          Your feedback is confidential and sent directly to the VibeSync admin team. We appreciate you taking the time to help us!
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <Textarea
-                        placeholder="Please be as detailed as possible. If reporting a bug, what steps did you take?"
-                        className="resize-y min-h-[150px]"
-                        {...field}
-                      />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a feedback category" />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="screenshot"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Attach Screenshot (Optional, 2MB Max)</FormLabel>
-                    <FormControl>
-                      <Input type="file" accept="image/png, image/jpeg, image/gif" onChange={handleFileChange} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-                {screenshotPreview && (
-                    <div className="mt-4">
-                        <Label>Screenshot Preview</Label>
-                        <div className="mt-2 relative w-full max-w-sm h-64 border rounded-md overflow-hidden">
-                           <Image src={screenshotPreview} alt="Screenshot preview" layout="fill" objectFit="contain" />
-                        </div>
-                    </div>
-                )}
-              <div className="flex justify-end">
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                  Submit Feedback
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+                    <SelectContent>
+                      <SelectItem value="Bug Report">Bug Report</SelectItem>
+                      <SelectItem value="Feature Request">Feature Request</SelectItem>
+                      <SelectItem value="Translation Issue">Translation Issue</SelectItem>
+                      <SelectItem value="UI/UX Feedback">UI/UX Feedback</SelectItem>
+                      <SelectItem value="General Comment">General Comment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="comment"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Your Feedback</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Please be as detailed as possible. If reporting a bug, what steps did you take?"
+                      className="resize-y min-h-[150px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="screenshot"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Attach Screenshot (Optional, 2MB Max)</FormLabel>
+                  <FormControl>
+                    <Input type="file" accept="image/png, image/jpeg, image/gif" onChange={handleFileChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+              {screenshotPreview && (
+                  <div className="mt-4">
+                      <Label>Screenshot Preview</Label>
+                      <div className="mt-2 relative w-full max-w-sm h-64 border rounded-md overflow-hidden">
+                         <Image src={screenshotPreview} alt="Screenshot preview" layout="fill" objectFit="contain" />
+                      </div>
+                  </div>
+              )}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Submit Feedback
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
+}
+
+
+export default function FeedbackPage() {
+    return (
+        <div className="space-y-8">
+            <MainHeader title="Submit Feedback" description="Help us improve VibeSync for everyone." />
+             <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+                <FeedbackForm />
+            </Suspense>
+        </div>
+    )
 }
