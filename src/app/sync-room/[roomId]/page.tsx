@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -454,7 +453,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>());
+    const processedMessages = useRef(new Set<string>>();
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -538,13 +537,15 @@ export default function SyncRoomPage() {
         if (!user || isExiting.current) return;
         isExiting.current = true;
         
+        console.log("[DEBUG] Exit: Exiting process started.");
+
         if (timerIntervalRef.current) {
+            console.log(`[DEBUG] Exit: Clearing timer interval ID: ${timerIntervalRef.current}`);
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-        sessionStartTime.current = null; // Reset session start time
-
-        console.log("[DEBUG] Exit: Exiting process started.");
+        
+        sessionStartTime.current = null; // Reset session start time immediately
 
         if (messageListenerUnsubscribe.current) {
             console.log("[DEBUG] Exit: Unsubscribing from message listener.");
@@ -573,6 +574,7 @@ export default function SyncRoomPage() {
     const handleManualExit = async () => {
         if (isExiting.current) return;
         try {
+            console.log('[DEBUG] handleManualExit called');
             await handleExitRoom();
         } catch (error) {
             console.error("Error during manual exit:", error);
@@ -587,6 +589,7 @@ export default function SyncRoomPage() {
                 const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
                 sessionStartTime.current = startTime;
                 setIsSessionActive(true);
+                console.log(`[DEBUG] Timer: Session started at ${new Date(startTime).toLocaleTimeString()}`);
 
                 if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = setInterval(() => {
@@ -596,6 +599,7 @@ export default function SyncRoomPage() {
                     const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                     setSessionTimer(`${minutes}:${seconds}`);
                 }, 1000);
+                 console.log(`[DEBUG] Timer: Interval set with ID ${timerIntervalRef.current}`);
             }
         }
     }, [roomData, isSessionActive]);
@@ -731,13 +735,15 @@ export default function SyncRoomPage() {
     }, [user, authLoading, router]);
 
     useEffect(() => {
-        const handleBeforeUnload = () => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            console.log('[DEBUG] beforeunload event triggered.');
             handleExitRoom();
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
+            console.log('[DEBUG] Component unmounting. Running cleanup...');
             window.removeEventListener('beforeunload', handleBeforeUnload);
             handleExitRoom();
         };
@@ -1070,5 +1076,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
