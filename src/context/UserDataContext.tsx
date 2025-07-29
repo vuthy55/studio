@@ -45,7 +45,7 @@ interface UserDataContextType {
     updateSyncLiveUsage: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
     loadSingleOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
-    removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => void;
+    removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
 }
 
 // --- Context ---
@@ -157,42 +157,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     const systemFreePacks = await getFreeLanguagePacks();
                     const userUnlocked = profileData.unlockedLanguages || [];
                     
-                    // --- Logic to GRANT new free languages ---
-                    const missingFreePacks = systemFreePacks.filter(p => !userUnlocked.includes(p));
-                    if (missingFreePacks.length > 0) {
-                        await updateDoc(userDocRef, { unlockedLanguages: arrayUnion(...missingFreePacks) });
-                        return; // Exit to wait for the updated snapshot which will trigger auto-download
-                    }
-                    
-                    // --- Logic to REVOKE languages that are no longer free ---
-                    const revokedLanguages = userUnlocked.filter(lang => !systemFreePacks.includes(lang));
-                    if (revokedLanguages.length > 0) {
-                        await updateDoc(userDocRef, { unlockedLanguages: arrayRemove(...revokedLanguages) });
-                        
-                        // Delete the local data for each revoked language
-                        for (const lang of revokedLanguages) {
-                            await removeOfflinePack(lang);
-                        }
-                        return; // Exit to wait for the final updated snapshot
-                    }
+                    const db = await openDB(DB_NAME, 2);
+                    const downloadedPackIds = await db.getAllKeys(STORE_NAME);
 
+                    const packsToDownload = userUnlocked.filter(lang => !downloadedPackIds.includes(lang));
 
-                    // --- Auto-download logic for unlocked languages ---
-                    if (userUnlocked.length > 0) {
-                        const db = await openDB(DB_NAME, 2);
-                        const downloadedPackIds = await db.getAllKeys(STORE_NAME);
-
-                        for (const langCode of userUnlocked) {
-                            if (!downloadedPackIds.includes(langCode)) {
-                                try {
-                                    const { audioPack, size } = await getLanguageAudioPack(langCode);
-                                    await db.put(STORE_NAME, audioPack, langCode);
-                                    const metadata: PackMetadata = { id: langCode, size };
-                                    await db.put(METADATA_STORE_NAME, metadata);
-                                    loadSingleOfflinePack(langCode);
-                                } catch (e) {
-                                    console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
-                                }
+                    if (packsToDownload.length > 0) {
+                         for (const langCode of packsToDownload) {
+                            try {
+                                const { audioPack, size } = await getLanguageAudioPack(langCode);
+                                await db.put(STORE_NAME, audioPack, langCode);
+                                const metadata: PackMetadata = { id: langCode, size };
+                                await db.put(METADATA_STORE_NAME, metadata);
+                                loadSingleOfflinePack(langCode);
+                            } catch (e) {
+                                console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
                             }
                         }
                     }

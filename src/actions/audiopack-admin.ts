@@ -231,7 +231,7 @@ export async function setFreeLanguagePacks(codes: LanguageCode[]): Promise<{succ
 
 /**
  * Applies the currently configured free language packs to all existing users.
- * This will overwrite the `unlockedLanguages` field for every user.
+ * This will ONLY ADD new free languages. It will NOT remove languages that were previously free.
  * @returns Promise indicating success or failure.
  */
 export async function applyFreeLanguagesToAllUsers(): Promise<{ success: boolean; error?: string }> {
@@ -258,7 +258,11 @@ export async function applyFreeLanguagesToAllUsers(): Promise<{ success: boolean
       
       chunk.forEach(doc => {
         const userRef = usersRef.doc(doc.id);
-        batch.update(userRef, { unlockedLanguages: freePacks });
+        const userData = doc.data();
+        const existingLangs = new Set(userData.unlockedLanguages || []);
+        freePacks.forEach(pack => existingLangs.add(pack));
+        
+        batch.update(userRef, { unlockedLanguages: Array.from(existingLangs) });
       });
       
       await batch.commit();

@@ -107,7 +107,7 @@ export default function FreeLanguagePacksManager() {
     return (
         <div className="space-y-6">
             <CardDescription>
-                Select which language packs users can download for free. Only successfully generated packs are shown here. Unchecked packs will cost tokens to download, based on the cost set in App Settings.
+                Select which language packs users can download for free. Only successfully generated packs are shown here. When a user signs up, the languages selected here will be automatically granted and downloaded.
             </CardDescription>
 
             {availablePacks.length > 0 ? (
@@ -157,7 +157,7 @@ export default function FreeLanguagePacksManager() {
                         <AlertDialogHeader>
                             <AlertDialogTitle>Apply to all existing users?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                This will grant all current users access to the currently selected free languages ({freePacks.length} languages). This action cannot be undone. New users will get this list automatically.
+                                This will grant all current users access to the currently selected free languages ({freePacks.length} languages). This action is additive and will not remove any languages users have already unlocked.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

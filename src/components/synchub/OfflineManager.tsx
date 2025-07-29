@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -28,7 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
 import { db as firestoreDb } from '@/lib/firebase';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -150,7 +151,6 @@ export default function OfflineManager() {
             await updateDoc(userDocRef, {
                 unlockedLanguages: arrayUnion(lang)
             });
-            console.log(`[DEBUG] Firestore updated. Added ${lang} to unlockedLanguages for user ${user.uid}`);
         }
       
       if (cost === 'Free') {
@@ -184,11 +184,15 @@ export default function OfflineManager() {
   const handleDelete = async (lang: LanguageCode | 'user_saved_phrases') => {
     setDeleting(lang);
     try {
-        const db = await getDb();
-        await db.delete(STORE_NAME, lang);
-        await db.delete(METADATA_STORE_NAME, lang);
-
-        removeOfflinePack(lang);
+        await removeOfflinePack(lang);
+        
+        // Also remove from user's unlocked list on the server so it doesn't get re-downloaded.
+        if (lang !== SAVED_PHRASES_KEY && user) {
+            const userDocRef = doc(firestoreDb, 'users', user.uid);
+            await updateDoc(userDocRef, {
+                unlockedLanguages: arrayRemove(lang)
+            });
+        }
         
         const langLabel = lang === SAVED_PHRASES_KEY
             ? 'Your Saved Phrases'
