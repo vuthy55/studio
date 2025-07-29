@@ -5,7 +5,7 @@
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { doc, setDoc, collection, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc } from 'firebase/firestore';
 import { LoaderCircle, Save, Coins, FileText, Heart, Copy, Send, Wallet, CreditCard, History, Trash2, AlertTriangle, Languages, PhoneOutgoing, Users, Search, UserPlus, UserCheck, XCircle, UserMinus, RefreshCw, Users as UsersIcon } from "lucide-react";
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
@@ -773,13 +773,19 @@ function BuddiesSection() {
 function ReferralsSection() {
     const { user } = useUserData();
     const { toast } = useToast();
+    const [referralLink, setReferralLink] = useState('');
     const [referrals, setReferrals] = useState<ReferredUser[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasFetched, setHasFetched] = useState(false);
+    
+    useEffect(() => {
+        if (user?.uid && typeof window !== 'undefined') {
+            setReferralLink(`${window.location.origin}/login?ref=${user.uid}`);
+        }
+    }, [user?.uid]);
 
     const copyReferralLink = () => {
-        if (user?.uid && typeof window !== 'undefined') {
-            const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+        if (referralLink) {
             navigator.clipboard.writeText(referralLink);
             toast({ title: "Copied!", description: "Referral link copied to clipboard." });
         }
@@ -809,7 +815,7 @@ function ReferralsSection() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex items-center space-x-2">
-                        <Input value={`${window.location.origin}/login?ref=${user?.uid}`} readOnly />
+                        <Input value={referralLink} readOnly />
                         <Button type="button" size="icon" onClick={copyReferralLink}>
                             <Copy className="h-4 w-4" />
                         </Button>
@@ -874,7 +880,7 @@ function ReferralsSection() {
     )
 }
 
-export default function ProfilePage() {
+function ProfilePageContent() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -886,12 +892,6 @@ export default function ProfilePage() {
             setActiveTab(tab);
         }
     }, [searchParams]);
-
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
-        }
-    }, [user, authLoading, router]);
 
     if (authLoading || !user) {
         return (
@@ -934,10 +934,29 @@ export default function ProfilePage() {
     );
 }
 
-    
+export default function ProfilePage() {
+    const { user, loading: authLoading } = useUserData();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
+
+    if (authLoading || !user) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    return (
+        <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <ProfilePageContent />
+        </Suspense>
+    );
+}
 
     
-
-
-
-
