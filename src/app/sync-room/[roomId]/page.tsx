@@ -191,11 +191,6 @@ const setupMessageListener = (
 // --- Reusable Participants Panel Component ---
 function ParticipantsPanel({ 
     roomData,
-    isSessionActive,
-    sessionTimer,
-    userProfile,
-    settings,
-    freeMinutesRemaining,
     isCurrentUserEmcee,
     isInviteDialogOpen,
     setIsInviteDialogOpen,
@@ -214,7 +209,6 @@ function ParticipantsPanel({
     handleRemoveParticipant,
     handleManualExit,
     handleEndMeeting,
-    isSummarizing
 }: any) {
     return (
         <div className="flex flex-col h-full bg-background">
@@ -256,7 +250,8 @@ function ParticipantsPanel({
                                     </Button>
                                 </DialogFooter>
                             </DialogContent>
-                        )}
+                        </Dialog>
+                    )}
                  </div>
             </header>
             <ScrollArea className="flex-1">
@@ -634,18 +629,6 @@ export default function SyncRoomPage() {
     
     
     useEffect(() => {
-        if (currentUserParticipant?.isMuted) {
-            abortRecognition();
-            setIsListening(false);
-            toast({
-                variant: 'destructive',
-                title: "You've been muted",
-                description: "An emcee has muted your microphone.",
-            });
-        }
-    }, [currentUserParticipant?.isMuted, toast]);
-
-    useEffect(() => {
         if (isExiting.current || participantsLoading || !user) return; 
     
         const isStillParticipant = participants.some(p => p.uid === user.uid);
@@ -950,11 +933,6 @@ export default function SyncRoomPage() {
 
     const participantsPanelProps = {
         roomData,
-        isSessionActive,
-        sessionTimer,
-        userProfile,
-        settings,
-        freeMinutesRemaining,
         isCurrentUserEmcee,
         isInviteDialogOpen,
         setIsInviteDialogOpen,
@@ -973,7 +951,6 @@ export default function SyncRoomPage() {
         handleRemoveParticipant,
         handleManualExit,
         handleEndMeeting,
-        isSummarizing,
     };
 
     return (
@@ -1092,3 +1069,4 @@ export default function SyncRoomPage() {
     
 
     
+
