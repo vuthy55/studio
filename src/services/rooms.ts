@@ -4,7 +4,7 @@
 
 import { db } from '@/lib/firebase-admin'; 
 import type { SyncRoom } from '@/lib/types';
-import type { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 // We create a specific type for returning to the client to avoid serialization issues with Timestamps.
 export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt'> {
