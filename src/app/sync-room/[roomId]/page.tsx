@@ -687,19 +687,16 @@ export default function SyncRoomPage() {
             {/* Left Panel - Participants */}
             <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
-                     <div className="bg-primary/10 p-3 rounded-lg flex justify-between items-center">
-                        <div>
+                    <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
+                        <div className="bg-primary/10 p-3 rounded-lg flex-grow">
                            <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                            <p className="text-sm text-primary/80">Sync Room</p>
                         </div>
-                     </div>
-                     <div className="flex items-center justify-between pt-2">
-                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
-                        <div className="flex items-center gap-2">
-                            <TooltipProvider>
+                        <div className="flex items-center gap-2 self-end md:self-start">
+                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
+                                        <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground p-2">
                                             <Clock className="h-4 w-4" />
                                             <span>{sessionTimer}</span>
                                         </div>
@@ -725,7 +722,7 @@ export default function SyncRoomPage() {
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                            {isCurrentUserEmcee && (
+                             {isCurrentUserEmcee && (
                                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
@@ -757,6 +754,9 @@ export default function SyncRoomPage() {
                                 </Dialog>
                             )}
                         </div>
+                    </div>
+                     <div className="flex items-center justify-between pt-2">
+                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
                      </div>
                 </header>
                 <ScrollArea className="flex-1">
@@ -981,3 +981,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
