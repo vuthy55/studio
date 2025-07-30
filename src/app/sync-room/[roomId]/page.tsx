@@ -421,9 +421,10 @@ export default function SyncRoomPage() {
     
     const [messages, setMessages] = useState<RoomMessage[]>([]);
     const [messagesLoading, setMessagesLoading] = useState(true);
-    const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
     
     const [isParticipant, setIsParticipant] = useState<'unknown' | 'yes' | 'no'>('unknown');
+    const [isInitialized, setIsInitialized] = useState(false);
+    const [joinTimestamp, setJoinTimestamp] = useState<Timestamp | null>(null);
 
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
@@ -485,41 +486,10 @@ export default function SyncRoomPage() {
         router.push('/synchub?tab=sync-online');
     }, [handleExitRoom, router]);
 
-    const onJoinSuccess = useCallback((joinTimestamp: Timestamp) => {
-        if (messageListenerUnsubscribe.current) {
-             console.log("[DEBUG] Message listener already exists.");
-            return;
-        }
-        
+    const onJoinSuccess = useCallback((timestamp: Timestamp) => {
         setIsParticipant('yes');
-        console.log(`[DEBUG] Setting up new message listener for messages after: ${joinTimestamp.toDate()}`);
-        
-        const messagesQuery = query(
-            collection(db, 'syncRooms', roomId, 'messages'),
-            orderBy("createdAt"),
-            where("createdAt", ">=", joinTimestamp)
-        );
-
-        messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
-            if (isExiting.current) {
-                console.log("[DEBUG] Message listener fired but component is exiting. Ignoring.");
-                return;
-            }
-            const newMessages: RoomMessage[] = [];
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-                }
-            });
-            if (newMessages.length > 0) {
-                setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
-            }
-            if (messagesLoading) {
-                setMessagesLoading(false);
-            }
-        });
-    }, [roomId, messagesLoading]);
-
+        setJoinTimestamp(timestamp);
+    }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -570,16 +540,17 @@ export default function SyncRoomPage() {
         const participantDoc = await getDoc(participantRef);
 
         if (participantDoc.exists() && participantDoc.data()?.joinedAt) {
-            onJoinSuccess(participantDoc.data()?.joinedAt);
+            setIsParticipant('yes');
+            setJoinTimestamp(participantDoc.data()?.joinedAt);
         } else {
-            console.log("[DEBUG] User is NOT a participant. Showing setup screen.");
             setIsParticipant('no');
         }
-    }, [roomId, onJoinSuccess]);
+        setIsInitialized(true);
+    }, [roomId]);
     
 
     useEffect(() => {
-        if (authLoading || roomLoading) return;
+        if (authLoading || roomLoading || isInitialized) return;
         if (!user) {
             router.push('/login');
             return;
@@ -587,6 +558,37 @@ export default function SyncRoomPage() {
         
         checkParticipationAndInitialize(user);
 
+        return () => {
+             isExiting.current = true;
+             handleExitRoom();
+        };
+    }, [user, authLoading, roomLoading, isInitialized, checkParticipationAndInitialize, handleExitRoom, router]);
+
+    useEffect(() => {
+        if (isParticipant !== 'yes' || !joinTimestamp || messageListenerUnsubscribe.current) return;
+
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'),
+            orderBy("createdAt"),
+            where("createdAt", ">=", joinTimestamp)
+        );
+
+        messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
+            if (isExiting.current) return;
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+            if (newMessages.length > 0) {
+                setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
+            }
+            if (messagesLoading) {
+                setMessagesLoading(false);
+            }
+        });
+        
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         participantListenerUnsubscribe.current = onSnapshot(participantsQuery, (snapshot) => {
             if (isExiting.current) return;
@@ -594,17 +596,13 @@ export default function SyncRoomPage() {
             setParticipants(parts);
         });
 
-        return () => {
-             isExiting.current = true;
-             handleExitRoom();
-        };
-    }, [user, authLoading, roomLoading, checkParticipationAndInitialize, handleExitRoom, router, roomId]);
+    }, [isParticipant, joinTimestamp, roomId, messagesLoading]);
     
     
     useEffect(() => {
         if (!user || isParticipant !== 'yes' || isExiting.current) return;
         const amIStillHere = participants.some(p => p.uid === user.uid);
-        if (!amIStillHere) {
+        if (participants.length > 0 && !amIStillHere) {
             toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -768,7 +766,6 @@ export default function SyncRoomPage() {
         }
     
         if (roomData && !roomData.firstMessageAt) {
-            console.log('[DEBUG] First message in room, setting timestamp.');
             await setFirstMessageTimestamp(roomId);
         }
     
@@ -777,8 +774,6 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
-                console.log('[DEBUG] Recognized Text:', recognizedText);
-    
                 const originalMessageRef = doc(collection(db, 'syncRooms', roomId, 'messages'));
                 await setDoc(originalMessageRef, {
                     text: recognizedText,
@@ -787,10 +782,8 @@ export default function SyncRoomPage() {
                     speakerLanguage: currentUserParticipant.selectedLanguage,
                     createdAt: serverTimestamp(),
                 });
-                console.log('[DEBUG] Original message added successfully.');
     
                 const otherParticipants = participants.filter(p => p.uid !== user.uid);
-                console.log(`[DEBUG] Fanning out translation to ${otherParticipants.length} other participants.`);
                 
                 if (otherParticipants.length > 0) {
                     const fromLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage);
@@ -805,6 +798,7 @@ export default function SyncRoomPage() {
                                 toLanguage: toLangLabel,
                             });
     
+                            // Create a new document with a unique ID for the translation
                             const translatedMessageRef = doc(collection(db, 'syncRooms', roomId, 'messages'));
                             await setDoc(translatedMessageRef, {
                                 text: translationResult.translatedText,
@@ -816,7 +810,6 @@ export default function SyncRoomPage() {
                                 originalMessageId: originalMessageRef.id,
                                 forParticipantUid: participant.uid
                             });
-                            console.log(`[DEBUG] Added translated message for ${participant.email}`);
                         } catch (translateError) {
                             console.error(`[DEBUG] Failed to translate for ${participant.email}:`, translateError);
                         }
@@ -830,7 +823,7 @@ export default function SyncRoomPage() {
         } finally {
             setIsListening(false);
         }
-    }, [user, currentUserParticipant, sessionStartTime, roomData, roomId, toast, participants]);
+    }, [user, currentUserParticipant, participants, sessionStartTime, roomData, roomId, toast]);
     
     
     const handleMuteToggle = async (participantId: string, currentMuteStatus: boolean) => {
@@ -893,7 +886,7 @@ export default function SyncRoomPage() {
         }
     };
 
-    if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
+    if (authLoading || roomLoading || !isInitialized || isSummarizing) {
         return <div className="flex h-screen items-center justify-center flex-col gap-4">
             <LoaderCircle className="h-10 w-10 animate-spin" />
             {isSummarizing && <p className="text-lg text-muted-foreground">AI is summarizing, please wait...</p>}
