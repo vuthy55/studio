@@ -418,8 +418,7 @@ export default function SyncRoomPage() {
     
     const [roomData, roomLoading, roomError] = useDocumentData(doc(db, 'syncRooms', roomId));
     const [participants, setParticipants] = useState<Participant[]>([]);
-    const [participantsLoading, setParticipantsLoading] = useState(true);
-
+    
     const [messages, setMessages] = useState<RoomMessage[]>([]);
     const [messagesLoading, setMessagesLoading] = useState(true);
     const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
@@ -439,9 +438,10 @@ export default function SyncRoomPage() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
+    const participantListenerUnsubscribe = useRef<(() => void) | null>(null);
     const joinTimestampRef = useRef<Timestamp | null>(null);
     
-    // --- Timer State & Logic ---
+    // Timer State & Logic
     const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -461,7 +461,6 @@ export default function SyncRoomPage() {
             }, 1000);
         }
 
-        // Cleanup timer on component unmount
         return () => {
             if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
@@ -469,13 +468,16 @@ export default function SyncRoomPage() {
         };
     }, [sessionStartTime]);
 
-    // --- Component Lifecycle & Cleanup ---
     const handleExitRoom = useCallback(() => {
-        if (isExiting.current) {
-            return;
-        }
+        if (isExiting.current) return;
         isExiting.current = true;
         console.log("[DEBUG] handleExitRoom called. Cleaning up...");
+
+        if (participantListenerUnsubscribe.current) {
+            console.log("[DEBUG] Unsubscribing from participant listener.");
+            participantListenerUnsubscribe.current();
+            participantListenerUnsubscribe.current = null;
+        }
 
         if (messageListenerUnsubscribe.current) {
             console.log("[DEBUG] Unsubscribing from message listener.");
@@ -499,15 +501,12 @@ export default function SyncRoomPage() {
         }
     }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
     
-    // This is the function called by UI buttons
     const handleManualExit = () => {
         if (isExiting.current) return;
         console.log("[DEBUG] handleManualExit called. Navigating away first.");
         router.push('/synchub?tab=sync-online');
     };
     
-    // This effect now correctly handles the cleanup *after* navigation.
-    // It's triggered when the component unmounts.
     useEffect(() => {
         return () => {
             console.log("[DEBUG] SyncRoomPage unmounting. Calling handleExitRoom.");
@@ -544,124 +543,95 @@ export default function SyncRoomPage() {
     }, [user, roomData]);
     
      const timerTooltipContent = useMemo(() => {
-        const initialCost = roomData?.initialCost ?? 0;
         return (
             <div className="p-2 space-y-2 text-sm max-w-xs">
                 <p className="font-bold">Session Billing</p>
-                <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Pre-paid Cost:</span>
-                    <span className="font-bold">{initialCost} tokens</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Your Balance:</span>
-                    <span className="font-bold">{userProfile?.tokenBalance ?? 0}</span>
-                </div>
                  <p className="text-xs text-muted-foreground pt-2 border-t">
-                    This timer tracks active conversation time, which starts on the first mic press. The initial cost has been deducted. Upon exit, the actual usage cost will be reconciled against the pre-paid amount, and any difference may be refunded.
+                    The timer tracks active conversation time, which starts on the first mic press by any participant. The initial room cost has been deducted. Upon exit, the actual usage cost will be reconciled against the pre-paid amount, and any difference may be refunded.
                 </p>
             </div>
         );
-    }, [userProfile?.tokenBalance, roomData?.initialCost]);
+    }, []);
     
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
     }, [roomData]);
     
     
-    const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
-        if (!joinTimestamp) {
-            console.error("[DEBUG] setupMessageListener called with invalid joinTimestamp.");
-            return () => {};
+    const onJoinSuccess = useCallback((joinTimestamp: Timestamp) => {
+        setIsParticipant('yes');
+        joinTimestampRef.current = joinTimestamp;
+        if (messageListenerUnsubscribe.current) {
+            messageListenerUnsubscribe.current();
         }
-        console.log(`[DEBUG] Setting up message listener for messages created after: ${joinTimestamp.toDate()}`);
         const messagesQuery = query(
             collection(db, 'syncRooms', roomId, 'messages'),
             orderBy("createdAt"),
             where("createdAt", ">=", joinTimestamp)
         );
-
-        return onSnapshot(messagesQuery, (snapshot) => {
-            if (isExiting.current) return;
+        messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
             const newMessages: RoomMessage[] = [];
             snapshot.docChanges().forEach((change) => {
                 if (change.type === "added") {
                     newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
                 }
             });
-
             if (newMessages.length > 0) {
-                setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
+                setMessages(prev => [...prev, ...newMessages].sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
             }
             setMessagesLoading(false);
-        }, (error) => {
-            setMessagesLoading(false);
-            if (error.code === 'permission-denied') {
-                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.' });
-                console.error("[DEBUG] Firestore permission denied for messages.");
-            } else {
-                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.' });
-                 console.error("[DEBUG] Error fetching new messages:", error);
-            }
         });
-    }, [roomId, toast]);
-
-    const onJoinSuccess = useCallback((joinTime: Timestamp) => {
-        console.log("[DEBUG] onJoinSuccess called.");
-        if (messageListenerUnsubscribe.current) {
-            console.log("[DEBUG] Message listener already exists, not creating a new one.");
-            return;
-        }
-        joinTimestampRef.current = joinTime;
-        setIsParticipant('yes');
-        messageListenerUnsubscribe.current = setupMessageListener(joinTime);
-    }, [setupMessageListener]);
+    }, [roomId]);
     
 
     useEffect(() => {
         if (!user || roomLoading) return;
         
+        const checkParticipationAndInitialize = async () => {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            const participantDoc = await getDoc(participantRef);
+
+            if (participantDoc.exists() && participantDoc.data()?.joinedAt) {
+                onJoinSuccess(participantDoc.data()?.joinedAt);
+            } else {
+                setIsParticipant('no');
+            }
+        };
+        
+        checkParticipationAndInitialize();
+
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
-        const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
-             if (isExiting.current) return;
+        participantListenerUnsubscribe.current = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             setParticipants(parts);
-            setParticipantsLoading(false);
-            
-            if (isParticipant === 'unknown') {
-                const self = parts.find(p => p.uid === user.uid);
-                if (self && self.joinedAt) {
-                    onJoinSuccess(self.joinedAt);
-                } else if (!self) {
-                     setIsParticipant('no');
-                }
-            }
-        }, (error) => {
-            console.error("[DEBUG] Error listening to participants collection:", error);
-            setParticipantsLoading(false);
         });
 
-        return () => unsubscribe();
-    }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
+        return () => {
+            if (participantListenerUnsubscribe.current) {
+                participantListenerUnsubscribe.current();
+            }
+            if (messageListenerUnsubscribe.current) {
+                messageListenerUnsubscribe.current();
+            }
+        };
+    }, [user, roomId, roomLoading, onJoinSuccess]);
     
     
     useEffect(() => {
-        if (participantsLoading || !user || isExiting.current) return; 
-    
-        const isStillParticipant = participants.some(p => p.uid === user.uid);
-        
-        console.log(`[DEBUG] Ejection check: isParticipant=${isParticipant}, isStillParticipant=${isStillParticipant}, participants count=${participants.length}`);
-
-        if (isParticipant === 'yes' && !isStillParticipant) {
-             toast({
-                variant: 'destructive',
-                title: 'You were removed',
-                description: 'An emcee has removed you from the room.',
-                duration: 5000,
-            });
-            handleManualExit();
+        if (isParticipant === 'yes') {
+            const isStillInList = participants.some(p => p.uid === user?.uid);
+            if (!isStillInList) {
+                toast({
+                    variant: 'destructive',
+                    title: 'You were removed',
+                    description: 'An emcee has removed you from the room.',
+                    duration: 5000,
+                });
+                handleManualExit();
+            }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [participants, isParticipant, participantsLoading, user, toast]);
+    }, [participants, isParticipant, user]);
 
     useEffect(() => {
         if (!roomData || !user || isExiting.current) return;
@@ -821,6 +791,9 @@ export default function SyncRoomPage() {
         // Start the timer on the first mic press of the session
         if (sessionStartTime === null) {
             setSessionStartTime(Date.now());
+             if (roomData && !roomData.firstMessageAt) {
+                await setFirstMessageTimestamp(roomId);
+            }
         }
 
         setIsListening(true);
@@ -828,13 +801,6 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
-                // If this is the first message ever and the current user is the creator,
-                // set the timestamp on the room document.
-                if (!roomData?.firstMessageAt && user.uid === roomData?.creatorUid) {
-                    await setFirstMessageTimestamp(roomId);
-                }
-
-                // Always add the message to the subcollection
                 await addDoc(collection(db, 'syncRooms', roomId, 'messages'), {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
@@ -912,7 +878,7 @@ export default function SyncRoomPage() {
         }
     };
 
-    if (authLoading || roomLoading || participantsLoading || isParticipant === 'unknown' || isSummarizing) {
+    if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
         return <div className="flex h-screen items-center justify-center flex-col gap-4">
             <LoaderCircle className="h-10 w-10 animate-spin" />
             {isSummarizing && <p className="text-lg text-muted-foreground">AI is summarizing, please wait...</p>}
@@ -1027,7 +993,7 @@ export default function SyncRoomPage() {
                             })}
                              <div ref={messagesEndRef} />
                         </div>
-                         {messagesLoading && currentUserParticipant && <LoaderCircle className="mx-auto my-4 h-6 w-6 animate-spin" />}
+                         {messagesLoading && isParticipant === 'yes' && <LoaderCircle className="mx-auto my-4 h-6 w-6 animate-spin" />}
                          {!messagesLoading && messages?.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
                                 <p>No messages yet. Be the first to speak!</p>
