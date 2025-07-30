@@ -687,10 +687,10 @@ export default function SyncRoomPage() {
             {/* Left Panel - Participants */}
             <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
-                    <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
-                        <div className="flex-grow flex items-center justify-between bg-primary/10 p-3 rounded-lg">
+                     <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
+                        <div className="flex-grow bg-primary/10 p-3 rounded-lg flex items-center justify-between">
                             <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                            <TooltipProvider>
+                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground p-2">
@@ -957,7 +957,7 @@ export default function SyncRoomPage() {
                          )}
                     </ScrollArea>
                 </div>
-                <div className="p-4 border-t bg-background flex items-center gap-4">
+                <div className="p-4 border-t bg-background flex flex-col items-center justify-center gap-2">
                     <Button 
                         size="lg" 
                         className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
@@ -967,7 +967,7 @@ export default function SyncRoomPage() {
                     >
                         {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
                     </Button>
-                    <div className="flex-1">
+                    <div className="text-center">
                         <p className="font-semibold text-muted-foreground">
                             {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
                         </p>
