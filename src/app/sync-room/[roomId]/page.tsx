@@ -433,43 +433,53 @@ export default function SyncRoomPage() {
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isExiting = useRef(false);
     
-
     const handleExitRoom = useCallback(() => {
+        if (isExiting.current) return;
         isExiting.current = true;
-        
+        console.log('[DEBUG] handleExitRoom: Process starting.');
+
         if (timerIntervalRef.current) {
+            console.log(`[DEBUG] handleExitRoom: Clearing timer interval ID: ${timerIntervalRef.current}`);
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
+
         if (messageListenerUnsubscribe.current) {
+            console.log('[DEBUG] handleExitRoom: Unsubscribing from message listener.');
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
 
-        try {
-            if (user) {
-                const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-                deleteDoc(participantRef);
+        if (user) {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            deleteDoc(participantRef).then(() => {
+                console.log('[DEBUG] handleExitRoom: Participant document deleted.');
                 const sessionDurationMs = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
                 sessionStartTime.current = null;
                 if (sessionDurationMs > 0) {
-                     handleSyncOnlineSessionEnd(sessionDurationMs);
+                    console.log(`[DEBUG] handleExitRoom: Recording session duration of ${sessionDurationMs}ms.`);
+                    handleSyncOnlineSessionEnd(sessionDurationMs);
+                } else {
+                     console.log('[DEBUG] handleExitRoom: No session start time found, skipping billing.');
                 }
-            }
-        } catch (error) {
-            console.error("Error leaving room (deleting participant doc):", error);
+            }).catch(error => {
+                console.error("[DEBUG] handleExitRoom: Error deleting participant doc:", error);
+            });
         }
     }, [user, roomId, handleSyncOnlineSessionEnd]);
 
-
+    const handleManualExit = () => {
+        console.log('[DEBUG] handleManualExit: Navigation triggered.');
+        router.push('/synchub?tab=sync-online');
+    };
+    
     useEffect(() => {
-      // This is the component's main cleanup function.
-      return () => {
-        if (isExiting.current || (roomData?.status === 'closed')) {
+        return () => {
+            console.log('[DEBUG] SyncRoomPage: Component unmounting, calling handleExitRoom.');
             handleExitRoom();
-        }
-      };
-    }, [handleExitRoom, roomData]);
+        };
+    }, [handleExitRoom]);
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -529,15 +539,6 @@ export default function SyncRoomPage() {
         return uid === roomData?.creatorUid;
     }, [roomData]);
     
-    const handleManualExit = async () => {
-        if (isExiting.current) return;
-        router.push('/synchub?tab=sync-online');
-        try {
-            await handleExitRoom();
-        } catch (error) {
-            console.error("Error during manual exit:", error);
-        }
-    };
     
     const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
         const messagesQuery = query(
@@ -725,10 +726,10 @@ export default function SyncRoomPage() {
              return;
         }
         try {
-            await handleExitRoom();
+            
             const result = await softDeleteRoom(roomId);
             if (result.success) {
-                router.push('/synchub?tab=sync-online');
+                handleManualExit();
             } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
             }
@@ -743,10 +744,9 @@ export default function SyncRoomPage() {
         setIsSummarizing(true);
         toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.' });
         try {
-            await handleExitRoom();
             await summarizeRoom({ roomId });
             toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            router.push('/synchub?tab=sync-online');
+            handleManualExit();
         } catch (error) {
             console.error("Error saving and ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
@@ -959,8 +959,14 @@ export default function SyncRoomPage() {
                         </AlertDialogContent>
                     </AlertDialog>
 
-                    <div className="flex flex-col items-center flex-grow">
-                        <h1 className="text-xl font-semibold text-center">{roomData.topic}</h1>
+                    <div className="flex flex-col items-center flex-grow text-center">
+                        <h1 className="text-xl font-semibold">{roomData.topic}</h1>
+                        {isSessionActive && (
+                            <div className="font-mono text-sm text-primary font-semibold flex items-center gap-2">
+                                <Clock className="h-4 w-4" />
+                                {sessionTimer}
+                            </div>
+                        )}
                     </div>
                     
 
@@ -1010,36 +1016,6 @@ export default function SyncRoomPage() {
                     </ScrollArea>
                 </div>
                 <div className="p-4 border-t bg-background flex flex-col gap-4">
-                     {isSessionActive && (
-                        <div className="flex items-center justify-center">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="font-mono text-sm text-primary font-semibold flex items-center gap-2">
-                                            <Clock className="h-4 w-4" />
-                                            {sessionTimer}
-                                        </div>
-                                    </TooltipTrigger>
-                                        <TooltipContent>
-                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
-                                            <div className="flex justify-between" title="Your current token balance">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
-                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
-                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                            </div>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        </div>
-                    )}
                     <div className="flex items-center justify-center gap-4">
                        <Button 
                             size="lg" 
@@ -1060,4 +1036,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
