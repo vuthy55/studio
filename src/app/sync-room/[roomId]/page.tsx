@@ -152,7 +152,7 @@ const setupMessageListener = (
     setMessages: (updater: (prev: RoomMessage[]) => RoomMessage[]) => void,
     toast: (options: any) => void
 ): (() => void) => {
-
+    console.log('[DEBUG] setupMessageListener: Attempting to set up listener for messages after', joinTimestamp.toDate());
     setMessagesLoading(true);
     const messagesQuery = query(
         collection(db, 'syncRooms', roomId, 'messages'),
@@ -161,6 +161,7 @@ const setupMessageListener = (
     );
 
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+        console.log('[DEBUG] setupMessageListener: Snapshot received with', snapshot.docChanges().length, 'changes.');
         const newMessages: RoomMessage[] = [];
         snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
@@ -518,6 +519,7 @@ export default function SyncRoomPage() {
     }, [roomData]);
 
     const onJoinSuccess = useCallback((joinTime: Timestamp) => {
+        console.log('[DEBUG] onJoinSuccess: Called with joinTime', joinTime.toDate());
         if (messageListenerUnsubscribe.current) {
             return;
         }
@@ -532,30 +534,35 @@ export default function SyncRoomPage() {
     const handleExitRoom = useCallback(async () => {
         if (!user || isExiting.current) return;
         
-        sessionStartTime.current = null;
+        console.log('[DEBUG] Exit: Exiting process started.');
         isExiting.current = true;
         
         if (timerIntervalRef.current) {
+            console.log('[DEBUG] Exit: Clearing timer interval ID:', timerIntervalRef.current);
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
+        
+        if (sessionStartTime.current) {
+            const sessionDurationMs = Date.now() - sessionStartTime.current;
+            console.log(`[DEBUG] Exit: Session duration was ${sessionDurationMs}ms. Calling billing.`);
+            await handleSyncOnlineSessionEnd(sessionDurationMs);
+        } else {
+            console.log('[DEBUG] Exit: No session start time found, skipping billing.');
+        }
 
         if (messageListenerUnsubscribe.current) {
+            console.log('[DEBUG] Exit: Unsubscribing from message listener.');
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
 
         try {
-            // Client-side cleanup MUST happen before server-side billing
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             await deleteDoc(participantRef);
-
-            if (sessionStartTime.current) {
-                const sessionDurationMs = Date.now() - sessionStartTime.current;
-                await handleSyncOnlineSessionEnd(sessionDurationMs);
-            }
+            console.log('[DEBUG] Exit: Participant document deleted.');
         } catch (error) {
-            console.error("Error leaving room:", error);
+            console.error("Error leaving room (deleting participant doc):", error);
         }
     }, [user, roomId, handleSyncOnlineSessionEnd]);
     
@@ -567,34 +574,51 @@ export default function SyncRoomPage() {
             console.error("Error during manual exit:", error);
         } finally {
             router.push('/synchub?tab=sync-online');
-            isExiting.current = false;
         }
     };
 
     useEffect(() => {
+        const startTimer = (startTimeMillis: number) => {
+             console.log('[DEBUG] Timer: Session started at', new Date(startTimeMillis).toLocaleTimeString());
+             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); // Clear any old timers
+             timerIntervalRef.current = setInterval(() => {
+                const elapsedMs = Date.now() - startTimeMillis;
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                setSessionTimer(`${minutes}:${seconds}`);
+            }, 1000);
+             console.log('[DEBUG] Timer: Interval set with ID', timerIntervalRef.current);
+        }
+        
         if (roomData?.firstMessageAt) {
             if (!isSessionActive) {
                 const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
                 sessionStartTime.current = startTime;
                 setIsSessionActive(true);
-
-                if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = setInterval(() => {
-                    const elapsedMs = Date.now() - startTime;
-                    const totalSeconds = Math.floor(elapsedMs / 1000);
-                    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                    setSessionTimer(`${minutes}:${seconds}`);
-                }, 1000);
+                startTimer(startTime);
             }
         }
     }, [roomData, isSessionActive]);
 
+    // This is now the definitive cleanup effect.
     useEffect(() => {
+        console.log('[DEBUG] Component mounted or roomId changed.');
+        // The return function from useEffect is the cleanup function.
+        return () => {
+            console.log('[DEBUG] Component unmounting. Running cleanup...');
+            handleExitRoom();
+        };
+    }, [handleExitRoom]);
+
+
+    useEffect(() => {
+        console.log('[DEBUG] Participant Listener: Setting up...');
         if (!user || roomLoading) return;
         
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
+            console.log('[DEBUG] Participant Listener: Snapshot received. Found', snapshot.size, 'participants.');
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             setParticipants(parts);
             setParticipantsLoading(false);
@@ -602,8 +626,10 @@ export default function SyncRoomPage() {
             if (isParticipant === 'unknown') {
                 const self = parts.find(p => p.uid === user.uid);
                 if (self && self.joinedAt) {
-                     onJoinSuccess(self.joinedAt);
+                    console.log('[DEBUG] Participant Listener: Current user is a participant.');
+                    onJoinSuccess(self.joinedAt);
                 } else if (!self) {
+                     console.log('[DEBUG] Participant Listener: Current user is NOT yet a participant.');
                      setIsParticipant('no');
                 }
             }
@@ -612,6 +638,7 @@ export default function SyncRoomPage() {
         });
 
         return () => {
+            console.log('[DEBUG] Participant Listener: Cleaning up.');
             unsubscribe();
         };
     }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
@@ -713,13 +740,6 @@ export default function SyncRoomPage() {
         }
     }, [user, authLoading, router]);
     
-    // This is the definitive cleanup effect.
-    useEffect(() => {
-        return () => {
-            handleExitRoom();
-        }
-    }, [handleExitRoom]);
-
 
     const handleEndMeeting = async () => {
         if (!isCurrentUserEmcee) {
