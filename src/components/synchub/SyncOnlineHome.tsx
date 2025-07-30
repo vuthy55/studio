@@ -126,6 +126,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
         
         const present = editableSummary.presentParticipants || [];
         const absent = editableSummary.absentParticipants || [];
+
         const allParticipants = [...present, ...absent];
 
         allParticipants.forEach(p => {
@@ -249,10 +250,10 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
             `Title: ${editableSummary.title}`,
             `Date: ${formatDate(editableSummary.date)}\n`,
             'Summary:',
-            `${editableSummary.summary.original}\n`,
+            `${editableSummary.summary?.original || ''}\n`,
         ];
 
-        Object.entries(editableSummary.summary.translations || {}).forEach(([lang, text]) => {
+        Object.entries(editableSummary.summary?.translations || {}).forEach(([lang, text]) => {
             contentParts.push(`--- Translation (${lang}) ---`);
             contentParts.push(`${text}\n`);
         });
@@ -352,15 +353,15 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
                         <h3 className="font-semibold text-lg mb-2">Summary</h3>
                         {isEditing ? (
                             <Textarea 
-                                value={editableSummary.summary.original} 
+                                value={editableSummary.summary?.original || ''} 
                                 name="summary.original"
                                 onChange={handleInputChange}
                                 className="w-full min-h-[150px]"
                             />
                         ) : (
                             <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                <p className="font-semibold text-foreground">{editableSummary.summary.original}</p>
-                                {Object.entries(editableSummary.summary.translations || {}).map(([lang, text]) => (
+                                <p className="font-semibold text-foreground">{editableSummary.summary?.original || 'No summary available.'}</p>
+                                {Object.entries(editableSummary.summary?.translations || {}).map(([lang, text]) => (
                                     <div key={lang} className="mt-2 p-2 border-l-2 border-primary bg-muted/50 rounded-r-md">
                                         <p className="font-bold text-xs text-primary">{languages.find(l => l.value === lang)?.label}</p>
                                         <p>{text}</p>
