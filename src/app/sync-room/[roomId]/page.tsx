@@ -166,40 +166,38 @@ function ParticipantsPanel({
     handleEndMeeting,
 }: any) {
     const [sessionTimer, setSessionTimer] = useState('00:00');
-    const [isSessionActive, setIsSessionActive] = useState(false);
-    const sessionStartTime = useRef<number | null>(null);
+    const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+     // Effect to start the session timer when the current user joins
     useEffect(() => {
-        const startTimer = (startTimeMillis: number) => {
-             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-             timerIntervalRef.current = setInterval(() => {
-                const elapsedMs = Date.now() - startTimeMillis;
+        const currentUserIsPresent = presentParticipants.some((p: Participant) => p.uid === user?.uid);
+        if (currentUserIsPresent && sessionStartTime === null) {
+            setSessionStartTime(Date.now());
+        }
+    }, [presentParticipants, user, sessionStartTime]);
+    
+    // Effect to run the clock interval
+    useEffect(() => {
+        if (sessionStartTime !== null) {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            
+            timerIntervalRef.current = setInterval(() => {
+                const elapsedMs = Date.now() - sessionStartTime;
                 const totalSeconds = Math.floor(elapsedMs / 1000);
                 const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                 setSessionTimer(`${minutes}:${seconds}`);
             }, 1000);
         }
-        
-        if (roomData?.firstMessageAt) {
-            if (!isSessionActive) {
-                const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
-                sessionStartTime.current = startTime;
-                setIsSessionActive(true);
-                startTimer(startTime);
-            }
-        }
-    }, [roomData, isSessionActive]);
 
-    // Cleanup timer on component unmount
-    useEffect(() => {
+        // Cleanup timer on component unmount
         return () => {
             if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
             }
         };
-    }, []);
+    }, [sessionStartTime]);
 
     return (
         <div className="flex flex-col h-full bg-background">
@@ -209,7 +207,7 @@ function ParticipantsPanel({
                         <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                         <p className="text-sm text-primary/80">Sync Room</p>
                     </div>
-                     {isSessionActive && (
+                     {sessionStartTime !== null && (
                         <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
                             <Clock className="h-5 w-5" />
                             {sessionTimer}
@@ -1046,4 +1044,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
