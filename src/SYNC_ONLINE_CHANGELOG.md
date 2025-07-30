@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Implemented a fully responsive, mobile-first design for the Sync Online room interface. On desktop, the layout features a persistent two-panel view with the participant list on the left and the main chat area on the right. On mobile devices, the interface collapses into a single view where the chat area is primary, and the participant list becomes a slide-in "sheet" accessible via an icon button in the header. This ensures an optimal and intuitive user experience across all screen sizes.
 - **`[IMPROVEMENT]`** Refined the session timer logic in Sync Online rooms. The timer now starts only upon the first microphone press by any participant, ensuring that billing and usage tracking are based purely on active conversation time rather than time spent idle in the room. This provides a more fair and accurate measure of session duration.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 
@@ -27,6 +28,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
