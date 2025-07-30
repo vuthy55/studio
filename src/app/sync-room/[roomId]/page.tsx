@@ -283,20 +283,9 @@ export default function SyncRoomPage() {
         }
         console.log(`[DEBUG] onJoinSuccess: Called with joinTime ${joinTime.toDate()}.`);
         setIsParticipant('yes');
-        sessionStartTime.current = Date.now();
         
         messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
 
-        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = setInterval(() => {
-            if (sessionStartTime.current) {
-                const elapsedMs = Date.now() - sessionStartTime.current;
-                const totalSeconds = Math.floor(elapsedMs / 1000);
-                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                setSessionTimer(`${minutes}:${seconds}`);
-            }
-        }, 1000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId]);
     
@@ -576,6 +565,20 @@ export default function SyncRoomPage() {
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
 
+        if (!sessionStartTime.current) {
+            sessionStartTime.current = Date.now();
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = setInterval(() => {
+                if (sessionStartTime.current) {
+                    const elapsedMs = Date.now() - sessionStartTime.current;
+                    const totalSeconds = Math.floor(elapsedMs / 1000);
+                    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                    setSessionTimer(`${minutes}:${seconds}`);
+                }
+            }, 1000);
+        }
+
         setIsListening(true);
         try {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
@@ -689,39 +692,39 @@ export default function SyncRoomPage() {
                            <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                            <p className="text-sm text-primary/80">Sync Room</p>
                         </div>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
-                                        <Clock className="h-4 w-4" />
-                                        <span>{sessionTimer}</span>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
-                                    <div className="font-bold mb-2">Session Info</div>
-                                    <div className="space-y-1.5 text-xs">
-                                            <div className="flex justify-between">
-                                            <span>Balance:</span> 
-                                            <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
-                                        </div>
-                                            <div className="flex justify-between">
-                                            <span>Cost:</span>
-                                            <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>Free Minutes:</span>
-                                            <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                        </div>
-                                        <Separator className="my-2"/>
-                                        <p className="text-muted-foreground">Final billing is calculated on the server when your session ends.</p>
-                                    </div>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
                      </div>
                      <div className="flex items-center justify-between pt-2">
                          <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
                         <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
+                                            <Clock className="h-4 w-4" />
+                                            <span>{sessionTimer}</span>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
+                                        <div className="font-bold mb-2">Session Info</div>
+                                        <div className="space-y-1.5 text-xs">
+                                                <div className="flex justify-between">
+                                                <span>Balance:</span> 
+                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
+                                            </div>
+                                                <div className="flex justify-between">
+                                                <span>Cost:</span>
+                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Free Minutes:</span>
+                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                            </div>
+                                            <Separator className="my-2"/>
+                                            <p className="text-muted-foreground">Billing starts when you first press the mic and is finalized on the server when your session ends.</p>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             {isCurrentUserEmcee && (
                                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                                     <DialogTrigger asChild>
@@ -978,5 +981,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
