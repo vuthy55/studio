@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { softDeleteRoom, setFirstMessageTimestamp, handleEmceeExit, endAndReconcileRoom } from '@/actions/room';
+import { setFirstMessageTimestamp, handleEmceeExit, endAndReconcileRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -436,7 +436,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>>();
+    const processedMessages = useRef(new Set<string>());
     
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
@@ -938,7 +938,10 @@ export default function SyncRoomPage() {
                             </Button>
                         </SheetTrigger>
                         <SheetContent side="left" className="p-0 w-80">
-                           <SheetHeader className="sr-only"><SheetTitle>Participants Panel</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
+                           <SheetHeader>
+                               <SheetTitle className="sr-only">Participants Panel</SheetTitle>
+                               <SheetDescription className="sr-only">View and manage room participants.</SheetDescription>
+                           </SheetHeader>
                             <ParticipantsPanel {...participantsPanelProps} />
                         </SheetContent>
                     </Sheet>
