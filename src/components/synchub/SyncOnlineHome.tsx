@@ -46,7 +46,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, requestSummaryEditAccess, updateScheduledRoom } from '@/actions/room';
+import { softDeleteRoom, requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, handleEmceeExit } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
@@ -62,13 +62,14 @@ import { sendRoomInviteEmail } from '@/actions/email';
 import { useTour, TourStep } from '@/context/TourContext';
 
 
-interface InvitedRoomClient extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt'> {
+interface InvitedRoomClient extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt'> {
     id: string;
     topic: string;
     status: 'active' | 'closed' | 'scheduled';
     createdAt: string;
     lastActivityAt?: string;
     scheduledAt?: string;
+    firstMessageAt?: string;
 }
 
 const syncOnlineTourSteps: TourStep[] = [
@@ -123,7 +124,9 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
         if (!editableSummary) return { participantLanguages: [], otherLanguages: [] };
         const langSet = new Set<string>();
         
-        const allParticipants = [...editableSummary.presentParticipants, ...editableSummary.absentParticipants];
+        const present = editableSummary.presentParticipants || [];
+        const absent = editableSummary.absentParticipants || [];
+        const allParticipants = [...present, ...absent];
 
         allParticipants.forEach(p => {
             if (p.language && typeof p.language === 'string') {
@@ -265,12 +268,12 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
         });
 
         contentParts.push('\nParticipants Present:');
-        editableSummary.presentParticipants.forEach(p => {
+        (editableSummary.presentParticipants || []).forEach(p => {
             contentParts.push(`- ${p.name} (${p.email})`);
         });
 
         contentParts.push('\nParticipants Absent:');
-        editableSummary.absentParticipants.forEach(p => {
+        (editableSummary.absentParticipants || []).forEach(p => {
             contentParts.push(`- ${p.name} (${p.email})`);
         });
         
@@ -443,7 +446,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {editableSummary.presentParticipants.map((p, i) => (
+                                        {(editableSummary.presentParticipants || []).map((p, i) => (
                                             <TableRow key={`present-${i}`}>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -462,7 +465,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {editableSummary.absentParticipants.map((p, i) => (
+                                        {(editableSummary.absentParticipants || []).map((p, i) => (
                                             <TableRow key={`absent-${i}`}>
                                                 <TableCell>{p.name}</TableCell>
                                                 <TableCell>{p.email}</TableCell>
@@ -554,29 +557,10 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
 function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; user: any; onUpdate: () => void }) {
     const { toast, dismiss } = useToast();
     const [isOpen, setIsOpen] = useState(false);
-    const [hasCheckedActivity, setHasCheckedActivity] = useState(false);
-    const [hasActivity, setHasActivity] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
-        if (!open) {
-            setHasCheckedActivity(false); // Reset for next time
-        }
-    };
-
-    const handleSoftDelete = async () => {
-        setIsActionLoading(true);
-        const result = await softDeleteRoom(room.id);
-        if (result.success) {
-            toast({ title: 'Room Closed', description: 'The room has been closed for all participants.' });
-            onUpdate();
-            setIsOpen(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to close room.' });
-        }
-        setIsActionLoading(false);
     };
     
     const handlePermanentDelete = async () => {
@@ -608,6 +592,19 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
              if (toastId) dismiss(toastId);
         }
     };
+    
+    const handleEndAndReconcile = async () => {
+        setIsActionLoading(true);
+        const result = await endAndReconcileRoom(room.id);
+        if (result.success) {
+            toast({ title: 'Room Closed & Reconciled', description: 'The room has been closed and any unused time has been refunded.' });
+            onUpdate();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to close room.' });
+        }
+        setIsActionLoading(false);
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -622,58 +619,51 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
                     </DialogDescription>
                 </DialogHeader>
                 
-                <div className="text-xs text-muted-foreground pt-2 font-mono">
-                  {room.paymentLogId && <div>Payment ID: {room.paymentLogId}</div>}
-                </div>
-
-
-                {isLoading ? (
-                    <div className="flex items-center justify-center h-24">
-                        <LoaderCircle className="animate-spin" />
-                    </div>
-                ) : room.status === 'scheduled' ? (
-                     <div className="py-4 space-y-4">
-                        <p className="text-sm text-muted-foreground">This room is scheduled. You can cancel and delete it, which will notify participants.</p>
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" disabled={isActionLoading}>
-                                    {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                    Cancel and Delete Room
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will permanently delete the room and notify invited participants.
-                                        {(room.initialCost ?? 0) > 0 && 
-                                            <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
-                                        }
-                                        This action cannot be undone.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Go Back</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handlePermanentDelete}>Confirm Cancellation</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </div>
-                ) : room.status === 'closed' ? (
-                     <div className="py-4 space-y-4">
-                        <p className="text-sm text-muted-foreground">This room is closed.</p>
-                    </div>
-                ) : ( // Active rooms
-                    <div className="py-4 space-y-4">
-                        <p className="text-sm text-muted-foreground">This room is active. You can close it for all users.</p>
-                        <div className="flex flex-col gap-2">
-                             <Button onClick={handleSoftDelete} disabled={isActionLoading} variant="destructive">
-                                {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                Close Room
-                            </Button>
+                <div className="py-4 space-y-4">
+                    {room.status === 'scheduled' ? (
+                         <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">This room is scheduled. You can cancel and delete it, which will notify participants.</p>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" disabled={isActionLoading}>
+                                        {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                        Cancel and Delete Room
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will permanently delete the room and notify invited participants.
+                                            {(room.initialCost ?? 0) > 0 && 
+                                                <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
+                                            }
+                                            This action cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Go Back</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handlePermanentDelete}>Confirm Cancellation</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
-                    </div>
-                )}
+                    ) : room.status === 'closed' ? (
+                         <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">This room is closed.</p>
+                        </div>
+                    ) : ( // Active rooms
+                        <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">This room is active. Closing it will end the session for all users.</p>
+                            <div className="flex flex-col gap-2">
+                                 <Button onClick={handleEndAndReconcile} disabled={isActionLoading} variant="destructive">
+                                    {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                    End Meeting & Reconcile
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
                 </DialogFooter>
@@ -785,10 +775,16 @@ export default function SyncOnlineHome() {
     }, [parsedInviteeEmails, user?.email]);
 
     const calculatedCost = useMemo(() => {
-        if (!settings) return 0;
-        const numParticipants = allInvitedEmailsForCalc.length;
-        return numParticipants * duration * (settings.costPerSyncOnlineMinute || 1);
-    }, [settings, duration, allInvitedEmailsForCalc]);
+        if (!settings || !userProfile) return 0;
+        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const currentUsageMs = userProfile.syncOnlineUsage || 0;
+        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
+        const remainingFreeMinutes = Math.floor(remainingFreeMs / 60000);
+        
+        const billableMinutes = Math.max(0, duration - remainingFreeMinutes);
+        
+        return billableMinutes * (settings.costPerSyncOnlineMinute || 1) * allInvitedEmailsForCalc.length;
+    }, [settings, duration, allInvitedEmailsForCalc.length, userProfile]);
 
     const costDifference = useMemo(() => {
         if (!isEditMode || !editingRoom) return 0;
@@ -848,6 +844,7 @@ export default function SyncOnlineHome() {
                         paymentLogId: data.paymentLogId,
                         hasStarted: data.hasStarted,
                         reminderMinutes: data.reminderMinutes,
+                        firstMessageAt: toISO(data.firstMessageAt),
                     };
                 })
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
@@ -949,7 +946,7 @@ export default function SyncOnlineHome() {
                 }
                 const newRoomRef = doc(collection(db, 'syncRooms'));
                 const batch = writeBatch(db);
-                const newPaymentLogRef = doc(collection(db, 'users', user.uid, 'transactionLogs'));
+                const userDocRef = doc(db, 'users', user.uid);
                 
                 const newRoom: Omit<SyncRoom, 'id'> = {
                     topic: roomTopic,
@@ -964,19 +961,25 @@ export default function SyncOnlineHome() {
                     scheduledAt: Timestamp.fromDate(finalScheduledDate),
                     durationMinutes: duration,
                     initialCost: calculatedCost,
-                    paymentLogId: newPaymentLogRef.id,
                     hasStarted: startNow,
                 };
                 batch.set(newRoomRef, newRoom);
                 
-                batch.update(doc(db, 'users', user.uid), { tokenBalance: increment(-calculatedCost) });
+                if (calculatedCost > 0) {
+                    batch.update(userDocRef, { tokenBalance: increment(-calculatedCost) });
+                    const logRef = doc(collection(userDocRef, 'transactionLogs'));
+                    batch.set(logRef, {
+                        actionType: 'live_sync_online_spend',
+                        tokenChange: -calculatedCost,
+                        timestamp: serverTimestamp(),
+                        description: `Pre-paid for room: "${roomTopic}"`
+                    });
+                }
                 
-                batch.set(newPaymentLogRef, {
-                    actionType: 'live_sync_online_spend',
-                    tokenChange: -calculatedCost,
-                    timestamp: serverTimestamp(),
-                    description: `Pre-paid for room: "${roomTopic}"`
-                });
+                const freeMinutesToDeduct = Math.min(duration, Math.floor(Math.max(0, (settings?.freeSyncOnlineMinutes || 0) * 60 * 1000 - (userProfile.syncOnlineUsage || 0)) / 60000));
+                if(freeMinutesToDeduct > 0) {
+                     batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
+                }
                 
                 await batch.commit();
 
