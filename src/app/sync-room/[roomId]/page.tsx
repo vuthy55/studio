@@ -438,7 +438,7 @@ export default function SyncRoomPage() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
     
-    const sessionStartTimeRef = useRef<number | null>(null);
+    const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
@@ -456,7 +456,7 @@ export default function SyncRoomPage() {
         const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
         await deleteDoc(participantRef);
         
-        const sessionDurationMs = sessionStartTimeRef.current ? Date.now() - sessionStartTimeRef.current : 0;
+        const sessionDurationMs = sessionUsageRef.current;
         if (sessionDurationMs > 0) {
             await handleSyncOnlineSessionEnd(sessionDurationMs);
         }
@@ -480,11 +480,12 @@ export default function SyncRoomPage() {
             }, 1000);
         }
 
-        // The cleanup function is crucial to stop the interval when the component unmounts.
         return () => {
             if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
             }
+            setSessionTimer('00:00');
         };
     }, [roomData?.firstMessageAt]);
     
@@ -770,9 +771,7 @@ export default function SyncRoomPage() {
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted || !user) return;
 
-        if (sessionStartTimeRef.current === null) {
-            sessionStartTimeRef.current = Date.now();
-        }
+        sessionUsageRef.current += Date.now() - (sessionUsageRef.current || Date.now());
         
         if (roomData && !roomData.firstMessageAt) {
             await setFirstMessageTimestamp(roomId);
@@ -1004,4 +1003,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
