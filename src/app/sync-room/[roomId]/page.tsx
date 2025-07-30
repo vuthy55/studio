@@ -55,7 +55,7 @@ import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { Badge } from '@/components/ui/badge';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 
 
 function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: SyncRoom; roomId: string; onJoinSuccess: (joinTime: Timestamp) => void; }) {
@@ -258,12 +258,12 @@ function ParticipantsPanel({
         <aside className="w-full md:w-1/4 md:min-w-[320px] bg-background md:border-r flex flex-col h-full">
             <header className="p-4 border-b space-y-2">
                  <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
-                    <div className="flex-grow p-1 rounded-lg flex items-center justify-between">
-                        <p className="font-bold text-lg text-primary">{roomData.topic}</p>
+                    <p className="font-bold text-lg text-primary flex-grow">{roomData.topic}</p>
+                    <div className="flex items-center gap-2">
                          <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground p-2">
+                                    <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
                                         <Clock className="h-4 w-4" />
                                         <span>{sessionTimer}</span>
                                     </div>
@@ -965,6 +965,10 @@ export default function SyncRoomPage() {
                             </Button>
                         </SheetTrigger>
                         <SheetContent side="left" className="p-0 w-full max-w-sm">
+                            <SheetHeader className="sr-only">
+                                <SheetTitle>Participants and Room Controls</SheetTitle>
+                                <SheetDescription>View participants, invite others, and manage the room.</SheetDescription>
+                            </SheetHeader>
                             <ParticipantsPanel
                                 roomData={{...roomData, id: roomId}}
                                 user={user}
@@ -1045,4 +1049,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
