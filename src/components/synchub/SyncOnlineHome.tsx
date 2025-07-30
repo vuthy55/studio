@@ -576,23 +576,6 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
         setIsActionLoading(false);
     };
     
-    const handleSummarizeAndEnd = async () => {
-        setIsActionLoading(true);
-        const { id: toastId } = toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.', duration: 120000 });
-        try {
-            await summarizeRoom({ roomId: room.id });
-            toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            onUpdate();
-            setIsOpen(false);
-        } catch (error) {
-            console.error("Error summarizing and ending meeting:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary.' });
-        } finally {
-             setIsActionLoading(false);
-             if (toastId) dismiss(toastId);
-        }
-    };
-    
     const handleEndAndReconcile = async () => {
         setIsActionLoading(true);
         const result = await endAndReconcileRoom(room.id);
@@ -1436,5 +1419,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    

@@ -168,6 +168,7 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
         // --- Refund Logic ---
         if (roomDoc.exists) {
             const roomData = roomDoc.data() as SyncRoom;
+            // A refund is needed if there was a cost AND the room was never started.
             const needsRefund = (roomData.initialCost ?? 0) > 0 && !roomData.firstMessageAt;
 
             if (needsRefund) {
@@ -323,14 +324,26 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             if (!roomDoc.exists) throw new Error('Room not found.');
 
             const roomData = roomDoc.data() as SyncRoom;
-            const creatorRef = db.collection('users').doc(roomData.creatorUid);
-
+            
+            // If the room was never started, it's a full refund of the initial cost.
             if (!roomData.firstMessageAt) {
-                // No one ever spoke, just close the room
                 transaction.update(roomRef, { status: 'closed' });
+                if (roomData.initialCost && roomData.initialCost > 0) {
+                    const creatorRef = db.collection('users').doc(roomData.creatorUid);
+                    transaction.update(creatorRef, { tokenBalance: FieldValue.increment(roomData.initialCost) });
+                    const logRef = creatorRef.collection('transactionLogs').doc();
+                    transaction.set(logRef, {
+                        actionType: 'sync_online_refund',
+                        tokenChange: roomData.initialCost,
+                        timestamp: FieldValue.serverTimestamp(),
+                        description: `Refund for unused room: "${roomData.topic}"`
+                    });
+                }
                 return;
             }
 
+            // If the room was started, calculate prorated refund.
+            const creatorRef = db.collection('users').doc(roomData.creatorUid);
             const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
             const endTime = Date.now();
             const actualDurationMinutes = Math.ceil((endTime - startTime) / 60000);
@@ -412,5 +425,3 @@ export async function handleEmceeExit(roomId: string, leavingEmceeId: string): P
     return { success: false, error: 'An unexpected server error occurred.' };
   }
 }
-
-    
