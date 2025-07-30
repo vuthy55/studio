@@ -5,6 +5,10 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Redesigned the Sync Online meeting room to be fully mobile-responsive. On mobile devices, the participant panel now collapses into a slide-in sheet, prioritizing the chat and microphone controls.
+- **`[IMPROVEMENT]`** Refined the meeting room UI by relocating the session timer to the header. Detailed cost and balance information is now available in a tooltip on the clock, creating a cleaner interface.
+- **`[FIX]`** Corrected the session timer logic in Sync Online rooms. The timer and associated token billing now correctly start only upon the first press of the microphone button, rather than on room entry, ensuring users are only charged for active participation.
+- **`[IMPROVEMENT]`** Updated the "Exit Room" and "End Meeting" functions to redirect users to the Sync Online tab within the SyncHub, providing a more logical and seamless user experience.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 
 ### Fixed
@@ -18,10 +22,3 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
-
-
-
-
-
-
-
