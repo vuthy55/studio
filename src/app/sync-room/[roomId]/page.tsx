@@ -938,10 +938,7 @@ export default function SyncRoomPage() {
                             </Button>
                         </SheetTrigger>
                         <SheetContent side="left" className="p-0 w-80">
-                           <SheetHeader>
-                               <SheetTitle className="sr-only">Participants Panel</SheetTitle>
-                               <SheetDescription className="sr-only">View and manage room participants.</SheetDescription>
-                           </SheetHeader>
+                           <SheetHeader className="sr-only"><SheetTitle>Participants Panel</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
                             <ParticipantsPanel {...participantsPanelProps} />
                         </SheetContent>
                     </Sheet>

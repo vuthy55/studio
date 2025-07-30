@@ -78,16 +78,6 @@ export async function setFirstMessageTimestamp(roomId: string): Promise<{success
                     lastSessionEndedAt: FieldValue.delete() // Clear any previous session end time
                 };
                 transaction.update(roomRef, updateData);
-
-                // Add a system message to the chat
-                const messageRef = roomRef.collection('messages').doc();
-                transaction.set(messageRef, {
-                    text: "The meeting has now officially started.",
-                    speakerName: "System",
-                    speakerUid: "system",
-                    speakerLanguage: "en-US",
-                    createdAt: FieldValue.serverTimestamp(),
-                });
             }
         });
 
@@ -394,7 +384,8 @@ export async function handleEmceeExit(roomId: string, leavingEmceeId: string): P
     if (!roomDoc.exists) throw new Error('Room not found.');
 
     const roomData = roomDoc.data() as SyncRoom;
-    const leavingEmceeEmail = roomData.emceeEmails.find(email => auth.getUserByEmail(email).then(u => u.uid === leavingEmceeId));
+    const userRecord = await auth.getUser(leavingEmceeId);
+    const leavingEmceeEmail = userRecord.email;
     
     const remainingEmcees = roomData.emceeEmails.filter(email => email !== leavingEmceeEmail);
     
