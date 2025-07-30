@@ -475,7 +475,6 @@ export default function SyncRoomPage() {
     useEffect(() => {
         // Start timer if session has started and user is an active participant
         if (roomData?.firstMessageAt && isParticipant === 'yes' && !roomData?.lastSessionEndedAt) {
-            console.log("[TIMER DEBUG] Starting interval because firstMessageAt exists and user is a participant.");
             const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
             
             // Clear any existing interval before starting a new one
@@ -494,7 +493,6 @@ export default function SyncRoomPage() {
 
         return () => {
             if (timerIntervalRef.current) {
-                console.log(`[TIMER DEBUG] Cleanup: Clearing interval ID ${timerIntervalRef.current}`);
                 clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
@@ -585,7 +583,6 @@ export default function SyncRoomPage() {
     
 
     useEffect(() => {
-        console.log(`[DEBUG] Main useEffect running. Auth loading: ${authLoading}, Room loading: ${roomLoading}, User: ${!!user}`);
         if (authLoading || roomLoading) return;
         if (!user) {
             router.push('/login');
@@ -593,15 +590,12 @@ export default function SyncRoomPage() {
         }
 
         const checkInitialParticipation = async () => {
-            console.log("[DEBUG] Checking initial participation...");
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             const participantDoc = await getDoc(participantRef);
 
             if (participantDoc.exists()) {
-                console.log("[DEBUG] User is already a participant. Initializing.");
                 checkParticipationAndInitialize(participantDoc.data()?.joinedAt || Timestamp.now());
             } else {
-                console.log("[DEBUG] User is not a participant. Showing setup screen.");
                 setIsParticipant('no');
             }
         };
@@ -616,7 +610,6 @@ export default function SyncRoomPage() {
         });
 
         return () => {
-             console.log("[DEBUG] Main useEffect cleanup function running.");
             participantListenerUnsubscribe.current?.();
             messageListenerUnsubscribe.current?.();
         };
@@ -882,8 +875,6 @@ export default function SyncRoomPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not demote emcee.' });
         }
     };
-    
-    console.log(`[DEBUG] Rendering with sessionTimer state: ${sessionTimer}`);
 
 
     if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
@@ -1030,5 +1021,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-```
