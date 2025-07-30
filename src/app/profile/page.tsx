@@ -834,7 +834,7 @@ function ReferralsSection() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Button onClick={fetchReferrals} disabled={isLoading} className="mb-4">
+                    <Button onClick={fetchReferrals} disabled={isLoading || hasFetched} className="mb-4">
                         {isLoading ? (
                             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                         ) : hasFetched ? (
@@ -978,5 +978,4 @@ export default function ProfilePage() {
         </Suspense>
     );
 }
-
     

@@ -102,7 +102,7 @@ export default function UserDetailPage() {
     }, [router, toast]);
     
     const handleFetchPracticeHistory = useCallback(async () => {
-         if (!userId) return;
+         if (!userId || hasFetchedStats) return;
          setIsFetchingStats(true);
          try {
             const historyRef = collection(db, 'users', userId, 'practiceHistory');
@@ -119,10 +119,10 @@ export default function UserDetailPage() {
             setIsFetchingStats(false);
             setHasFetchedStats(true);
          }
-    }, [toast, userId]);
+    }, [toast, userId, hasFetchedStats]);
 
      const handleFetchLogs = useCallback(async () => {
-        if (!userId) return;
+        if (!userId || hasFetchedLogs) return;
         setIsFetchingLogs(true);
         const transRef = collection(db, 'users', userId, 'transactionLogs');
         const q = query(transRef, orderBy('timestamp', 'desc'));
@@ -136,10 +136,10 @@ export default function UserDetailPage() {
             setIsFetchingLogs(false);
             setHasFetchedLogs(true);
         }
-    }, [userId, toast]);
+    }, [userId, toast, hasFetchedLogs]);
 
     const handleFetchPayments = useCallback(async () => {
-        if (!userId) return;
+        if (!userId || hasFetchedPayments) return;
         setIsFetchingPayments(true);
         const paymentsRef = collection(db, 'users', userId, 'paymentHistory');
         const q = query(paymentsRef, orderBy('createdAt', 'desc'));
@@ -153,7 +153,7 @@ export default function UserDetailPage() {
             setIsFetchingPayments(false);
             setHasFetchedPayments(true);
         }
-    }, [userId, toast]);
+    }, [userId, toast, hasFetchedPayments]);
 
     const handleFetchReferrals = useCallback(async () => {
         if (!userId || hasFetchedReferrals) return;

@@ -28,7 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { getAllRooms2, type ClientSyncRoom } from '@/services/rooms2';
 import { Checkbox } from '@/components/ui/checkbox';
-import { permanentlyDeleteRooms, checkRoomActivity, generateTranscript, softDeleteRoom, setRoomEditability } from '@/actions/room';
+import { permanentlyDeleteRooms, setRoomEditability } from '@/actions/room';
 import { deleteUsers, clearAllNotifications } from '@/actions/admin';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
@@ -406,7 +406,6 @@ function FinancialTabContent() {
     const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [hasSearched, setHasSearched] = useState(false);
 
     const [formState, setFormState] = useState<{
@@ -441,7 +440,7 @@ function FinancialTabContent() {
         if (!auth.currentUser) return;
         
         setIsSearching(true);
-        if (searchQuery) setHasSearched(true);
+        setHasSearched(true);
         
         try {
             const [ledgerData, analyticsData] = await Promise.all([
@@ -476,18 +475,8 @@ function FinancialTabContent() {
             setIsLoading(false);
             return;
         }
-        // Initial fetch for analytics only
         getLedgerAnalytics().then(setAnalytics).finally(() => setIsLoading(false));
     }, [user]);
-
-     useEffect(() => {
-        if (debouncedSearchTerm) {
-            fetchData(debouncedSearchTerm);
-        } else {
-            setLedger([]);
-            setHasSearched(false);
-        }
-    }, [debouncedSearchTerm, fetchData]);
     
 
     const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
@@ -532,7 +521,7 @@ function FinancialTabContent() {
             
             setIsExpenseDialogOpen(false);
             setIsRevenueDialogOpen(false);
-            await fetchData(debouncedSearchTerm);
+            await fetchData(searchTerm);
 
         } catch (error) {
             
@@ -737,7 +726,7 @@ function FinancialTabContent() {
                 </Card>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-between items-center mb-4">
+                 <form className="flex justify-between items-center mb-4" onSubmit={(e) => { e.preventDefault(); fetchData(searchTerm); }}>
                     <div className="relative flex-grow">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                         <Input
@@ -747,7 +736,11 @@ function FinancialTabContent() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                     <div className="flex items-center gap-2 ml-4">
+                        <Button type="submit" variant="secondary" size="sm" disabled={isSearching}>
+                            {isSearching ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Search className="mr-2 h-4 w-4" />}
+                            Search
+                        </Button>
                         <Button onClick={downloadCsv} variant="outline" size="sm" disabled={ledger.length === 0}>
                             <Download className="mr-2 h-4 w-4" />
                             CSV
@@ -775,7 +768,7 @@ function FinancialTabContent() {
                             </AlertDialogContent>
                         </AlertDialog>
                     </div>
-                </div>
+                </form>
                  <div className="border rounded-md min-h-[200px]">
                     <Table>
                         <TableHeader>
@@ -957,7 +950,6 @@ function TokensTabContent() {
     const [isDeleting, setIsDeleting] = useState(false);
     
     const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [hasSearched, setHasSearched] = useState(false);
 
     const getReasonText = (log: TokenLedgerEntry) => {
@@ -988,7 +980,7 @@ function TokensTabContent() {
         if (!auth.currentUser) return;
 
         setIsSearching(true);
-        if (searchQuery) setHasSearched(true);
+        setHasSearched(true);
         
         try {
             const [analyticsData, ledgerData] = await Promise.all([
@@ -1011,19 +1003,9 @@ function TokensTabContent() {
             setIsLoading(false);
             return;
         }
-        // Initial fetch for analytics only
         getTokenAnalytics().then(setAnalytics).finally(() => setIsLoading(false));
     }, [user]);
 
-    useEffect(() => {
-        if (debouncedSearchTerm) {
-            fetchData(debouncedSearchTerm);
-        } else {
-            setLedger([]);
-            setHasSearched(false);
-        }
-    }, [debouncedSearchTerm, fetchData]);
-    
     const downloadCsv = () => {
         if (ledger.length === 0) return;
 
@@ -1113,7 +1095,7 @@ function TokensTabContent() {
                         <TabsTrigger value="ledger">Ledger</TabsTrigger>
                     </TabsList>
                     <TabsContent value="issue" className="py-4">
-                        <IssueTokensContent onIssueSuccess={() => fetchData(debouncedSearchTerm)} />
+                        <IssueTokensContent onIssueSuccess={() => fetchData(searchTerm)} />
                     </TabsContent>
                     <TabsContent value="acquired" className="py-4">
                         <Card>
@@ -1190,7 +1172,7 @@ function TokensTabContent() {
                                         </AlertDialog>
                                     </div>
                                 </div>
-                                <div className="relative pt-2">
+                                <form className="relative pt-2" onSubmit={(e) => { e.preventDefault(); fetchData(searchTerm); }}>
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                     <Input
                                         placeholder="Search by email or use * for all"
@@ -1198,7 +1180,8 @@ function TokensTabContent() {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
-                                </div>
+                                    <Button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 h-8">Search</Button>
+                                </form>
                             </CardHeader>
                             <CardContent>
                                 <div className="border rounded-md min-h-[200px] mt-6">
