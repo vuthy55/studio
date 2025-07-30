@@ -438,7 +438,7 @@ export default function SyncRoomPage() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
     
-    const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+    const sessionStartTimeRef = useRef<number | null>(null);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
@@ -456,31 +456,36 @@ export default function SyncRoomPage() {
         const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
         await deleteDoc(participantRef);
         
-        const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
+        const sessionDurationMs = sessionStartTimeRef.current ? Date.now() - sessionStartTimeRef.current : 0;
         if (sessionDurationMs > 0) {
             await handleSyncOnlineSessionEnd(sessionDurationMs);
         }
 
         router.push('/synchub?tab=sync-online');
-    }, [user, roomId, router, sessionStartTime, handleSyncOnlineSessionEnd]);
+    }, [user, roomId, router, handleSyncOnlineSessionEnd]);
 
 
     useEffect(() => {
-        if (sessionStartTime !== null) {
+        // This effect now correctly depends on the shared `firstMessageAt` timestamp from the database.
+        if (roomData?.firstMessageAt) {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            
+
+            // Ensure the timestamp is a valid JS Date object before getting its time
+            const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
+
             timerIntervalRef.current = setInterval(() => {
-                const elapsedMs = Date.now() - sessionStartTime;
+                const elapsedMs = Date.now() - startTime;
                 const totalSeconds = Math.floor(elapsedMs / 1000);
                 const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                 setSessionTimer(`${minutes}:${seconds}`);
             }, 1000);
         }
+
         return () => {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         };
-    }, [sessionStartTime]);
+    }, [roomData?.firstMessageAt]);
     
     
     const handleManualExit = async () => {
@@ -762,8 +767,8 @@ export default function SyncRoomPage() {
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted || !user) return;
 
-        if (sessionStartTime === null) {
-            setSessionStartTime(Date.now());
+        if (sessionStartTimeRef.current === null) {
+            sessionStartTimeRef.current = Date.now();
             if (roomData && !roomData.firstMessageAt) {
                 await setFirstMessageTimestamp(roomId);
             }
