@@ -53,8 +53,7 @@ async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?
 
 /**
  * Sets the 'firstMessageAt' timestamp on a room document if it doesn't already exist.
- * This action is now idempotent and adds a system message to indicate the meeting start.
- * It also resets the room's session state if it had previously ended.
+ * This action is now idempotent and also resets the room's session state if it had previously ended.
  */
 export async function setFirstMessageTimestamp(roomId: string): Promise<{success: boolean, error?: string}> {
     if (!roomId) {
@@ -372,47 +371,72 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
 }
 
 
-export async function handleEmceeExit(roomId: string, leavingEmceeId: string): Promise<{ success: boolean; error?: string }> {
-  if (!roomId || !leavingEmceeId) {
-    return { success: false, error: 'Room ID and leaving emcee ID are required.' };
-  }
-
-  const roomRef = db.collection('syncRooms').doc(roomId);
-
-  try {
-    const roomDoc = await roomRef.get();
-    if (!roomDoc.exists) throw new Error('Room not found.');
-
-    const roomData = roomDoc.data() as SyncRoom;
-    const userRecord = await auth.getUser(leavingEmceeId);
-    const leavingEmceeEmail = userRecord.email;
-    
-    const remainingEmcees = roomData.emceeEmails.filter(email => email !== leavingEmceeEmail);
-    
-    await roomRef.update({ emceeEmails: remainingEmcees });
-
-    if (remainingEmcees.length === 0) {
-      const participantsSnapshot = await roomRef.collection('participants').limit(1).get();
-      if (participantsSnapshot.empty) {
-        await endAndReconcileRoom(roomId);
-      } else {
-        const newEmcee = participantsSnapshot.docs[0].data() as Participant;
-        await roomRef.update({ emceeEmails: FieldValue.arrayUnion(newEmcee.email) });
-        
-        const notificationRef = db.collection('notifications').doc();
-        await notificationRef.set({
-            userId: newEmcee.uid,
-            type: 'edit_request', // a generic 'you have been promoted' type could be better
-            message: `You have been promoted to emcee for the room "${roomData.topic}".`,
-            createdAt: FieldValue.serverTimestamp(),
-            read: false,
-            roomId: roomId,
-        });
-      }
+/**
+ * Handles all logic when a participant exits a room, including emcee reassignment and room closure.
+ * This is a fire-and-forget action called by the client.
+ */
+export async function handleParticipantExit(roomId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    if (!roomId || !userId) {
+        return { success: false, error: 'Room ID and User ID are required.' };
     }
-    return { success: true };
-  } catch (error: any) {
-    console.error(`Error handling emcee exit for room ${roomId}:`, error);
-    return { success: false, error: 'An unexpected server error occurred.' };
-  }
+
+    const roomRef = db.collection('syncRooms').doc(roomId);
+    const participantRef = roomRef.collection('participants').doc(userId);
+
+    try {
+        const roomDoc = await roomRef.get();
+        if (!roomDoc.exists) return { success: true }; // Room already gone
+        const roomData = roomDoc.data() as SyncRoom;
+
+        const participantDoc = await participantRef.get();
+        if (!participantDoc.exists) return { success: true }; // Participant already gone
+        const participantData = participantDoc.data() as Participant;
+
+        // --- Main Logic ---
+        await participantRef.delete();
+
+        // Check if the room is now empty
+        const remainingParticipantsSnapshot = await roomRef.collection('participants').limit(1).get();
+        if (remainingParticipantsSnapshot.empty) {
+            await endAndReconcileRoom(roomId);
+            return { success: true };
+        }
+
+        // Check if the leaving user was an emcee
+        const wasEmcee = roomData.emceeEmails.includes(participantData.email);
+        if (wasEmcee) {
+            const remainingEmcees = roomData.emceeEmails.filter(email => email !== participantData.email);
+
+            if (remainingEmcees.length === 0) {
+                // Last emcee left, promote someone else
+                const newEmcee = remainingParticipantsSnapshot.docs[0].data() as Participant;
+                await roomRef.update({
+                    emceeEmails: FieldValue.arrayUnion(newEmcee.email)
+                });
+                
+                const notificationRef = db.collection('notifications').doc();
+                await notificationRef.set({
+                    userId: newEmcee.uid,
+                    type: 'edit_request',
+                    message: `You have been promoted to emcee for the room "${roomData.topic}".`,
+                    createdAt: FieldValue.serverTimestamp(),
+                    read: false,
+                    roomId: roomId,
+                });
+
+            } else {
+                // Other emcees remain, just remove the leaving one
+                 await roomRef.update({
+                    emceeEmails: FieldValue.arrayRemove(participantData.email)
+                });
+            }
+        }
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error(`Error handling participant exit for user ${userId} in room ${roomId}:`, error);
+        // We don't return an error to the client as this is fire-and-forget
+        return { success: false, error: 'Server-side exit handling failed.' };
+    }
 }

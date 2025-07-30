@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { setFirstMessageTimestamp, handleEmceeExit, endAndReconcileRoom } from '@/actions/room';
+import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -447,28 +447,18 @@ export default function SyncRoomPage() {
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
 
     const handleExitRoom = useCallback(async () => {
-        if (!user) return;
+        if (!user || isExiting.current) return;
+        isExiting.current = true;
         
-        // Immediately navigate away to prevent client-side errors
         router.push('/synchub?tab=sync-online');
-
-        // Fire-and-forget the server-side cleanup
-        (async () => {
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-            await deleteDoc(participantRef);
         
-            const isLeavingEmcee = roomData?.emceeEmails?.includes(user.email!);
-            if (isLeavingEmcee) {
-                await handleEmceeExit(roomId, user.uid);
-            }
-            
-            const sessionDurationMs = sessionUsageRef.current;
-            if (sessionDurationMs > 0) {
-                await handleSyncOnlineSessionEnd(sessionDurationMs);
-            }
-        })();
-
-    }, [user, roomId, router, handleSyncOnlineSessionEnd, roomData?.emceeEmails]);
+        handleParticipantExit(roomId, user.uid);
+        
+        const sessionDurationMs = sessionUsageRef.current;
+        if (sessionDurationMs > 0) {
+            handleSyncOnlineSessionEnd(sessionDurationMs);
+        }
+    }, [user, roomId, router, handleSyncOnlineSessionEnd]);
 
 
     useEffect(() => {
@@ -501,8 +491,6 @@ export default function SyncRoomPage() {
     
     
     const handleManualExit = async () => {
-        if (isExiting.current) return;
-        isExiting.current = true;
         await handleExitRoom();
     };
     
@@ -606,7 +594,6 @@ export default function SyncRoomPage() {
         if (participantListenerUnsubscribe.current) participantListenerUnsubscribe.current();
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         participantListenerUnsubscribe.current = onSnapshot(participantsQuery, (snapshot) => {
-            if (isExiting.current) return;
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             setParticipants(parts);
         });
@@ -619,45 +606,41 @@ export default function SyncRoomPage() {
     
     
     useEffect(() => {
-        if (isExiting.current || isParticipant !== 'yes' || !user) return;
-    
+        if (!user || isParticipant !== 'yes' || isExiting.current) return;
+
         const amIStillHere = participants.some(p => p.uid === user.uid);
-    
+        
         if (!amIStillHere) {
-            isExiting.current = true; // Set flag to prevent multiple triggers
             toast({
                 variant: 'destructive',
                 title: 'You were removed',
                 description: 'An emcee has removed you from the room.',
                 duration: 5000,
             });
-            router.push('/synchub?tab=sync-online');
+            handleExitRoom();
         }
-    }, [participants, isParticipant, user, toast, router]);
+    }, [participants, isParticipant, user, toast, handleExitRoom]);
 
     useEffect(() => {
-        if (isExiting.current || !user || !roomData) return;
-
+        if (!roomData || !user || isExiting.current) return;
         if (roomData.status === 'closed') {
-            isExiting.current = true;
             toast({
                 title: 'Meeting Ended',
                 description: 'This room has been closed by the emcee.',
                 duration: 5000,
             });
-            router.push('/synchub?tab=sync-online');
+            handleExitRoom();
         }
         if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
-            isExiting.current = true;
             toast({
                 variant: 'destructive',
                 title: 'Access Denied',
                 description: 'You have been blocked from this room.',
                 duration: 5000
             });
-            router.push('/synchub?tab=sync-online');
+            handleExitRoom();
         }
-    }, [roomData, user, toast, router]);
+    }, [roomData, user, toast, handleExitRoom]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -721,16 +704,21 @@ export default function SyncRoomPage() {
     
 
     const handleEndMeeting = async () => {
-        if (!isCurrentUserEmcee || isExiting.current) return;
-        isExiting.current = true;
-        
-        // Immediately navigate emcee away
-        router.push('/synchub?tab=sync-online');
-        
-        // Fire-and-forget server action
-        endAndReconcileRoom(roomId).catch(error => {
-            console.error("Error in background reconcile:", error);
-        });
+        if (!isCurrentUserEmcee) {
+             return;
+        }
+        try {
+            
+            const result = await endAndReconcileRoom(roomId);
+            if (result.success) {
+                // The room status change will trigger the exit for all participants
+            } else {
+                 toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
+            }
+        } catch (error) {
+            console.error("Error ending meeting:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
+        }
     };
     
     const handleSaveAndEndMeeting = async () => {
