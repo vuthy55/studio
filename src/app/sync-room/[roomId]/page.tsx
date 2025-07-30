@@ -688,11 +688,8 @@ export default function SyncRoomPage() {
             <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
                     <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
-                        <div className="bg-primary/10 p-3 rounded-lg flex-grow flex justify-between items-center">
-                            <div>
-                                <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                                <p className="text-sm text-primary/80">Sync Room</p>
-                            </div>
+                        <div className="flex-grow flex items-center justify-between bg-primary/10 p-3 rounded-lg">
+                            <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -723,42 +720,40 @@ export default function SyncRoomPage() {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <div className="flex items-center gap-2 self-end md:self-start">
-                             {isCurrentUserEmcee && (
-                                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                        <DialogHeader>
-                                            <DialogTitle>Invite More People</DialogTitle>
-                                            <DialogDescription>
-                                                Enter email addresses separated by commas to invite them to this room.
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                        <div className="py-4 space-y-2">
-                                            <Label htmlFor="emails-to-invite">Emails</Label>
-                                            <Textarea 
-                                                id="emails-to-invite" 
-                                                value={emailsToInvite}
-                                                onChange={(e) => setEmailsToInvite(e.target.value)}
-                                                placeholder="friend1@example.com, friend2@example.com"
-                                            />
-                                        </div>
-                                        <DialogFooter>
-                                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                                            <Button onClick={handleSendInvites} disabled={isSendingInvites}>
-                                                {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                                Send Invites
-                                            </Button>
-                                        </DialogFooter>
-                                    </DialogContent>
-                                </Dialog>
-                            )}
-                        </div>
                     </div>
                      <div className="flex items-center justify-between pt-2">
                          <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
+                         {isCurrentUserEmcee && (
+                            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Invite More People</DialogTitle>
+                                        <DialogDescription>
+                                            Enter email addresses separated by commas to invite them to this room.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="py-4 space-y-2">
+                                        <Label htmlFor="emails-to-invite">Emails</Label>
+                                        <Textarea 
+                                            id="emails-to-invite" 
+                                            value={emailsToInvite}
+                                            onChange={(e) => setEmailsToInvite(e.target.value)}
+                                            placeholder="friend1@example.com, friend2@example.com"
+                                        />
+                                    </div>
+                                    <DialogFooter>
+                                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                        <Button onClick={handleSendInvites} disabled={isSendingInvites}>
+                                            {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                            Send Invites
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                      </div>
                 </header>
                 <ScrollArea className="flex-1">
@@ -983,4 +978,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
