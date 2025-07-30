@@ -57,7 +57,6 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
@@ -165,6 +164,42 @@ function ParticipantsPanel({
     handleManualExit,
     handleEndMeeting,
 }: any) {
+    const [sessionTimer, setSessionTimer] = useState('00:00');
+    const [isSessionActive, setIsSessionActive] = useState(false);
+    const sessionStartTime = useRef<number | null>(null);
+    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    useEffect(() => {
+        const startTimer = (startTimeMillis: number) => {
+             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+             timerIntervalRef.current = setInterval(() => {
+                const elapsedMs = Date.now() - startTimeMillis;
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                setSessionTimer(`${minutes}:${seconds}`);
+            }, 1000);
+        }
+        
+        if (roomData?.firstMessageAt) {
+            if (!isSessionActive) {
+                const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
+                sessionStartTime.current = startTime;
+                setIsSessionActive(true);
+                startTimer(startTime);
+            }
+        }
+    }, [roomData, isSessionActive]);
+
+    // Cleanup timer on component unmount
+    useEffect(() => {
+        return () => {
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+        };
+    }, []);
+
     return (
         <div className="flex flex-col h-full bg-background">
             <header className="p-4 border-b space-y-2">
@@ -173,6 +208,12 @@ function ParticipantsPanel({
                         <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                         <p className="text-sm text-primary/80">Sync Room</p>
                     </div>
+                     {isSessionActive && (
+                        <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
+                            <Clock className="h-5 w-5" />
+                            {sessionTimer}
+                        </div>
+                    )}
                 </div>
                  <div className="flex items-center justify-between pt-2">
                      <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
@@ -421,8 +462,6 @@ export default function SyncRoomPage() {
     const [emailsToInvite, setEmailsToInvite] = useState('');
     const [isSendingInvites, setIsSendingInvites] = useState(false);
     
-    const [sessionTimer, setSessionTimer] = useState('00:00');
-    const [isSessionActive, setIsSessionActive] = useState(false);
     const [isSummarizing, setIsSummarizing] = useState(false);
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -430,19 +469,16 @@ export default function SyncRoomPage() {
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
-    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isExiting = useRef(false);
     
     const handleExitRoom = useCallback(() => {
-        if (isExiting.current) return;
+        console.log('[DEBUG] handleExitRoom triggered.');
+        if (isExiting.current) {
+            console.log('[DEBUG] handleExitRoom: Already exiting, returning.');
+            return;
+        }
         isExiting.current = true;
         console.log('[DEBUG] handleExitRoom: Process starting.');
-
-        if (timerIntervalRef.current) {
-            console.log(`[DEBUG] handleExitRoom: Clearing timer interval ID: ${timerIntervalRef.current}`);
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-        }
 
         if (messageListenerUnsubscribe.current) {
             console.log('[DEBUG] handleExitRoom: Unsubscribing from message listener.');
@@ -465,6 +501,8 @@ export default function SyncRoomPage() {
             }).catch(error => {
                 console.error("[DEBUG] handleExitRoom: Error deleting participant doc:", error);
             });
+        } else {
+            console.log('[DEBUG] handleExitRoom: No user found, skipping Firestore operations.');
         }
     }, [user, roomId, handleSyncOnlineSessionEnd]);
 
@@ -577,28 +615,6 @@ export default function SyncRoomPage() {
         messageListenerUnsubscribe.current = setupMessageListener(joinTime);
     }, [setupMessageListener]);
     
-
-    useEffect(() => {
-        const startTimer = (startTimeMillis: number) => {
-             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-             timerIntervalRef.current = setInterval(() => {
-                const elapsedMs = Date.now() - startTimeMillis;
-                const totalSeconds = Math.floor(elapsedMs / 1000);
-                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                setSessionTimer(`${minutes}:${seconds}`);
-            }, 1000);
-        }
-        
-        if (roomData?.firstMessageAt) {
-            if (!isSessionActive) {
-                const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
-                sessionStartTime.current = startTime;
-                setIsSessionActive(true);
-                startTimer(startTime);
-            }
-        }
-    }, [roomData, isSessionActive]);
 
     useEffect(() => {
         if (!user || roomLoading) return;
@@ -938,6 +954,22 @@ export default function SyncRoomPage() {
 
             <main className="flex-1 flex flex-col">
                  <header className="p-4 border-b bg-background flex justify-between items-center gap-4">
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="outline" size="icon" className="md:hidden">
+                                <Users className="h-5 w-5" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="p-0 w-80">
+                           <SheetHeader className="sr-only"><SheetTitle>Participants Panel</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
+                            <ParticipantsPanel {...participantsPanelProps} />
+                        </SheetContent>
+                    </Sheet>
+
+                    <div className="flex-grow text-center">
+                        <h1 className="text-xl font-semibold">{roomData.topic}</h1>
+                    </div>
+                    
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="md:hidden">
@@ -958,29 +990,6 @@ export default function SyncRoomPage() {
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-
-                    <div className="flex flex-col items-center flex-grow text-center">
-                        <h1 className="text-xl font-semibold">{roomData.topic}</h1>
-                        {isSessionActive && (
-                            <div className="font-mono text-sm text-primary font-semibold flex items-center gap-2">
-                                <Clock className="h-4 w-4" />
-                                {sessionTimer}
-                            </div>
-                        )}
-                    </div>
-                    
-
-                    <Sheet>
-                        <SheetTrigger asChild>
-                            <Button variant="outline" size="icon" className="md:hidden">
-                                <Users className="h-5 w-5" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent side="left" className="p-0 w-80">
-                           <SheetHeader className="sr-only"><SheetTitle>Participants Panel</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
-                            <ParticipantsPanel {...participantsPanelProps} />
-                        </SheetContent>
-                    </Sheet>
                 </header>
 
                 <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
