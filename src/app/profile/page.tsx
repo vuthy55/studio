@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
 import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
-import { getReferredUsers, type ReferredUser } from '@/services/referrals';
+import { getReferredUsers, type ReferredUser } from '@/actions/referrals';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';

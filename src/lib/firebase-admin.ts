@@ -19,7 +19,7 @@ if (!admin.apps.length) {
             })
         });
     } catch (error: any) {
-        console.error('[FIREBASE ADMIN] CRITICAL: Firebase admin initialization error. Check your environment variables and private key format.', error.stack);
+        console.error('[FIREBASE ADMIN] CRITICAL: Firebase admin initialization error. Check environment variables.', error.stack);
     }
 }
 

@@ -26,7 +26,7 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { getAllRooms2, type ClientSyncRoom } from '@/services/rooms2';
+import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, setRoomEditability } from '@/actions/room';
 import { deleteUsers, clearAllNotifications } from '@/actions/admin';
@@ -1263,7 +1263,7 @@ function RoomsTabContent() {
     setError('');
     setSelectedRoomIds([]);
     try {
-      const fetchedRooms = await getAllRooms2();
+      const fetchedRooms = await getAllRooms();
       setRooms(fetchedRooms);
       const initialEditability: Record<string, boolean> = {};
       fetchedRooms.forEach(room => {

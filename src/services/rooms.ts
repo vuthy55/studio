@@ -19,6 +19,7 @@ export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'las
 /**
  * Fetches all rooms from Firestore for admin/testing purposes.
  * This is a server action that uses the Firebase Admin SDK.
+ * This is a more robust version that handles potential data inconsistencies.
  * @returns {Promise<ClientSyncRoom[]>} A promise that resolves to an array of all rooms.
  */
 export async function getAllRooms(): Promise<ClientSyncRoom[]> {
@@ -35,38 +36,59 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
     
     console.log(`[SERVER ACTION] Found ${snapshot.size} room(s).`);
 
-    const rooms = snapshot.docs.map(docSnapshot => {
+    const rooms: ClientSyncRoom[] = [];
+    
+    for (const docSnapshot of snapshot.docs) {
         const data = docSnapshot.data();
 
         // Helper to safely convert a Firestore Timestamp (in any of its forms) to an ISO string
         const toISO = (ts: any): string | undefined => {
-            if (!ts) return undefined;
-            // Case 1: It's already an ISO string that is valid
-            if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) {
-                return ts;
+            try {
+                if (!ts) return undefined;
+                // Case 1: It's already a valid ISO string
+                if (typeof ts === 'string' && new Date(ts).toISOString() === ts) {
+                    return ts;
+                }
+                // Case 2: It's a Firestore Timestamp object
+                if (ts instanceof Timestamp) {
+                    return ts.toDate().toISOString();
+                }
+                 // Case 3: It's a plain object with seconds/nanoseconds (from client-side conversion)
+                if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
+                     return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+                }
+                // If none of the above, we can't safely convert it.
+                console.warn(`[getAllRooms] Could not convert timestamp for doc ${docSnapshot.id}:`, ts);
+                return undefined;
+            } catch (e) {
+                 console.error(`[getAllRooms] Error converting timestamp for doc ${docSnapshot.id}:`, e);
+                return undefined;
             }
-            // Case 2: It's a Firestore Timestamp object
-            if (ts instanceof Timestamp) {
-                return ts.toDate().toISOString();
-            }
-             // Case 3: It's a plain object with seconds/nanoseconds (from client-side conversion)
-            if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
-                 return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
-            }
-            // If none of the above, we can't convert it.
-            return undefined;
         };
         
-        return {
-            ...data,
+        // Construct the room object defensively
+        const room: ClientSyncRoom = {
             id: docSnapshot.id,
-            topic: data.topic,
-            status: data.status,
+            topic: data.topic || 'Untitled Room',
+            creatorUid: data.creatorUid || '',
+            creatorName: data.creatorName || 'Unknown Creator',
+            status: data.status || 'closed',
+            invitedEmails: data.invitedEmails || [],
+            emceeEmails: data.emceeEmails || [],
+            blockedUsers: data.blockedUsers || [],
+            summary: data.summary,
+            transcript: data.transcript,
+            durationMinutes: data.durationMinutes,
+            initialCost: data.initialCost,
+            paymentLogId: data.paymentLogId,
+            hasStarted: data.hasStarted || false,
             createdAt: toISO(data.createdAt),
             lastActivityAt: toISO(data.lastActivityAt),
             scheduledAt: toISO(data.scheduledAt),
-        } as ClientSyncRoom;
-    });
+        };
+
+        rooms.push(room);
+    }
 
     return rooms;
 
