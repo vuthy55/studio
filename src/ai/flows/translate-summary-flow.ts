@@ -62,7 +62,7 @@ const generateWithFallback = async (prompt: string) => {
         console.warn("Primary translation model (gemini-1.5-flash) failed. Retrying with fallback.", error);
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.0-pro',
+            model: 'googleai/gemini-1.5-pro',
             output: { schema: z.record(z.string()) },
         });
     }
