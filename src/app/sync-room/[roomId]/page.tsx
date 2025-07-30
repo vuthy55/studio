@@ -796,7 +796,7 @@ export default function SyncRoomPage() {
                     createdAt: serverTimestamp(),
                 });
             }
-        } catch (error: any) => {
+        } catch (error: any) {
              if (error.message !== "Recognition was aborted.") {
                toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
             }
@@ -960,7 +960,7 @@ export default function SyncRoomPage() {
                 <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
                      <ScrollArea className="flex-grow pr-4 -mr-4">
                         <div className="space-y-4">
-                            {messages.map((msg) => {
+                            {messages.map((msg, index) => {
                                 const isOwnMessage = msg.speakerUid === user?.uid;
 
                                 if (msg.isTranslation && msg.forParticipantUid !== user?.uid) {
@@ -972,7 +972,7 @@ export default function SyncRoomPage() {
                                 }
 
                                 return (
-                                    <div key={msg.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                                    <div key={`${msg.id}-${index}`} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                                         {!isOwnMessage && (
                                             <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{msg.speakerName.charAt(0).toUpperCase()}</AvatarFallback>
@@ -1017,3 +1017,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
