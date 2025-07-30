@@ -437,44 +437,13 @@ export default function SyncRoomPage() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     
     const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+    const sessionStartTimeRef = useRef<number | null>(null);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
     const isExiting = useRef(false);
-    const listenersAttached = useRef(false);
 
-    const handleExitRoom = useCallback(async () => {
-        if (!user) return;
-        
-        listenersAttached.current = false;
-
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-        }
-
-        const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-        try {
-            await deleteDoc(participantRef);
-        } catch (error) {
-            console.error("Error deleting participant doc on exit:", error);
-        }
-
-        const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
-        if (sessionDurationMs > 0) {
-            await handleSyncOnlineSessionEnd(sessionDurationMs);
-        }
-    }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
-    
-    const handleManualExit = useCallback(async () => {
-        if (isExiting.current) return;
-        isExiting.current = true;
-        
-        await handleExitRoom();
-        router.push('/synchub?tab=sync-online');
-    }, [handleExitRoom, router]);
-
-    const onJoinSuccess = useCallback((timestamp: Timestamp) => {
+    const onJoinSuccess = useCallback((joinTimestamp: Timestamp) => {
         setIsParticipant('yes');
     }, []);
 
@@ -521,9 +490,38 @@ export default function SyncRoomPage() {
         return uid === roomData?.creatorUid;
     }, [roomData]);
     
-    // This effect now exclusively handles initialization and cleanup.
+    const handleExitRoom = useCallback(async () => {
+        if (!user) return;
+        
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+        }
+
+        const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+        try {
+            await deleteDoc(participantRef);
+        } catch (error) {
+            console.error("Error deleting participant doc on exit:", error);
+        }
+
+        const sessionDurationMs = sessionStartTimeRef.current ? Date.now() - sessionStartTimeRef.current : 0;
+        if (sessionDurationMs > 0) {
+            await handleSyncOnlineSessionEnd(sessionDurationMs);
+        }
+    }, [user, roomId, handleSyncOnlineSessionEnd]);
+
+    const handleManualExit = useCallback(async () => {
+        if (isExiting.current) return;
+        isExiting.current = true;
+        
+        await handleExitRoom();
+        router.push('/synchub?tab=sync-online');
+    }, [handleExitRoom, router]);
+
     useEffect(() => {
         if (authLoading || roomLoading) return;
+
         if (!user) {
             router.push('/login');
             return;
@@ -531,46 +529,65 @@ export default function SyncRoomPage() {
 
         let pListener: (() => void) | undefined;
         let mListener: (() => void) | undefined;
+        let roomListener: (() => void) | undefined;
 
         const checkParticipationAndInitialize = async () => {
-            if (listenersAttached.current) return;
-            
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-            const participantDoc = await getDoc(participantRef);
-            
-            if (participantDoc.exists()) {
-                setIsParticipant('yes');
-                listenersAttached.current = true;
+            try {
+                const participantDoc = await getDoc(participantRef);
 
-                // --- Setup Listeners ---
-                const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
-                pListener = onSnapshot(participantsQuery, (snapshot) => {
-                    if (isExiting.current) return;
-                    setParticipants(snapshot.docs.map(d => ({ uid: d.id, ...d.data() }) as Participant));
-                });
+                if (participantDoc.exists()) {
+                    const participantData = participantDoc.data();
+                    const joinTime = participantData?.joinedAt || Timestamp.now();
+                    setIsParticipant('yes');
 
-                const messagesQuery = query(
-                    collection(db, 'syncRooms', roomId, 'messages'),
-                    orderBy("createdAt"),
-                    where("createdAt", ">", Timestamp.now())
-                );
-                mListener = onSnapshot(messagesQuery, (snapshot) => {
-                    if (isExiting.current) return;
-                    const newMessages: RoomMessage[] = [];
-                    snapshot.docChanges().forEach((change) => {
-                        if (change.type === "added") {
-                            newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                    // --- Setup Listeners ---
+                    const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
+                    pListener = onSnapshot(participantsQuery, (snapshot) => {
+                        setParticipants(snapshot.docs.map(d => ({ uid: d.id, ...d.data() }) as Participant));
+                    });
+                    
+                    const messagesQuery = query(collection(db, 'syncRooms', roomId, 'messages'), orderBy("createdAt"), where("createdAt", ">", joinTime));
+                    mListener = onSnapshot(messagesQuery, (snapshot) => {
+                        const newMessages: RoomMessage[] = [];
+                        snapshot.docChanges().forEach((change) => {
+                            if (change.type === "added") {
+                                newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                            }
+                        });
+                        if (newMessages.length > 0) {
+                            setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
+                        }
+                        if (messagesLoading) {
+                            setMessagesLoading(false);
+                        }
+                    }, (error) => {
+                         console.error("Message listener error:", error);
+                        // This indicates a permissions issue usually.
+                        if (error.code === 'permission-denied') {
+                             toast({ variant: 'destructive', title: 'Permission Error', description: 'Could not listen for messages. Please rejoin the room.' });
+                             handleManualExit();
                         }
                     });
-                     if (newMessages.length > 0) {
-                        setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
-                    }
-                    if (messagesLoading) {
-                        setMessagesLoading(false);
-                    }
-                });
 
-            } else {
+                    // Room status listener
+                    roomListener = onSnapshot(doc(db, 'syncRooms', roomId), (docSnap) => {
+                        const data = docSnap.data();
+                        if (data?.status === 'closed') {
+                            toast({ title: 'Meeting Ended', description: 'This room has been closed.', duration: 5000 });
+                            handleManualExit();
+                        }
+                        if (data?.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
+                            toast({ variant: 'destructive', title: 'Access Denied', description: 'You have been removed or blocked from this room.', duration: 5000 });
+                            handleManualExit();
+                        }
+                    });
+
+                } else {
+                    setIsParticipant('no');
+                }
+            } catch (error) {
+                console.error("Error checking participation:", error);
                 setIsParticipant('no');
             }
         };
@@ -581,9 +598,10 @@ export default function SyncRoomPage() {
             isExiting.current = true;
             if (pListener) pListener();
             if (mListener) mListener();
+            if (roomListener) roomListener();
             handleExitRoom();
         };
-    }, [user, authLoading, roomLoading, roomId, handleExitRoom, messagesLoading]);
+    }, [user, authLoading, roomLoading, roomId, handleExitRoom, handleManualExit, messagesLoading, toast]);
 
 
     useEffect(() => {
@@ -599,38 +617,15 @@ export default function SyncRoomPage() {
             handleManualExit();
         }
     }, [participants, isParticipant, user, handleManualExit, toast]);
-
-    useEffect(() => {
-        if (!roomData || !user || isExiting.current) return;
-        if (roomData.status === 'closed') {
-            toast({
-                title: 'Meeting Ended',
-                description: 'This room has been closed by the emcee.',
-                duration: 5000,
-            });
-            handleManualExit();
-        }
-        if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
-            toast({
-                variant: 'destructive',
-                title: 'Access Denied',
-                description: 'You have been blocked from this room.',
-                duration: 5000
-            });
-            handleManualExit();
-        }
-    }, [roomData, user, handleManualExit, toast]);
     
    const processMessage = useCallback(async (msg: RoomMessage) => {
     if (!user || msg.speakerUid === user.uid || !currentUserParticipant) return;
     
     let textToSpeak = msg.text;
 
-    // This message is a translation FOR ME.
     if (msg.isTranslation && msg.forParticipantUid === user.uid) {
         textToSpeak = msg.text;
     } 
-    // This is an original message from someone else. I need to translate it.
     else if (!msg.isTranslation) {
         try {
             const fromLangLabel = getAzureLanguageLabel(msg.speakerLanguage);
@@ -643,7 +638,6 @@ export default function SyncRoomPage() {
             return;
         }
     } 
-    // This is a translation for someone else. Ignore it.
     else {
         return;
     }
@@ -772,29 +766,32 @@ export default function SyncRoomPage() {
 
     const handleMicPress = useCallback(async () => {
         if (!user || !currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
-    
-        if (sessionStartTime === null) {
-            setSessionStartTime(Date.now());
+
+        if (sessionStartTimeRef.current === null) {
+            const now = Date.now();
+            sessionStartTimeRef.current = now;
+            setSessionStartTime(now);
         }
-    
+
         if (roomData && !roomData.firstMessageAt) {
             await setFirstMessageTimestamp(roomId);
         }
-    
+
         setIsListening(true);
         try {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
-                // Add the original message to Firestore
-                const originalMessageRef = doc(collection(db, 'syncRooms', roomId, 'messages'));
-                await setDoc(originalMessageRef, {
+                const messageData = {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
                     speakerUid: currentUserParticipant.uid,
                     speakerLanguage: currentUserParticipant.selectedLanguage,
                     createdAt: serverTimestamp(),
-                });
+                };
+
+                const messageDocRef = doc(collection(db, 'syncRooms', roomId, 'messages'));
+                await setDoc(messageDocRef, messageData);
             }
         } catch (error: any) {
              if (error.message !== "Recognition was aborted.") {
@@ -803,8 +800,7 @@ export default function SyncRoomPage() {
         } finally {
             setIsListening(false);
         }
-    }, [user, currentUserParticipant, participants, sessionStartTime, roomData, roomId, toast]);
-    
+    }, [user, currentUserParticipant, roomData, roomId, toast]);
     
     const handleMuteToggle = async (participantId: string, currentMuteStatus: boolean) => {
         if (!isCurrentUserEmcee) return;
@@ -1017,5 +1013,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
