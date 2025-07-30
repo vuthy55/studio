@@ -688,12 +688,12 @@ export default function SyncRoomPage() {
             <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
                     <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
-                        <div className="bg-primary/10 p-3 rounded-lg flex-grow">
-                           <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                           <p className="text-sm text-primary/80">Sync Room</p>
-                        </div>
-                        <div className="flex items-center gap-2 self-end md:self-start">
-                             <TooltipProvider>
+                        <div className="bg-primary/10 p-3 rounded-lg flex-grow flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-lg text-primary">{roomData.topic}</p>
+                                <p className="text-sm text-primary/80">Sync Room</p>
+                            </div>
+                            <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground p-2">
@@ -722,6 +722,8 @@ export default function SyncRoomPage() {
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
+                        </div>
+                        <div className="flex items-center gap-2 self-end md:self-start">
                              {isCurrentUserEmcee && (
                                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                                     <DialogTrigger asChild>
