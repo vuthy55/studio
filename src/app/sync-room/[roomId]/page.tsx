@@ -434,6 +434,42 @@ export default function SyncRoomPage() {
 
     const isExiting = useRef(false);
 
+    const handleExitRoom = useCallback(() => {
+        isExiting.current = true;
+        
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+        }
+        if (messageListenerUnsubscribe.current) {
+            messageListenerUnsubscribe.current();
+            messageListenerUnsubscribe.current = null;
+        }
+
+        try {
+            if (user) {
+                const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+                deleteDoc(participantRef);
+                const sessionDurationMs = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
+                sessionStartTime.current = null;
+                if (sessionDurationMs > 0) {
+                     handleSyncOnlineSessionEnd(sessionDurationMs);
+                }
+            }
+        } catch (error) {
+            console.error("Error leaving room (deleting participant doc):", error);
+        }
+    }, [user, roomId, handleSyncOnlineSessionEnd]);
+
+    useEffect(() => {
+      // This is the component's main cleanup function.
+      return () => {
+        if (isExiting.current || (roomData?.status === 'closed')) {
+            handleExitRoom();
+        }
+      };
+    }, [handleExitRoom, roomData]);
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
@@ -491,33 +527,6 @@ export default function SyncRoomPage() {
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
     }, [roomData]);
-
-    const handleExitRoom = useCallback(async () => {
-        isExiting.current = true;
-        
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-        }
-        if (messageListenerUnsubscribe.current) {
-            messageListenerUnsubscribe.current();
-            messageListenerUnsubscribe.current = null;
-        }
-
-        try {
-            if (user) {
-                const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-                await deleteDoc(participantRef);
-                const sessionDurationMs = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
-                sessionStartTime.current = null;
-                if (sessionDurationMs > 0) {
-                     await handleSyncOnlineSessionEnd(sessionDurationMs);
-                }
-            }
-        } catch (error) {
-            console.error("Error leaving room (deleting participant doc):", error);
-        }
-    }, [user, roomId, handleSyncOnlineSessionEnd]);
     
     const handleManualExit = async () => {
         if (isExiting.current) return;
@@ -526,6 +535,7 @@ export default function SyncRoomPage() {
         } catch (error) {
             console.error("Error during manual exit:", error);
         } finally {
+            isExiting.current = false;
             router.push('/synchub?tab=sync-online');
         }
     };
@@ -589,17 +599,6 @@ export default function SyncRoomPage() {
             }
         }
     }, [roomData, isSessionActive]);
-
-    useEffect(() => {
-        return () => {
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-            }
-            if (messageListenerUnsubscribe.current) {
-                messageListenerUnsubscribe.current();
-            }
-        }
-    }, []);
 
     useEffect(() => {
         if (!user || roomLoading) return;
@@ -939,7 +938,7 @@ export default function SyncRoomPage() {
             </aside>
 
             <main className="flex-1 flex flex-col">
-                 <header className="p-4 border-b bg-background flex justify-between items-center">
+                 <header className="p-4 border-b bg-background flex justify-between items-center gap-4">
                     <Sheet>
                         <SheetTrigger asChild>
                             <Button variant="outline" size="icon" className="md:hidden">
@@ -952,11 +951,42 @@ export default function SyncRoomPage() {
                         </SheetContent>
                     </Sheet>
 
-                    <h1 className="text-xl font-semibold text-center flex-grow">{roomData.topic}</h1>
+                    <div className="flex flex-col items-center flex-grow">
+                        <h1 className="text-xl font-semibold text-center">{roomData.topic}</h1>
+                        {isSessionActive && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="font-mono text-sm text-primary font-semibold flex items-center gap-2">
+                                            <Clock className="h-4 w-4" />
+                                            {sessionTimer}
+                                        </div>
+                                    </TooltipTrigger>
+                                        <TooltipContent>
+                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
+                                            <div className="flex justify-between" title="Your current token balance">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
+                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
+                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
+                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
+                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                            </div>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                    </div>
+                    
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="md:hidden">
+                            <Button variant="ghost" size="icon">
                                 <LogOut />
                                 <span className="sr-only">Exit</span>
                             </Button>
@@ -1009,49 +1039,21 @@ export default function SyncRoomPage() {
                     </ScrollArea>
                 </div>
                 <div className="p-4 border-t bg-background flex flex-col gap-4">
-                    <div className="flex flex-row items-center gap-4">
-                        <Button 
-                            size="lg" 
-                            className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
-                            onClick={isListening ? abortRecognition : handleMicPress}
-                            disabled={isSpeaking || currentUserParticipant?.isMuted}
-                            title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
-                        >
-                            {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
-                        </Button>
-                        <div className="flex-1 flex flex-col justify-center items-center">
-                            {isSessionActive && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2 mb-2">
-                                                <Clock className="h-5 w-5" />
-                                                {sessionTimer}
-                                            </div>
-                                        </TooltipTrigger>
-                                            <TooltipContent>
-                                            <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
-                                                <div className="flex justify-between" title="Your current token balance">
-                                                    <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                                                    <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                                                </div>
-                                                <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                                                    <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                                                    <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
-                                                </div>
-                                                <div className="flex justify-between" title="Your free minutes remaining for this month">
-                                                    <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
-                                                    <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                                </div>
-                                            </div>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    </TooltipProvider>
-                                )}
-                            <p className="font-semibold text-muted-foreground">
+                    <div className="flex items-center justify-center">
+                       <div className="flex flex-col justify-center items-center gap-2">
+                           <Button 
+                                size="lg" 
+                                className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
+                                onClick={isListening ? abortRecognition : handleMicPress}
+                                disabled={isSpeaking || currentUserParticipant?.isMuted}
+                                title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
+                            >
+                                {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
+                            </Button>
+                            <p className="font-semibold text-muted-foreground text-sm h-5">
                                 {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
                             </p>
-                        </div>
+                       </div>
                     </div>
                 </div>
                  <audio ref={audioPlayerRef} className="hidden" />
