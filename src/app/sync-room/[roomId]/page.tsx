@@ -450,8 +450,13 @@ export default function SyncRoomPage() {
         if (!user || isExiting.current) return;
         isExiting.current = true;
         
+        // --- KEY FIX: Detach listeners BEFORE navigating or calling server actions ---
+        participantListenerUnsubscribe.current?.();
+        messageListenerUnsubscribe.current?.();
+        
         router.push('/synchub?tab=sync-online');
         
+        // This is now a true fire-and-forget call
         handleParticipantExit(roomId, user.uid);
         
         const sessionDurationMs = sessionUsageRef.current;
