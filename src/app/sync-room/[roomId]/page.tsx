@@ -144,48 +144,6 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
 }
 
 
-// Moved outside the component to stabilize its reference
-const setupMessageListener = (
-    roomId: string, 
-    joinTimestamp: Timestamp,
-    setMessagesLoading: (loading: boolean) => void,
-    setMessages: (updater: (prev: RoomMessage[]) => RoomMessage[]) => void,
-    toast: (options: any) => void
-): (() => void) => {
-    console.log('[DEBUG] setupMessageListener: Attempting to set up listener for messages after', joinTimestamp.toDate());
-    setMessagesLoading(true);
-    const messagesQuery = query(
-        collection(db, 'syncRooms', roomId, 'messages'),
-        orderBy("createdAt"),
-        where("createdAt", ">=", joinTimestamp)
-    );
-
-    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-        console.log('[DEBUG] setupMessageListener: Snapshot received with', snapshot.docChanges().length, 'changes.');
-        const newMessages: RoomMessage[] = [];
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-            }
-        });
-
-        if (newMessages.length > 0) {
-             setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a,b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
-        }
-        setMessagesLoading(false);
-    }, (error) => {
-        setMessagesLoading(false);
-        if (error.code === 'permission-denied') {
-            toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.'});
-        } else {
-            toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.'});
-        }
-    });
-
-    return unsubscribe;
-};
-
-// --- Reusable Participants Panel Component ---
 function ParticipantsPanel({ 
     roomData,
     isCurrentUserEmcee,
@@ -364,10 +322,27 @@ function ParticipantsPanel({
             </ScrollArea>
              <footer className="p-4 border-t flex flex-col gap-4">
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
-                        <LogOut className="mr-2 h-4 w-4"/>
-                        Exit Room
-                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button variant="outline" size="sm" className="w-full">
+                                <LogOut className="mr-2 h-4 w-4"/>
+                                Exit Room
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure you want to exit?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                You can rejoin this room later as long as it is still active.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Stay</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleManualExit}>Exit</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
                     {isCurrentUserEmcee && (
                         <Dialog>
                             <DialogTrigger asChild>
@@ -459,11 +434,11 @@ export default function SyncRoomPage() {
 
     const isExiting = useRef(false);
 
-     useEffect(() => {
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
     
-     const { presentParticipants, absentParticipantEmails } = useMemo(() => {
+    const { presentParticipants, absentParticipantEmails } = useMemo(() => {
         if (!roomData || !participants) {
             return { presentParticipants: [], absentParticipantEmails: [] };
         }
@@ -483,7 +458,6 @@ export default function SyncRoomPage() {
 
     const isCurrentUserEmcee = useMemo(() => {
         if (!user || !roomData) return false;
-        // The creator is always an emcee. Also check the emceeEmails list.
         return roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
     }, [user, roomData]);
 
@@ -518,49 +492,30 @@ export default function SyncRoomPage() {
         return uid === roomData?.creatorUid;
     }, [roomData]);
 
-    const onJoinSuccess = useCallback((joinTime: Timestamp) => {
-        console.log('[DEBUG] onJoinSuccess: Called with joinTime', joinTime.toDate());
-        if (messageListenerUnsubscribe.current) {
-            return;
-        }
-        setIsParticipant('yes');
-        
-        messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomId]);
-    
-
     const handleExitRoom = useCallback(async () => {
-        if (!user || isExiting.current) return;
-        
-        console.log('[DEBUG] Exit: Exiting process started.');
+        sessionStartTime.current = null;
+        if (isExiting.current) return;
         isExiting.current = true;
         
         if (timerIntervalRef.current) {
-            console.log('[DEBUG] Exit: Clearing timer interval ID:', timerIntervalRef.current);
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
         
-        if (sessionStartTime.current) {
-            const sessionDurationMs = Date.now() - sessionStartTime.current;
-            console.log(`[DEBUG] Exit: Session duration was ${sessionDurationMs}ms. Calling billing.`);
-            await handleSyncOnlineSessionEnd(sessionDurationMs);
-        } else {
-            console.log('[DEBUG] Exit: No session start time found, skipping billing.');
-        }
-
         if (messageListenerUnsubscribe.current) {
-            console.log('[DEBUG] Exit: Unsubscribing from message listener.');
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
 
         try {
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-            await deleteDoc(participantRef);
-            console.log('[DEBUG] Exit: Participant document deleted.');
+            if (user) {
+                const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+                await deleteDoc(participantRef);
+                const sessionDurationMs = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
+                if (sessionDurationMs > 0) {
+                     await handleSyncOnlineSessionEnd(sessionDurationMs);
+                }
+            }
         } catch (error) {
             console.error("Error leaving room (deleting participant doc):", error);
         }
@@ -576,11 +531,48 @@ export default function SyncRoomPage() {
             router.push('/synchub?tab=sync-online');
         }
     };
+    
+    const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'),
+            orderBy("createdAt"),
+            where("createdAt", ">=", joinTimestamp)
+        );
+
+        return onSnapshot(messagesQuery, (snapshot) => {
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                }
+            });
+
+            if (newMessages.length > 0) {
+                setMessages(prevMessages => [...prevMessages, ...newMessages].sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
+            }
+            setMessagesLoading(false);
+        }, (error) => {
+            setMessagesLoading(false);
+            if (error.code === 'permission-denied') {
+                toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.' });
+            } else {
+                toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.' });
+            }
+        });
+    }, [roomId, toast]);
+
+    const onJoinSuccess = useCallback((joinTime: Timestamp) => {
+        if (messageListenerUnsubscribe.current) {
+            return;
+        }
+        setIsParticipant('yes');
+        messageListenerUnsubscribe.current = setupMessageListener(joinTime);
+    }, [setupMessageListener]);
+    
 
     useEffect(() => {
         const startTimer = (startTimeMillis: number) => {
-             console.log('[DEBUG] Timer: Session started at', new Date(startTimeMillis).toLocaleTimeString());
-             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); // Clear any old timers
+             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
              timerIntervalRef.current = setInterval(() => {
                 const elapsedMs = Date.now() - startTimeMillis;
                 const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -588,7 +580,6 @@ export default function SyncRoomPage() {
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                 setSessionTimer(`${minutes}:${seconds}`);
             }, 1000);
-             console.log('[DEBUG] Timer: Interval set with ID', timerIntervalRef.current);
         }
         
         if (roomData?.firstMessageAt) {
@@ -601,24 +592,22 @@ export default function SyncRoomPage() {
         }
     }, [roomData, isSessionActive]);
 
-    // This is now the definitive cleanup effect.
     useEffect(() => {
-        console.log('[DEBUG] Component mounted or roomId changed.');
-        // The return function from useEffect is the cleanup function.
         return () => {
-            console.log('[DEBUG] Component unmounting. Running cleanup...');
-            handleExitRoom();
-        };
-    }, [handleExitRoom]);
-
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+            if (messageListenerUnsubscribe.current) {
+                messageListenerUnsubscribe.current();
+            }
+        }
+    }, []);
 
     useEffect(() => {
-        console.log('[DEBUG] Participant Listener: Setting up...');
         if (!user || roomLoading) return;
         
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
-            console.log('[DEBUG] Participant Listener: Snapshot received. Found', snapshot.size, 'participants.');
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             setParticipants(parts);
             setParticipantsLoading(false);
@@ -626,10 +615,8 @@ export default function SyncRoomPage() {
             if (isParticipant === 'unknown') {
                 const self = parts.find(p => p.uid === user.uid);
                 if (self && self.joinedAt) {
-                    console.log('[DEBUG] Participant Listener: Current user is a participant.');
                     onJoinSuccess(self.joinedAt);
                 } else if (!self) {
-                     console.log('[DEBUG] Participant Listener: Current user is NOT yet a participant.');
                      setIsParticipant('no');
                 }
             }
@@ -637,15 +624,12 @@ export default function SyncRoomPage() {
             setParticipantsLoading(false);
         });
 
-        return () => {
-            console.log('[DEBUG] Participant Listener: Cleaning up.');
-            unsubscribe();
-        };
+        return () => unsubscribe();
     }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
     
     
     useEffect(() => {
-        if (isExiting.current || participantsLoading || !user) return; 
+        if (participantsLoading || !user) return; 
     
         const isStillParticipant = participants.some(p => p.uid === user.uid);
         
@@ -656,9 +640,9 @@ export default function SyncRoomPage() {
                 description: 'An emcee has removed you from the room.',
                 duration: 5000,
             });
-            handleExitRoom();
+            handleManualExit();
         }
-    }, [participants, isParticipant, participantsLoading, user, toast, handleExitRoom]);
+    }, [participants, isParticipant, participantsLoading, user, toast, handleManualExit]);
 
     useEffect(() => {
         if (!roomData || !user || isExiting.current) return;
@@ -679,8 +663,7 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomData, user]);
+    }, [roomData, user, handleManualExit]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -790,7 +773,6 @@ export default function SyncRoomPage() {
                 invitedEmails: arrayUnion(...emails)
             });
             
-            // Check if roomData.scheduledAt exists and is valid before creating Date object
             const scheduledAtDate = roomData.scheduledAt
                 ? (roomData.scheduledAt instanceof Timestamp ? roomData.scheduledAt.toDate() : new Date(roomData.scheduledAt))
                 : new Date();
@@ -825,7 +807,6 @@ export default function SyncRoomPage() {
                  const batch = writeBatch(db);
                  const roomRef = doc(db, 'syncRooms', roomId);
 
-                // If this is the first message, set the start time
                 if (!roomData?.firstMessageAt) {
                     batch.update(roomRef, { firstMessageAt: serverTimestamp() });
                 }
@@ -955,50 +936,37 @@ export default function SyncRoomPage() {
 
     return (
         <div className="flex h-screen bg-muted/40">
-            {/* Desktop Sidebar */}
             <aside className="hidden md:flex md:w-1/3 min-w-[320px] max-w-sm border-r">
                 <ParticipantsPanel {...participantsPanelProps} />
             </aside>
 
-            {/* Main Chat Area */}
             <main className="flex-1 flex flex-col">
                  <header className="p-4 border-b bg-background flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="md:hidden" onClick={() => router.push('/synchub?tab=sync-online')}>
-                            <ArrowLeft />
-                            <span className="sr-only">Back</span>
-                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="md:hidden">
+                                    <LogOut />
+                                    <span className="sr-only">Exit</span>
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure you want to exit?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    You can rejoin this room later as long as it is still active.
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Stay</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleManualExit}>Exit</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+
                         <h1 className="text-xl font-semibold">{roomData.topic}</h1>
                     </div>
                     <div className="flex items-center gap-2">
-                        {isSessionActive && (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
-                                            <Clock className="h-5 w-5" />
-                                            {sessionTimer}
-                                        </div>
-                                    </TooltipTrigger>
-                                     <TooltipContent>
-                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
-                                            <div className="flex justify-between" title="Your current token balance">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
-                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
-                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                            </div>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                             </TooltipProvider>
-                         )}
                          <Sheet>
                             <SheetTrigger asChild>
                                 <Button variant="outline" size="icon" className="md:hidden">
@@ -1044,20 +1012,52 @@ export default function SyncRoomPage() {
                          )}
                     </ScrollArea>
                 </div>
-                <div className="p-4 border-t bg-background flex items-center gap-4">
-                    <Button 
-                        size="lg" 
-                        className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
-                        onClick={isListening ? abortRecognition : handleMicPress}
-                        disabled={isSpeaking || currentUserParticipant?.isMuted}
-                        title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
-                    >
-                        {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
-                    </Button>
-                    <div className="flex-1">
-                        <p className="font-semibold text-muted-foreground">
-                            {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
-                        </p>
+                <div className="p-4 border-t bg-background flex flex-col gap-4">
+                     {isSessionActive && (
+                        <div className="flex justify-center">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
+                                            <Clock className="h-5 w-5" />
+                                            {sessionTimer}
+                                        </div>
+                                    </TooltipTrigger>
+                                        <TooltipContent>
+                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
+                                            <div className="flex justify-between" title="Your current token balance">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
+                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
+                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
+                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
+                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                            </div>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                         )}
+                    <div className="flex items-center gap-4">
+                        <Button 
+                            size="lg" 
+                            className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
+                            onClick={isListening ? abortRecognition : handleMicPress}
+                            disabled={isSpeaking || currentUserParticipant?.isMuted}
+                            title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
+                        >
+                            {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
+                        </Button>
+                        <div className="flex-1">
+                            <p className="font-semibold text-muted-foreground">
+                                {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
+                            </p>
+                        </div>
                     </div>
                 </div>
                  <audio ref={audioPlayerRef} className="hidden" />
@@ -1066,3 +1066,5 @@ export default function SyncRoomPage() {
     );
 }
 
+
+    
