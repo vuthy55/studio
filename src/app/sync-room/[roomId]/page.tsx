@@ -55,6 +55,7 @@ import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 
 function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: SyncRoom; roomId: string; onJoinSuccess: (joinTime: Timestamp) => void; }) {
@@ -179,6 +180,322 @@ const setupMessageListener = (
     return unsubscribe;
 };
 
+function ParticipantsPanel({
+    roomData,
+    user,
+    participants,
+    isCurrentUserEmcee,
+    isRoomCreator,
+    isListening,
+    sessionTimer,
+    userProfile,
+    settings,
+    freeMinutesRemaining,
+    handleManualExit,
+    handleEndMeeting,
+    handleSaveAndEndMeeting,
+    handleMuteToggle,
+    handleRemoveParticipant,
+    handlePromoteToEmcee,
+    handleDemoteEmcee
+}) {
+    const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+    const [emailsToInvite, setEmailsToInvite] = useState('');
+    const [isSendingInvites, setIsSendingInvites] = useState(false);
+    const { toast } = useToast();
+    const roomId = roomData.id;
+
+    const { presentParticipants, absentParticipantEmails } = useMemo(() => {
+        if (!roomData || !participants) {
+            return { presentParticipants: [], absentParticipantEmails: [] };
+        }
+        const presentUids = new Set(participants.map(p => p.uid));
+        const absent = roomData.invitedEmails.filter((email: string) => {
+             return !participants.some(p => p.email === email);
+        });
+        
+        return { presentParticipants: participants, absentParticipantEmails: absent };
+    }, [roomData, participants]);
+
+     const handleSendInvites = async () => {
+        if (!user || !roomData) return;
+        const emails = emailsToInvite.split(/[ ,]+/).map(e => e.trim()).filter(Boolean);
+        if (emails.length === 0) {
+            toast({ variant: 'destructive', title: 'No Emails', description: 'Please enter at least one email address.' });
+            return;
+        }
+
+        setIsSendingInvites(true);
+        try {
+            await updateDoc(doc(db, 'syncRooms', roomId), {
+                invitedEmails: arrayUnion(...emails)
+            });
+            
+            const scheduledAtDate = roomData.scheduledAt
+                ? (roomData.scheduledAt instanceof Timestamp ? roomData.scheduledAt.toDate() : new Date(roomData.scheduledAt))
+                : new Date();
+
+            await sendRoomInviteEmail({
+                to: emails,
+                roomTopic: roomData.topic,
+                creatorName: user.displayName || 'A user',
+                scheduledAt: scheduledAtDate,
+                joinUrl: `${window.location.origin}/join/${roomId}?ref=${roomData.creatorUid}`
+            });
+
+            toast({ title: 'Invites Sent', description: 'The new participants have been notified by email.' });
+            setEmailsToInvite('');
+            setIsInviteDialogOpen(false);
+        } catch (error) {
+            console.error('Error sending invites:', error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not send invitations.' });
+        } finally {
+            setIsSendingInvites(false);
+        }
+    };
+    
+    return (
+        <aside className="w-full md:w-1/4 md:min-w-[320px] bg-background md:border-r flex flex-col h-full">
+            <header className="p-4 border-b space-y-2">
+                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                    <div className="flex-grow p-1 rounded-lg flex items-center justify-between">
+                        <p className="font-bold text-lg text-primary">{roomData.topic}</p>
+                         <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground p-2">
+                                        <Clock className="h-4 w-4" />
+                                        <span>{sessionTimer}</span>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
+                                    <div className="font-bold mb-2">Session Info</div>
+                                    <div className="space-y-1.5 text-xs">
+                                            <div className="flex justify-between">
+                                            <span>Balance:</span> 
+                                            <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
+                                        </div>
+                                            <div className="flex justify-between">
+                                            <span>Cost:</span>
+                                            <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Free Minutes:</span>
+                                            <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                        </div>
+                                        <Separator className="my-2"/>
+                                        <p className="text-muted-foreground">Billing starts when you first press the mic and is finalized on the server when your session ends.</p>
+                                    </div>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
+                </div>
+                 <div className="flex items-center justify-between pt-2">
+                     <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
+                     {isCurrentUserEmcee && (
+                        <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Invite More People</DialogTitle>
+                                    <DialogDescription>
+                                        Enter email addresses separated by commas to invite them to this room.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4 space-y-2">
+                                    <Label htmlFor="emails-to-invite">Emails</Label>
+                                    <Textarea 
+                                        id="emails-to-invite" 
+                                        value={emailsToInvite}
+                                        onChange={(e) => setEmailsToInvite(e.target.value)}
+                                        placeholder="friend1@example.com, friend2@example.com"
+                                    />
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                    <Button onClick={handleSendInvites} disabled={isSendingInvites}>
+                                        {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                        Send Invites
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                 </div>
+            </header>
+            <ScrollArea className="flex-1">
+                <div className="p-4 space-y-2">
+                     <h3 className="font-semibold text-sm flex items-center gap-2 text-green-600"><UserCheck/> Present ({presentParticipants.length})</h3>
+                    {presentParticipants.map(p => {
+                        const isCurrentUser = p.uid === user?.uid;
+                        const isEmcee = roomData?.emceeEmails?.includes(p.email);
+                        const isCreator = isRoomCreator(p.uid);
+                        const canBeModified = isCurrentUserEmcee && !isCreator && !isCurrentUser;
+                         const canBeDemoted = isCurrentUserEmcee && !isCreator && isEmcee;
+
+                        return (
+                            <div key={p.uid} className="flex items-center gap-3 group p-2 rounded-md hover:bg-muted/50">
+                                <Avatar>
+                                    <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 overflow-hidden">
+                                    <p className="font-semibold truncate flex items-center gap-1.5">
+                                        {isEmcee && <Crown className="h-4 w-4 text-amber-400"/>}
+                                        {p.name} {isCurrentUser && '(You)'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">{getAzureLanguageLabel(p.selectedLanguage)}</p>
+                                </div>
+                                
+                                 {p.isMuted && <MicOff className="h-4 w-4 text-red-500"/>}
+                                {isListening && isCurrentUser && <Mic className="h-4 w-4 text-green-500 animate-pulse" />}
+
+                                {canBeModified && (
+                                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <TooltipProvider>
+                                            {!isEmcee ? (
+                                                 <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handlePromoteToEmcee(p.email)}>
+                                                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>Promote to Emcee</p></TooltipContent>
+                                                </Tooltip>
+                                            ) : canBeDemoted && (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDemoteEmcee(p.email)}>
+                                                            <ShieldX className="h-4 w-4 text-muted-foreground" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>Demote Emcee</p></TooltipContent>
+                                                </Tooltip>
+                                            )}
+                                           
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMuteToggle(p.uid, !!p.isMuted)}>
+                                                        <MicOff className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent><p>{p.isMuted ? 'Unmute' : 'Mute'} Participant</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+
+                                        <AlertDialog>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <AlertDialogTrigger asChild>
+                                                        <TooltipTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                                                <RemoveUserIcon className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                    </AlertDialogTrigger>
+                                                    <TooltipContent><p>Remove Participant</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This will permanently remove and block {p.name} from the room. They will not be able to rejoin.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleRemoveParticipant(p as Participant)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                        Remove & Block
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                )}
+
+                            </div>
+                        );
+                    })}
+                </div>
+                {absentParticipantEmails.length > 0 && (
+                    <div className="p-4 space-y-2">
+                         <Separator />
+                         <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground pt-2"><RemoveUserIcon/> Invited ({absentParticipantEmails.length})</h3>
+                        {absentParticipantEmails.map(email => (
+                            <div key={email} className="flex items-center gap-3 p-1 rounded-md opacity-60">
+                                <Avatar>
+                                    <AvatarFallback>{email.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                 <div className="flex-1 overflow-hidden">
+                                     <p className="font-semibold truncate flex items-center gap-1.5">{email}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </ScrollArea>
+             <footer className="p-4 border-t flex flex-col gap-4">
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
+                        <LogOut className="mr-2 h-4 w-4"/>
+                        Exit Room
+                    </Button>
+                    {isCurrentUserEmcee && (
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="destructive" size="sm" className="w-full">
+                                    <ShieldX className="mr-2 h-4 w-4"/>
+                                    End Meeting
+                                </Button>
+                            </DialogTrigger>
+                             <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>End Meeting for All?</DialogTitle>
+                                    <DialogDescription>
+                                        Choose how you would like to end this meeting for all participants.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter className="sm:justify-end gap-2 pt-4">
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <DialogClose asChild>
+                                                    <Button type="button" variant="ghost">Cancel</Button>
+                                                </DialogClose>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Return to the room.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button type="button" variant="destructive" onClick={handleEndMeeting}>
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    End & Delete
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>End the meeting and close the room permanently.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                </div>
+            </footer>
+        </aside>
+    );
+}
+
+
 export default function SyncRoomPage() {
     const params = useParams();
     const router = useRouter();
@@ -201,10 +518,6 @@ export default function SyncRoomPage() {
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     
-    const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
-    const [emailsToInvite, setEmailsToInvite] = useState('');
-    const [isSendingInvites, setIsSendingInvites] = useState(false);
-    
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const [isSummarizing, setIsSummarizing] = useState(false);
     
@@ -220,19 +533,6 @@ export default function SyncRoomPage() {
      useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
-    
-     const { presentParticipants, absentParticipantEmails } = useMemo(() => {
-        if (!roomData || !participants) {
-            return { presentParticipants: [], absentParticipantEmails: [] };
-        }
-        const presentUids = new Set(participants.map(p => p.uid));
-        const absent = roomData.invitedEmails.filter((email: string) => {
-             return !participants.some(p => p.email === email);
-        });
-        
-        return { presentParticipants: participants, absentParticipantEmails: absent };
-
-    }, [roomData, participants]);
 
     const currentUserParticipant = useMemo(() => {
         if (!user || !participants) return undefined;
@@ -241,7 +541,6 @@ export default function SyncRoomPage() {
 
     const isCurrentUserEmcee = useMemo(() => {
         if (!user || !roomData) return false;
-        // The creator is always an emcee. Also check the emceeEmails list.
         return roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
     }, [user, roomData]);
 
@@ -285,9 +584,7 @@ export default function SyncRoomPage() {
         setIsParticipant('yes');
         
         messageListenerUnsubscribe.current = setupMessageListener(roomId, joinTime, setMessagesLoading, setMessages, toast);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomId]);
+    }, [roomId, toast]);
     
 
     const handleExitRoom = useCallback(async () => {
@@ -334,21 +631,17 @@ export default function SyncRoomPage() {
     useEffect(() => {
         if (!user || roomLoading) return;
         
-        console.log("[DEBUG] Participant Listener: Setting up...");
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
-            console.log(`[DEBUG] Participant Listener: Snapshot received. Found ${parts.length} participants.`);
             setParticipants(parts);
             setParticipantsLoading(false);
             
             if (isParticipant === 'unknown') {
                 const self = parts.find(p => p.uid === user.uid);
                 if (self && self.joinedAt) {
-                     console.log(`[DEBUG] Participant Listener: Current user IS a participant. Calling onJoinSuccess for rejoin.`);
                      onJoinSuccess(self.joinedAt);
                 } else if (!self) {
-                     console.log(`[DEBUG] Participant Listener: Current user is NOT yet a participant.`);
                      setIsParticipant('no');
                 }
             }
@@ -358,7 +651,6 @@ export default function SyncRoomPage() {
         });
 
         return () => {
-            console.log("[DEBUG] Participant Listener: Cleaning up.");
             unsubscribe();
         };
     }, [user, roomId, roomLoading, onJoinSuccess, isParticipant]);
@@ -382,7 +674,6 @@ export default function SyncRoomPage() {
         const isStillParticipant = participants.some(p => p.uid === user.uid);
         
         if (isParticipant === 'yes' && !isStillParticipant) {
-             console.log('[DEBUG] User is no longer in participant list. Exiting.');
              toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -412,8 +703,7 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomData, user]);
+    }, [roomData, user, handleManualExit, toast]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -487,15 +777,10 @@ export default function SyncRoomPage() {
     }, [handleExitRoom]);
 
     const handleEndMeeting = async () => {
-        console.log('[DEBUG] handleEndMeeting called.');
-        if (!isCurrentUserEmcee) {
-             console.log(`[DEBUG] handleEndMeeting aborted. isEmcee: ${isCurrentUserEmcee}`);
-             return;
-        }
+        if (!isCurrentUserEmcee) return;
         try {
             await handleExitRoom();
             const result = await softDeleteRoom(roomId);
-            console.log('[DEBUG] softDeleteRoom result:', result);
             if (result.success) {
                 router.push('/synchub?tab=sync-online');
             } else {
@@ -521,44 +806,6 @@ export default function SyncRoomPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
         } finally {
             setIsSummarizing(false);
-        }
-    };
-
-    const handleSendInvites = async () => {
-        if (!user || !roomData) return;
-        const emails = emailsToInvite.split(/[ ,]+/).map(e => e.trim()).filter(Boolean);
-        if (emails.length === 0) {
-            toast({ variant: 'destructive', title: 'No Emails', description: 'Please enter at least one email address.' });
-            return;
-        }
-
-        setIsSendingInvites(true);
-        try {
-            await updateDoc(doc(db, 'syncRooms', roomId), {
-                invitedEmails: arrayUnion(...emails)
-            });
-            
-            // Check if roomData.scheduledAt exists and is valid before creating Date object
-            const scheduledAtDate = roomData.scheduledAt
-                ? (roomData.scheduledAt instanceof Timestamp ? roomData.scheduledAt.toDate() : new Date(roomData.scheduledAt))
-                : new Date();
-
-            await sendRoomInviteEmail({
-                to: emails,
-                roomTopic: roomData.topic,
-                creatorName: user.displayName || 'A user',
-                scheduledAt: scheduledAtDate,
-                joinUrl: `${window.location.origin}/join/${roomId}?ref=${roomData.creatorUid}`
-            });
-
-            toast({ title: 'Invites Sent', description: 'The new participants have been notified by email.' });
-            setEmailsToInvite('');
-            setIsInviteDialogOpen(false);
-        } catch (error) {
-            console.error('Error sending invites:', error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not send invitations.' });
-        } finally {
-            setIsSendingInvites(false);
         }
     };
 
@@ -684,247 +931,67 @@ export default function SyncRoomPage() {
 
     return (
         <div className="flex h-screen bg-muted/40">
-            {/* Left Panel - Participants */}
-            <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
-                <header className="p-4 border-b space-y-2">
-                     <div className="flex flex-col md:flex-row justify-between md:items-start gap-2">
-                        <div className="flex-grow bg-primary/10 p-3 rounded-lg flex items-center justify-between">
-                            <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                             <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground p-2">
-                                            <Clock className="h-4 w-4" />
-                                            <span>{sessionTimer}</span>
-                                        </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
-                                        <div className="font-bold mb-2">Session Info</div>
-                                        <div className="space-y-1.5 text-xs">
-                                                <div className="flex justify-between">
-                                                <span>Balance:</span> 
-                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
-                                            </div>
-                                                <div className="flex justify-between">
-                                                <span>Cost:</span>
-                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Free Minutes:</span>
-                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                            </div>
-                                            <Separator className="my-2"/>
-                                            <p className="text-muted-foreground">Billing starts when you first press the mic and is finalized on the server when your session ends.</p>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        </div>
-                    </div>
-                     <div className="flex items-center justify-between pt-2">
-                         <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
-                         {isCurrentUserEmcee && (
-                            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Invite More People</DialogTitle>
-                                        <DialogDescription>
-                                            Enter email addresses separated by commas to invite them to this room.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="py-4 space-y-2">
-                                        <Label htmlFor="emails-to-invite">Emails</Label>
-                                        <Textarea 
-                                            id="emails-to-invite" 
-                                            value={emailsToInvite}
-                                            onChange={(e) => setEmailsToInvite(e.target.value)}
-                                            placeholder="friend1@example.com, friend2@example.com"
-                                        />
-                                    </div>
-                                    <DialogFooter>
-                                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                                        <Button onClick={handleSendInvites} disabled={isSendingInvites}>
-                                            {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                            Send Invites
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        )}
-                     </div>
+            {/* Desktop: Left Panel - Participants */}
+            <div className="hidden md:flex h-full">
+                <ParticipantsPanel 
+                    roomData={{...roomData, id: roomId}}
+                    user={user}
+                    participants={participants}
+                    isCurrentUserEmcee={isCurrentUserEmcee}
+                    isRoomCreator={isRoomCreator}
+                    isListening={isListening}
+                    sessionTimer={sessionTimer}
+                    userProfile={userProfile}
+                    settings={settings}
+                    freeMinutesRemaining={freeMinutesRemaining}
+                    handleManualExit={handleManualExit}
+                    handleEndMeeting={handleEndMeeting}
+                    handleSaveAndEndMeeting={handleSaveAndEndMeeting}
+                    handleMuteToggle={handleMuteToggle}
+                    handleRemoveParticipant={handleRemoveParticipant}
+                    handlePromoteToEmcee={handlePromoteToEmcee}
+                    handleDemoteEmcee={handleDemoteEmcee}
+                />
+            </div>
+
+            {/* Main Content Area (Chat + Controls) */}
+            <main className="flex-1 flex flex-col h-screen">
+                {/* Mobile Header */}
+                <header className="md:hidden flex items-center justify-between p-2 border-b bg-background">
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <Users className="h-5 w-5" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="p-0 w-full max-w-sm">
+                            <ParticipantsPanel
+                                roomData={{...roomData, id: roomId}}
+                                user={user}
+                                participants={participants}
+                                isCurrentUserEmcee={isCurrentUserEmcee}
+                                isRoomCreator={isRoomCreator}
+                                isListening={isListening}
+                                sessionTimer={sessionTimer}
+                                userProfile={userProfile}
+                                settings={settings}
+                                freeMinutesRemaining={freeMinutesRemaining}
+                                handleManualExit={handleManualExit}
+                                handleEndMeeting={handleEndMeeting}
+                                handleSaveAndEndMeeting={handleSaveAndEndMeeting}
+                                handleMuteToggle={handleMuteToggle}
+                                handleRemoveParticipant={handleRemoveParticipant}
+                                handlePromoteToEmcee={handlePromoteToEmcee}
+                                handleDemoteEmcee={handleDemoteEmcee}
+                            />
+                        </SheetContent>
+                    </Sheet>
+                    <h1 className="text-lg font-bold text-center truncate">{roomData.topic}</h1>
+                    <Button variant="ghost" size="icon" onClick={handleManualExit}>
+                        <LogOut className="h-5 w-5 text-destructive" />
+                    </Button>
                 </header>
-                <ScrollArea className="flex-1">
-                    <div className="p-4 space-y-2">
-                         <h3 className="font-semibold text-sm flex items-center gap-2 text-green-600"><UserCheck/> Present ({presentParticipants.length})</h3>
-                        {presentParticipants.map(p => {
-                            const isCurrentUser = p.uid === user?.uid;
-                            const isEmcee = roomData?.emceeEmails?.includes(p.email);
-                            const isCreator = isRoomCreator(p.uid);
-                            const canBeModified = isCurrentUserEmcee && !isCreator && !isCurrentUser;
-                             const canBeDemoted = isCurrentUserEmcee && !isCreator && isEmcee;
 
-                            return (
-                                <div key={p.uid} className="flex items-center gap-3 group p-2 rounded-md hover:bg-muted/50">
-                                    <Avatar>
-                                        <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex-1 overflow-hidden">
-                                        <p className="font-semibold truncate flex items-center gap-1.5">
-                                            {isEmcee && <Crown className="h-4 w-4 text-amber-400"/>}
-                                            {p.name} {isCurrentUser && '(You)'}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground truncate">{getAzureLanguageLabel(p.selectedLanguage)}</p>
-                                    </div>
-                                    
-                                     {p.isMuted && <MicOff className="h-4 w-4 text-red-500"/>}
-                                    {isListening && isCurrentUser && <Mic className="h-4 w-4 text-green-500 animate-pulse" />}
-
-                                    {canBeModified && (
-                                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <TooltipProvider>
-                                                {!isEmcee ? (
-                                                     <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handlePromoteToEmcee(p.email)}>
-                                                                <ShieldCheck className="h-4 w-4 text-green-600" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Promote to Emcee</p></TooltipContent>
-                                                    </Tooltip>
-                                                ) : canBeDemoted && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDemoteEmcee(p.email)}>
-                                                                <ShieldX className="h-4 w-4 text-muted-foreground" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Demote Emcee</p></TooltipContent>
-                                                    </Tooltip>
-                                                )}
-                                               
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMuteToggle(p.uid, !!p.isMuted)}>
-                                                            <MicOff className="h-4 w-4" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent><p>{p.isMuted ? 'Unmute' : 'Mute'} Participant</p></TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-
-                                            <AlertDialog>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <AlertDialogTrigger asChild>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                                                    <RemoveUserIcon className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                        </AlertDialogTrigger>
-                                                        <TooltipContent><p>Remove Participant</p></TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            This will permanently remove and block {p.name} from the room. They will not be able to rejoin.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleRemoveParticipant(p as Participant)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                                            Remove & Block
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </div>
-                                    )}
-
-                                </div>
-                            );
-                        })}
-                    </div>
-                    {absentParticipantEmails.length > 0 && (
-                        <div className="p-4 space-y-2">
-                             <Separator />
-                             <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground pt-2"><RemoveUserIcon/> Invited ({absentParticipantEmails.length})</h3>
-                            {absentParticipantEmails.map(email => (
-                                <div key={email} className="flex items-center gap-3 p-1 rounded-md opacity-60">
-                                    <Avatar>
-                                        <AvatarFallback>{email.charAt(0).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
-                                     <div className="flex-1 overflow-hidden">
-                                         <p className="font-semibold truncate flex items-center gap-1.5">{email}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </ScrollArea>
-                 <footer className="p-4 border-t flex flex-col gap-4">
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
-                            <LogOut className="mr-2 h-4 w-4"/>
-                            Exit Room
-                        </Button>
-                        {isCurrentUserEmcee && (
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="destructive" size="sm" className="w-full">
-                                        <ShieldX className="mr-2 h-4 w-4"/>
-                                        End Meeting
-                                    </Button>
-                                </DialogTrigger>
-                                 <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>End Meeting for All?</DialogTitle>
-                                        <DialogDescription>
-                                            Choose how you would like to end this meeting for all participants.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <DialogFooter className="sm:justify-end gap-2 pt-4">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <DialogClose asChild>
-                                                        <Button type="button" variant="ghost">Cancel</Button>
-                                                    </DialogClose>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Return to the room.</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button type="button" variant="destructive" onClick={handleEndMeeting}>
-                                                        <Trash2 className="mr-2 h-4 w-4" />
-                                                        End & Delete
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>End the meeting and close the room permanently.</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        )}
-                    </div>
-                </footer>
-            </aside>
-
-            {/* Right Panel - Chat and Controls */}
-            <main className="flex-1 flex flex-col">
                 <div className="flex-1 flex flex-col p-6 overflow-hidden">
                      <ScrollArea className="flex-grow pr-4 -mr-4">
                         <div className="space-y-4">
@@ -978,3 +1045,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
