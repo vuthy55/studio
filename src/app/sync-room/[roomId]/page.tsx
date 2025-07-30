@@ -501,6 +501,7 @@ export default function SyncRoomPage() {
     
     
     const handleManualExit = async () => {
+        isExiting.current = true;
         await handleExitRoom();
     };
     
@@ -634,8 +635,16 @@ export default function SyncRoomPage() {
     useEffect(() => {
         if (isExiting.current) return;
         if (!roomData || !user) return;
+        
+        // This is the main listener that reacts to room status changes.
+        // It's guarded by the isExiting flag.
+        if (isExiting.current) {
+            console.log("DEBUG: Room listener fired, but isExiting is true. Ignoring.");
+            return;
+        }
 
         if (roomData.status === 'closed') {
+            console.log("DEBUG: Room status is closed. Calling handleExitRoom.");
             toast({
                 title: 'Meeting Ended',
                 description: 'This room has been closed by the emcee.',
@@ -718,18 +727,23 @@ export default function SyncRoomPage() {
     const handleEndMeeting = async () => {
         if (!isCurrentUserEmcee || isExiting.current) return;
         isExiting.current = true;
+        console.log("DEBUG: Emcee clicked End Meeting. isExiting is now true.");
 
         try {
             const result = await endAndReconcileRoom(roomId);
-            if (!result.success) {
+            
+            if (result.success) {
+                // The emcee's listener is now ignored, so we must navigate them away manually.
+                console.log("DEBUG: endAndReconcileRoom success. Navigating emcee away.");
+                router.push('/synchub?tab=sync-online');
+            } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
-                 isExiting.current = false; // Reset if the server action fails
+                 isExiting.current = false;
             }
-            // On success, the room status change listener will handle the exit for all participants, including the emcee.
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
-            isExiting.current = false; // Reset on failure
+            isExiting.current = false;
         }
     };
     
@@ -1022,5 +1036,7 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
 
     
