@@ -447,7 +447,6 @@ export default function SyncRoomPage() {
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
 
     const handleExitRoom = useCallback(async () => {
-        console.log(`[DEBUG] handleExitRoom called. isExiting: ${isExiting.current}`);
         if (!user || isExiting.current) return;
         isExiting.current = true;
         
@@ -467,16 +466,9 @@ export default function SyncRoomPage() {
 
 
     useEffect(() => {
-        console.log(`[TIMER DEBUG] useEffect running. firstMessageAt:`, roomData?.firstMessageAt);
-        if (roomData?.firstMessageAt) {
-            if (timerIntervalRef.current) {
-                console.log(`[TIMER DEBUG] Clearing existing interval before setting a new one.`);
-                clearInterval(timerIntervalRef.current);
-            }
-
+        if (roomData?.firstMessageAt && isParticipant === 'yes') {
             const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
             
-            console.log(`[TIMER DEBUG] Interval being set with startTime:`, new Date(startTime));
             timerIntervalRef.current = setInterval(() => {
                 const elapsedMs = Date.now() - startTime;
                 const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -488,13 +480,12 @@ export default function SyncRoomPage() {
 
         return () => {
             if (timerIntervalRef.current) {
-                console.log(`[TIMER DEBUG] Cleanup: Clearing interval ID ${timerIntervalRef.current}`);
                 clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
              setSessionTimer('00:00');
         };
-    }, [roomData?.firstMessageAt]);
+    }, [roomData?.firstMessageAt, isParticipant]);
     
     
     const handleManualExit = async () => {
@@ -574,7 +565,6 @@ export default function SyncRoomPage() {
     
 
     useEffect(() => {
-        console.log(`[DEBUG] Main useEffect running. Auth loading: ${authLoading}, Room loading: ${roomLoading}`);
         if (authLoading || roomLoading) return;
         if (!user) {
             router.push('/login');
@@ -602,7 +592,6 @@ export default function SyncRoomPage() {
         });
 
         return () => {
-            console.log("[DEBUG] Main useEffect cleanup function running.");
             participantListenerUnsubscribe.current?.();
             messageListenerUnsubscribe.current?.();
         };
@@ -783,7 +772,6 @@ export default function SyncRoomPage() {
 
         sessionUsageRef.current += Date.now() - (sessionUsageRef.current || Date.now());
         
-        console.log(`[DEBUG] handleMicPress called. firstMessageAt exists:`, !!roomData.firstMessageAt);
         if (roomData && !roomData.firstMessageAt) {
             await setFirstMessageTimestamp(roomId);
         }
@@ -870,7 +858,6 @@ export default function SyncRoomPage() {
         }
     };
     
-    console.log(`[DEBUG] Rendering with sessionTimer state: ${sessionTimer}`);
 
     if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
         return <div className="flex h-screen items-center justify-center flex-col gap-4">
