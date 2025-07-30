@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { softDeleteRoom } from '@/actions/room';
+import { softDeleteRoom, setFirstMessageTimestamp } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -816,9 +816,9 @@ export default function SyncRoomPage() {
     };
 
     const handleMicPress = async () => {
-        if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
+        if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted || !user) return;
 
-        // Start the timer on the first mic press
+        // Start the timer on the first mic press of the session
         if (sessionStartTime === null) {
             setSessionStartTime(Date.now());
         }
@@ -828,24 +828,20 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
-                 const batch = writeBatch(db);
-                 const roomRef = doc(db, 'syncRooms', roomId);
-
-                 // Only set the 'firstMessageAt' timestamp if it doesn't already exist.
-                if (!roomData?.firstMessageAt) {
-                    batch.update(roomRef, { firstMessageAt: serverTimestamp() });
+                // If this is the first message ever and the current user is the creator,
+                // set the timestamp on the room document.
+                if (!roomData?.firstMessageAt && user.uid === roomData?.creatorUid) {
+                    await setFirstMessageTimestamp(roomId);
                 }
 
-                const messageRef = doc(collection(db, 'syncRooms', roomId, 'messages'));
-                 batch.set(messageRef, {
+                // Always add the message to the subcollection
+                await addDoc(collection(db, 'syncRooms', roomId, 'messages'), {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
                     speakerUid: currentUserParticipant.uid,
                     speakerLanguage: currentUserParticipant.selectedLanguage,
                     createdAt: serverTimestamp(),
                 });
-
-                await batch.commit();
             }
         } catch (error: any) {
              if (error.message !== "Recognition was aborted.") {
@@ -1044,7 +1040,7 @@ export default function SyncRoomPage() {
                        <Button 
                             size="lg" 
                             className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
-                            onClick={isListening ? abortRecognition : handleMicPress}
+                            onClick={handleMicPress}
                             disabled={isSpeaking || currentUserParticipant?.isMuted}
                             title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
                         >

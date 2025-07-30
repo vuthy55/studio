@@ -19,6 +19,24 @@ async function getAdminUids(): Promise<string[]> {
     return snapshot.docs.map(doc => doc.id);
 }
 
+/**
+ * Sets the 'firstMessageAt' timestamp on a room document.
+ * This is a separate action to ensure only the room creator can perform this specific update.
+ */
+export async function setFirstMessageTimestamp(roomId: string): Promise<{success: boolean, error?: string}> {
+    if (!roomId) {
+        return { success: false, error: 'Room ID is required.' };
+    }
+    try {
+        const roomRef = db.collection('syncRooms').doc(roomId);
+        await roomRef.update({ firstMessageAt: FieldValue.serverTimestamp() });
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Failed to set first message timestamp for room ${roomId}:`, error);
+        return { success: false, error: 'Failed to update timestamp on the server.' };
+    }
+}
+
 
 /**
  * Performs a "soft delete" on a room by setting its status to 'closed'.
