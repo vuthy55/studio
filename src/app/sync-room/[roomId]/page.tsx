@@ -436,7 +436,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>());
+    const processedMessages = useRef(new Set<string>>();
     
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
@@ -447,27 +447,27 @@ export default function SyncRoomPage() {
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
 
     const handleExitRoom = useCallback(async () => {
-        if (!user || isExiting.current) return;
-        isExiting.current = true;
+        if (!user) return;
         
-        participantListenerUnsubscribe.current?.();
-        messageListenerUnsubscribe.current?.();
-        
-        const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-        await deleteDoc(participantRef);
-
-        // Check if user leaving is an emcee
-        const isLeavingEmcee = roomData?.emceeEmails?.includes(user.email!);
-        if (isLeavingEmcee) {
-            await handleEmceeExit(roomId, user.uid);
-        }
-        
-        const sessionDurationMs = sessionUsageRef.current;
-        if (sessionDurationMs > 0) {
-            await handleSyncOnlineSessionEnd(sessionDurationMs);
-        }
-
+        // Immediately navigate away to prevent client-side errors
         router.push('/synchub?tab=sync-online');
+
+        // Fire-and-forget the server-side cleanup
+        (async () => {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            await deleteDoc(participantRef);
+        
+            const isLeavingEmcee = roomData?.emceeEmails?.includes(user.email!);
+            if (isLeavingEmcee) {
+                await handleEmceeExit(roomId, user.uid);
+            }
+            
+            const sessionDurationMs = sessionUsageRef.current;
+            if (sessionDurationMs > 0) {
+                await handleSyncOnlineSessionEnd(sessionDurationMs);
+            }
+        })();
+
     }, [user, roomId, router, handleSyncOnlineSessionEnd, roomData?.emceeEmails]);
 
 
@@ -501,6 +501,7 @@ export default function SyncRoomPage() {
     
     
     const handleManualExit = async () => {
+        if (isExiting.current) return;
         isExiting.current = true;
         await handleExitRoom();
     };
@@ -605,6 +606,7 @@ export default function SyncRoomPage() {
         if (participantListenerUnsubscribe.current) participantListenerUnsubscribe.current();
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         participantListenerUnsubscribe.current = onSnapshot(participantsQuery, (snapshot) => {
+            if (isExiting.current) return;
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             setParticipants(parts);
         });
@@ -617,51 +619,45 @@ export default function SyncRoomPage() {
     
     
     useEffect(() => {
-        if (isExiting.current) return;
-
-        const amIStillHere = participants.some(p => p.uid === user?.uid);
-        
-        if (isParticipant === 'yes' && !amIStillHere) {
+        if (isExiting.current || isParticipant !== 'yes' || !user) return;
+    
+        const amIStillHere = participants.some(p => p.uid === user.uid);
+    
+        if (!amIStillHere) {
+            isExiting.current = true; // Set flag to prevent multiple triggers
             toast({
                 variant: 'destructive',
                 title: 'You were removed',
                 description: 'An emcee has removed you from the room.',
                 duration: 5000,
             });
-            handleExitRoom();
+            router.push('/synchub?tab=sync-online');
         }
-    }, [participants, isParticipant, user, toast, handleExitRoom]);
+    }, [participants, isParticipant, user, toast, router]);
 
     useEffect(() => {
-        if (isExiting.current) return;
-        if (!roomData || !user) return;
-        
-        // This is the main listener that reacts to room status changes.
-        // It's guarded by the isExiting flag.
-        if (isExiting.current) {
-            console.log("DEBUG: Room listener fired, but isExiting is true. Ignoring.");
-            return;
-        }
+        if (isExiting.current || !user || !roomData) return;
 
         if (roomData.status === 'closed') {
-            console.log("DEBUG: Room status is closed. Calling handleExitRoom.");
+            isExiting.current = true;
             toast({
                 title: 'Meeting Ended',
                 description: 'This room has been closed by the emcee.',
                 duration: 5000,
             });
-            handleExitRoom();
+            router.push('/synchub?tab=sync-online');
         }
         if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
+            isExiting.current = true;
             toast({
                 variant: 'destructive',
                 title: 'Access Denied',
                 description: 'You have been blocked from this room.',
                 duration: 5000
             });
-            handleExitRoom();
+            router.push('/synchub?tab=sync-online');
         }
-    }, [roomData, user, toast, handleExitRoom]);
+    }, [roomData, user, toast, router]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -727,24 +723,14 @@ export default function SyncRoomPage() {
     const handleEndMeeting = async () => {
         if (!isCurrentUserEmcee || isExiting.current) return;
         isExiting.current = true;
-        console.log("DEBUG: Emcee clicked End Meeting. isExiting is now true.");
-
-        try {
-            const result = await endAndReconcileRoom(roomId);
-            
-            if (result.success) {
-                // The emcee's listener is now ignored, so we must navigate them away manually.
-                console.log("DEBUG: endAndReconcileRoom success. Navigating emcee away.");
-                router.push('/synchub?tab=sync-online');
-            } else {
-                 toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
-                 isExiting.current = false;
-            }
-        } catch (error) {
-            console.error("Error ending meeting:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
-            isExiting.current = false;
-        }
+        
+        // Immediately navigate emcee away
+        router.push('/synchub?tab=sync-online');
+        
+        // Fire-and-forget server action
+        endAndReconcileRoom(roomId).catch(error => {
+            console.error("Error in background reconcile:", error);
+        });
     };
     
     const handleSaveAndEndMeeting = async () => {
@@ -1036,7 +1022,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
-
-    

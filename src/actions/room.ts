@@ -53,7 +53,7 @@ async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?
 
 /**
  * Sets the 'firstMessageAt' timestamp on a room document if it doesn't already exist.
- * This action is idempotent and is used to start the billing timer for the room.
+ * This action is now idempotent and adds a system message to indicate the meeting start.
  * It also resets the room's session state if it had previously ended.
  */
 export async function setFirstMessageTimestamp(roomId: string): Promise<{success: boolean, error?: string}> {
@@ -78,6 +78,16 @@ export async function setFirstMessageTimestamp(roomId: string): Promise<{success
                     lastSessionEndedAt: FieldValue.delete() // Clear any previous session end time
                 };
                 transaction.update(roomRef, updateData);
+
+                // Add a system message to the chat
+                const messageRef = roomRef.collection('messages').doc();
+                transaction.set(messageRef, {
+                    text: "The meeting has now officially started.",
+                    speakerName: "System",
+                    speakerUid: "system",
+                    speakerLanguage: "en-US",
+                    createdAt: FieldValue.serverTimestamp(),
+                });
             }
         });
 
@@ -150,11 +160,12 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
   }
 
   try {
+    const batch = db.batch();
     for (const roomId of roomIds) {
         const roomRef = db.collection('syncRooms').doc(roomId);
         const roomDoc = await roomRef.get();
-        const batch = db.batch();
-
+        
+        // --- Refund Logic ---
         if (roomDoc.exists) {
             const roomData = roomDoc.data() as SyncRoom;
             // A refund is needed if there was a cost AND the room was never started.
@@ -176,14 +187,16 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
                 });
             }
         }
+        // --- End Refund Logic ---
 
+        // Delete subcollections first
         await deleteCollection(`syncRooms/${roomId}/participants`, 50);
         await deleteCollection(`syncRooms/${roomId}/messages`, 50);
 
+        // Then delete the main room document
         batch.delete(roomRef);
-        await batch.commit();
     }
-
+    await batch.commit();
     return { success: true };
 
   } catch (error: any) {
