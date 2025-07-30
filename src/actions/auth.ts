@@ -95,8 +95,8 @@ export async function signUpUser(
         if (referrerDoc.exists) {
             
             // Create a record in the new 'referrals' collection
-            const referralRef = db.collection('referrals').doc();
-            batch.set(referralRef, {
+            const referralRecordRef = db.collection('referrals').doc();
+            batch.set(referralRecordRef, {
                 referrerId: referralId,
                 referredUserId: uid,
                 referredUserName: name,
