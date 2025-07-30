@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -45,7 +46,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, checkRoomActivity, requestSummaryEditAccess, updateScheduledRoom } from '@/actions/room';
+import { updateRoomSummary, softDeleteRoom, permanentlyDeleteRooms, requestSummaryEditAccess, updateScheduledRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
@@ -558,32 +559,8 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
     const [isLoading, setIsLoading] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
-    const doCheckRoomActivity = async () => {
-        if (!user) return;
-        setIsLoading(true);
-        try {
-            const result = await checkRoomActivity(room.id, user.uid);
-            if (result.success) {
-                setHasActivity(result.hasActivity ?? false);
-            } else {
-                toast({ variant: 'destructive', title: 'Error', description: result.error });
-                setHasActivity(false); // Default to safer state on error
-            }
-        } catch (error) {
-            console.error("Error checking room activity:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not check room activity.' });
-            setHasActivity(false);
-        } finally {
-            setIsLoading(false);
-            setHasCheckedActivity(true);
-        }
-    };
-    
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
-        if (open && !hasCheckedActivity && room.status !== 'closed' && room.status !== 'scheduled') {
-            doCheckRoomActivity();
-        }
         if (!open) {
             setHasCheckedActivity(false); // Reset for next time
         }
@@ -686,43 +663,15 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
                      <div className="py-4 space-y-4">
                         <p className="text-sm text-muted-foreground">This room is closed.</p>
                     </div>
-                ) : hasCheckedActivity && room.status === 'active' && (
+                ) : ( // Active rooms
                     <div className="py-4 space-y-4">
-                        {hasActivity ? (
-                            <>
-                                <p className="text-sm text-muted-foreground">This room has had meeting activity. You can close it for all users.</p>
-                                <div className="flex flex-col gap-2">
-                                     <Button onClick={handleSoftDelete} disabled={isActionLoading} variant="destructive">
-                                        {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                        Close Room
-                                    </Button>
-                                </div>
-                            </>
-                        ) : (
-                             <>
-                                <p className="text-sm text-muted-foreground">This room appears to be empty. You can permanently delete it.</p>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" disabled={isActionLoading}>
-                                            {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                            Permanently Delete Room
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This action cannot be undone. This will permanently delete the room and all of its data.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handlePermanentDelete}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </>
-                        )}
+                        <p className="text-sm text-muted-foreground">This room is active. You can close it for all users.</p>
+                        <div className="flex flex-col gap-2">
+                             <Button onClick={handleSoftDelete} disabled={isActionLoading} variant="destructive">
+                                {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                Close Room
+                            </Button>
+                        </div>
                     </div>
                 )}
                 <DialogFooter>
