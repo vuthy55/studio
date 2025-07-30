@@ -440,13 +440,13 @@ export default function SyncRoomPage() {
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const joinTimestampRef = useRef<Timestamp | null>(null);
-    const isExiting = useRef(false);
-
-    // Timer state lifted up to the parent component
+    
+    // --- Timer State & Logic ---
     const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    
+    const isExiting = useRef(false);
+
     // Effect to run the clock interval once a session starts
     useEffect(() => {
         if (sessionStartTime !== null) {
@@ -469,12 +469,13 @@ export default function SyncRoomPage() {
         };
     }, [sessionStartTime]);
 
+    // --- Component Lifecycle & Cleanup ---
     const handleExitRoom = useCallback(() => {
         if (isExiting.current) {
             return;
         }
         isExiting.current = true;
-        console.log("[DEBUG] handleExitRoom called.");
+        console.log("[DEBUG] handleExitRoom called. Cleaning up...");
 
         if (messageListenerUnsubscribe.current) {
             console.log("[DEBUG] Unsubscribing from message listener.");
@@ -497,8 +498,10 @@ export default function SyncRoomPage() {
             });
         }
     }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
-
+    
+    // This is the function called by UI buttons
     const handleManualExit = () => {
+        if (isExiting.current) return;
         console.log("[DEBUG] handleManualExit called. Navigating away first.");
         router.push('/synchub?tab=sync-online');
     };
@@ -507,6 +510,7 @@ export default function SyncRoomPage() {
     // It's triggered when the component unmounts.
     useEffect(() => {
         return () => {
+            console.log("[DEBUG] SyncRoomPage unmounting. Calling handleExitRoom.");
             handleExitRoom();
         };
     }, [handleExitRoom]);
@@ -540,20 +544,20 @@ export default function SyncRoomPage() {
     }, [user, roomData]);
     
      const timerTooltipContent = useMemo(() => {
-        const cost = roomData?.initialCost ?? 0;
+        const initialCost = roomData?.initialCost ?? 0;
         return (
             <div className="p-2 space-y-2 text-sm max-w-xs">
                 <p className="font-bold">Session Billing</p>
                 <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Pre-paid Cost:</span>
-                    <span className="font-bold">{cost} tokens</span>
+                    <span className="font-bold">{initialCost} tokens</span>
                 </div>
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">Your Balance:</span>
                     <span className="font-bold">{userProfile?.tokenBalance ?? 0}</span>
                 </div>
                  <p className="text-xs text-muted-foreground pt-2 border-t">
-                    This timer tracks active conversation time. The initial cost has been deducted. Upon exit, any difference between the pre-paid amount and actual usage will be reconciled.
+                    This timer tracks active conversation time, which starts on the first mic press. The initial cost has been deducted. Upon exit, the actual usage cost will be reconciled against the pre-paid amount, and any difference may be refunded.
                 </p>
             </div>
         );
@@ -565,6 +569,11 @@ export default function SyncRoomPage() {
     
     
     const setupMessageListener = useCallback((joinTimestamp: Timestamp) => {
+        if (!joinTimestamp) {
+            console.error("[DEBUG] setupMessageListener called with invalid joinTimestamp.");
+            return () => {};
+        }
+        console.log(`[DEBUG] Setting up message listener for messages created after: ${joinTimestamp.toDate()}`);
         const messagesQuery = query(
             collection(db, 'syncRooms', roomId, 'messages'),
             orderBy("createdAt"),
@@ -572,6 +581,7 @@ export default function SyncRoomPage() {
         );
 
         return onSnapshot(messagesQuery, (snapshot) => {
+            if (isExiting.current) return;
             const newMessages: RoomMessage[] = [];
             snapshot.docChanges().forEach((change) => {
                 if (change.type === "added") {
@@ -587,14 +597,18 @@ export default function SyncRoomPage() {
             setMessagesLoading(false);
             if (error.code === 'permission-denied') {
                 toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch messages. This might be a temporary issue. Please try re-joining the room.' });
+                console.error("[DEBUG] Firestore permission denied for messages.");
             } else {
                 toast({ variant: 'destructive', title: 'Message Error', description: 'Could not fetch new messages.' });
+                 console.error("[DEBUG] Error fetching new messages:", error);
             }
         });
     }, [roomId, toast]);
 
     const onJoinSuccess = useCallback((joinTime: Timestamp) => {
+        console.log("[DEBUG] onJoinSuccess called.");
         if (messageListenerUnsubscribe.current) {
+            console.log("[DEBUG] Message listener already exists, not creating a new one.");
             return;
         }
         joinTimestampRef.current = joinTime;
@@ -608,6 +622,7 @@ export default function SyncRoomPage() {
         
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
         const unsubscribe = onSnapshot(participantsQuery, (snapshot) => {
+             if (isExiting.current) return;
             const parts = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as Participant);
             setParticipants(parts);
             setParticipantsLoading(false);
@@ -621,6 +636,7 @@ export default function SyncRoomPage() {
                 }
             }
         }, (error) => {
+            console.error("[DEBUG] Error listening to participants collection:", error);
             setParticipantsLoading(false);
         });
 
@@ -629,10 +645,12 @@ export default function SyncRoomPage() {
     
     
     useEffect(() => {
-        if (participantsLoading || !user) return; 
+        if (participantsLoading || !user || isExiting.current) return; 
     
         const isStillParticipant = participants.some(p => p.uid === user.uid);
         
+        console.log(`[DEBUG] Ejection check: isParticipant=${isParticipant}, isStillParticipant=${isStillParticipant}, participants count=${participants.length}`);
+
         if (isParticipant === 'yes' && !isStillParticipant) {
              toast({
                 variant: 'destructive',
