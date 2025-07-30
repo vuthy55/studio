@@ -662,15 +662,17 @@ export default function SyncRoomPage() {
 
 
     useEffect(() => {
-        if (!messages.length) return;
-
         const playQueue = async () => {
              for (const msg of messages) {
-                await processMessage(msg);
+                if (!processedMessages.current.has(msg.id)) {
+                    await processMessage(msg);
+                }
             }
         };
         
-        playQueue();
+        if (messages.length > processedMessages.current.size) {
+            playQueue();
+        }
     }, [messages, processMessage]);
 
     useEffect(() => {
@@ -1034,3 +1036,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
