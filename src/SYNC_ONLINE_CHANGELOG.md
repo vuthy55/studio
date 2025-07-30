@@ -5,11 +5,12 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Refined the session timer logic in Sync Online rooms. The timer now starts only upon the first microphone press by any participant, ensuring that billing and usage tracking are based purely on active conversation time rather than time spent idle in the room. This provides a more fair and accurate measure of session duration.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 
 ### Fixed
 - **`[FIX]`** Resolved a persistent and critical `npm ERESOLVE` dependency conflict that blocked all builds and installations. The root cause was an inability for `npm` to find a compatible version of the `genkit` package that satisfied all of its peer dependencies (e.g., `@genkit-ai/googleai`, `@genkit-ai/firebase`).
-    - **Initial Problem:** The `package.json` file used caret (`^`) versioning for `genkit` packages, allowing `npm` to install newer minor versions. This flexibility led to dependency tree conflicts where sub-dependencies had incompatible requirements.
+    - **Initial Problem:** The `package.json` file used a caret (`^`) versioning for `genkit` packages, allowing `npm` to install newer minor versions. This flexibility led to dependency tree conflicts where sub-dependencies had incompatible requirements.
     - **Resolution Strategy:** After several unsuccessful attempts (including aligning versions and using `npm overrides`), the definitive solution was to **pin all `genkit`-related packages to a specific, known-stable version (`1.14.1`)**. By removing the `^` from `package.json` for `genkit`, `@genkit-ai/googleai`, and `genkit-cli`, we eliminated all version ambiguity. This forced `npm` to install a precise, conflict-free set of packages, which successfully resolved the `ERESOLVE` error and stabilized the build process.
 - **`[FIX]`** Resolved a series of critical, cascading build failures that prevented application deployment. The root causes were a combination of fundamental TypeScript type errors and incorrect handling of Next.js server-side rendering (SSR) versus client-side rendering (CSR) logic. Key issues included:
     - **Client-Side API Misuse:** Multiple pages (`/admin`, `/login`, `/profile`, `/feedback`) were attempting to access browser-only APIs (`window.location`, `useSearchParams`) during the server-side build process, leading to `ReferenceError` and `missing-suspense-with-csr-bailout` errors. The definitive fix involved restructuring these pages to isolate all client-dependent logic into dedicated child components, which were then wrapped in a React `<Suspense>` boundary. This ensures that server-side pre-rendering can complete successfully while client-side components load as intended.
@@ -24,6 +25,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
