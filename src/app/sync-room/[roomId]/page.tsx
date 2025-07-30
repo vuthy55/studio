@@ -553,7 +553,7 @@ export default function SyncRoomPage() {
                     <span className="font-bold">{userProfile?.tokenBalance ?? 0}</span>
                 </div>
                  <p className="text-xs text-muted-foreground pt-2 border-t">
-                    The initial cost has been deducted. Upon exit, the final cost will be calculated based on actual usage. Any difference will be refunded or charged accordingly.
+                    This timer tracks active conversation time. The initial cost has been deducted. Upon exit, any difference between the pre-paid amount and actual usage will be reconciled.
                 </p>
             </div>
         );
@@ -813,6 +813,7 @@ export default function SyncRoomPage() {
                  const batch = writeBatch(db);
                  const roomRef = doc(db, 'syncRooms', roomId);
 
+                 // Only set the 'firstMessageAt' timestamp if it doesn't already exist.
                 if (!roomData?.firstMessageAt) {
                     batch.update(roomRef, { firstMessageAt: serverTimestamp() });
                 }
