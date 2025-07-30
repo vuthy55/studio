@@ -430,7 +430,7 @@ export default function SyncRoomPage() {
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
-    const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const isExiting = useRef(false);
 
@@ -494,12 +494,11 @@ export default function SyncRoomPage() {
 
     const handleExitRoom = useCallback(async () => {
         isExiting.current = true;
-        sessionStartTime.current = null;
+        
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-        
         if (messageListenerUnsubscribe.current) {
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
@@ -510,6 +509,7 @@ export default function SyncRoomPage() {
                 const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
                 await deleteDoc(participantRef);
                 const sessionDurationMs = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
+                sessionStartTime.current = null;
                 if (sessionDurationMs > 0) {
                      await handleSyncOnlineSessionEnd(sessionDurationMs);
                 }
@@ -940,46 +940,40 @@ export default function SyncRoomPage() {
 
             <main className="flex-1 flex flex-col">
                  <header className="p-4 border-b bg-background flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="md:hidden">
-                                    <LogOut />
-                                    <span className="sr-only">Exit</span>
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure you want to exit?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    You can rejoin this room later as long as it is still active.
-                                </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel>Stay</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleManualExit}>Exit</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="outline" size="icon" className="md:hidden">
+                                <Users className="h-5 w-5" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="p-0 w-80">
+                           <SheetHeader className="sr-only"><SheetTitle>Participants</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
+                            <ParticipantsPanel {...participantsPanelProps} />
+                        </SheetContent>
+                    </Sheet>
 
-                        <h1 className="text-xl font-semibold">{roomData.topic}</h1>
-                    </div>
-                    <div className="flex items-center gap-2">
-                         <Sheet>
-                            <SheetTrigger asChild>
-                                <Button variant="outline" size="icon" className="md:hidden">
-                                    <Users className="h-5 w-5" />
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent side="left" className="p-0 w-80">
-                                <SheetHeader className="sr-only">
-                                    <SheetTitle>Participants</SheetTitle>
-                                    <SheetDescription>View and manage room participants.</SheetDescription>
-                                </SheetHeader>
-                                <ParticipantsPanel {...participantsPanelProps} />
-                            </SheetContent>
-                        </Sheet>
-                    </div>
+                    <h1 className="text-xl font-semibold text-center flex-grow">{roomData.topic}</h1>
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="md:hidden">
+                                <LogOut />
+                                <span className="sr-only">Exit</span>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure you want to exit?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                You can rejoin this room later as long as it is still active.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Stay</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleManualExit}>Exit</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </header>
 
                 <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
@@ -1015,37 +1009,7 @@ export default function SyncRoomPage() {
                     </ScrollArea>
                 </div>
                 <div className="p-4 border-t bg-background flex flex-col gap-4">
-                     {isSessionActive && (
-                        <div className="flex justify-center">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
-                                            <Clock className="h-5 w-5" />
-                                            {sessionTimer}
-                                        </div>
-                                    </TooltipTrigger>
-                                        <TooltipContent>
-                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
-                                            <div className="flex justify-between" title="Your current token balance">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
-                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
-                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                            </div>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                                </TooltipProvider>
-                            </div>
-                         )}
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-row items-center gap-4">
                         <Button 
                             size="lg" 
                             className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
@@ -1055,7 +1019,35 @@ export default function SyncRoomPage() {
                         >
                             {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
                         </Button>
-                        <div className="flex-1">
+                        <div className="flex-1 flex flex-col justify-center items-center">
+                            {isSessionActive && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2 mb-2">
+                                                <Clock className="h-5 w-5" />
+                                                {sessionTimer}
+                                            </div>
+                                        </TooltipTrigger>
+                                            <TooltipContent>
+                                            <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
+                                                <div className="flex justify-between" title="Your current token balance">
+                                                    <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
+                                                    <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
+                                                </div>
+                                                <div className="flex justify-between" title="Cost per minute after free minutes are used">
+                                                    <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
+                                                    <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
+                                                </div>
+                                                <div className="flex justify-between" title="Your free minutes remaining for this month">
+                                                    <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
+                                                    <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                                </div>
+                                            </div>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    </TooltipProvider>
+                                )}
                             <p className="font-semibold text-muted-foreground">
                                 {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
                             </p>
@@ -1067,8 +1059,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-
-    
-
-    
