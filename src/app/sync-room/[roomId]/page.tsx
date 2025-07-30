@@ -25,7 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, Mic, ArrowLeft, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info, Trash2, Save } from 'lucide-react';
+import { LoaderCircle, Mic, Users, Send, User, Languages, LogIn, XCircle, Crown, LogOut, ShieldX, UserCheck, UserX as RemoveUserIcon, ShieldQuestion, MicOff, ShieldCheck, UserPlus, Coins, Clock, Info, Trash2, Save } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -431,8 +431,8 @@ export default function SyncRoomPage() {
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
     const sessionStartTime = useRef<number | null>(null);
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
     const isExiting = useRef(false);
+    
 
     const handleExitRoom = useCallback(() => {
         isExiting.current = true;
@@ -460,6 +460,7 @@ export default function SyncRoomPage() {
             console.error("Error leaving room (deleting participant doc):", error);
         }
     }, [user, roomId, handleSyncOnlineSessionEnd]);
+
 
     useEffect(() => {
       // This is the component's main cleanup function.
@@ -530,13 +531,11 @@ export default function SyncRoomPage() {
     
     const handleManualExit = async () => {
         if (isExiting.current) return;
+        router.push('/synchub?tab=sync-online');
         try {
             await handleExitRoom();
         } catch (error) {
             console.error("Error during manual exit:", error);
-        } finally {
-            isExiting.current = false;
-            router.push('/synchub?tab=sync-online');
         }
     };
     
@@ -939,54 +938,9 @@ export default function SyncRoomPage() {
 
             <main className="flex-1 flex flex-col">
                  <header className="p-4 border-b bg-background flex justify-between items-center gap-4">
-                    <Sheet>
-                        <SheetTrigger asChild>
-                            <Button variant="outline" size="icon" className="md:hidden">
-                                <Users className="h-5 w-5" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent side="left" className="p-0 w-80">
-                           <SheetHeader className="sr-only"><SheetTitle>Participants</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
-                            <ParticipantsPanel {...participantsPanelProps} />
-                        </SheetContent>
-                    </Sheet>
-
-                    <div className="flex flex-col items-center flex-grow">
-                        <h1 className="text-xl font-semibold text-center">{roomData.topic}</h1>
-                        {isSessionActive && (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="font-mono text-sm text-primary font-semibold flex items-center gap-2">
-                                            <Clock className="h-4 w-4" />
-                                            {sessionTimer}
-                                        </div>
-                                    </TooltipTrigger>
-                                        <TooltipContent>
-                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
-                                            <div className="flex justify-between" title="Your current token balance">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
-                                            </div>
-                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
-                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
-                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                            </div>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        )}
-                    </div>
-                    
-
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="md:hidden">
                                 <LogOut />
                                 <span className="sr-only">Exit</span>
                             </Button>
@@ -1004,6 +958,23 @@ export default function SyncRoomPage() {
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
+
+                    <div className="flex flex-col items-center flex-grow">
+                        <h1 className="text-xl font-semibold text-center">{roomData.topic}</h1>
+                    </div>
+                    
+
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="outline" size="icon" className="md:hidden">
+                                <Users className="h-5 w-5" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="p-0 w-80">
+                           <SheetHeader className="sr-only"><SheetTitle>Participants Panel</SheetTitle><SheetDescription>View and manage room participants.</SheetDescription></SheetHeader>
+                            <ParticipantsPanel {...participantsPanelProps} />
+                        </SheetContent>
+                    </Sheet>
                 </header>
 
                 <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
@@ -1039,21 +1010,49 @@ export default function SyncRoomPage() {
                     </ScrollArea>
                 </div>
                 <div className="p-4 border-t bg-background flex flex-col gap-4">
-                    <div className="flex items-center justify-center">
-                       <div className="flex flex-col justify-center items-center gap-2">
-                           <Button 
-                                size="lg" 
-                                className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
-                                onClick={isListening ? abortRecognition : handleMicPress}
-                                disabled={isSpeaking || currentUserParticipant?.isMuted}
-                                title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
-                            >
-                                {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
-                            </Button>
-                            <p className="font-semibold text-muted-foreground text-sm h-5">
-                                {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
-                            </p>
-                       </div>
+                     {isSessionActive && (
+                        <div className="flex items-center justify-center">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="font-mono text-sm text-primary font-semibold flex items-center gap-2">
+                                            <Clock className="h-4 w-4" />
+                                            {sessionTimer}
+                                        </div>
+                                    </TooltipTrigger>
+                                        <TooltipContent>
+                                        <div className="text-xs text-muted-foreground space-y-2 p-2 w-48">
+                                            <div className="flex justify-between" title="Your current token balance">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
+                                                <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Cost per minute after free minutes are used">
+                                                <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
+                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} t/min</span>
+                                            </div>
+                                            <div className="flex justify-between" title="Your free minutes remaining for this month">
+                                                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Time:</span>
+                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                            </div>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-center gap-4">
+                       <Button 
+                            size="lg" 
+                            className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
+                            onClick={isListening ? abortRecognition : handleMicPress}
+                            disabled={isSpeaking || currentUserParticipant?.isMuted}
+                            title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
+                        >
+                            {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
+                        </Button>
+                        <p className="font-semibold text-muted-foreground text-sm h-5 w-48 text-left">
+                            {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
+                        </p>
                     </div>
                 </div>
                  <audio ref={audioPlayerRef} className="hidden" />
@@ -1061,3 +1060,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
