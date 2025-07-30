@@ -420,7 +420,6 @@ export default function SyncRoomPage() {
     const [participants, setParticipants] = useState<Participant[]>([]);
     
     const [messages, setMessages] = useState<RoomMessage[]>([]);
-    const [messagesLoading, setMessagesLoading] = useState(true);
     
     const [isParticipant, setIsParticipant] = useState<'unknown' | 'yes' | 'no'>('unknown');
     
@@ -436,12 +435,14 @@ export default function SyncRoomPage() {
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     
-    const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
     const sessionStartTimeRef = useRef<number | null>(null);
     const [sessionTimer, setSessionTimer] = useState('00:00');
-    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
     const isExiting = useRef(false);
+    const participantListenerUnsubscribe = useRef<() => void>();
+    const messageListenerUnsubscribe = useRef<() => void>();
+    const roomStatusListenerUnsubscribe = useRef<() => void>();
+
 
     const onJoinSuccess = useCallback((joinTimestamp: Timestamp) => {
         setIsParticipant('yes');
@@ -493,9 +494,9 @@ export default function SyncRoomPage() {
     const handleExitRoom = useCallback(async () => {
         if (!user) return;
         
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
+        const timerInterval = (window as any)._sessionTimerInterval;
+        if (timerInterval) {
+            clearInterval(timerInterval);
         }
 
         const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
@@ -519,70 +520,106 @@ export default function SyncRoomPage() {
         router.push('/synchub?tab=sync-online');
     }, [handleExitRoom, router]);
 
+    const processMessage = useCallback(async (msg: RoomMessage) => {
+        if (!user || msg.speakerUid === user.uid || !currentUserParticipant) return;
+        
+        let textToSpeak = msg.text;
+
+        if (msg.isTranslation && msg.forParticipantUid === user.uid) {
+            textToSpeak = msg.text;
+        } 
+        else if (!msg.isTranslation) {
+            try {
+                const fromLangLabel = getAzureLanguageLabel(msg.speakerLanguage);
+                const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage);
+                const translationResult = await translateText({ text: msg.text, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
+                textToSpeak = translationResult.translatedText;
+            } catch (e: any) {
+                console.error("Error translating incoming message:", e);
+                toast({ variant: 'destructive', title: 'Translation Error', description: 'Could not translate an incoming message.' });
+                return;
+            }
+        } 
+        else {
+            return;
+        }
+            
+        try {
+            setIsSpeaking(true);
+            const { audioDataUri } = await generateSpeech({ 
+                text: textToSpeak, 
+                lang: currentUserParticipant!.selectedLanguage!,
+            });
+            
+            if (audioPlayerRef.current) {
+                audioPlayerRef.current.src = audioDataUri;
+                await audioPlayerRef.current.play();
+                await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
+            }
+        } catch(e: any) {
+            console.error("Error processing message:", e);
+            toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
+        } finally {
+            setIsSpeaking(false);
+        }
+    }, [user, currentUserParticipant, toast]);
+    
+    // Main effect for initialization and cleanup
     useEffect(() => {
         if (authLoading || roomLoading) return;
-
+    
         if (!user) {
             router.push('/login');
             return;
         }
-
-        let pListener: (() => void) | undefined;
-        let mListener: (() => void) | undefined;
-        let roomListener: (() => void) | undefined;
-
+    
         const checkParticipationAndInitialize = async () => {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             try {
                 const participantDoc = await getDoc(participantRef);
-
                 if (participantDoc.exists()) {
                     const participantData = participantDoc.data();
-                    const joinTime = participantData?.joinedAt || Timestamp.now();
+                    const joinTimestamp = participantData?.joinedAt || Timestamp.now();
                     setIsParticipant('yes');
-
-                    // --- Setup Listeners ---
-                    const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
-                    pListener = onSnapshot(participantsQuery, (snapshot) => {
-                        setParticipants(snapshot.docs.map(d => ({ uid: d.id, ...d.data() }) as Participant));
-                    });
-                    
-                    const messagesQuery = query(collection(db, 'syncRooms', roomId, 'messages'), orderBy("createdAt"), where("createdAt", ">", joinTime));
-                    mListener = onSnapshot(messagesQuery, (snapshot) => {
-                        const newMessages: RoomMessage[] = [];
-                        snapshot.docChanges().forEach((change) => {
-                            if (change.type === "added") {
-                                newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+    
+                    // Setup listeners only once after participation is confirmed
+                    if (!participantListenerUnsubscribe.current) {
+                        participantListenerUnsubscribe.current = onSnapshot(collection(db, 'syncRooms', roomId, 'participants'), (snapshot) => {
+                            setParticipants(snapshot.docs.map(d => ({ uid: d.id, ...d.data() }) as Participant));
+                        });
+                    }
+    
+                    if (!messageListenerUnsubscribe.current) {
+                         // Query for messages created *after* the user joined
+                        const messagesQuery = query(collection(db, 'syncRooms', roomId, 'messages'), orderBy("createdAt"), where("createdAt", ">", joinTimestamp));
+                        messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
+                            const newMessages: RoomMessage[] = [];
+                            snapshot.docChanges().forEach((change) => {
+                                if (change.type === "added") {
+                                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
+                                }
+                            });
+                            if (newMessages.length > 0) {
+                                newMessages.forEach(processMessage);
+                                setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
+                            }
+                        }, (error) => {
+                            console.error("Message listener error:", error);
+                            if (error.code === 'permission-denied') {
+                                toast({ variant: 'destructive', title: 'Permission Error', description: 'Could not listen for messages. Please rejoin the room.' });
+                                handleManualExit();
                             }
                         });
-                        if (newMessages.length > 0) {
-                            setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
-                        }
-                        if (messagesLoading) {
-                            setMessagesLoading(false);
-                        }
-                    }, (error) => {
-                         console.error("Message listener error:", error);
-                        // This indicates a permissions issue usually.
-                        if (error.code === 'permission-denied') {
-                             toast({ variant: 'destructive', title: 'Permission Error', description: 'Could not listen for messages. Please rejoin the room.' });
-                             handleManualExit();
-                        }
-                    });
+                    }
 
-                    // Room status listener
-                    roomListener = onSnapshot(doc(db, 'syncRooms', roomId), (docSnap) => {
-                        const data = docSnap.data();
-                        if (data?.status === 'closed') {
-                            toast({ title: 'Meeting Ended', description: 'This room has been closed.', duration: 5000 });
-                            handleManualExit();
-                        }
-                        if (data?.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
-                            toast({ variant: 'destructive', title: 'Access Denied', description: 'You have been removed or blocked from this room.', duration: 5000 });
-                            handleManualExit();
-                        }
-                    });
-
+                    if (!roomStatusListenerUnsubscribe.current) {
+                        roomStatusListenerUnsubscribe.current = onSnapshot(doc(db, 'syncRooms', roomId), (docSnap) => {
+                            const data = docSnap.data();
+                            if (data?.status === 'closed' || data?.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
+                                handleManualExit();
+                            }
+                        });
+                    }
                 } else {
                     setIsParticipant('no');
                 }
@@ -591,17 +628,18 @@ export default function SyncRoomPage() {
                 setIsParticipant('no');
             }
         };
-
+    
         checkParticipationAndInitialize();
-
+    
         return () => {
             isExiting.current = true;
-            if (pListener) pListener();
-            if (mListener) mListener();
-            if (roomListener) roomListener();
+            if (participantListenerUnsubscribe.current) participantListenerUnsubscribe.current();
+            if (messageListenerUnsubscribe.current) messageListenerUnsubscribe.current();
+            if (roomStatusListenerUnsubscribe.current) roomStatusListenerUnsubscribe.current();
             handleExitRoom();
         };
-    }, [user, authLoading, roomLoading, roomId, handleExitRoom, handleManualExit, messagesLoading, toast]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, authLoading, roomLoading, roomId]);
 
 
     useEffect(() => {
@@ -618,82 +656,35 @@ export default function SyncRoomPage() {
         }
     }, [participants, isParticipant, user, handleManualExit, toast]);
     
-   const processMessage = useCallback(async (msg: RoomMessage) => {
-    if (!user || msg.speakerUid === user.uid || !currentUserParticipant) return;
-    
-    let textToSpeak = msg.text;
-
-    if (msg.isTranslation && msg.forParticipantUid === user.uid) {
-        textToSpeak = msg.text;
-    } 
-    else if (!msg.isTranslation) {
-        try {
-            const fromLangLabel = getAzureLanguageLabel(msg.speakerLanguage);
-            const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage);
-            const translationResult = await translateText({ text: msg.text, fromLanguage: fromLangLabel, toLanguage: toLangLabel });
-            textToSpeak = translationResult.translatedText;
-        } catch (e: any) {
-            console.error("Error translating incoming message:", e);
-            toast({ variant: 'destructive', title: 'Translation Error', description: 'Could not translate an incoming message.' });
-            return;
-        }
-    } 
-    else {
-        return;
-    }
-        
-    try {
-        setIsSpeaking(true);
-        const { audioDataUri } = await generateSpeech({ 
-            text: textToSpeak, 
-            lang: currentUserParticipant!.selectedLanguage!,
-        });
-        
-        if (audioPlayerRef.current) {
-            audioPlayerRef.current.src = audioDataUri;
-            await audioPlayerRef.current.play();
-            await new Promise(resolve => audioPlayerRef.current!.onended = resolve);
-        }
-    } catch(e: any) {
-        console.error("Error processing message:", e);
-        toast({ variant: 'destructive', title: 'Playback Error', description: `Could not play audio for a message.`});
-    } finally {
-        setIsSpeaking(false);
-    }
-}, [user, currentUserParticipant, toast]);
-
-
+    // Effect to manage session timer
     useEffect(() => {
-        const processedMessages = new Set();
-        const playQueue = async () => {
-             for (const msg of messages) {
-                if (!processedMessages.has(msg.id)) {
-                    await processMessage(msg);
-                    processedMessages.add(msg.id);
-                }
-            }
-        };
-        
-        if (messages.length > 0) {
-            playQueue();
-        }
-    }, [messages, processMessage]);
-
-    useEffect(() => {
-        if (sessionStartTime !== null) {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = setInterval(() => {
-                const elapsedMs = Date.now() - sessionStartTime;
+        const startTimer = (startTime: number) => {
+            sessionStartTimeRef.current = startTime;
+            const timerInterval = setInterval(() => {
+                const elapsedMs = Date.now() - startTime;
                 const totalSeconds = Math.floor(elapsedMs / 1000);
                 const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                 setSessionTimer(`${minutes}:${seconds}`);
             }, 1000);
-        }
-        return () => {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            (window as any)._sessionTimerInterval = timerInterval;
         };
-    }, [sessionStartTime]);
+
+        if (roomData?.firstMessageAt) {
+            const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
+            if (sessionStartTimeRef.current === null) {
+                startTimer(startTime);
+            }
+        }
+    
+        return () => {
+            const timerInterval = (window as any)._sessionTimerInterval;
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+        };
+    }, [roomData?.firstMessageAt]);
+    
     
 
     const handleEndMeeting = async () => {
@@ -767,16 +758,11 @@ export default function SyncRoomPage() {
     const handleMicPress = useCallback(async () => {
         if (!user || !currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
 
-        if (sessionStartTimeRef.current === null) {
-            const now = Date.now();
-            sessionStartTimeRef.current = now;
-            setSessionStartTime(now);
-        }
-
-        if (roomData && !roomData.firstMessageAt) {
+        // This action is now idempotent on the server, so we can call it without complex client-side checks.
+        if (!roomData?.firstMessageAt) {
             await setFirstMessageTimestamp(roomId);
         }
-
+    
         setIsListening(true);
         try {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
@@ -984,8 +970,7 @@ export default function SyncRoomPage() {
                             })}
                              <div ref={messagesEndRef} />
                         </div>
-                         {messagesLoading && isParticipant === 'yes' && <LoaderCircle className="mx-auto my-4 h-6 w-6 animate-spin" />}
-                         {!messagesLoading && messages?.length === 0 && (
+                         {messages.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
                                 <p>No messages yet. Be the first to speak!</p>
                             </div>
@@ -1013,7 +998,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    
-
-    
