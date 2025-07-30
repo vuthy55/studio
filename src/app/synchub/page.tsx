@@ -38,10 +38,10 @@ function SyncHubPageContent() {
         <div className="relative">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="grid w-full grid-cols-4">
-                    <TabsList className="col-span-4">
+                    <TabsList className="col-span-4 grid h-auto w-full grid-cols-4">
                         {tabsConfig.map((tab) => (
-                           <TabsTrigger key={tab.value} value={tab.value} className="flex-col md:flex-row h-auto md:h-10 gap-1 md:gap-2">
-                               <TooltipProvider delayDuration={0}>
+                           <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2">
+                                <TooltipProvider delayDuration={0}>
                                    <Tooltip>
                                        <TooltipTrigger asChild>
                                            <tab.icon className="h-5 w-5" />
@@ -51,7 +51,7 @@ function SyncHubPageContent() {
                                        </TooltipContent>
                                    </Tooltip>
                                </TooltipProvider>
-                               <span className="hidden md:inline">{tab.label}</span>
+                               <span className="hidden text-sm md:inline">{tab.label}</span>
                            </TabsTrigger>
                         ))}
                     </TabsList>
