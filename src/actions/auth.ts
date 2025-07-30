@@ -77,6 +77,8 @@ export async function signUpUser(
         unlockedLanguages: freeLanguages,
         downloadedPhraseCount: 0,
     };
+    // Add the user profile creation to the batch
+    batch.set(newUserRef, newUserProfile);
 
     // 2b. Log the signup bonus for the new user
     const newUserLogRef = newUserRef.collection('transactionLogs').doc();
@@ -129,9 +131,6 @@ export async function signUpUser(
             });
         }
     }
-    
-    // Set the new user profile data (without the old 'referredBy' field)
-    batch.set(newUserRef, newUserProfile);
 
     // --- Step 3: Commit the batch ---
     await batch.commit();
