@@ -617,11 +617,11 @@ export default function SyncRoomPage() {
     
     
     useEffect(() => {
-        if (!user || isParticipant !== 'yes' || isExiting.current) return;
+        if (isExiting.current) return;
 
-        const amIStillHere = participants.some(p => p.uid === user.uid);
+        const amIStillHere = participants.some(p => p.uid === user?.uid);
         
-        if (!amIStillHere) {
+        if (isParticipant === 'yes' && !amIStillHere) {
             toast({
                 variant: 'destructive',
                 title: 'You were removed',
@@ -633,7 +633,9 @@ export default function SyncRoomPage() {
     }, [participants, isParticipant, user, toast, handleExitRoom]);
 
     useEffect(() => {
-        if (!roomData || !user || isExiting.current) return;
+        if (isExiting.current) return;
+        if (!roomData || !user) return;
+
         if (roomData.status === 'closed') {
             toast({
                 title: 'Meeting Ended',
@@ -715,20 +717,20 @@ export default function SyncRoomPage() {
     
 
     const handleEndMeeting = async () => {
-        if (!isCurrentUserEmcee) {
-             return;
-        }
+        if (!isCurrentUserEmcee || isExiting.current) return;
+        isExiting.current = true;
+
         try {
-            
             const result = await endAndReconcileRoom(roomId);
-            if (result.success) {
-                // The room status change will trigger the exit for all participants
-            } else {
+            if (!result.success) {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
+                 isExiting.current = false; // Reset if the server action fails
             }
+            // On success, the room status change listener will handle the exit for all participants, including the emcee.
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
+            isExiting.current = false; // Reset on failure
         }
     };
     
