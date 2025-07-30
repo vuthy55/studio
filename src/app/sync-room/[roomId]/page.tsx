@@ -466,11 +466,9 @@ export default function SyncRoomPage() {
 
 
     useEffect(() => {
-        // This effect now correctly depends on the shared `firstMessageAt` timestamp from the database.
         if (roomData?.firstMessageAt) {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 
-            // Ensure the timestamp is a valid JS Date object before getting its time
             const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
 
             timerIntervalRef.current = setInterval(() => {
@@ -482,8 +480,11 @@ export default function SyncRoomPage() {
             }, 1000);
         }
 
+        // The cleanup function is crucial to stop the interval when the component unmounts.
         return () => {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
         };
     }, [roomData?.firstMessageAt]);
     
@@ -535,40 +536,31 @@ export default function SyncRoomPage() {
         return uid === roomData?.creatorUid;
     }, [roomData]);
     
-    const checkParticipationAndInitialize = useCallback(async () => {
+    const checkParticipationAndInitialize = useCallback(async (joinTimestamp: Timestamp) => {
         if (!user || !roomData) return;
 
-        const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-        const participantDoc = await getDoc(participantRef);
-
-        if (participantDoc.exists()) {
-            setIsParticipant('yes');
-            
-            const joinTimestamp = participantDoc.data()?.joinedAt || Timestamp.now();
-
-            if (messageListenerUnsubscribe.current) messageListenerUnsubscribe.current();
-            const messagesQuery = query(
-                collection(db, 'syncRooms', roomId, 'messages'),
-                orderBy("createdAt"),
-                where("createdAt", ">", joinTimestamp)
-            );
-            
-            messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
-                const newMessages: RoomMessage[] = [];
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === "added") {
-                        newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
-                    }
-                });
-                if (newMessages.length > 0) {
-                    setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
+        setIsParticipant('yes');
+        
+        if (messageListenerUnsubscribe.current) messageListenerUnsubscribe.current();
+        const messagesQuery = query(
+            collection(db, 'syncRooms', roomId, 'messages'),
+            orderBy("createdAt"),
+            where("createdAt", ">", joinTimestamp)
+        );
+        
+        messageListenerUnsubscribe.current = onSnapshot(messagesQuery, (snapshot) => {
+            const newMessages: RoomMessage[] = [];
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
                 }
-                setMessagesLoading(false);
             });
+            if (newMessages.length > 0) {
+                setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
+            }
+            setMessagesLoading(false);
+        });
 
-        } else {
-            setIsParticipant('no');
-        }
     }, [user, roomData, roomId]);
     
 
@@ -578,8 +570,19 @@ export default function SyncRoomPage() {
             router.push('/login');
             return;
         }
+
+        const checkInitialParticipation = async () => {
+            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+            const participantDoc = await getDoc(participantRef);
+
+            if (participantDoc.exists()) {
+                checkParticipationAndInitialize(participantDoc.data()?.joinedAt || Timestamp.now());
+            } else {
+                setIsParticipant('no');
+            }
+        };
         
-        checkParticipationAndInitialize();
+        checkInitialParticipation();
         
         if (participantListenerUnsubscribe.current) participantListenerUnsubscribe.current();
         const participantsQuery = query(collection(db, 'syncRooms', roomId, 'participants'));
@@ -769,9 +772,10 @@ export default function SyncRoomPage() {
 
         if (sessionStartTimeRef.current === null) {
             sessionStartTimeRef.current = Date.now();
-            if (roomData && !roomData.firstMessageAt) {
-                await setFirstMessageTimestamp(roomId);
-            }
+        }
+        
+        if (roomData && !roomData.firstMessageAt) {
+            await setFirstMessageTimestamp(roomId);
         }
 
         setIsListening(true);
@@ -874,7 +878,7 @@ export default function SyncRoomPage() {
     }
     
     if (user && isParticipant === 'no') {
-        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoinSuccess={checkParticipationAndInitialize} />;
+        return <SetupScreen user={user} room={roomData as SyncRoom} roomId={roomId} onJoinSuccess={(joinTime) => checkParticipationAndInitialize(joinTime)} />;
     }
 
     const participantsPanelProps = {
@@ -1001,4 +1005,3 @@ export default function SyncRoomPage() {
     );
 }
 
-    
