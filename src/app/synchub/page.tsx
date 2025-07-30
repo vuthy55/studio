@@ -44,23 +44,25 @@ function SyncHubPageContent() {
     return (
         <div className="relative">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                    {tabsConfig.map((tab) => (
-                        <TooltipProvider key={tab.value} delayDuration={0}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <TabsTrigger value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
-                                        <tab.icon className="h-5 w-5" />
-                                        <span className="hidden md:inline">{tab.label}</span>
-                                    </TabsTrigger>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="md:hidden">
-                                    <p>{tab.label}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    ))}
-                </TabsList>
+                <div className="grid w-full grid-cols-4">
+                    <TabsList className="col-span-4">
+                        {tabsConfig.map((tab) => (
+                            <TooltipProvider key={tab.value} delayDuration={0}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <TabsTrigger value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
+                                            <tab.icon className="h-5 w-5" />
+                                            <span className="hidden md:inline">{tab.label}</span>
+                                        </TabsTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="md:hidden">
+                                        <p>{tab.label}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        ))}
+                    </TabsList>
+                </div>
                  <TabsContent value="prep-vibe">
                     <MemoizedLearnPage />
                 </TabsContent>
