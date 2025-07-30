@@ -47,19 +47,19 @@ function SyncHubPageContent() {
                 <div className="grid w-full grid-cols-4">
                     <TabsList className="col-span-4">
                         {tabsConfig.map((tab) => (
-                            <TooltipProvider key={tab.value} delayDuration={0}>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <TabsTrigger value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
+                           <TabsTrigger key={tab.value} value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
+                                <TooltipProvider delayDuration={0}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
                                             <tab.icon className="h-5 w-5" />
-                                            <span className="hidden md:inline">{tab.label}</span>
-                                        </TabsTrigger>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom" className="md:hidden">
-                                        <p>{tab.label}</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom" className="md:hidden">
+                                            <p>{tab.label}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                <span className="hidden md:inline">{tab.label}</span>
+                            </TabsTrigger>
                         ))}
                     </TabsList>
                 </div>
