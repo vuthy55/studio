@@ -916,26 +916,26 @@ function ProfilePageContent() {
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                 <TabsList className="grid w-full grid-cols-5">
-                    {profileTabs.map((tab) => (
-                        <TabsTrigger key={tab.value} value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
-                             <TooltipProvider delayDuration={0}>
-                               <Tooltip>
-                                   <TooltipTrigger asChild>
-                                        <div>
-                                            <tab.icon className="h-5 w-5" />
-                                        </div>
-                                   </TooltipTrigger>
-                                   <TooltipContent side="bottom" className="md:hidden">
-                                       <p>{tab.label}</p>
-                                   </TooltipContent>
-                               </Tooltip>
-                           </TooltipProvider>
-                           <span className="hidden md:inline">{tab.label}</span>
-                       </TabsTrigger>
-                    ))}
-                </TabsList>
-
+                <div className="grid w-full grid-cols-5">
+                    <TabsList className="col-span-5 grid h-auto w-full grid-cols-5">
+                        {profileTabs.map((tab) => (
+                           <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2">
+                               <TooltipProvider delayDuration={0}>
+                                   <Tooltip>
+                                       <TooltipTrigger asChild>
+                                           <tab.icon className="h-5 w-5" />
+                                       </TooltipTrigger>
+                                       <TooltipContent side="bottom" className="md:hidden">
+                                           <p>{tab.label}</p>
+                                       </TooltipContent>
+                                   </Tooltip>
+                               </TooltipProvider>
+                               <span className="hidden text-sm md:inline">{tab.label}</span>
+                           </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </div>
+                
                 <TabsContent value="profile" className="mt-6">
                     <ProfileSection />
                 </TabsContent>
