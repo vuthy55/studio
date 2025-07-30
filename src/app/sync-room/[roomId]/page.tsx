@@ -57,6 +57,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  SheetTrigger,
 } from "@/components/ui/sheet"
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
@@ -1045,3 +1046,4 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
