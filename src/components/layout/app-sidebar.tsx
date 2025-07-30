@@ -84,13 +84,15 @@ function BuddyAlertButton() {
 
   return (
      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <AlertDialogTrigger asChild>
+      <AlertDialogTrigger
+        onClick={handleSendBuddyAlert}
+        asChild
+      >
           <Button
             variant="default"
             size="icon"
             className="h-12 w-12 font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
             aria-label="Send Buddy Alert"
-            onClick={handleSendBuddyAlert}
           >
             <AlertTriangle className="h-6 w-6" strokeWidth={2.5} />
           </Button>
