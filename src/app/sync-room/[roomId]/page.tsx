@@ -51,14 +51,7 @@ import {
   DialogClose,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetDescription,
-} from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet"
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
@@ -546,50 +539,25 @@ export default function SyncRoomPage() {
         return roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
     }, [user, roomData]);
     
-    const freeMinutesRemaining = useMemo(() => {
-        if (!settings || !userProfile) return 0;
-        
-        let lastResetDate: Date;
-        const lastResetValue = userProfile.syncOnlineUsageLastReset;
-
-        if (lastResetValue instanceof Timestamp) {
-            lastResetDate = lastResetValue.toDate();
-        } else if (lastResetValue && typeof lastResetValue === 'object' && 'seconds' in lastResetValue) {
-            lastResetDate = new Timestamp((lastResetValue as any).seconds, (lastResetValue as any).nanoseconds).toDate();
-        } else {
-            lastResetDate = new Date(0);
-        }
-        
-        const now = new Date();
-        let currentUsageMs = userProfile.syncOnlineUsage || 0;
-    
-        if (lastResetDate.getMonth() !== now.getMonth() || lastResetDate.getFullYear() !== now.getFullYear()) {
-            currentUsageMs = 0;
-        }
-        
-        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
-        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
-        
-        return Math.floor(remainingFreeMs / 60000);
-    }, [settings, userProfile]);
-
-    const timerTooltipContent = useMemo(() => {
+     const timerTooltipContent = useMemo(() => {
+        const cost = roomData?.initialCost ?? 0;
         return (
-            <div className="p-2 space-y-2 text-sm">
+            <div className="p-2 space-y-2 text-sm max-w-xs">
+                <p className="font-bold">Session Billing</p>
                 <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Free Time Left:</span>
-                    <span className="font-bold">{freeMinutesRemaining} min</span>
+                    <span className="text-muted-foreground">Pre-paid Cost:</span>
+                    <span className="font-bold">{cost} tokens</span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-muted-foreground">Token Balance:</span>
+                    <span className="text-muted-foreground">Your Balance:</span>
                     <span className="font-bold">{userProfile?.tokenBalance ?? 0}</span>
                 </div>
                  <p className="text-xs text-muted-foreground pt-2 border-t">
-                    Usage is billed per minute. After free time is used, tokens will be deducted from your balance.
+                    The initial cost has been deducted. Upon exit, the final cost will be calculated based on actual usage. Any difference will be refunded or charged accordingly.
                 </p>
             </div>
         );
-    }, [freeMinutesRemaining, userProfile?.tokenBalance]);
+    }, [userProfile?.tokenBalance, roomData?.initialCost]);
     
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
