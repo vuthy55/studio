@@ -172,8 +172,11 @@ function ParticipantsPanel({
             <header className="p-4 border-b space-y-2">
                 <div className="bg-primary/10 p-3 rounded-lg flex justify-between items-center">
                     <div>
-                        <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                        <p className="text-sm text-primary/80">Sync Room</p>
+                         <p className="text-sm text-primary/80">Room Creator</p>
+                        <p className="font-bold text-lg text-primary flex items-center gap-1.5">
+                            <Crown className="h-4 w-4" />
+                            {roomData.creatorName}
+                        </p>
                     </div>
                      <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
                         <Clock className="h-5 w-5" />
@@ -464,16 +467,12 @@ export default function SyncRoomPage() {
     }, [sessionStartTime]);
 
     const handleExitRoom = useCallback(() => {
-        console.log('[DEBUG] handleExitRoom triggered.');
         if (isExiting.current) {
-            console.log('[DEBUG] handleExitRoom: Already exiting, returning.');
             return;
         }
         isExiting.current = true;
-        console.log('[DEBUG] handleExitRoom: Process starting.');
 
         if (messageListenerUnsubscribe.current) {
-            console.log('[DEBUG] handleExitRoom: Unsubscribing from message listener.');
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
@@ -481,33 +480,26 @@ export default function SyncRoomPage() {
         if (user) {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             deleteDoc(participantRef).then(() => {
-                console.log('[DEBUG] handleExitRoom: Participant document deleted.');
                 const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
                 if (sessionDurationMs > 0) {
-                    console.log(`[DEBUG] handleExitRoom: Recording session duration of ${sessionDurationMs}ms.`);
                     handleSyncOnlineSessionEnd(sessionDurationMs);
-                } else {
-                     console.log('[DEBUG] handleExitRoom: No session start time found, skipping billing.');
                 }
             }).catch(error => {
                 console.error("[DEBUG] handleExitRoom: Error deleting participant doc:", error);
             });
-        } else {
-            console.log('[DEBUG] handleExitRoom: No user found, skipping Firestore operations.');
         }
     }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
 
     const handleManualExit = () => {
-        console.log('[DEBUG] handleManualExit: Navigation triggered.');
         router.push('/synchub?tab=sync-online');
     };
     
     useEffect(() => {
         return () => {
-            console.log('[DEBUG] SyncRoomPage: Component unmounting, calling handleExitRoom.');
             handleExitRoom();
         };
-    }, [handleExitRoom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
 
     useEffect(() => {
@@ -647,7 +639,8 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    }, [participants, isParticipant, participantsLoading, user, toast, handleManualExit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [participants, isParticipant, participantsLoading, user, toast]);
 
     useEffect(() => {
         if (!roomData || !user || isExiting.current) return;
@@ -668,7 +661,8 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    }, [roomData, user, handleManualExit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roomData, user]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
