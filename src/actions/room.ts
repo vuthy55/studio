@@ -20,8 +20,8 @@ async function getAdminUids(): Promise<string[]> {
 }
 
 /**
- * Sets the 'firstMessageAt' timestamp on a room document.
- * This is a separate action to ensure only the room creator can perform this specific update.
+ * Sets the 'firstMessageAt' timestamp on a room document if it doesn't already exist.
+ * This action is now idempotent, making it safe to be called multiple times.
  */
 export async function setFirstMessageTimestamp(roomId: string): Promise<{success: boolean, error?: string}> {
     if (!roomId) {
@@ -29,7 +29,18 @@ export async function setFirstMessageTimestamp(roomId: string): Promise<{success
     }
     try {
         const roomRef = db.collection('syncRooms').doc(roomId);
-        await roomRef.update({ firstMessageAt: FieldValue.serverTimestamp() });
+        
+        await db.runTransaction(async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists) {
+                throw new Error("Room not found.");
+            }
+            // Only update if the timestamp is not already set
+            if (!roomDoc.data()?.firstMessageAt) {
+                transaction.update(roomRef, { firstMessageAt: FieldValue.serverTimestamp() });
+            }
+        });
+
         return { success: true };
     } catch (error: any) {
         console.error(`Failed to set first message timestamp for room ${roomId}:`, error);
@@ -489,3 +500,5 @@ export async function setRoomEditability(roomId: string, canEdit: boolean): Prom
         return { success: false, error: 'Failed to update room editability on the server.' };
     }
 }
+
+    
