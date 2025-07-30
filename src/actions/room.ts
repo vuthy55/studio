@@ -116,4 +116,8 @@ export async function softDeleteRoom(roomId: string): Promise<{success: boolean,
     });
 
     return { success: true };
-  } catch (error: any
+  } catch (error: any) {
+    console.error(`Error closing room ${roomId}:`, error);
+    return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+  }
+}
