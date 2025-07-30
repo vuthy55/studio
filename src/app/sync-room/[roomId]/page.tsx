@@ -54,10 +54,10 @@ import {
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
+  SheetDescription,
 } from "@/components/ui/sheet"
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
@@ -164,41 +164,9 @@ function ParticipantsPanel({
     handleRemoveParticipant,
     handleManualExit,
     handleEndMeeting,
+    sessionTimer,
 }: any) {
-    const [sessionTimer, setSessionTimer] = useState('00:00');
-    const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-     // Effect to start the session timer when the current user joins
-    useEffect(() => {
-        const currentUserIsPresent = presentParticipants.some((p: Participant) => p.uid === user?.uid);
-        if (currentUserIsPresent && sessionStartTime === null) {
-            setSessionStartTime(Date.now());
-        }
-    }, [presentParticipants, user, sessionStartTime]);
     
-    // Effect to run the clock interval
-    useEffect(() => {
-        if (sessionStartTime !== null) {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            
-            timerIntervalRef.current = setInterval(() => {
-                const elapsedMs = Date.now() - sessionStartTime;
-                const totalSeconds = Math.floor(elapsedMs / 1000);
-                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                setSessionTimer(`${minutes}:${seconds}`);
-            }, 1000);
-        }
-
-        // Cleanup timer on component unmount
-        return () => {
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-            }
-        };
-    }, [sessionStartTime]);
-
     return (
         <div className="flex flex-col h-full bg-background">
             <header className="p-4 border-b space-y-2">
@@ -207,12 +175,10 @@ function ParticipantsPanel({
                         <p className="font-bold text-lg text-primary">{roomData.topic}</p>
                         <p className="text-sm text-primary/80">Sync Room</p>
                     </div>
-                     {sessionStartTime !== null && (
-                        <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
-                            <Clock className="h-5 w-5" />
-                            {sessionTimer}
-                        </div>
-                    )}
+                     <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        {sessionTimer}
+                    </div>
                 </div>
                  <div className="flex items-center justify-between pt-2">
                      <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
@@ -467,9 +433,36 @@ export default function SyncRoomPage() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
-    const sessionStartTime = useRef<number | null>(null);
+    const joinTimestampRef = useRef<Timestamp | null>(null);
     const isExiting = useRef(false);
+
+    // Timer state lifted up to the parent component
+    const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+    const [sessionTimer, setSessionTimer] = useState('00:00');
+    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     
+    // Effect to run the clock interval once a session starts
+    useEffect(() => {
+        if (sessionStartTime !== null) {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            
+            timerIntervalRef.current = setInterval(() => {
+                const elapsedMs = Date.now() - sessionStartTime;
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                setSessionTimer(`${minutes}:${seconds}`);
+            }, 1000);
+        }
+
+        // Cleanup timer on component unmount
+        return () => {
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+        };
+    }, [sessionStartTime]);
+
     const handleExitRoom = useCallback(() => {
         console.log('[DEBUG] handleExitRoom triggered.');
         if (isExiting.current) {
@@ -489,8 +482,7 @@ export default function SyncRoomPage() {
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             deleteDoc(participantRef).then(() => {
                 console.log('[DEBUG] handleExitRoom: Participant document deleted.');
-                const sessionDurationMs = sessionStartTime.current ? Date.now() - sessionStartTime.current : 0;
-                sessionStartTime.current = null;
+                const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
                 if (sessionDurationMs > 0) {
                     console.log(`[DEBUG] handleExitRoom: Recording session duration of ${sessionDurationMs}ms.`);
                     handleSyncOnlineSessionEnd(sessionDurationMs);
@@ -503,7 +495,7 @@ export default function SyncRoomPage() {
         } else {
             console.log('[DEBUG] handleExitRoom: No user found, skipping Firestore operations.');
         }
-    }, [user, roomId, handleSyncOnlineSessionEnd]);
+    }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
 
     const handleManualExit = () => {
         console.log('[DEBUG] handleManualExit: Navigation triggered.');
@@ -610,6 +602,7 @@ export default function SyncRoomPage() {
         if (messageListenerUnsubscribe.current) {
             return;
         }
+        joinTimestampRef.current = joinTime;
         setIsParticipant('yes');
         messageListenerUnsubscribe.current = setupMessageListener(joinTime);
     }, [setupMessageListener]);
@@ -810,6 +803,11 @@ export default function SyncRoomPage() {
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted) return;
 
+        // Start the timer on the first mic press
+        if (sessionStartTime === null) {
+            setSessionStartTime(Date.now());
+        }
+
         setIsListening(true);
         try {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
@@ -943,6 +941,7 @@ export default function SyncRoomPage() {
         handleRemoveParticipant,
         handleManualExit,
         handleEndMeeting,
+        sessionTimer,
     };
 
     return (
@@ -1024,7 +1023,7 @@ export default function SyncRoomPage() {
                     </ScrollArea>
                 </div>
                 <div className="p-4 border-t bg-background flex flex-col gap-4">
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="flex flex-col items-center justify-center gap-4">
                        <Button 
                             size="lg" 
                             className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
@@ -1034,7 +1033,7 @@ export default function SyncRoomPage() {
                         >
                             {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
                         </Button>
-                        <p className="font-semibold text-muted-foreground text-sm h-5 w-48 text-left">
+                        <p className="font-semibold text-muted-foreground text-sm h-5 w-48 text-center">
                             {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
                         </p>
                     </div>
