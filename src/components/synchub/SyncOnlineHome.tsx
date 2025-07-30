@@ -46,7 +46,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { softDeleteRoom, requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, handleEmceeExit } from '@/actions/room';
+import { softDeleteRoom, requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, handleEmceeExit, updateRoomSummary } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
@@ -181,7 +181,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
     };
     
     const handleActionItemChange = (index: number, field: string, value: any) => {
-        if (!editableSummary) return;
+        if (!editableSummary || !editableSummary.actionItems) return;
         const newActionItems = [...editableSummary.actionItems];
         if (field === 'task') {
             newActionItems[index].task = { ...newActionItems[index].task, original: value };
@@ -193,12 +193,12 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
 
     const addActionItem = () => {
         if (!editableSummary) return;
-        const newActionItems = [...editableSummary.actionItems, { task: { original: '', translations: {} }, personInCharge: '', dueDate: '' }];
+        const newActionItems = [...(editableSummary.actionItems || []), { task: { original: '', translations: {} }, personInCharge: '', dueDate: '' }];
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
 
     const removeActionItem = (index: number) => {
-        if (!editableSummary) return;
+        if (!editableSummary || !editableSummary.actionItems) return;
         const newActionItems = editableSummary.actionItems.filter((_, i) => i !== index);
         setEditableSummary({ ...editableSummary, actionItems: newActionItems });
     };
@@ -259,7 +259,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
         });
 
         contentParts.push('Action Items:');
-        editableSummary.actionItems.forEach((item, index) => {
+        (editableSummary.actionItems || []).forEach((item, index) => {
             contentParts.push(`${index + 1}. ${item.task.original}`);
             Object.entries(item.task.translations || {}).forEach(([lang, text]) => {
                 contentParts.push(`   (${lang}): ${text}`);
@@ -389,7 +389,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {editableSummary.actionItems.map((item, index) => (
+                                {(editableSummary.actionItems || []).map((item, index) => (
                                     <TableRow key={`action-${index}`}>
                                         <TableCell>{index + 1}</TableCell>
                                         <TableCell>
