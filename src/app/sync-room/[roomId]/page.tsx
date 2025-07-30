@@ -540,9 +540,6 @@ export default function SyncRoomPage() {
             
             if (participantDoc.exists()) {
                 setIsParticipant('yes');
-                const joinTimestamp = participantDoc.data()?.joinedAt;
-                if (!joinTimestamp) return;
-
                 listenersAttached.current = true;
 
                 // --- Setup Listeners ---
@@ -555,7 +552,7 @@ export default function SyncRoomPage() {
                 const messagesQuery = query(
                     collection(db, 'syncRooms', roomId, 'messages'),
                     orderBy("createdAt"),
-                    where("createdAt", ">=", joinTimestamp)
+                    where("createdAt", ">", Timestamp.now())
                 );
                 mListener = onSnapshot(messagesQuery, (snapshot) => {
                     if (isExiting.current) return;
@@ -799,7 +796,7 @@ export default function SyncRoomPage() {
                     createdAt: serverTimestamp(),
                 });
             }
-        } catch (error: any) {
+        } catch (error: any) => {
              if (error.message !== "Recognition was aborted.") {
                toast({ variant: 'destructive', title: 'Recognition Failed', description: error.message });
             }
@@ -1020,4 +1017,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
