@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -13,7 +14,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { softDeleteRoom, setFirstMessageTimestamp } from '@/actions/room';
+import { softDeleteRoom, setFirstMessageTimestamp, handleEmceeExit, endAndReconcileRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -455,6 +456,12 @@ export default function SyncRoomPage() {
         
         const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
         await deleteDoc(participantRef);
+
+        // Check if user leaving is an emcee
+        const isLeavingEmcee = roomData?.emceeEmails?.includes(user.email!);
+        if (isLeavingEmcee) {
+            await handleEmceeExit(roomId, user.uid);
+        }
         
         const sessionDurationMs = sessionUsageRef.current;
         if (sessionDurationMs > 0) {
@@ -462,13 +469,20 @@ export default function SyncRoomPage() {
         }
 
         router.push('/synchub?tab=sync-online');
-    }, [user, roomId, router, handleSyncOnlineSessionEnd]);
+    }, [user, roomId, router, handleSyncOnlineSessionEnd, roomData?.emceeEmails]);
 
 
     useEffect(() => {
-        if (roomData?.firstMessageAt && isParticipant === 'yes') {
+        // Start timer if session has started and user is an active participant
+        if (roomData?.firstMessageAt && isParticipant === 'yes' && !roomData?.lastSessionEndedAt) {
+            console.log("[TIMER DEBUG] Starting interval because firstMessageAt exists and user is a participant.");
             const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
             
+            // Clear any existing interval before starting a new one
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+
             timerIntervalRef.current = setInterval(() => {
                 const elapsedMs = Date.now() - startTime;
                 const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -480,12 +494,13 @@ export default function SyncRoomPage() {
 
         return () => {
             if (timerIntervalRef.current) {
+                console.log(`[TIMER DEBUG] Cleanup: Clearing interval ID ${timerIntervalRef.current}`);
                 clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
-             setSessionTimer('00:00');
+             setSessionTimer('00:00'); // Reset timer display on cleanup
         };
-    }, [roomData?.firstMessageAt, isParticipant]);
+    }, [roomData?.firstMessageAt, roomData?.lastSessionEndedAt, isParticipant]);
     
     
     const handleManualExit = async () => {
@@ -555,8 +570,13 @@ export default function SyncRoomPage() {
                     newMessages.push({ id: change.doc.id, ...change.doc.data() } as RoomMessage);
                 }
             });
+
             if (newMessages.length > 0) {
-                setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
+                setMessages(prev => {
+                    const all = [...prev, ...newMessages];
+                    const uniqueMessages = Array.from(new Map(all.map(item => [item.id, item])).values());
+                    return uniqueMessages.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+                });
             }
             setMessagesLoading(false);
         });
@@ -565,6 +585,7 @@ export default function SyncRoomPage() {
     
 
     useEffect(() => {
+        console.log(`[DEBUG] Main useEffect running. Auth loading: ${authLoading}, Room loading: ${roomLoading}, User: ${!!user}`);
         if (authLoading || roomLoading) return;
         if (!user) {
             router.push('/login');
@@ -572,12 +593,15 @@ export default function SyncRoomPage() {
         }
 
         const checkInitialParticipation = async () => {
+            console.log("[DEBUG] Checking initial participation...");
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             const participantDoc = await getDoc(participantRef);
 
             if (participantDoc.exists()) {
+                console.log("[DEBUG] User is already a participant. Initializing.");
                 checkParticipationAndInitialize(participantDoc.data()?.joinedAt || Timestamp.now());
             } else {
+                console.log("[DEBUG] User is not a participant. Showing setup screen.");
                 setIsParticipant('no');
             }
         };
@@ -592,6 +616,7 @@ export default function SyncRoomPage() {
         });
 
         return () => {
+             console.log("[DEBUG] Main useEffect cleanup function running.");
             participantListenerUnsubscribe.current?.();
             messageListenerUnsubscribe.current?.();
         };
@@ -702,7 +727,7 @@ export default function SyncRoomPage() {
         }
         try {
             
-            const result = await softDeleteRoom(roomId);
+            const result = await endAndReconcileRoom(roomId);
             if (result.success) {
                 // The room status change will trigger the exit for all participants
             } else {
@@ -858,6 +883,8 @@ export default function SyncRoomPage() {
         }
     };
     
+    console.log(`[DEBUG] Rendering with sessionTimer state: ${sessionTimer}`);
+
 
     if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
         return <div className="flex h-screen items-center justify-center flex-col gap-4">
@@ -1003,3 +1030,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+```
