@@ -40,7 +40,7 @@ function SyncHubPageContent() {
                 <div className="grid w-full grid-cols-4">
                     <TabsList className="col-span-4">
                         {tabsConfig.map((tab) => (
-                           <TabsTrigger key={tab.value} value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
+                           <TabsTrigger key={tab.value} value={tab.value} className="flex-col md:flex-row h-auto md:h-10 gap-1 md:gap-2">
                                <TooltipProvider delayDuration={0}>
                                    <Tooltip>
                                        <TooltipTrigger asChild>
