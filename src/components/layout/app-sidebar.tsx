@@ -83,7 +83,7 @@ function BuddyAlertButton() {
 
   return (
      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <AlertDialogTrigger asChild onClick={handleSendBuddyAlert}>
+      <AlertDialogTrigger onClick={handleSendBuddyAlert} asChild>
           <Button
             variant="default"
             size="icon"
