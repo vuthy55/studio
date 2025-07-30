@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, memo, useEffect, Suspense, use } from 'react';
+import { useState, memo, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LearnPageContent from '@/components/synchub/LearnPageContent';
@@ -26,13 +26,6 @@ const MemoizedSyncOnline = memo(SyncOnlineHome);
 function SyncHubPageContent() {
     const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'prep-vibe');
-
-    useEffect(() => {
-        const tab = searchParams.get('tab');
-        if (tab && tab !== activeTab) {
-            setActiveTab(tab);
-        }
-    }, [searchParams, activeTab]);
     
     const tabsConfig = [
         { value: 'prep-vibe', label: 'Prep Your Vibe', icon: BookOpen },
@@ -48,18 +41,18 @@ function SyncHubPageContent() {
                     <TabsList className="col-span-4">
                         {tabsConfig.map((tab) => (
                            <TabsTrigger key={tab.value} value={tab.value} className="flex-col md:flex-row h-auto md:h-10 py-2 md:py-1.5 gap-1 md:gap-2">
-                                <TooltipProvider delayDuration={0}>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <tab.icon className="h-5 w-5" />
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom" className="md:hidden">
-                                            <p>{tab.label}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <span className="hidden md:inline">{tab.label}</span>
-                            </TabsTrigger>
+                               <TooltipProvider delayDuration={0}>
+                                   <Tooltip>
+                                       <TooltipTrigger asChild>
+                                           <tab.icon className="h-5 w-5" />
+                                       </TooltipTrigger>
+                                       <TooltipContent side="bottom" className="md:hidden">
+                                           <p>{tab.label}</p>
+                                       </TooltipContent>
+                                   </Tooltip>
+                               </TooltipProvider>
+                               <span className="hidden md:inline">{tab.label}</span>
+                           </TabsTrigger>
                         ))}
                     </TabsList>
                 </div>
