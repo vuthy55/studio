@@ -43,16 +43,28 @@ export async function signUpUser(
   }
 
   try {
+    // --- Step 1: Fetch all necessary settings and data first ---
+    console.log('[signUpUser] Step 1: Fetching settings and checking referrer...');
     const settings = await getAppSettingsAction();
     const signupBonus = settings.signupBonus || 100;
     const referralBonus = settings.referralBonus || 150;
     const freeLanguages = await getFreeLanguagePacks();
-    console.log('[signUpUser] Settings loaded. Signup bonus:', signupBonus, 'Referral bonus:', referralBonus);
+
+    let referrerDoc = null;
+    if (referralId) {
+        const referrerRef = db.collection('users').doc(referralId);
+        referrerDoc = await referrerRef.get();
+        if (!referrerDoc.exists) {
+            console.warn('[signUpUser] Referrer with ID', referralId, 'does not exist. Proceeding without referral.');
+        } else {
+            console.log('[signUpUser] Referrer found:', referrerDoc.data()?.email);
+        }
+    }
 
 
-    // --- Step 1: Create User in Firebase Auth ---
-    // This must happen first to get a UID.
-    console.log('[signUpUser] Creating user in Firebase Auth...');
+    // --- Step 2: Create User in Firebase Auth ---
+    // This must happen first to get a UID for all subsequent database operations.
+    console.log('[signUpUser] Step 2: Creating user in Firebase Auth...');
     const userRecord = await auth.createUser({
         email: lowerCaseEmail,
         password: password,
@@ -63,11 +75,11 @@ export async function signUpUser(
     console.log('[signUpUser] User created successfully in Auth. UID:', uid);
 
 
-    // --- Step 2: Perform all database writes in an atomic batch ---
+    // --- Step 3: Perform all database writes in a single atomic batch ---
+    console.log('[signUpUser] Step 3: Creating atomic database batch...');
     const batch = db.batch();
-    console.log('[signUpUser] Firestore batch created.');
 
-    // 2a. Create the new user's profile in Firestore
+    // 3a. Create the new user's profile in Firestore
     const newUserRef = db.collection('users').doc(uid);
     const newUserProfile: any = {
         name: name,
@@ -89,7 +101,7 @@ export async function signUpUser(
     batch.set(newUserRef, newUserProfile);
     console.log('[signUpUser] Added new user profile creation to batch.');
 
-    // 2b. Log the signup bonus for the new user
+    // 3b. Log the signup bonus for the new user
     const newUserLogRef = newUserRef.collection('transactionLogs').doc();
     batch.set(newUserLogRef, {
         actionType: 'signup_bonus',
@@ -99,66 +111,60 @@ export async function signUpUser(
     });
     console.log('[signUpUser] Added signup bonus transaction log to batch.');
 
-    // 2c. Handle the referral if one exists
-    if (referralId) {
-        console.log('[signUpUser] Processing referral...');
-        const referrerRef = db.collection('users').doc(referralId);
-        const referrerDoc = await referrerRef.get();
+    // 3c. Handle the referral if the referrer was found
+    if (referralId && referrerDoc && referrerDoc.exists) {
+        console.log('[signUpUser] Processing valid referral...');
+        const referrerRef = referrerDoc.ref;
+        
+        // Create a record in the 'referrals' collection
+        const referralRecordRef = db.collection('referrals').doc();
+        batch.set(referralRecordRef, {
+            referrerId: referralId,
+            referredUserId: uid,
+            referredUserName: name,
+            referredUserEmail: lowerCaseEmail,
+            createdAt: FieldValue.serverTimestamp(),
+        });
+        console.log('[signUpUser] Added new document to "referrals" collection to batch.');
 
-        if (referrerDoc.exists) {
-            console.log('[signUpUser] Referrer found. Preparing batch operations.');
-            
-            // Create a record in the new 'referrals' collection
-            const referralRecordRef = db.collection('referrals').doc();
-            batch.set(referralRecordRef, {
-                referrerId: referralId,
-                referredUserId: uid,
-                referredUserName: name,
-                referredUserEmail: lowerCaseEmail,
-                createdAt: FieldValue.serverTimestamp(),
-            });
-            console.log('[signUpUser] Added new document to "referrals" collection to batch.');
+        // Credit the referrer's account with the bonus
+        batch.update(referrerRef, { tokenBalance: FieldValue.increment(referralBonus) });
+        console.log(`[signUpUser] Added referrer token balance update (+${referralBonus}) to batch.`);
 
-            // Credit the referrer's account with the bonus
-            batch.update(referrerRef, { tokenBalance: FieldValue.increment(referralBonus) });
-            console.log(`[signUpUser] Added referrer token balance update (+${referralBonus}) to batch.`);
-
-
-            // Log the referral bonus for the referrer
-            const referrerLogRef = referrerRef.collection('transactionLogs').doc();
-            batch.set(referrerLogRef, {
-                actionType: 'referral_bonus',
-                tokenChange: referralBonus,
-                timestamp: FieldValue.serverTimestamp(),
-                description: `Bonus for referring new user: ${lowerCaseEmail}`,
-            });
-            console.log('[signUpUser] Added referrer transaction log to batch.');
-            
-            // Create a notification for the referrer
-            const notificationRef = db.collection('notifications').doc();
-            batch.set(notificationRef, {
-                userId: referralId,
-                type: 'referral_bonus',
-                message: `Congratulations! ${name} has signed up using your link. You've received ${referralBonus} tokens!`,
-                fromUserName: name,
-                amount: referralBonus,
-                createdAt: FieldValue.serverTimestamp(),
-                read: false,
-            });
-            console.log('[signUpUser] Added referral notification to batch.');
-        } else {
-             console.warn('[signUpUser] Referrer document with ID', referralId, 'does not exist. Skipping referral bonus.');
-        }
+        // Log the referral bonus for the referrer
+        const referrerLogRef = referrerRef.collection('transactionLogs').doc();
+        batch.set(referrerLogRef, {
+            actionType: 'referral_bonus',
+            tokenChange: referralBonus,
+            timestamp: FieldValue.serverTimestamp(),
+            description: `Bonus for referring new user: ${lowerCaseEmail}`,
+        });
+        console.log('[signUpUser] Added referrer transaction log to batch.');
+        
+        // Create a notification for the referrer
+        const notificationRef = db.collection('notifications').doc();
+        batch.set(notificationRef, {
+            userId: referralId,
+            type: 'referral_bonus',
+            message: `Congratulations! ${name} has signed up using your link. You've received ${referralBonus} tokens!`,
+            fromUserName: name,
+            amount: referralBonus,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+        });
+        console.log('[signUpUser] Added referral notification to batch.');
+    } else if (referralId) {
+        console.log('[signUpUser] Skipping referral operations because referrer document was not found.');
     }
 
-    // --- Step 3: Commit the batch ---
-    console.log('[signUpUser] Committing batch...');
+    // --- Step 4: Commit the entire batch ---
+    console.log('[signUpUser] Step 4: Committing batch to Firestore...');
     await batch.commit();
     console.log('[signUpUser] Batch committed successfully.');
     
-    // --- Step 4: Handle Room Logic (if applicable) ---
+    // --- Step 5: Handle Room Logic (if applicable) ---
     if (roomId) {
-        console.log('[signUpUser] Room ID provided:', roomId, '. Checking room status...');
+        console.log('[signUpUser] Step 5: Room ID provided. Checking room status...');
         const roomRef = db.collection('syncRooms').doc(roomId);
         const roomDoc = await roomRef.get();
         if (roomDoc.exists) {
@@ -177,6 +183,7 @@ export async function signUpUser(
         }
     }
 
+    console.log('[signUpUser] Process completed successfully.');
     return { success: true, userId: uid };
 
   } catch (error: any) {
