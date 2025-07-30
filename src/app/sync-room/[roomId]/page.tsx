@@ -690,37 +690,69 @@ export default function SyncRoomPage() {
                      </div>
                      <div className="flex items-center justify-between pt-2">
                          <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
-                        {isCurrentUserEmcee && (
-                            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Invite More People</DialogTitle>
-                                        <DialogDescription>
-                                            Enter email addresses separated by commas to invite them to this room.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="py-4 space-y-2">
-                                        <Label htmlFor="emails-to-invite">Emails</Label>
-                                        <Textarea 
-                                            id="emails-to-invite" 
-                                            value={emailsToInvite}
-                                            onChange={(e) => setEmailsToInvite(e.target.value)}
-                                            placeholder="friend1@example.com, friend2@example.com"
-                                        />
-                                    </div>
-                                    <DialogFooter>
-                                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                                        <Button onClick={handleSendInvites} disabled={isSendingInvites}>
-                                            {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                            Send Invites
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        )}
+                        <div className="flex items-center gap-2">
+                             <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
+                                            <Clock className="h-4 w-4" />
+                                            <span>{sessionTimer}</span>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
+                                        <div className="font-bold mb-2">Session Info</div>
+                                        <div className="space-y-1.5 text-xs">
+                                             <div className="flex justify-between">
+                                               <span>Balance:</span> 
+                                               <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
+                                            </div>
+                                             <div className="flex justify-between">
+                                                <span>Cost:</span>
+                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span>Free Minutes:</span>
+                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                            </div>
+                                            <Separator className="my-2"/>
+                                            <p className="text-muted-foreground">Final billing is calculated on the server when your session ends.</p>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+
+                            {isCurrentUserEmcee && (
+                                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4"/> Invite</Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Invite More People</DialogTitle>
+                                            <DialogDescription>
+                                                Enter email addresses separated by commas to invite them to this room.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="py-4 space-y-2">
+                                            <Label htmlFor="emails-to-invite">Emails</Label>
+                                            <Textarea 
+                                                id="emails-to-invite" 
+                                                value={emailsToInvite}
+                                                onChange={(e) => setEmailsToInvite(e.target.value)}
+                                                placeholder="friend1@example.com, friend2@example.com"
+                                            />
+                                        </div>
+                                        <DialogFooter>
+                                            <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                            <Button onClick={handleSendInvites} disabled={isSendingInvites}>
+                                                {isSendingInvites && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                                Send Invites
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            )}
+                        </div>
                      </div>
                 </header>
                 <ScrollArea className="flex-1">
@@ -835,46 +867,6 @@ export default function SyncRoomPage() {
                     )}
                 </ScrollArea>
                  <footer className="p-4 border-t flex flex-col gap-4">
-                    <div className="text-xs text-muted-foreground space-y-2 border rounded-lg p-3">
-                        <div className="flex justify-between" title="Your current token balance">
-                           <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Balance:</span> 
-                           <span className="font-semibold">{userProfile?.tokenBalance ?? '...'}</span>
-                        </div>
-                         <div className="flex justify-between" title="Cost per minute after free minutes are used">
-                            <span className="flex items-center gap-1.5"><Coins className="h-4 w-4 text-amber-500" /> Cost:</span>
-                            <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
-                        </div>
-                        <div className="flex justify-between" title="Your free minutes remaining for this month">
-                            <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Free Minutes:</span>
-                            <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                        </div>
-                        <div className="flex justify-between font-mono text-sm" title="Session duration timer">
-                            <div className="flex items-center gap-1.5">
-                                Session:
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger>
-                                            <Info className="h-4 w-4 cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" align="start" className="max-w-xs text-sm">
-                                            <p className="font-bold">About the Timer & Billing</p>
-                                            <p className="mt-2">This timer is a visual estimate of your current session duration.</p>
-                                            <p className="mt-1">Final billing is calculated securely on the server when your session ends.</p>
-                                            <p className="mt-2 font-semibold">A session ends if you:</p>
-                                            <ul className="list-disc list-inside mt-1 space-y-1">
-                                                <li>Click "Exit Room" or "End Meeting"</li>
-                                                <li>Navigate to another page in the app</li>
-                                                <li>Close your browser tab/window</li>
-                                                <li>Are removed by an emcee</li>
-                                            </ul>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </div>
-                            <span>{sessionTimer}</span>
-                        </div>
-                    </div>
-
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={handleManualExit} className="w-full">
                             <LogOut className="mr-2 h-4 w-4"/>
