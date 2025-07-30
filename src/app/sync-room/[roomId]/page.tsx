@@ -92,7 +92,7 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
     };
     
     const handleCancel = () => {
-        router.push('/?tab=sync-online');
+        router.push('/synchub?tab=sync-online');
     }
 
     return (
@@ -339,7 +339,7 @@ export default function SyncRoomPage() {
     const handleManualExit = async () => {
         if (isExiting.current) return;
         await handleExitRoom();
-        router.push('/?tab=sync-online');
+        router.push('/synchub?tab=sync-online');
     };
 
     useEffect(() => {
@@ -508,7 +508,7 @@ export default function SyncRoomPage() {
             const result = await softDeleteRoom(roomId);
             console.log('[DEBUG] softDeleteRoom result:', result);
             if (result.success) {
-                router.push('/?tab=sync-online');
+                router.push('/synchub?tab=sync-online');
             } else {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
             }
@@ -526,7 +526,7 @@ export default function SyncRoomPage() {
             await handleExitRoom();
             await summarizeRoom({ roomId });
             toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            router.push('/?tab=sync-online');
+            router.push('/synchub?tab=sync-online');
         } catch (error) {
             console.error("Error saving and ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
@@ -667,7 +667,7 @@ export default function SyncRoomPage() {
 
     if (roomError) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load room data.' });
-        router.push('/?tab=sync-online');
+        router.push('/synchub?tab=sync-online');
         return null;
     }
 
@@ -684,43 +684,44 @@ export default function SyncRoomPage() {
             {/* Left Panel - Participants */}
             <aside className="w-1/4 min-w-[320px] bg-background border-r flex flex-col">
                 <header className="p-4 border-b space-y-2">
-                     <div className="bg-primary/10 p-3 rounded-lg">
-                        <p className="font-bold text-lg text-primary">{roomData.topic}</p>
-                        <p className="text-sm text-primary/80">Sync Room</p>
+                     <div className="bg-primary/10 p-3 rounded-lg flex justify-between items-center">
+                        <div>
+                           <p className="font-bold text-lg text-primary">{roomData.topic}</p>
+                           <p className="text-sm text-primary/80">Sync Room</p>
+                        </div>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
+                                        <Clock className="h-4 w-4" />
+                                        <span>{sessionTimer}</span>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
+                                    <div className="font-bold mb-2">Session Info</div>
+                                    <div className="space-y-1.5 text-xs">
+                                            <div className="flex justify-between">
+                                            <span>Balance:</span> 
+                                            <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
+                                        </div>
+                                            <div className="flex justify-between">
+                                            <span>Cost:</span>
+                                            <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Free Minutes:</span>
+                                            <span className="font-semibold">{freeMinutesRemaining} min left</span>
+                                        </div>
+                                        <Separator className="my-2"/>
+                                        <p className="text-muted-foreground">Final billing is calculated on the server when your session ends.</p>
+                                    </div>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                      </div>
                      <div className="flex items-center justify-between pt-2">
                          <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
                         <div className="flex items-center gap-2">
-                             <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="flex items-center gap-1 font-mono text-sm text-muted-foreground">
-                                            <Clock className="h-4 w-4" />
-                                            <span>{sessionTimer}</span>
-                                        </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom" align="end" className="max-w-xs text-sm p-3">
-                                        <div className="font-bold mb-2">Session Info</div>
-                                        <div className="space-y-1.5 text-xs">
-                                             <div className="flex justify-between">
-                                               <span>Balance:</span> 
-                                               <span className="font-semibold">{userProfile?.tokenBalance ?? '...'} tokens</span>
-                                            </div>
-                                             <div className="flex justify-between">
-                                                <span>Cost:</span>
-                                                <span className="font-semibold">{settings?.costPerSyncOnlineMinute ?? '...'} tokens/min</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Free Minutes:</span>
-                                                <span className="font-semibold">{freeMinutesRemaining} min left</span>
-                                            </div>
-                                            <Separator className="my-2"/>
-                                            <p className="text-muted-foreground">Final billing is calculated on the server when your session ends.</p>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-
                             {isCurrentUserEmcee && (
                                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                                     <DialogTrigger asChild>
@@ -977,3 +978,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
