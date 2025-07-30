@@ -493,10 +493,8 @@ export default function SyncRoomPage() {
     }, [roomData]);
 
     const handleExitRoom = useCallback(async () => {
-        sessionStartTime.current = null;
-        if (isExiting.current) return;
         isExiting.current = true;
-        
+        sessionStartTime.current = null;
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
@@ -974,6 +972,10 @@ export default function SyncRoomPage() {
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="left" className="p-0 w-80">
+                                <SheetHeader className="sr-only">
+                                    <SheetTitle>Participants</SheetTitle>
+                                    <SheetDescription>View and manage room participants.</SheetDescription>
+                                </SheetHeader>
                                 <ParticipantsPanel {...participantsPanelProps} />
                             </SheetContent>
                         </Sheet>
@@ -1066,5 +1068,7 @@ export default function SyncRoomPage() {
     );
 }
 
+
+    
 
     
