@@ -1,5 +1,4 @@
 
-
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -86,7 +85,6 @@ function BuddyAlertButton() {
      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <AlertDialogTrigger
         onClick={handleSendBuddyAlert}
-        asChild
       >
           <Button
             variant="default"
