@@ -165,6 +165,7 @@ function ParticipantsPanel({
     handleManualExit,
     handleEndMeeting,
     sessionTimer,
+    timerTooltipContent
 }: any) {
     
     return (
@@ -178,10 +179,19 @@ function ParticipantsPanel({
                             {roomData.creatorName}
                         </p>
                     </div>
-                     <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2">
-                        <Clock className="h-5 w-5" />
-                        {sessionTimer}
-                    </div>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                 <div className="font-mono text-lg text-primary font-semibold flex items-center gap-2 cursor-help">
+                                    <Clock className="h-5 w-5" />
+                                    {sessionTimer}
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {timerTooltipContent}
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
                  <div className="flex items-center justify-between pt-2">
                      <h2 className="text-lg font-semibold flex items-center gap-2"><Users /> Participants</h2>
@@ -471,17 +481,22 @@ export default function SyncRoomPage() {
             return;
         }
         isExiting.current = true;
+        console.log("[DEBUG] handleExitRoom called.");
 
         if (messageListenerUnsubscribe.current) {
+            console.log("[DEBUG] Unsubscribing from message listener.");
             messageListenerUnsubscribe.current();
             messageListenerUnsubscribe.current = null;
         }
 
         if (user) {
+            console.log("[DEBUG] Deleting participant doc for user:", user.uid);
             const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
             deleteDoc(participantRef).then(() => {
+                console.log("[DEBUG] Participant doc deleted successfully.");
                 const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
                 if (sessionDurationMs > 0) {
+                     console.log("[DEBUG] Ending session with duration:", sessionDurationMs);
                     handleSyncOnlineSessionEnd(sessionDurationMs);
                 }
             }).catch(error => {
@@ -491,15 +506,17 @@ export default function SyncRoomPage() {
     }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
 
     const handleManualExit = () => {
+        console.log("[DEBUG] handleManualExit called. Navigating away first.");
         router.push('/synchub?tab=sync-online');
     };
     
+    // This effect now correctly handles the cleanup *after* navigation.
+    // It's triggered when the component unmounts.
     useEffect(() => {
         return () => {
             handleExitRoom();
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [handleExitRoom]);
 
 
     useEffect(() => {
@@ -528,7 +545,7 @@ export default function SyncRoomPage() {
         if (!user || !roomData) return false;
         return roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
     }, [user, roomData]);
-
+    
     const freeMinutesRemaining = useMemo(() => {
         if (!settings || !userProfile) return 0;
         
@@ -555,6 +572,24 @@ export default function SyncRoomPage() {
         
         return Math.floor(remainingFreeMs / 60000);
     }, [settings, userProfile]);
+
+    const timerTooltipContent = useMemo(() => {
+        return (
+            <div className="p-2 space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Free Time Left:</span>
+                    <span className="font-bold">{freeMinutesRemaining} min</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-muted-foreground">Token Balance:</span>
+                    <span className="font-bold">{userProfile?.tokenBalance ?? 0}</span>
+                </div>
+                 <p className="text-xs text-muted-foreground pt-2 border-t">
+                    Usage is billed per minute. After free time is used, tokens will be deducted from your balance.
+                </p>
+            </div>
+        );
+    }, [freeMinutesRemaining, userProfile?.tokenBalance]);
     
     const isRoomCreator = useCallback((uid: string) => {
         return uid === roomData?.creatorUid;
@@ -936,6 +971,7 @@ export default function SyncRoomPage() {
         handleManualExit,
         handleEndMeeting,
         sessionTimer,
+        timerTooltipContent
     };
 
     return (
