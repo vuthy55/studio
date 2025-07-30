@@ -126,6 +126,26 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
   return result;
 }
 
+const generateWithFallback = async (prompt: string, context: any, outputSchema: any) => {
+    try {
+        return await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-flash',
+            output: { schema: outputSchema },
+            context,
+        });
+    } catch (error) {
+        console.warn("Primary summary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+        return await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.0-pro',
+            output: { schema: outputSchema },
+            context,
+        });
+    }
+};
+
+
 // --- Genkit Flow and Prompt Definitions ---
 
 const summarizeRoomFlow = ai.defineFlow(
@@ -182,8 +202,8 @@ const summarizeRoomFlow = ai.defineFlow(
     };
     
     // 3. Call the AI model
-    const {output} = await ai.generate({
-      prompt: `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
+    const {output} = await generateWithFallback(
+      `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
 
       Meeting Title: {{{title}}}
       Date: {{{date}}}
@@ -205,12 +225,9 @@ const summarizeRoomFlow = ai.defineFlow(
 
       Based on the chat history, provide a neutral, one-paragraph summary of the meeting. Then, list any concrete action items, specifying the task, the person in charge, and the due date if mentioned.
       `,
-      model: 'googleai/gemini-1.5-flash',
-      output: {
-        schema: AISummaryOutputSchema,
-      },
-      context: promptPayload,
-    });
+      promptPayload,
+      AISummaryOutputSchema
+    );
     
     return output!;
   }

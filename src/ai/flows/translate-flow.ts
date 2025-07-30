@@ -12,14 +12,28 @@ const translateTextFlow = ai.defineFlow(
     outputSchema: TranslateTextOutputSchema,
   },
   async ({ text, fromLanguage, toLanguage }) => {
-    const {output} = await ai.generate({
-        prompt: `Translate the following text from ${fromLanguage} to ${toLanguage}: ${text}`,
-        model: 'googleai/gemini-1.5-flash',
-        output: {
-            schema: TranslateTextOutputSchema,
-        },
-    });
-    return output!;
+    try {
+      // First attempt with the primary model
+      const {output} = await ai.generate({
+          prompt: `Translate the following text from ${fromLanguage} to ${toLanguage}: ${text}`,
+          model: 'googleai/gemini-1.5-flash',
+          output: {
+              schema: TranslateTextOutputSchema,
+          },
+      });
+      return output!;
+    } catch (error) {
+      console.warn("Primary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+      // Fallback to a different model on any error
+      const {output} = await ai.generate({
+          prompt: `Translate the following text from ${fromLanguage} to ${toLanguage}: ${text}`,
+          model: 'googleai/gemini-1.0-pro',
+          output: {
+              schema: TranslateTextOutputSchema,
+          },
+      });
+      return output!;
+    }
   }
 );
 

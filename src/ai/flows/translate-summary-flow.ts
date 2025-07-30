@@ -50,6 +50,25 @@ const RoomSummarySchemaForOutput = RoomSummarySchemaForInput; // Output is the s
 export type TranslateSummaryOutput = RoomSummary;
 
 
+// --- Helper Function ---
+const generateWithFallback = async (prompt: string) => {
+    try {
+        return await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-flash',
+            output: { schema: z.record(z.string()) },
+        });
+    } catch (error) {
+        console.warn("Primary translation model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+        return await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.0-pro',
+            output: { schema: z.record(z.string()) },
+        });
+    }
+};
+
+
 // --- Genkit Flow & Prompt ---
 
 const translateSummaryFlow = ai.defineFlow(
@@ -64,21 +83,15 @@ const translateSummaryFlow = ai.defineFlow(
 
     // Translate the main summary
     translationPromises.push(
-      ai.generate({
-        prompt: `Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`,
-        model: 'googleai/gemini-1.5-flash',
-        output: { schema: z.record(z.string()) }, // Expects an object like { "es": "...", "fr": "..." }
-      }).then(res => ({ index: -1, translations: res.output! }))
+      generateWithFallback(`Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`)
+        .then(res => ({ index: -1, translations: res.output! }))
     );
 
     // Translate each action item
     summary.actionItems.forEach((item, index) => {
       translationPromises.push(
-        ai.generate({
-          prompt: `Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`,
-          model: 'googleai/gemini-1.5-flash',
-          output: { schema: z.record(z.string()) },
-        }).then(res => ({ index, translations: res.output! }))
+        generateWithFallback(`Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`)
+          .then(res => ({ index, translations: res.output! }))
       );
     });
 
