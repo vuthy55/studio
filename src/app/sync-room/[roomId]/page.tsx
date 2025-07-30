@@ -437,17 +437,17 @@ export default function SyncRoomPage() {
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const processedMessages = useRef(new Set<string>());
-    const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
-    const participantListenerUnsubscribe = useRef<(() => void) | null>(null);
-    const joinTimestampRef = useRef<Timestamp | null>(null);
     
-    // Timer State & Logic
     const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    
+    // --- New State Management for Exit Logic ---
     const isExiting = useRef(false);
+    const participantListenerUnsubscribe = useRef<(() => void) | null>(null);
+    const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
 
-    // Effect to run the clock interval once a session starts
+
     useEffect(() => {
         if (sessionStartTime !== null) {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -460,18 +460,15 @@ export default function SyncRoomPage() {
                 setSessionTimer(`${minutes}:${seconds}`);
             }, 1000);
         }
-
         return () => {
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-            }
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         };
     }, [sessionStartTime]);
-
-    const handleExitRoom = useCallback(() => {
-        if (isExiting.current) return;
-        isExiting.current = true;
-        console.log("[DEBUG] handleExitRoom called. Cleaning up...");
+    
+    const handleExitRoom = useCallback(async () => {
+        if (!user) return;
+        
+        console.log("[DEBUG] handleExitRoom: Starting cleanup process.");
 
         if (participantListenerUnsubscribe.current) {
             console.log("[DEBUG] Unsubscribing from participant listener.");
@@ -485,36 +482,35 @@ export default function SyncRoomPage() {
             messageListenerUnsubscribe.current = null;
         }
 
-        if (user) {
-            console.log("[DEBUG] Deleting participant doc for user:", user.uid);
-            const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
-            deleteDoc(participantRef).then(() => {
-                console.log("[DEBUG] Participant doc deleted successfully.");
-                const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
-                if (sessionDurationMs > 0) {
-                     console.log("[DEBUG] Ending session with duration:", sessionDurationMs);
-                    handleSyncOnlineSessionEnd(sessionDurationMs);
-                }
-            }).catch(error => {
-                console.error("[DEBUG] handleExitRoom: Error deleting participant doc:", error);
-            });
+        const participantRef = doc(db, 'syncRooms', roomId, 'participants', user.uid);
+        await deleteDoc(participantRef);
+        console.log("[DEBUG] Participant document deleted successfully.");
+
+        const sessionDurationMs = sessionStartTime ? Date.now() - sessionStartTime : 0;
+        if (sessionDurationMs > 0) {
+            console.log("[DEBUG] Ending session with duration:", sessionDurationMs);
+            await handleSyncOnlineSessionEnd(sessionDurationMs);
         }
+
+        console.log("[DEBUG] Cleanup complete.");
     }, [user, roomId, handleSyncOnlineSessionEnd, sessionStartTime]);
     
-    const handleManualExit = () => {
+    const handleManualExit = async () => {
         if (isExiting.current) return;
-        console.log("[DEBUG] handleManualExit called. Navigating away first.");
-        router.push('/synchub?tab=sync-online');
+        isExiting.current = true;
+        console.log("[DEBUG] handleManualExit: Initiating exit.");
+        
+        try {
+            await handleExitRoom();
+            router.push('/synchub?tab=sync-online');
+            console.log("[DEBUG] Navigation successful.");
+        } catch (error) {
+            console.error("[DEBUG] Error during manual exit:", error);
+            toast({ variant: 'destructive', title: 'Error on Exit', description: 'Could not clean up your session properly. Please try again.' });
+            isExiting.current = false; // Reset on error
+        }
     };
     
-    useEffect(() => {
-        return () => {
-            console.log("[DEBUG] SyncRoomPage unmounting. Calling handleExitRoom.");
-            handleExitRoom();
-        };
-    }, [handleExitRoom]);
-
-
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
@@ -546,8 +542,9 @@ export default function SyncRoomPage() {
         return (
             <div className="p-2 space-y-2 text-sm max-w-xs">
                 <p className="font-bold">Session Billing</p>
+                <p>The timer reflects active conversation time, which starts on the first mic press.</p>
                  <p className="text-xs text-muted-foreground pt-2 border-t">
-                    The timer tracks active conversation time, which starts on the first mic press by any participant. The initial room cost has been deducted. Upon exit, the actual usage cost will be reconciled against the pre-paid amount, and any difference may be refunded.
+                    Your initial room cost has been deducted. At the end of the session, the actual usage cost will be reconciled against the pre-paid amount. Any difference may be refunded or charged.
                 </p>
             </div>
         );
@@ -559,11 +556,11 @@ export default function SyncRoomPage() {
     
     
     const onJoinSuccess = useCallback((joinTimestamp: Timestamp) => {
+        if (messageListenerUnsubscribe.current) return; // Prevent re-subscribing
+        
+        console.log("[DEBUG] onJoinSuccess: User is a participant. Setting up message listener.");
         setIsParticipant('yes');
-        joinTimestampRef.current = joinTimestamp;
-        if (messageListenerUnsubscribe.current) {
-            messageListenerUnsubscribe.current();
-        }
+        
         const messagesQuery = query(
             collection(db, 'syncRooms', roomId, 'messages'),
             orderBy("createdAt"),
@@ -577,7 +574,7 @@ export default function SyncRoomPage() {
                 }
             });
             if (newMessages.length > 0) {
-                setMessages(prev => [...prev, ...newMessages].sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis()));
+                setMessages(prev => [...prev, ...newMessages].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)));
             }
             setMessagesLoading(false);
         });
@@ -607,31 +604,29 @@ export default function SyncRoomPage() {
         });
 
         return () => {
-            if (participantListenerUnsubscribe.current) {
-                participantListenerUnsubscribe.current();
-            }
-            if (messageListenerUnsubscribe.current) {
-                messageListenerUnsubscribe.current();
-            }
+            if (participantListenerUnsubscribe.current) participantListenerUnsubscribe.current();
+            if (messageListenerUnsubscribe.current) messageListenerUnsubscribe.current();
         };
     }, [user, roomId, roomLoading, onJoinSuccess]);
     
     
     useEffect(() => {
-        if (isParticipant === 'yes') {
-            const isStillInList = participants.some(p => p.uid === user?.uid);
-            if (!isStillInList) {
-                toast({
-                    variant: 'destructive',
-                    title: 'You were removed',
-                    description: 'An emcee has removed you from the room.',
-                    duration: 5000,
-                });
-                handleManualExit();
-            }
+        if (!user || isParticipant !== 'yes') return;
+
+        const amIStillHere = participants.some(p => p.uid === user.uid);
+        
+        console.log(`[DEBUG] Participant check: amIStillHere = ${amIStillHere}, current participants =`, participants.map(p=>p.name));
+        
+        if (!amIStillHere && !isExiting.current) {
+            toast({
+                variant: 'destructive',
+                title: 'You were removed',
+                description: 'An emcee has removed you from the room.',
+                duration: 5000,
+            });
+            handleManualExit();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [participants, isParticipant, user]);
+    }, [participants, isParticipant, user, handleManualExit, toast]);
 
     useEffect(() => {
         if (!roomData || !user || isExiting.current) return;
@@ -652,8 +647,7 @@ export default function SyncRoomPage() {
             });
             handleManualExit();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomData, user]);
+    }, [roomData, user, handleManualExit, toast]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
@@ -788,10 +782,10 @@ export default function SyncRoomPage() {
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted || !user) return;
 
-        // Start the timer on the first mic press of the session
         if (sessionStartTime === null) {
             setSessionStartTime(Date.now());
-             if (roomData && !roomData.firstMessageAt) {
+            // Only set the server timestamp if it doesn't exist
+            if (roomData && !roomData.firstMessageAt) {
                 await setFirstMessageTimestamp(roomId);
             }
         }
@@ -801,6 +795,7 @@ export default function SyncRoomPage() {
             const recognizedText = await recognizeFromMic(currentUserParticipant.selectedLanguage);
             
             if (recognizedText) {
+                // This now only writes to the subcollection, avoiding the main doc re-render
                 await addDoc(collection(db, 'syncRooms', roomId, 'messages'), {
                     text: recognizedText,
                     speakerName: currentUserParticipant.name,
