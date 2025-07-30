@@ -163,7 +163,31 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
     const batch = db.batch();
     for (const roomId of roomIds) {
         const roomRef = db.collection('syncRooms').doc(roomId);
+        const roomDoc = await roomRef.get();
         
+        // --- Refund Logic ---
+        if (roomDoc.exists) {
+            const roomData = roomDoc.data() as SyncRoom;
+            const needsRefund = (roomData.initialCost ?? 0) > 0 && !roomData.firstMessageAt;
+
+            if (needsRefund) {
+                const userRef = db.collection('users').doc(roomData.creatorUid);
+                
+                // 1. Refund tokens to the user
+                batch.update(userRef, { tokenBalance: FieldValue.increment(roomData.initialCost!) });
+
+                // 2. Log the refund transaction
+                const logRef = userRef.collection('transactionLogs').doc();
+                batch.set(logRef, {
+                    actionType: 'sync_online_refund',
+                    tokenChange: roomData.initialCost,
+                    timestamp: FieldValue.serverTimestamp(),
+                    description: `Refund for canceled room: "${roomData.topic}"`
+                });
+            }
+        }
+        // --- End Refund Logic ---
+
         // Delete subcollections first
         await deleteCollection(`syncRooms/${roomId}/participants`, 50);
         await deleteCollection(`syncRooms/${roomId}/messages`, 50);
@@ -388,3 +412,5 @@ export async function handleEmceeExit(roomId: string, leavingEmceeId: string): P
     return { success: false, error: 'An unexpected server error occurred.' };
   }
 }
+
+    

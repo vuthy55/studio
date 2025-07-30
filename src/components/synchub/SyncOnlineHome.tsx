@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1301,7 +1300,7 @@ export default function SyncOnlineHome() {
                                                                 value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
                                                             onValueChange={(value) => {
                                                                 setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : new Date();
+                                                                    const newDate = d ? new Date(d) : a new Date();
                                                                     newDate.setMinutes(parseInt(value));
                                                                     return newDate;
                                                                 });
@@ -1437,3 +1436,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
