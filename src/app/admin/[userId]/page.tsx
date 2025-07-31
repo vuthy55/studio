@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -169,6 +168,29 @@ export default function UserDetailPage() {
             setHasFetchedReferrals(true);
         }
     }, [userId, toast, hasFetchedReferrals]);
+    
+    const handleTabChange = (tabValue: string) => {
+        switch(tabValue) {
+            case 'usage':
+                // Usage data is part of the main profile, so it's already loaded
+                break;
+            case 'stats':
+                handleFetchPracticeHistory();
+                break;
+            case 'tokens':
+                handleFetchLogs();
+                break;
+            case 'payments':
+                handleFetchPayments();
+                break;
+            case 'referrals':
+                handleFetchReferrals();
+                break;
+            default:
+                break;
+        }
+    };
+
 
     useEffect(() => {
         if (adminLoading) return;
@@ -459,7 +481,7 @@ export default function UserDetailPage() {
             </div>
                 
             <div>
-                <Tabs defaultValue="profile" className="w-full">
+                <Tabs defaultValue="profile" className="w-full" onValueChange={handleTabChange}>
                     <TabsList className="grid w-full grid-cols-6">
                         <TabsTrigger value="profile">Profile</TabsTrigger>
                         <TabsTrigger value="usage">Usage</TabsTrigger>
@@ -622,10 +644,6 @@ export default function UserDetailPage() {
                                 <CardDescription>A summary of this user's practice accuracy across languages.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <Button onClick={handleFetchPracticeHistory} disabled={isFetchingStats || hasFetchedStats}>
-                                    {isFetchingStats ? <LoaderCircle className="animate-spin mr-2"/> : null}
-                                    {hasFetchedStats ? "Stats Loaded" : "Load Stats"}
-                                </Button>
                                 {isFetchingStats ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
@@ -693,10 +711,6 @@ export default function UserDetailPage() {
                                 <CardDescription>A complete history of this user's token activity.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Button onClick={handleFetchLogs} disabled={isFetchingLogs || hasFetchedLogs} className="mb-4">
-                                    {isFetchingLogs ? <LoaderCircle className="animate-spin mr-2"/> : null}
-                                    {hasFetchedLogs ? "Logs Loaded" : "Load Logs"}
-                                </Button>
                                 {isFetchingLogs ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
@@ -776,10 +790,6 @@ export default function UserDetailPage() {
                                 </AlertDialog>
                             </CardHeader>
                             <CardContent>
-                                <Button onClick={handleFetchPayments} disabled={isFetchingPayments || hasFetchedPayments} className="mb-4">
-                                    {isFetchingPayments ? <LoaderCircle className="animate-spin mr-2"/> : null}
-                                    {hasFetchedPayments ? "Payments Loaded" : "Load Payments"}
-                                </Button>
                                 {isFetchingPayments ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
@@ -825,10 +835,6 @@ export default function UserDetailPage() {
                                 <CardDescription>A list of users referred by this individual.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Button onClick={handleFetchReferrals} disabled={isFetchingReferrals || hasFetchedReferrals}>
-                                    {isFetchingReferrals ? <LoaderCircle className="animate-spin mr-2"/> : null}
-                                    {hasFetchedReferrals ? "Referrals Loaded" : "Load Referrals"}
-                                </Button>
                                 {isFetchingReferrals ? (
                                      <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />

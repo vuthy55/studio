@@ -4,23 +4,7 @@
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { IssueTokensPayload } from '@/services/ledger';
-
-
-/**
- * Finds a user by their email address using the Admin SDK.
- * @returns {Promise<{id: string, data: any} | null>} The user object or null if not found.
- */
-async function findUserByEmailAdmin(email: string): Promise<{id: string; data: any} | null> {
-    if (!email) return null;
-    const usersRef = db.collection('users');
-    const q = usersRef.where('email', '==', email.toLowerCase()).limit(1);
-    const snapshot = await q.get();
-    if (snapshot.empty) {
-        return null;
-    }
-    const userDoc = snapshot.docs[0];
-    return { id: userDoc.id, data: userDoc.data() };
-}
+import { findUserByEmailAdmin } from '@/lib/firebase-utils';
 
 
 /**
