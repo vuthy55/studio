@@ -14,7 +14,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder, extendMeeting, volunteerAsPayor } from '@/actions/room';
+import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder, extendMeeting } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -392,7 +392,7 @@ export default function SyncRoomPage() {
     const router = useRouter();
     const { toast } = useToast();
     const roomId = params.roomId as string;
-    const { userProfile, settings, handleSyncOnlineSessionEnd } = useUserData();
+    const { userProfile, settings, handleSyncLiveTurn } = useUserData();
 
     const [user, authLoading] = useAuthState(auth);
     
@@ -438,13 +438,8 @@ export default function SyncRoomPage() {
         
         await handleParticipantExit(roomId, user.uid);
         
-        const sessionDurationMs = sessionUsageRef.current;
-        if (sessionDurationMs > 0) {
-            handleSyncOnlineSessionEnd(sessionDurationMs);
-        }
-
         router.push('/synchub?tab=sync-online');
-    }, [user, roomId, router, handleSyncOnlineSessionEnd]);
+    }, [user, roomId, router]);
 
     // This hook now only handles the visual session timer, and runs for everyone.
     useEffect(() => {
@@ -813,6 +808,8 @@ export default function SyncRoomPage() {
                     speakerLanguage: currentUserParticipant.selectedLanguage,
                     createdAt: serverTimestamp(),
                 });
+                
+                // Incorrect call to Sync Live's billing function was here and has been removed.
             }
         } catch (error: any) {
              if (error.message !== "Recognition was aborted.") {
@@ -884,9 +881,9 @@ export default function SyncRoomPage() {
     };
 
     const handleExtendMeeting = async () => {
-        if (!user || isExtending) return;
+        if (!user || isExtending || !isCreator) return;
         setIsExtending(true);
-        const result = await volunteerAsPayor(roomId, user.uid);
+        const result = await extendMeeting(roomId, user.uid);
         if (!result.success) {
             toast({
                 variant: 'destructive',
