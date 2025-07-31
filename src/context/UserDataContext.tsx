@@ -42,8 +42,7 @@ interface UserDataContextType {
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string, cost?: number) => boolean;
-    handleSyncLiveTurn: (durationMs: number) => number;
-    handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
+    updateSyncLiveUsage: (durationMs: number, usageType: 'live' | 'online') => number;
     loadSingleOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
 }
@@ -81,7 +80,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
     const pendingTokenSyncs = useRef<Array<{amount: number, actionType: TransactionLogType, description: string, duration?: number }>>([]).current;
-    const pendingUsageSync = useRef<{ duration: number }>({ duration: 0 }).current;
+    const pendingUsageSync = useRef<{ live: number; online: number }>({ live: 0, online: 0 }).current;
     
     const profileUnsubscribe = useRef<() => void | undefined>();
     const historyUnsubscribe = useRef<() => void | undefined>();
@@ -217,13 +216,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             const practiceSyncs = { ...pendingPracticeSyncs };
             const tokenSyncs = [...pendingTokenSyncs];
-            const usageToSync = pendingUsageSync.duration;
+            const usageToSync = { ...pendingUsageSync };
 
             Object.keys(pendingPracticeSyncs).forEach(key => delete pendingPracticeSyncs[key]);
             pendingTokenSyncs.length = 0;
-            pendingUsageSync.duration = 0;
+            pendingUsageSync.live = 0;
+            pendingUsageSync.online = 0;
             
-            if (Object.keys(practiceSyncs).length === 0 && tokenSyncs.length === 0 && usageToSync === 0) {
+            if (Object.keys(practiceSyncs).length === 0 && tokenSyncs.length === 0 && usageToSync.live === 0 && usageToSync.online === 0) {
                 return;
             }
 
@@ -265,8 +265,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (totalTokenChange !== 0) {
                 updatePayload.tokenBalance = increment(totalTokenChange);
             }
-            if (usageToSync > 0) {
-                 updatePayload.syncLiveUsage = increment(usageToSync);
+            if (usageToSync.live > 0) {
+                 updatePayload.syncLiveUsage = increment(usageToSync.live);
+            }
+             if (usageToSync.online > 0) {
+                 updatePayload.syncOnlineUsage = increment(usageToSync.online);
             }
             
             if (Object.keys(updatePayload).length > 0) {
@@ -291,17 +294,23 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, [debouncedCommitToFirestore, clearLocalState]);
 
 
-    const handleSyncLiveTurn = useCallback((durationMs: number): number => {
+    const updateSyncLiveUsage = useCallback((durationMs: number, usageType: 'live' | 'online'): number => {
         if (!user || !settings) return 0;
         
-        const currentTotalUsage = syncLiveUsage;
+        const isLive = usageType === 'live';
+        const currentTotalUsage = isLive ? (userProfile.syncLiveUsage || 0) : (userProfile.syncOnlineUsage || 0);
+        const freeMinutesMs = isLive ? (settings.freeSyncLiveMinutes || 0) * 60 * 1000 : (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const costPerMinute = isLive ? (settings.costPerSyncLiveMinute || 1) : (settings.costPerSyncOnlineMinute || 1);
+        
         const newTotalUsage = currentTotalUsage + durationMs;
         
-        pendingUsageSync.duration += durationMs;
-        setSyncLiveUsage(newTotalUsage);
-
-        const freeMinutesMs = (settings.freeSyncLiveMinutes || 0) * 60 * 1000;
-        const costPerMinute = settings.costPerSyncLiveMinute || 1;
+        if (isLive) {
+            pendingUsageSync.live += durationMs;
+            setUserProfile(p => ({ ...p, syncLiveUsage: newTotalUsage }));
+        } else {
+            pendingUsageSync.online += durationMs;
+            setUserProfile(p => ({ ...p, syncOnlineUsage: newTotalUsage }));
+        }
 
         const prevBilledMinutes = Math.ceil(Math.max(0, currentTotalUsage - freeMinutesMs) / (60 * 1000));
         const currentBilledMinutes = Math.ceil(Math.max(0, newTotalUsage - freeMinutesMs) / (60 * 1000));
@@ -317,8 +326,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                  setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - cost }));
                  pendingTokenSyncs.push({
                      amount: cost,
-                     actionType: 'live_sync_spend',
-                     description: `Usage charge for ${minutesToCharge} minute(s) of Live Sync.`,
+                     actionType: isLive ? 'live_sync_spend' : 'live_sync_online_spend',
+                     description: `Usage charge for ${minutesToCharge} minute(s) of ${isLive ? 'Sync Live' : 'Sync Online'}.`,
                      duration: durationMs
                  });
              }
@@ -327,7 +336,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         debouncedCommitToFirestore();
         return tokensSpentThisTurn;
 
-    }, [user, settings, syncLiveUsage, userProfile.tokenBalance, pendingTokenSyncs, debouncedCommitToFirestore, pendingUsageSync]);
+    }, [user, settings, userProfile, pendingTokenSyncs, debouncedCommitToFirestore, pendingUsageSync]);
 
 
    const recordPracticeAttempt = useCallback((args: RecordPracticeAttemptArgs): { wasRewardable: boolean, rewardAmount: number } => {
@@ -422,72 +431,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         return { correct, tokensEarned };
     }, [practiceHistory, settings]);
 
-    const handleSyncOnlineSessionEnd = useCallback(async (durationMs: number) => {
-        if (!user || !settings || durationMs <= 0) return;
-
-        const userDocRef = doc(db, 'users', user.uid);
-        
-        // It's better to read from state here if possible, but reading from server is safer
-        const userDocSnap = await getDoc(userDocRef);
-        const currentProfile = userDocSnap.data() as UserProfile | undefined;
-        if (!currentProfile) return;
-
-        let { syncOnlineUsage = 0, syncOnlineUsageLastReset, tokenBalance = 0 } = currentProfile;
-        
-        const now = new Date();
-        const lastReset = syncOnlineUsageLastReset?.toDate() ?? new Date(0);
-
-        if (lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
-            syncOnlineUsage = 0;
-            syncOnlineUsageLastReset = Timestamp.fromDate(now);
-        }
-
-        const freeMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
-        const billableMs = Math.max(0, durationMs - Math.max(0, freeMs - syncOnlineUsage));
-        
-        let cost = 0;
-        if (billableMs > 0) {
-            const minutesToBill = Math.ceil(billableMs / 60000);
-            cost = minutesToBill * (settings.costPerSyncOnlineMinute || 1);
-        }
-
-        if (cost > tokenBalance) {
-            cost = tokenBalance;
-        }
-        
-        const batch = writeBatch(db);
-
-        const updatePayload: Record<string, any> = {
-            syncOnlineUsage: increment(durationMs)
-        };
-        if (syncOnlineUsage === 0) {
-            updatePayload.syncOnlineUsageLastReset = syncOnlineUsageLastReset;
-        }
-
-        if (cost > 0) {
-            updatePayload.tokenBalance = increment(-cost);
-        }
-
-        batch.update(userDocRef, updatePayload);
-
-        if (cost > 0) {
-            const logRef = doc(collection(userDocRef, 'transactionLogs'));
-            batch.set(logRef, {
-                actionType: 'live_sync_online_spend',
-                tokenChange: -cost,
-                timestamp: serverTimestamp(),
-                description: `Usage charge for ${Math.ceil(billableMs / 60000)} minute(s) of Sync Online.`,
-                duration: durationMs
-            });
-        }
-        
-        try {
-            await batch.commit();
-        } catch (error) {
-            console.error("Error committing Sync Online session end transaction:", error);
-        }
-    }, [user, settings]);
-
     const value: UserDataContextType = {
         user,
         loading: authLoading || isDataLoading,
@@ -500,8 +443,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         recordPracticeAttempt,
         getTopicStats,
         spendTokensForTranslation,
-        handleSyncLiveTurn,
-        handleSyncOnlineSessionEnd,
+        updateSyncLiveUsage,
         loadSingleOfflinePack,
         removeOfflinePack
     };

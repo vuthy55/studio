@@ -392,7 +392,7 @@ export default function SyncRoomPage() {
     const router = useRouter();
     const { toast } = useToast();
     const roomId = params.roomId as string;
-    const { userProfile, settings, handleSyncLiveTurn } = useUserData();
+    const { userProfile, settings, updateSyncLiveUsage } = useUserData();
 
     const [user, authLoading] = useAuthState(auth);
     
@@ -808,8 +808,6 @@ export default function SyncRoomPage() {
                     speakerLanguage: currentUserParticipant.selectedLanguage,
                     createdAt: serverTimestamp(),
                 });
-                
-                // Incorrect call to Sync Live's billing function was here and has been removed.
             }
         } catch (error: any) {
              if (error.message !== "Recognition was aborted.") {
