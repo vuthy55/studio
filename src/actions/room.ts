@@ -4,6 +4,7 @@
 import { db, auth } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
 import type { SyncRoom, Participant, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
+import { getAppSettingsAction } from './settings';
 
 
 /**
@@ -340,8 +341,8 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             
             let refundAmount = 0;
             if (actualDurationMinutes < bookedDurationMinutes) {
-                const minutesToRefund = bookedDurationMinutes - actualDurationMinutes;
                 const costPerMinute = (roomData.initialCost || 0) / bookedDurationMinutes;
+                const minutesToRefund = bookedDurationMinutes - actualDurationMinutes;
                 refundAmount = Math.round(minutesToRefund * costPerMinute);
             }
             
@@ -381,8 +382,7 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
     }
 
     const roomRef = db.collection('syncRooms').doc(roomId);
-    const participantRef = roomRef.collection('participants').doc(userId);
-
+    
     try {
         await db.runTransaction(async (transaction) => {
             const roomDoc = await transaction.get(roomRef);
@@ -395,6 +395,7 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
                 return;
             }
 
+            const participantRef = roomRef.collection('participants').doc(userId);
             const participantDoc = await transaction.get(participantRef);
             if (!participantDoc.exists) return; // Participant already gone
             const participantData = participantDoc.data() as Participant;
@@ -449,4 +450,79 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
     }
 }
 
+/**
+ * Handles sending an in-session reminder to all participants.
+ * This is an idempotent action.
+ */
+export async function handleMeetingReminder(roomId: string, creatorId: string): Promise<{ success: boolean; error?: string }> {
+  if (!roomId || !creatorId) {
+    return { success: false, error: 'Room and Creator IDs are required.' };
+  }
+
+  const roomRef = db.collection('syncRooms').doc(roomId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const roomDoc = await transaction.get(roomRef);
+      if (!roomDoc.exists) throw new Error('Room not found.');
+      const roomData = roomDoc.data() as SyncRoom;
+
+      // Idempotency check
+      if (roomData.endingReminderSent) return;
+
+      const [participantsSnapshot, settings, creatorDoc] = await Promise.all([
+        transaction.get(roomRef.collection('participants')),
+        getAppSettingsAction(),
+        transaction.get(db.collection('users').doc(creatorId))
+      ]);
+      
+      const participantCount = participantsSnapshot.size;
+      const costPerMinute = settings.costPerSyncOnlineMinute || 1;
+      const burnRate = participantCount * costPerMinute;
+
+      const creatorBalance = creatorDoc.data()?.tokenBalance || 0;
+      const extraMinutes = burnRate > 0 ? Math.floor(creatorBalance / burnRate) : 0;
+      
+      const batch = db.batch(); // Use a new batch for notifications within the transaction scope
+      
+      // Generic reminder for all participants
+      const reminderMessage = `This meeting is scheduled to end in ${roomData.reminderMinutes || 5} minutes.`;
+      participantsSnapshot.docs.forEach(p => {
+        const notificationRef = db.collection('notifications').doc();
+        batch.set(notificationRef, {
+            userId: p.id,
+            type: 'ending_soon_reminder',
+            message: reminderMessage,
+            roomId: roomId,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+        });
+      });
+
+      // Specific reminder for the creator
+      if (creatorId) {
+          const creatorNotificationRef = db.collection('notifications').doc();
+          const creatorMessage = `This meeting will end in ${roomData.reminderMinutes || 5} minutes. Your token balance will allow for approx. ${extraMinutes} more minutes.`;
+           batch.set(creatorNotificationRef, {
+            userId: creatorId,
+            type: 'ending_soon_reminder',
+            message: creatorMessage,
+            roomId: roomId,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+        });
+      }
+
+      await batch.commit();
+
+      // Mark that the reminder has been sent
+      transaction.update(roomRef, { endingReminderSent: true });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error sending reminder for room ${roomId}:`, error);
+    return { success: false, error: 'Failed to send meeting reminder.' };
+  }
+}
       

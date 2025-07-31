@@ -74,6 +74,7 @@ export type SyncRoom = {
     hasStarted?: boolean;
     reminderMinutes?: number;
     firstMessageAt?: any; // Timestamp of the first message
+    endingReminderSent?: boolean; // Flag to prevent duplicate end-of-meeting reminders
 }
 
 export type Participant = {
@@ -147,7 +148,7 @@ export interface UserProfile {
   immediateBuddyAlert?: boolean;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request' | 'buddy_request_accepted' | 'buddy_alert' | 'referral_bonus';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request' | 'buddy_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder';
 
 export type Notification = {
     id: string;

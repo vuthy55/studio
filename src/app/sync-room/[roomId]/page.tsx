@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom } from '@/actions/room';
+import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -51,7 +51,7 @@ import {
   DialogClose,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
@@ -441,6 +441,8 @@ export default function SyncRoomPage() {
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const reminderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     
     const isExiting = useRef(false);
     const participantListenerUnsubscribe = useRef<(() => void) | null>(null);
@@ -453,7 +455,7 @@ export default function SyncRoomPage() {
         participantListenerUnsubscribe.current?.();
         messageListenerUnsubscribe.current?.();
         
-        handleParticipantExit(roomId, user.uid);
+        await handleParticipantExit(roomId, user.uid);
         
         const sessionDurationMs = sessionUsageRef.current;
         if (sessionDurationMs > 0) {
@@ -479,6 +481,20 @@ export default function SyncRoomPage() {
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
                 setSessionTimer(`${minutes}:${seconds}`);
             }, 1000);
+
+            // Set up the end-of-meeting reminder timer
+            if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
+            if (roomData.durationMinutes && roomData.reminderMinutes && !roomData.endingReminderSent) {
+                const totalDurationMs = roomData.durationMinutes * 60 * 1000;
+                const reminderTimeMs = roomData.reminderMinutes * 60 * 1000;
+                const timeoutDuration = totalDurationMs - reminderTimeMs;
+                
+                if (timeoutDuration > 0) {
+                    reminderTimeoutRef.current = setTimeout(() => {
+                        handleMeetingReminder(roomId, roomData.creatorUid);
+                    }, timeoutDuration);
+                }
+            }
         }
 
         return () => {
@@ -486,9 +502,13 @@ export default function SyncRoomPage() {
                 clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
+            if (reminderTimeoutRef.current) {
+                clearTimeout(reminderTimeoutRef.current);
+                reminderTimeoutRef.current = null;
+            }
              setSessionTimer('00:00'); 
         };
-    }, [roomData?.firstMessageAt, roomData?.lastSessionEndedAt, isParticipant]);
+    }, [roomData, isParticipant, roomId]);
     
     
     useEffect(() => {
