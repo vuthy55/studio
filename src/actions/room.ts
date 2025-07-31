@@ -561,3 +561,5 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
         return { success: false, error: error.message || 'Could not volunteer to pay.' };
     }
 }
+
+    
