@@ -412,7 +412,7 @@ function FinancialTabContent() {
     }>({
         description: '',
         amount: '',
-        userEmail: '',
+        userEmail: user?.email || '',
         link: '',
         source: 'manual'
     });
@@ -757,7 +757,7 @@ function FinancialTabContent() {
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleClearLedger} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                        Confirm & Delete
+                                        Confirm &amp; Delete
                                     </AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
@@ -861,6 +861,8 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
             return;
         }
 
+        const { email, amount, reason, description } = formState;
+
         if (!email || !amount || amount <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Input', description: 'Please provide a valid email and a positive amount.' });
             return;
@@ -924,7 +926,7 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
                         <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                            Confirm & Issue Tokens
+                            Confirm &amp; Issue Tokens
                         </Button>
                     </DialogFooter>
                 </form>
@@ -1072,7 +1074,7 @@ function TokensTabContent() {
             <CardContent>
                 <Card className="mb-6">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-xl"><Banknote/> Total Tokens In System</CardTitle>
+                        <CardTitle className="flex items-center gap-2"><Banknote/> Total Tokens In System</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-4xl font-bold">{analytics.totalTokensInSystem.toLocaleString()}</div>
@@ -1158,7 +1160,7 @@ function TokensTabContent() {
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction onClick={handleClearLedger} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                                        Confirm & Delete All
+                                                        Confirm &amp; Delete All
                                                     </AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
@@ -1290,7 +1292,25 @@ function RoomsTabContent() {
     };
   }, [rooms]);
 
-  const handleDeleteRooms = async (roomIds: string[]) => {
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!user) return;
+    setIsDeleting(true);
+    try {
+        const result = await permanentlyDeleteRooms([roomId]);
+        if (result.success) {
+            toast({ title: "Success", description: `Room deleted.` });
+            await handleFetchRooms();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete room.' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteAllInCategory = async (roomIds: string[]) => {
     if (!user || roomIds.length === 0) return;
     setIsDeleting(true);
     try {
@@ -1302,12 +1322,12 @@ function RoomsTabContent() {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
     } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete rooms and their subcollections.' });
-        
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete rooms.' });
     } finally {
         setIsDeleting(false);
     }
   };
+
 
   const RoomList = ({ title, rooms, allowDeleteAll }: { title: string; rooms: ClientSyncRoom[], allowDeleteAll: boolean }) => (
     <div>
@@ -1325,7 +1345,7 @@ function RoomsTabContent() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteRooms(rooms.map(r => r.id))}>Confirm Delete All</AlertDialogAction>
+                            <AlertDialogAction onClick={() => handleDeleteAllInCategory(rooms.map(r => r.id))}>Confirm Delete All</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
@@ -1336,6 +1356,11 @@ function RoomsTabContent() {
                 <TableBody>
                     {rooms.map(room => (
                         <TableRow key={room.id}>
+                            <TableCell className="w-12 p-2">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteRoom(room.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                            </TableCell>
                             <TableCell className="p-2 font-medium">
                                 {room.topic}
                             </TableCell>
@@ -1350,23 +1375,6 @@ function RoomsTabContent() {
                                     />
                                   </>
                                 )}
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete room: "{room.topic}"?</AlertDialogTitle>
-                                            <AlertDialogDescription>This action is permanent and cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteRooms([room.id])}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
                             </TableCell>
                         </TableRow>
                     ))}
@@ -1381,7 +1389,7 @@ function RoomsTabContent() {
       <CardHeader>
         <CardTitle>Room Management</CardTitle>
         <CardDescription>
-          View all rooms in the system. Use this tool to permanently delete rooms or manage summary edit permissions.
+          Use this tool to manage rooms. Deleting individual rooms is immediate. Deleting all rooms in a category requires confirmation.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1406,7 +1414,7 @@ function RoomsTabContent() {
         {rooms.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                <RoomList title="Rooms with Summaries" rooms={closedWithSummary} allowDeleteAll={true} />
-               <RoomList title="Active & Scheduled" rooms={[...activeRooms, ...scheduledRooms]} allowDeleteAll={false} />
+               <RoomList title="Active &amp; Scheduled" rooms={[...activeRooms, ...scheduledRooms]} allowDeleteAll={false} />
                <RoomList title="Closed (No Summary)" rooms={closedWithoutSummary} allowDeleteAll={true} />
           </div>
         )}
@@ -1471,7 +1479,7 @@ function BulkActionsContent() {
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                             <AlertDialogAction onClick={handleClearNotifications} disabled={isLoading}>
                                                 {isLoading && <LoaderCircle className="animate-spin mr-2" />}
-                                                Confirm & Delete
+                                                Confirm &amp; Delete
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
