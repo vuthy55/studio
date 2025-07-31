@@ -82,6 +82,7 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
             initialCost: data.initialCost,
             paymentLogId: data.paymentLogId,
             hasStarted: data.hasStarted || false,
+            reminderMinutes: data.reminderMinutes,
             createdAt: toISO(data.createdAt),
             lastActivityAt: toISO(data.lastActivityAt),
             scheduledAt: toISO(data.scheduledAt),
