@@ -96,7 +96,7 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
         router.push('/synchub?tab=sync-online');
     }
 
-    return (
+    return (        
         <div className="flex items-center justify-center min-h-screen">
             <Card className="w-full max-w-md">
                 <CardHeader>
@@ -436,7 +436,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>());
+    const processedMessages = useRef(new Set<string>>();
     
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
@@ -465,24 +465,52 @@ export default function SyncRoomPage() {
         router.push('/synchub?tab=sync-online');
     }, [user, roomId, router, handleSyncOnlineSessionEnd]);
 
-
-    // Dynamic reminder timer logic
+    // This hook now only handles the visual session timer, and runs for everyone.
     useEffect(() => {
-        if (!roomData || !user || !participants.length) {
+        if (roomData?.firstMessageAt) {
+            const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
+
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+
+            timerIntervalRef.current = setInterval(() => {
+                const now = Date.now();
+                const elapsedMs = now - startTime;
+                sessionUsageRef.current = elapsedMs;
+
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                setSessionTimer(`${minutes}:${seconds}`);
+            }, 1000);
+            
+            return () => {
+                if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            };
+        }
+    }, [roomData?.firstMessageAt]);
+
+    // Dynamic reminder timer logic - now runs for everyone but only triggers for one.
+    useEffect(() => {
+        if (!roomData || !user || !participants.length || roomData.status !== 'active' || roomData.endingReminderSent) {
             return;
         }
 
+        // 1. Determine who is responsible for the trigger
         const activeEmcees = participants
             .filter(p => roomData.emceeEmails.includes(p.email))
             .sort((a, b) => a.uid.localeCompare(b.uid));
 
-        if (activeEmcees.length === 0) return;
+        // If no emcees are present, fall back to any participant
+        const potentialTriggers = activeEmcees.length > 0 ? activeEmcees : [...participants].sort((a, b) => a.uid.localeCompare(b.uid));
 
-        const triggerEmceeId = activeEmcees[0].uid;
-        const amITrigger = user.uid === triggerEmceeId;
+        if (potentialTriggers.length === 0) return; // No one to trigger
 
-        const startTimer = () => {
-            if (roomData.firstMessageAt && roomData.durationMinutes && roomData.reminderMinutes && !roomData.endingReminderSent) {
+        const triggerParticipantId = potentialTriggers[0].uid;
+        const amITrigger = user.uid === triggerParticipantId;
+
+        // 2. Logic to set or clear the timer
+        const startReminderTimer = () => {
+            if (roomData.firstMessageAt && roomData.durationMinutes && roomData.reminderMinutes) {
                 const totalDurationMs = roomData.durationMinutes * 60 * 1000;
                 const reminderTimeMs = roomData.reminderMinutes * 60 * 1000;
                 
@@ -491,8 +519,9 @@ export default function SyncRoomPage() {
                 
                 const timeoutDuration = totalDurationMs - reminderTimeMs - timeSinceStart;
 
+                if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current); // Clear previous timer
+
                 if (timeoutDuration > 0) {
-                    if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
                     reminderTimeoutRef.current = setTimeout(() => {
                         handleMeetingReminder(roomId, roomData.creatorUid);
                     }, timeoutDuration);
@@ -501,13 +530,19 @@ export default function SyncRoomPage() {
         };
 
         if (amITrigger) {
-            startTimer();
+            startReminderTimer();
         } else {
+            // If I am not the trigger, I must ensure I have no active timer.
             if (reminderTimeoutRef.current) {
                 clearTimeout(reminderTimeoutRef.current);
                 reminderTimeoutRef.current = null;
             }
         }
+        
+        // Cleanup on unmount or dependency change
+        return () => {
+            if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
+        };
 
     }, [participants, roomData, user]);
 
@@ -805,8 +840,6 @@ export default function SyncRoomPage() {
     const handleMicPress = async () => {
         if (!currentUserParticipant?.selectedLanguage || currentUserParticipant?.isMuted || !user) return;
 
-        sessionUsageRef.current += Date.now() - (sessionUsageRef.current || Date.now());
-        
         if (roomData && !roomData.firstMessageAt) {
             await setFirstMessageTimestamp(roomId);
         }
