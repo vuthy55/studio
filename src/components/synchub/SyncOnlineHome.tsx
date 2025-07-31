@@ -45,7 +45,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { softDeleteRoom, requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, handleEmceeExit, updateRoomSummary } from '@/actions/room';
+import { softDeleteRoom, requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
@@ -872,7 +872,7 @@ export default function SyncOnlineHome() {
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !user.email || !userProfile) {
+        if (!user || !user.email || !userProfile || !settings) {
             toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create or edit a room.' });
             return;
         }
@@ -945,6 +945,7 @@ export default function SyncOnlineHome() {
                     durationMinutes: duration,
                     initialCost: calculatedCost,
                     hasStarted: startNow,
+                    reminderMinutes: settings.roomReminderMinutes,
                 };
                 batch.set(newRoomRef, newRoom);
                 
@@ -1283,7 +1284,7 @@ export default function SyncOnlineHome() {
                                                                 value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
                                                             onValueChange={(value) => {
                                                                 setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : a new Date();
+                                                                    const newDate = d ? new Date(d) : new Date();
                                                                     newDate.setMinutes(parseInt(value));
                                                                     return newDate;
                                                                 });

@@ -446,14 +446,12 @@ export default function SyncRoomPage() {
     const participantListenerUnsubscribe = useRef<(() => void) | null>(null);
     const messageListenerUnsubscribe = useRef<(() => void) | null>(null);
 
-    const handleExitRoom = useCallback(async () => {
+    const handleManualExit = useCallback(async () => {
         if (!user || isExiting.current) return;
         isExiting.current = true;
         
         participantListenerUnsubscribe.current?.();
         messageListenerUnsubscribe.current?.();
-        
-        router.push('/synchub?tab=sync-online');
         
         handleParticipantExit(roomId, user.uid);
         
@@ -461,6 +459,8 @@ export default function SyncRoomPage() {
         if (sessionDurationMs > 0) {
             handleSyncOnlineSessionEnd(sessionDurationMs);
         }
+
+        router.push('/synchub?tab=sync-online');
     }, [user, roomId, router, handleSyncOnlineSessionEnd]);
 
 
@@ -490,10 +490,6 @@ export default function SyncRoomPage() {
         };
     }, [roomData?.firstMessageAt, roomData?.lastSessionEndedAt, isParticipant]);
     
-    
-    const handleManualExit = async () => {
-        await handleExitRoom();
-    };
     
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -618,21 +614,22 @@ export default function SyncRoomPage() {
                 description: 'An emcee has removed you from the room.',
                 duration: 5000,
             });
-            handleExitRoom();
+            handleManualExit();
         }
-    }, [participants, isParticipant, user, toast, handleExitRoom]);
+    }, [participants, isParticipant, user, toast, handleManualExit]);
 
     useEffect(() => {
-        if (!roomData || !user) return;
-        if (isExiting.current) return;
+        if (!roomData || !user || isExiting.current) return;
 
         if (roomData.status === 'closed') {
-            toast({
-                title: 'Meeting Ended',
-                description: 'This room has been closed by the emcee.',
-                duration: 5000,
-            });
-            handleExitRoom();
+            if (!isExiting.current) {
+                toast({
+                    title: 'Meeting Ended',
+                    description: 'This room has been closed by the emcee.',
+                    duration: 5000,
+                });
+                handleManualExit();
+            }
         }
         if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
             toast({
@@ -641,9 +638,9 @@ export default function SyncRoomPage() {
                 description: 'You have been blocked from this room.',
                 duration: 5000
             });
-            handleExitRoom();
+            handleManualExit();
         }
-    }, [roomData, user, toast, handleExitRoom]);
+    }, [roomData, user, toast, handleManualExit]);
 
     useEffect(() => {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
