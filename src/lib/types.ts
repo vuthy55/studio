@@ -1,5 +1,4 @@
 
-
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 import type { LanguageCode } from './data';
@@ -75,6 +74,8 @@ export type SyncRoom = {
     reminderMinutes?: number;
     firstMessageAt?: any; // Timestamp of the first message
     endingReminderSent?: boolean; // Flag to prevent duplicate end-of-meeting reminders
+    currentPayorId?: string; // UID of the user currently funding overtime
+    effectiveEndTime?: any; // Timestamp when the room will close based on current funding
 }
 
 export type Participant = {
@@ -91,8 +92,13 @@ export type RoomMessage = {
     text: string;
     speakerName: string;
     speakerUid: string;
-    speakerLanguage: AzureLanguageCode | '';
+    speakerLanguage?: AzureLanguageCode | '';
     createdAt: Timestamp;
+    // New fields for special system messages
+    type?: 'reminder' | 'system';
+    privateText?: string;
+    creatorUid?: string;
+    actions?: ('payToContinue')[];
 }
 
 export type TransactionLog = {

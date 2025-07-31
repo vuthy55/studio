@@ -493,7 +493,7 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
 
     const batch = db.batch();
     
-    const genericReminderMessage = `This meeting is scheduled to end in ${minutesRemaining} minutes.`;
+    const genericReminderMessage = `This meeting is scheduled to end in ${minutesRemaining} minutes. An Emcee can choose to extend it.`;
     const creatorReminderMessage = `This meeting will end in ${minutesRemaining} minutes. Your token balance will allow for approx. ${extraMinutes} more minutes.`;
 
     // 1. In-Chat System Message
@@ -502,10 +502,11 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
         speakerUid: 'system',
         speakerName: 'VibeSync Bot',
         type: 'reminder',
-        text: genericReminderMessage, // Generic message for chat
-        privateText: creatorReminderMessage, // Specific message for creator
+        text: genericReminderMessage,
+        privateText: creatorReminderMessage,
         creatorUid: creatorId,
         createdAt: FieldValue.serverTimestamp(),
+        actions: ['payToContinue'],
     });
 
     // 2. In-App Notifications for all participants

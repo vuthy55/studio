@@ -51,7 +51,7 @@ import {
   DialogClose,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Textarea } from '@/components/ui/textarea';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
@@ -669,12 +669,19 @@ export default function SyncRoomPage() {
             if (msg.speakerUid === user.uid || processedMessages.current.has(msg.id)) {
                 return;
             }
+            
+             // Skip processing for system messages that aren't reminders with actions
+            if (msg.speakerUid === 'system' && !msg.actions?.includes('payToContinue')) {
+                processedMessages.current.add(msg.id);
+                return;
+            }
+
             processedMessages.current.add(msg.id);
             
             try {
                 setIsSpeaking(true);
                 
-                const fromLangLabel = getAzureLanguageLabel(msg.speakerLanguage);
+                const fromLangLabel = msg.speakerLanguage ? getAzureLanguageLabel(msg.speakerLanguage) : 'English';
                 const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage!);
                 
                 const translated = await translateText({
@@ -982,7 +989,29 @@ export default function SyncRoomPage() {
                         <div className="space-y-4">
                             {messages.map((msg) => {
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                const displayText = isOwnMessage ? msg.text : (translatedMessages[msg.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage)}...`);
+                                let displayText: React.ReactNode = isOwnMessage ? msg.text : (translatedMessages[msg.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage || '')}...`);
+                                
+                                // Handle system messages
+                                if (msg.type === 'reminder') {
+                                    const isCreator = user?.uid === msg.creatorUid;
+                                    displayText = isCreator ? msg.privateText || msg.text : msg.text;
+                                }
+
+                                if (msg.type === 'reminder') {
+                                    return (
+                                        <div key={msg.id} className="p-3 my-2 rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-sm">
+                                            <div className="flex items-center gap-3">
+                                                <Info className="h-5 w-5" />
+                                                <div className="flex-grow">
+                                                    <p>{displayText}</p>
+                                                    {msg.actions?.includes('payToContinue') && (
+                                                        <Button size="sm" className="mt-2">Pay to Continue</Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                }
 
                                 return (
                                     <div key={msg.id} className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
