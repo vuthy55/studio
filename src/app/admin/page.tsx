@@ -1868,14 +1868,16 @@ function FeedbackTabContent() {
 function AdminPageContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const pathname = '/admin'; // Hardcode for this page
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'rooms');
 
-    const onTabChange = (value: string) => {
+    const handleTabChange = (value: string) => {
         setActiveTab(value);
-        router.push(`${pathname}?tab=${value}`);
+        // Use router.push to update the URL without a full page reload
+        router.push(`/admin?tab=${value}`, { scroll: false });
     };
     
+    // This effect ensures the component's state stays in sync with the URL
+    // if the user navigates with the back/forward browser buttons.
     useEffect(() => {
         const currentTab = searchParams.get('tab');
         if (currentTab && currentTab !== activeTab) {
@@ -1899,7 +1901,7 @@ function AdminPageContent() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-             <Tabs value={activeTab} onValueChange={onTabChange}>
+             <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className="grid w-full grid-cols-9 h-auto">
                     {adminTabs.map(tab => (
                         <TooltipProvider key={tab.value} delayDuration={0}>
