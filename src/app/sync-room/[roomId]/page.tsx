@@ -495,23 +495,23 @@ export default function SyncRoomPage() {
         if (!roomData || !user || !participants.length || roomData.status !== 'active' || roomData.endingReminderSent) {
             return;
         }
+    
+        const triggerParticipantId = [...participants].sort((a, b) => a.uid.localeCompare(b.uid))[0]?.uid;
+        if (!triggerParticipantId) return;
 
-        // 1. Deterministically find the trigger participant.
-        const activeParticipants = [...participants].sort((a, b) => a.uid.localeCompare(b.uid));
-        if (activeParticipants.length === 0) return;
-
-        const triggerParticipantId = activeParticipants[0].uid;
         const amITrigger = user.uid === triggerParticipantId;
 
-        // 2. Logic to set or clear the timer
         const startReminderTimer = () => {
+            if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
+            
             if (roomData.firstMessageAt && roomData.durationMinutes && roomData.reminderMinutes) {
-                const scheduledEnd = (roomData.firstMessageAt as Timestamp).toMillis() + (roomData.durationMinutes * 60 * 1000);
-                const reminderTime = scheduledEnd - (roomData.reminderMinutes * 60 * 1000);
-                const timeoutDuration = reminderTime - Date.now();
-                
-                if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
+                const startTimeMs = (roomData.firstMessageAt as Timestamp).toMillis();
+                const durationMs = roomData.durationMinutes * 60 * 1000;
+                const reminderLeadMs = roomData.reminderMinutes * 60 * 1000;
 
+                const reminderTimeMs = startTimeMs + durationMs - reminderLeadMs;
+                const timeoutDuration = reminderTimeMs - Date.now();
+                
                 if (timeoutDuration > 0) {
                     reminderTimeoutRef.current = setTimeout(() => {
                         handleMeetingReminder(roomId, roomData.creatorUid);
@@ -532,7 +532,7 @@ export default function SyncRoomPage() {
         return () => {
             if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
         };
-
+    
     }, [participants, roomData, user, roomId]);
 
     
@@ -691,34 +691,40 @@ export default function SyncRoomPage() {
         if (!messages.length || !user || !currentUserParticipant?.selectedLanguage) return;
 
         const processMessage = async (msg: RoomMessage) => {
+            // Skip processing for own messages or already processed messages
             if (msg.speakerUid === user.uid || processedMessages.current.has(msg.id)) {
                 return;
             }
             
-             // Skip processing for system messages that aren't reminders with actions
-            if (msg.speakerUid === 'system' && !msg.actions?.includes('payToContinue')) {
-                processedMessages.current.add(msg.id);
-                return;
+            // For system messages, only process if they are unread.
+            if (msg.speakerUid === 'system') {
+                if (processedMessages.current.has(msg.id)) return;
             }
-
-            processedMessages.current.add(msg.id);
             
+            processedMessages.current.add(msg.id);
+
             try {
                 setIsSpeaking(true);
                 
-                const fromLangLabel = msg.speakerLanguage ? getAzureLanguageLabel(msg.speakerLanguage) : 'English';
+                // If it's a system message, the text is already in English.
+                let textToTranslate = msg.text;
+                let fromLangLabel = msg.speakerLanguage ? getAzureLanguageLabel(msg.speakerLanguage) : 'English';
                 const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage!);
-                
-                const translated = await translateText({
-                    text: msg.text,
-                    fromLanguage: fromLangLabel,
-                    toLanguage: toLangLabel,
-                });
 
-                setTranslatedMessages(prev => ({...prev, [msg.id]: translated.translatedText}));
+                // No need to translate if the source and target are the same language group (e.g., en-US to en-GB)
+                if (fromLangLabel.split(' ')[0] !== toLangLabel.split(' ')[0]) {
+                     const translated = await translateText({
+                        text: textToTranslate,
+                        fromLanguage: fromLangLabel,
+                        toLanguage: toLangLabel,
+                    });
+                    textToTranslate = translated.translatedText;
+                }
+                
+                setTranslatedMessages(prev => ({...prev, [msg.id]: textToTranslate}));
                 
                 const { audioDataUri } = await generateSpeech({ 
-                    text: translated.translatedText, 
+                    text: textToTranslate, 
                     lang: currentUserParticipant.selectedLanguage!,
                 });
                 
@@ -1026,7 +1032,7 @@ export default function SyncRoomPage() {
                         <div className="space-y-4">
                             {messages.map((msg) => {
                                 const isOwnMessage = msg.speakerUid === user?.uid;
-                                let displayText: React.ReactNode = isOwnMessage ? msg.text : (translatedMessages[msg.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage || '')}...`);
+                                let displayText: React.ReactNode = isOwnMessage ? msg.text : (translatedMessages[msg.id] || (msg.speakerUid === 'system' ? msg.text : `Translating from ${getAzureLanguageLabel(msg.speakerLanguage || '')}...`));
                                 
                                 if (msg.type === 'reminder') {
                                     return (
@@ -1045,6 +1051,14 @@ export default function SyncRoomPage() {
                                             </div>
                                         </div>
                                     )
+                                }
+                                
+                                if (msg.speakerUid === 'system') {
+                                     return (
+                                        <div key={msg.id} className="p-2 my-1 rounded-md bg-secondary text-secondary-foreground text-sm text-center italic">
+                                            <p>{translatedMessages[msg.id] || msg.text}</p>
+                                        </div>
+                                     )
                                 }
 
                                 return (
@@ -1077,9 +1091,9 @@ export default function SyncRoomPage() {
                        <Button 
                             size="lg" 
                             className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
-                            onClick={handleMicPress}
+                            onClick={isListening ? abortRecognition : handleMicPress}
                             disabled={isSpeaking || currentUserParticipant?.isMuted}
-                            title={currentUserParticipant?.isMuted ? 'You are muted' : 'Press to talk'}
+                            title={currentUserParticipant?.isMuted ? 'You are muted' : (isListening ? 'Stop listening' : 'Press to talk')}
                         >
                             {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
                         </Button>
@@ -1093,4 +1107,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
