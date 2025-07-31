@@ -799,7 +799,8 @@ function ReferralsSection() {
         setHasFetched(true);
         try {
             const referredUsers = await getReferredUsers(user.uid);
-            setReferrals(referredUsers);
+            const sortedUsers = referredUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setReferrals(sortedUsers);
         } catch (error) {
             console.error("Error fetching referrals:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load your referrals.' });
