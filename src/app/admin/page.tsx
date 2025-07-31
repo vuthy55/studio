@@ -1867,12 +1867,19 @@ function FeedbackTabContent() {
 
 function AdminPageContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = '/admin'; // Hardcode for this page
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'rooms');
 
+    const onTabChange = (value: string) => {
+        setActiveTab(value);
+        router.push(`${pathname}?tab=${value}`);
+    };
+    
     useEffect(() => {
-        const tab = searchParams.get('tab');
-        if (tab && tab !== activeTab) {
-            setActiveTab(tab);
+        const currentTab = searchParams.get('tab');
+        if (currentTab && currentTab !== activeTab) {
+            setActiveTab(currentTab);
         }
     }, [searchParams, activeTab]);
 
@@ -1892,7 +1899,7 @@ function AdminPageContent() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-             <Tabs value={activeTab} onValueChange={setActiveTab}>
+             <Tabs value={activeTab} onValueChange={onTabChange}>
                 <TabsList className="grid w-full grid-cols-9 h-auto">
                     {adminTabs.map(tab => (
                         <TooltipProvider key={tab.value} delayDuration={0}>
