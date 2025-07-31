@@ -450,13 +450,11 @@ export default function SyncRoomPage() {
         if (!user || isExiting.current) return;
         isExiting.current = true;
         
-        // --- KEY FIX: Detach listeners BEFORE navigating or calling server actions ---
         participantListenerUnsubscribe.current?.();
         messageListenerUnsubscribe.current?.();
         
         router.push('/synchub?tab=sync-online');
         
-        // This is now a true fire-and-forget call
         handleParticipantExit(roomId, user.uid);
         
         const sessionDurationMs = sessionUsageRef.current;
@@ -467,11 +465,9 @@ export default function SyncRoomPage() {
 
 
     useEffect(() => {
-        // Start timer if session has started and user is an active participant
         if (roomData?.firstMessageAt && isParticipant === 'yes' && !roomData?.lastSessionEndedAt) {
             const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
             
-            // Clear any existing interval before starting a new one
             if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
             }
@@ -490,7 +486,7 @@ export default function SyncRoomPage() {
                 clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
-             setSessionTimer('00:00'); // Reset timer display on cleanup
+             setSessionTimer('00:00'); 
         };
     }, [roomData?.firstMessageAt, roomData?.lastSessionEndedAt, isParticipant]);
     
@@ -627,7 +623,9 @@ export default function SyncRoomPage() {
     }, [participants, isParticipant, user, toast, handleExitRoom]);
 
     useEffect(() => {
-        if (!roomData || !user || isExiting.current) return;
+        if (!roomData || !user) return;
+        if (isExiting.current) return;
+
         if (roomData.status === 'closed') {
             toast({
                 title: 'Meeting Ended',
