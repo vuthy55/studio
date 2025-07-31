@@ -799,6 +799,8 @@ function ReferralsSection() {
         setHasFetched(true);
         try {
             const referredUsers = await getReferredUsers(user.uid);
+            // Client-side sorting
+            referredUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             setReferrals(referredUsers);
         } catch (error) {
             console.error("Error fetching referrals:", error);
