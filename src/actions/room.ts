@@ -315,60 +315,91 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             if (!roomDoc.exists) throw new Error('Room not found.');
 
             const roomData = roomDoc.data() as SyncRoom;
-            
-            // If the room was never started, it's a full refund of the initial cost.
+            const initialCost = roomData.initialCost || 0;
+
+            // Phase 1: Handle meetings that never started.
             if (!roomData.firstMessageAt) {
-                transaction.update(roomRef, { status: 'closed' });
-                if (roomData.initialCost && roomData.initialCost > 0) {
+                transaction.update(roomRef, { status: 'closed', lastActivityAt: FieldValue.serverTimestamp() });
+                if (initialCost > 0) {
                     const creatorRef = db.collection('users').doc(roomData.creatorUid);
-                    transaction.update(creatorRef, { tokenBalance: FieldValue.increment(roomData.initialCost) });
+                    transaction.update(creatorRef, { tokenBalance: FieldValue.increment(initialCost) });
                     const logRef = creatorRef.collection('transactionLogs').doc();
                     transaction.set(logRef, {
                         actionType: 'sync_online_refund',
-                        tokenChange: roomData.initialCost,
+                        tokenChange: initialCost,
                         timestamp: FieldValue.serverTimestamp(),
                         description: `Refund for unused room: "${roomData.topic}"`
                     });
                 }
-                return;
+                return; // Reconciliation complete for unused room.
             }
-
-            // If the room was started, calculate prorated refund.
+            
+            // If we reach here, the meeting started.
             const creatorRef = db.collection('users').doc(roomData.creatorUid);
             const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
             const endTime = Date.now();
             const actualDurationMinutes = Math.ceil((endTime - startTime) / 60000);
             const bookedDurationMinutes = roomData.durationMinutes || 0;
-            
+
+            // Phase 2: Reconcile the initial booked time for the CREATOR.
             let refundAmount = 0;
             if (actualDurationMinutes < bookedDurationMinutes) {
-                const costPerMinute = (roomData.initialCost || 0) / bookedDurationMinutes;
+                const costPerMinute = initialCost / bookedDurationMinutes;
                 const minutesToRefund = bookedDurationMinutes - actualDurationMinutes;
                 refundAmount = Math.round(minutesToRefund * costPerMinute);
             }
             
-            const updates: any = { status: 'closed' };
-            if (refundAmount > 0) {
-                 updates['summary.refundAmount'] = refundAmount; // Optional: Log refund in summary
-            }
-            transaction.update(roomRef, updates);
-
             if (refundAmount > 0) {
                 transaction.update(creatorRef, { tokenBalance: FieldValue.increment(refundAmount) });
-                
                 const logRef = creatorRef.collection('transactionLogs').doc();
                 transaction.set(logRef, {
                     actionType: 'sync_online_refund',
                     tokenChange: refundAmount,
                     timestamp: FieldValue.serverTimestamp(),
-                    description: `Refund for unused time in room: "${roomData.topic}"`
+                    description: `Prorated refund for room: "${roomData.topic}"`
                 });
             }
+
+            // Phase 3: Reconcile OVERTIME for the VOLUNTEER.
+            const overtimeMinutes = Math.max(0, actualDurationMinutes - bookedDurationMinutes);
+            if (overtimeMinutes > 0 && roomData.currentPayorId) {
+                const settings = await getAppSettingsAction();
+                const participantsSnapshot = await transaction.get(roomRef.collection('participants'));
+                const participantCount = participantsSnapshot.size;
+                const costPerPersonPerMinute = settings.costPerSyncOnlineMinute || 1;
+                
+                const overtimeCost = overtimeMinutes * participantCount * costPerPersonPerMinute;
+                
+                if (overtimeCost > 0) {
+                    const payorRef = db.collection('users').doc(roomData.currentPayorId);
+                    // Check payor's balance before debiting
+                    const payorDoc = await transaction.get(payorRef);
+                    const payorBalance = payorDoc.data()?.tokenBalance || 0;
+                    const finalCharge = Math.min(overtimeCost, payorBalance); // Don't charge more than they have
+
+                    if(finalCharge > 0) {
+                        transaction.update(payorRef, { tokenBalance: FieldValue.increment(-finalCharge) });
+                        const logRef = payorRef.collection('transactionLogs').doc();
+                        transaction.set(logRef, {
+                            actionType: 'live_sync_online_spend',
+                            tokenChange: -finalCharge,
+                            timestamp: FieldValue.serverTimestamp(),
+                            description: `Overtime charge for room: "${roomData.topic}"`
+                        });
+                    }
+                }
+            }
+
+            // Finally, update the room status.
+            transaction.update(roomRef, { 
+                status: 'closed',
+                lastActivityAt: FieldValue.serverTimestamp() 
+            });
         });
         return { success: true };
     } catch (error: any) {
         console.error(`Error reconciling room ${roomId}:`, error);
-        return { success: false, error: 'An unexpected server error occurred.' };
+        return { success: false, error: 'An unexpected server error occurred during reconciliation.' };
     }
 }
 
