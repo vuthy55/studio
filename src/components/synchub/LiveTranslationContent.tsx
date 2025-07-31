@@ -1,8 +1,7 @@
 
-
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +23,8 @@ import { azureLanguages } from '@/lib/azure-languages';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
 import { useTour, TourStep } from '@/context/TourContext';
-
+import { openDB } from 'idb';
+import type { AudioPack } from '@/lib/types';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -64,6 +64,9 @@ const liveTranslationTourSteps: TourStep[] = [
   },
 ];
 
+async function getDb() {
+  return openDB('VibeSync-Offline', 2);
+}
 
 export default function LiveTranslationContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
@@ -73,6 +76,7 @@ export default function LiveTranslationContent() {
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
@@ -142,8 +146,9 @@ export default function LiveTranslationContent() {
     const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
         if (!text || isRecognizing || assessingPhraseId) return;
 
-        const savedPhrasesPack = offlineAudioPacks['user_saved_phrases'];
-        const audioDataUri = savedPhrasesPack?.[phraseId];
+        const db = await getDb();
+        const savedAudioPack = await db.get('AudioPacks', 'user_saved_phrases') as AudioPack | undefined;
+        const audioDataUri = savedAudioPack?.[phraseId];
         
         if (audioDataUri) {
             const audio = new Audio(audioDataUri);
@@ -152,7 +157,7 @@ export default function LiveTranslationContent() {
         }
 
         if (!isOnline) {
-            toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download your saved phrases for offline listening.' });
+            toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'This specific audio has not been saved for offline use.' });
             return;
         }
         
@@ -300,30 +305,79 @@ export default function LiveTranslationContent() {
     }
   };
 
-    const handleSavePhrase = () => {
-        if (!inputText || !translatedText) return;
+    const handleSavePhrase = async () => {
+        if (!inputText || !translatedText || !user || !settings) return;
 
-        const newPhrase: SavedPhrase = {
-            id: `saved_${new Date().getTime()}`,
-            fromLang: fromLanguage,
-            toLang: toLanguage,
-            fromText: inputText,
-            toText: translatedText,
-        };
-        
-        const isDuplicate = savedPhrases.some(p => p.fromText === newPhrase.fromText && p.toText === newPhrase.toText);
+        const isDuplicate = savedPhrases.some(p => p.fromText === inputText && p.toText === translatedText);
         if (isDuplicate) {
             toast({ variant: "default", title: "Already Saved", description: "This phrase is already in your practice list." });
             return;
         }
 
-        setSavedPhrases([newPhrase, ...savedPhrases]);
-        toast({ title: "Phrase Saved", description: "Added to your practice list below." });
+        setIsSaving(true);
+        try {
+            // 1. Generate audio first
+            const toLocale = languageToLocaleMap[toLanguage];
+            if (!toLocale) throw new Error("Unsupported language for audio generation.");
+            const { audioDataUri } = await generateSpeech({ text: translatedText, lang: toLocale, voice: selectedVoice });
+
+            // 2. Charge user only on successful audio generation
+            const description = `Saved phrase for offline: "${inputText.substring(0, 30)}..."`;
+            const spendSuccess = spendTokensForTranslation(description);
+
+            if (!spendSuccess) {
+                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens to save this phrase.' });
+                setIsSaving(false);
+                return;
+            }
+
+            // 3. Save text and audio locally
+            const newPhrase: SavedPhrase = {
+                id: `saved_${new Date().getTime()}`,
+                fromLang: fromLanguage,
+                toLang: toLanguage,
+                fromText: inputText,
+                toText: translatedText,
+            };
+
+            const db = await getDb();
+            const tx = db.transaction('AudioPacks', 'readwrite');
+            const store = tx.objectStore('AudioPacks');
+            let audioPack = await store.get('user_saved_phrases') as AudioPack | undefined;
+            if (!audioPack) audioPack = {};
+            audioPack[newPhrase.id] = audioDataUri;
+            await store.put(audioPack, 'user_saved_phrases');
+            await tx.done;
+
+            setSavedPhrases([newPhrase, ...savedPhrases]);
+            toast({ title: "Phrase Saved Offline", description: "Audio is now available for offline practice." });
+            
+        } catch (error: any) {
+            console.error("Error saving phrase:", error);
+            toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the phrase and its audio." });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const handleRemovePhrase = (idToRemove: string) => {
+    const handleRemovePhrase = async (idToRemove: string) => {
         setSavedPhrases(savedPhrases.filter(p => p.id !== idToRemove));
-        toast({ title: "Phrase Removed", description: "Removed from your practice list." });
+        
+        try {
+            const db = await getDb();
+            const tx = db.transaction('AudioPacks', 'readwrite');
+            const store = tx.objectStore('AudioPacks');
+            const audioPack = await store.get('user_saved_phrases') as AudioPack | undefined;
+            if (audioPack && audioPack[idToRemove]) {
+                delete audioPack[idToRemove];
+                await store.put(audioPack, 'user_saved_phrases');
+            }
+            await tx.done;
+            toast({ title: "Phrase Removed", description: "Removed from your practice list." });
+        } catch (error) {
+            console.error("Error removing audio from IndexedDB:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not remove offline audio." });
+        }
     }
 
     return (
@@ -462,8 +516,8 @@ export default function LiveTranslationContent() {
                                             </TooltipTrigger>
                                         </Tooltip>
                                     </TooltipProvider>
-                                    <Button size="icon" variant="ghost" onClick={handleSavePhrase} disabled={!translatedText}>
-                                        <Bookmark className="h-5 w-5" />
+                                    <Button size="icon" variant="ghost" onClick={handleSavePhrase} disabled={!translatedText || isSaving}>
+                                        {isSaving ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Bookmark className="h-5 w-5" />}
                                         <span className="sr-only">Save for practice</span>
                                     </Button>
                             </div>
@@ -496,9 +550,6 @@ export default function LiveTranslationContent() {
                                 return null;
                             };
 
-                            const isAudioAvailableOffline = !!offlineAudioPacks['user_saved_phrases']?.[phrase.id];
-                            const canPlayAudio = isOnline || isAudioAvailableOffline;
-                            
                             return (
                                 <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
                                     <p className="font-semibold text-lg">{phrase.fromText}</p>
@@ -518,15 +569,10 @@ export default function LiveTranslationContent() {
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId}>
+                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
                                                                 <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
                                                             </Button>
                                                         </TooltipTrigger>
-                                                        {!canPlayAudio && (
-                                                            <TooltipContent>
-                                                                <p>Download pack for offline audio.</p>
-                                                            </TooltipContent>
-                                                        )}
                                                     </Tooltip>
                                                 </TooltipProvider>
 

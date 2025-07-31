@@ -77,7 +77,7 @@ export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases')
 export default function OfflineManager() {
   const { toast } = useToast();
   const { user, userProfile, spendTokensForTranslation, loadSingleOfflinePack, removeOfflinePack, settings } = useUserData();
-  const [downloading, setDownloading] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
+  const [downloading, setDownloading] = useState<LanguageCode | null>(null);
   const [deleting, setDeleting] = useState<LanguageCode | 'user_saved_phrases' | null>(null);
   const [downloadedPacks, setDownloadedPacks] = useState<Record<string, PackMetadata>>({});
   const [isChecking, setIsChecking] = useState(true);
@@ -88,8 +88,6 @@ export default function OfflineManager() {
   const [isDownloadedOpen, setIsDownloadedOpen] = useState(false);
   const [isAvailableOpen, setIsAvailableOpen] = useState(false);
   const [isBuyTokensOpen, setIsBuyTokensOpen] = useState(false);
-
-  const [savedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
 
   const fetchAvailablePacks = useCallback(async () => {
     if (!user || !settings) {
@@ -257,100 +255,6 @@ export default function OfflineManager() {
     }
   };
 
-  const handleDownloadSavedPhrases = async () => {
-    if (savedPhrases.length === 0 || !user || !settings) return;
-    
-    const alreadyDownloadedCount = userProfile?.downloadedPhraseCount || 0;
-    const newPhrasesToDownload = savedPhrases.length - alreadyDownloadedCount;
-
-    if (newPhrasesToDownload <= 0) {
-        toast({ title: "Already Up-to-Date", description: "Your offline saved phrases are already synced." });
-        return;
-    }
-    
-    const freeQuota = settings.freeSavedPhrasesLimit || 0;
-    const phrasesPerToken = settings.savedPhrasesPerToken || 5;
-
-    const remainingFree = Math.max(0, freeQuota - alreadyDownloadedCount);
-    const phrasesToPayFor = Math.max(0, newPhrasesToDownload - remainingFree);
-    const cost = Math.ceil(phrasesToPayFor / phrasesPerToken);
-
-     if ((userProfile?.tokenBalance || 0) < cost) {
-        toast({
-            variant: 'destructive',
-            title: 'Insufficient Tokens',
-            description: `You need ${cost} tokens to download this pack.`,
-        });
-        setIsBuyTokensOpen(true);
-        return;
-    }
-    
-    setDownloading(SAVED_PHRASES_KEY);
-
-    try {
-        if (cost > 0) {
-            const spendSuccess = spendTokensForTranslation(`Downloaded ${newPhrasesToDownload} saved phrases for offline use.`, cost);
-            if (!spendSuccess) {
-                toast({ variant: 'destructive', title: 'Transaction Failed', description: 'Could not deduct tokens.' });
-                setDownloading(null);
-                return;
-            }
-        }
-        
-         // Update the user's downloaded phrase count in Firestore
-        if (user) {
-            const userDocRef = doc(firestoreDb, 'users', user.uid);
-            await updateDoc(userDocRef, {
-                downloadedPhraseCount: increment(newPhrasesToDownload)
-            });
-        }
-
-
-        const audioPack: AudioPack = {};
-        const generationPromises = savedPhrases.map(async (phrase) => {
-            const toLocale = languageToLocaleMap[phrase.toLang];
-            if (toLocale) {
-                try {
-                    const { audioDataUri } = await generateSpeech({ text: phrase.toText, lang: toLocale, voice: 'default' });
-                    audioPack[phrase.id] = audioDataUri;
-                } catch (error) {
-                    console.error(`Failed to generate audio for saved phrase "${phrase.id}":`, error);
-                }
-            }
-        });
-
-        await Promise.all(generationPromises);
-
-        const db = await getDb();
-        await db.put(STORE_NAME, audioPack, SAVED_PHRASES_KEY);
-        
-        const size = Buffer.from(JSON.stringify(audioPack)).length;
-        const metadata: PackMetadata = { id: SAVED_PHRASES_KEY, phraseCount: savedPhrases.length, size };
-        await db.put(METADATA_STORE_NAME, metadata);
-        
-        await loadSingleOfflinePack(SAVED_PHRASES_KEY);
-
-        toast({
-            title: 'Download Complete!',
-            description: cost > 0 
-                ? `${cost} tokens have been deducted. Your saved phrases are now available for offline practice.`
-                : `Your saved phrases are now available for offline practice.`
-        });
-        setDownloadedPacks(prev => ({ ...prev, [SAVED_PHRASES_KEY]: metadata }));
-
-    } catch (error) {
-        console.error('Failed to download saved phrases pack:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Download Failed',
-            description: 'Could not download your saved phrases. Please try again later.',
-        });
-    } finally {
-        setDownloading(null);
-    }
-  }
-
-
   const formatBytes = (bytes: number, decimals = 2) => {
     if (!bytes || bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -362,24 +266,11 @@ export default function OfflineManager() {
   
   const currentlyDownloaded = Object.keys(downloadedPacks).filter(p => p !== SAVED_PHRASES_KEY);
 
-  const savedPhrasesPackInfo = downloadedPacks[SAVED_PHRASES_KEY];
-  const isSavedPhrasesDownloaded = !!savedPhrasesPackInfo;
-  const isUpdateAvailable = isSavedPhrasesDownloaded && savedPhrasesPackInfo.phraseCount !== savedPhrases.length;
-  const isDownloadingSaved = downloading === SAVED_PHRASES_KEY;
-  const isDeletingSaved = deleting === SAVED_PHRASES_KEY;
-
-  const alreadyDownloadedCount = userProfile?.downloadedPhraseCount || 0;
-  const freePhrasesLeft = Math.max(0, (settings?.freeSavedPhrasesLimit || 0) - alreadyDownloadedCount);
-  const newPhrasesToDownload = savedPhrases.length - alreadyDownloadedCount;
-  const phrasesToPayFor = Math.max(0, newPhrasesToDownload - freePhrasesLeft);
-  const savedPhrasesCost = Math.ceil(phrasesToPayFor / (settings?.savedPhrasesPerToken || 5));
-
-
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <h4 className="font-semibold">Offline Language Packs</h4>
       
-      <div className="grid grid-cols-3 gap-2 md:gap-4">
+      <div className="grid grid-cols-2 gap-2 md:gap-4">
         {/* Downloaded Packs Button & Dialog */}
         <Dialog open={isDownloadedOpen} onOpenChange={setIsDownloadedOpen}>
             <TooltipProvider>
@@ -489,86 +380,6 @@ export default function OfflineManager() {
                 )}
             </DialogContent>
         </Dialog>
-
-        {/* Saved Phrases Section */}
-        {user ? (
-            <AlertDialog>
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="outline" disabled={isDownloadingSaved} className="w-full">
-                                    {isDownloadingSaved ? <LoaderCircle className="h-5 w-5 md:mr-2 animate-spin"/> : <Bookmark className="h-5 w-5 md:mr-2" />}
-                                    <span className="hidden md:inline">Saved Phrases</span>
-                                    <Badge variant="secondary" className="ml-2">{savedPhrases.length}</Badge>
-                                </Button>
-                            </AlertDialogTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent className="md:hidden">
-                            <p>Saved Phrases</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-                
-                {isSavedPhrasesDownloaded && !isUpdateAvailable && (
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Saved Phrases are Offline</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                All {savedPhrases.length} of your saved phrases are downloaded and available for offline use.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                             <AlertDialogAction asChild>
-                                <Button variant="destructive" onClick={() => handleDelete(SAVED_PHRASES_KEY)} disabled={isDeletingSaved}>
-                                     {isDeletingSaved ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
-                                     Delete Offline Copy
-                                </Button>
-                             </AlertDialogAction>
-                            <AlertDialogCancel>Close</AlertDialogCancel>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                )}
-                 {(isUpdateAvailable || !isSavedPhrasesDownloaded) && (
-                     <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>{isUpdateAvailable ? "Update Saved Phrases?" : "Download Saved Phrases?"}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {isUpdateAvailable ? 
-                                    `You have ${newPhrasesToDownload} new phrases to download.` :
-                                    `This will download audio for all ${savedPhrases.length} of your saved phrases for offline use.`
-                                }
-                                <br/>
-                                You have {freePhrasesLeft} free phrase downloads remaining.
-                                The remaining {phrasesToPayFor} phrases will cost {savedPhrasesCost} tokens.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDownloadSavedPhrases} disabled={isDownloadingSaved}>
-                                {isDownloadingSaved && <LoaderCircle className="animate-spin mr-2"/>}
-                                {isUpdateAvailable ? "Update & Pay" : "Download & Pay"}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                 )}
-            </AlertDialog>
-        ) : (
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button variant="outline" disabled>
-                            <Bookmark className="h-5 w-5 md:mr-2" />
-                            <span className="hidden md:inline">Saved Phrases</span>
-                            <Badge variant="secondary" className="ml-2">0</Badge>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="md:hidden">
-                        <p>Saved Phrases</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        )}
       </div>
       
       <Dialog open={isBuyTokensOpen} onOpenChange={setIsBuyTokensOpen}>
@@ -585,5 +396,3 @@ export default function OfflineManager() {
     </div>
   );
 }
-
-    

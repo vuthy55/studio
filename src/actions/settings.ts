@@ -17,8 +17,6 @@ export interface AppSettings {
   summaryTranslationCost: number;
   transcriptCost: number;
   languageUnlockCost: number;
-  freeSavedPhrasesLimit: number;
-  savedPhrasesPerToken: number;
   roomReminderMinutes: number;
 }
 
@@ -43,8 +41,6 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         summaryTranslationCost: 10,
         transcriptCost: 50,
         languageUnlockCost: 100,
-        freeSavedPhrasesLimit: 100,
-        savedPhrasesPerToken: 5,
         roomReminderMinutes: 5,
     };
     

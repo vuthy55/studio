@@ -327,9 +327,9 @@ function SettingsTabContent() {
                          <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Costs & Limits</h3>
                          <Separator />
                         <div className="space-y-2">
-                            <Label htmlFor="translationCost">Live Translation Cost</Label>
+                            <Label htmlFor="translationCost">Translation / Save Cost</Label>
                             <Input id="translationCost" type="number" value={settings.translationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens for a single live translation.</p>
+                            <p className="text-sm text-muted-foreground">Tokens for one translation or saving one phrase offline.</p>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="costPerSyncLiveMinute">Sync Live Cost (per minute)</Label>
@@ -371,16 +371,6 @@ function SettingsTabContent() {
                             <Label htmlFor="languageUnlockCost">Language Unlock Cost</Label>
                             <Input id="languageUnlockCost" type="number" value={settings.languageUnlockCost ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
                             <p className="text-sm text-muted-foreground">Tokens to permanently unlock a language.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="freeSavedPhrasesLimit">Free Offline Saved Phrases</Label>
-                            <Input id="freeSavedPhrasesLimit" type="number" value={settings.freeSavedPhrasesLimit ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
-                            <p className="text-sm text-muted-foreground">Number of phrases a user can download for offline use for free.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="savedPhrasesPerToken">Saved Phrases per Token</Label>
-                            <Input id="savedPhrasesPerToken" type="number" value={settings.savedPhrasesPerToken ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
-                            <p className="text-sm text-muted-foreground">Number of phrases a user can download per token after the free limit.</p>
                         </div>
                     </div>
                  </div>
