@@ -252,6 +252,7 @@ export async function setRoomEditability(roomId: string, allowEdits: boolean): P
 export async function endAndReconcileRoom(roomId: string): Promise<{ success: boolean; error?: string }> {
     if (!roomId) return { success: false, error: 'Room ID is required.' };
 
+    console.log(`[DEBUG] endAndReconcileRoom called for room: ${roomId}`);
     const roomRef = db.collection('syncRooms').doc(roomId);
 
     try {
@@ -262,8 +263,11 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             const roomData = roomDoc.data() as SyncRoom;
             const initialCost = roomData.initialCost || 0;
 
+            console.log(`[DEBUG] Reconciling room "${roomData.topic}". Status: ${roomData.status}`);
+
             // Phase 1: Handle meetings that never started.
             if (!roomData.firstMessageAt) {
+                console.log(`[DEBUG] Meeting never started. Refunding creator ${roomData.creatorUid} for ${initialCost} tokens.`);
                 transaction.update(roomRef, { status: 'closed', lastActivityAt: FieldValue.serverTimestamp() });
                 if (initialCost > 0) {
                     const creatorRef = db.collection('users').doc(roomData.creatorUid);
@@ -286,12 +290,15 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             const actualDurationMinutes = Math.ceil((endTime - startTime) / 60000);
             const bookedDurationMinutes = roomData.durationMinutes || 0;
 
+            console.log(`[DEBUG] actualDuration: ${actualDurationMinutes}min, bookedDuration: ${bookedDurationMinutes}min`);
+
             // Phase 2: Reconcile the initial booked time for the CREATOR.
             let refundAmount = 0;
             if (actualDurationMinutes < bookedDurationMinutes) {
                 const costPerMinute = initialCost / bookedDurationMinutes;
                 const minutesToRefund = bookedDurationMinutes - actualDurationMinutes;
                 refundAmount = Math.round(minutesToRefund * costPerMinute);
+                console.log(`[DEBUG] Prorated refund for creator: ${refundAmount} tokens for ${minutesToRefund} unused minutes.`);
             }
             
             if (refundAmount > 0) {
@@ -307,13 +314,17 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
 
             // Phase 3: Reconcile OVERTIME for the VOLUNTEER.
             const overtimeMinutes = Math.max(0, actualDurationMinutes - bookedDurationMinutes);
+            console.log(`[DEBUG] Overtime calculated: ${overtimeMinutes} minutes.`);
+
             if (overtimeMinutes > 0 && roomData.currentPayorId) {
+                console.log(`[DEBUG] Processing overtime for payor: ${roomData.currentPayorId}`);
                 const settings = await getAppSettingsAction();
                 const participantsSnapshot = await transaction.get(roomRef.collection('participants'));
                 const participantCount = participantsSnapshot.size;
                 const costPerPersonPerMinute = settings.costPerSyncOnlineMinute || 1;
                 
                 const overtimeCost = overtimeMinutes * participantCount * costPerPersonPerMinute;
+                 console.log(`[DEBUG] Overtime cost: ${overtimeCost} tokens (${overtimeMinutes}m * ${participantCount}p * ${costPerPersonPerMinute}t/p/m).`);
                 
                 if (overtimeCost > 0) {
                     const payorRef = db.collection('users').doc(roomData.currentPayorId);
@@ -321,6 +332,7 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
                     const payorDoc = await transaction.get(payorRef);
                     const payorBalance = payorDoc.data()?.tokenBalance || 0;
                     const finalCharge = Math.min(overtimeCost, payorBalance); // Don't charge more than they have
+                    console.log(`[DEBUG] Final overtime charge for payor ${roomData.currentPayorId}: ${finalCharge} tokens.`);
 
                     if(finalCharge > 0) {
                         transaction.update(payorRef, { tokenBalance: FieldValue.increment(-finalCharge) });
@@ -336,6 +348,7 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             }
 
             // Finally, update the room status.
+            console.log(`[DEBUG] Setting room ${roomId} status to 'closed'.`);
             transaction.update(roomRef, { 
                 status: 'closed',
                 lastActivityAt: FieldValue.serverTimestamp() 
@@ -358,26 +371,35 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
         return { success: false, error: 'Room ID and User ID are required.' };
     }
 
+    console.log(`[DEBUG] handleParticipantExit called for user ${userId} in room ${roomId}.`);
     const roomRef = db.collection('syncRooms').doc(roomId);
     
     try {
         await db.runTransaction(async (transaction) => {
             const roomDoc = await transaction.get(roomRef);
-            if (!roomDoc.exists) return; // Room already gone
+            if (!roomDoc.exists) {
+                console.log(`[DEBUG] handleParticipantExit: Room ${roomId} no longer exists. Exiting.`);
+                return; 
+            }
             const roomData = roomDoc.data() as SyncRoom;
             
             // --- Idempotency Check ---
             // If the room is already closed, do nothing to prevent multiple refunds.
             if (roomData.status === 'closed') {
+                console.log(`[DEBUG] handleParticipantExit: Room ${roomId} is already closed. Halting operation.`);
                 return;
             }
 
             const participantRef = roomRef.collection('participants').doc(userId);
             const participantDoc = await transaction.get(participantRef);
-            if (!participantDoc.exists) return; // Participant already gone
+            if (!participantDoc.exists) {
+                 console.log(`[DEBUG] handleParticipantExit: Participant ${userId} already gone. Exiting.`);
+                return; 
+            }
             const participantData = participantDoc.data() as Participant;
 
             // Delete the leaving participant
+             console.log(`[DEBUG] Deleting participant ${userId} from room ${roomId}.`);
             transaction.delete(participantRef);
 
             // Get all remaining participants within the same transaction
@@ -385,12 +407,11 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
             
             // Filter out the currently exiting participant to get the "true" remaining count
             const remainingParticipants = allParticipantsSnapshot.docs.filter(doc => doc.id !== userId);
+             console.log(`[DEBUG] Remaining participants after exit: ${remainingParticipants.length}.`);
 
             // Check if the room is now empty
             if (remainingParticipants.length === 0) {
-                // By calling this here, inside the transaction, we ensure it only runs ONCE.
-                // The `endAndReconcileRoom` function itself has its own transaction,
-                // but this outer transaction ensures we don't even attempt to call it multiple times.
+                 console.log(`[DEBUG] Last participant left. Calling endAndReconcileRoom for room ${roomId}.`);
                 await endAndReconcileRoom(roomId);
                 return; // Reconciliation handles closing the room, so we can stop here.
             }
@@ -403,15 +424,13 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
                 if (remainingEmcees.length === 0) {
                     // Last emcee left, promote the first person from the remaining list
                     const newEmcee = remainingParticipants[0].data() as Participant;
+                     console.log(`[DEBUG] Last emcee left. Promoting ${newEmcee.email} to emcee.`);
                     transaction.update(roomRef, {
                         emceeEmails: FieldValue.arrayUnion(newEmcee.email)
                     });
-                    
-                    // Note: We cannot create notifications inside this user-exit transaction
-                    // because it might conflict with other writes. Notifications are non-critical
-                    // and can be handled separately if needed, or by a different mechanism.
                 } else {
                     // Other emcees remain, just remove the leaving one
+                    console.log(`[DEBUG] Emcee ${participantData.email} left, other emcees remain.`);
                      transaction.update(roomRef, {
                         emceeEmails: FieldValue.arrayRemove(participantData.email)
                     });
@@ -494,6 +513,7 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
     if (!roomId || !userId) {
         return { success: false, error: 'Room and User IDs are required.' };
     }
+    console.log(`[DEBUG] volunteerAsPayor called by user ${userId} for room ${roomId}.`);
 
     const roomRef = db.collection('syncRooms').doc(roomId);
     const userRef = db.collection('users').doc(userId);
@@ -517,7 +537,7 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
             // If another user just became the payor, the endingReminderSent flag would be reset to false
             // by the time this transaction runs. This check ensures we only act on the *first* volunteer for a cycle.
             if (!roomData.endingReminderSent) {
-                console.log(`[Payor] Race condition prevented. Room ${roomId} already has a volunteer for this cycle.`);
+                console.log(`[DEBUG] Race condition prevented. Room ${roomId} already has a volunteer for this cycle.`);
                 return; 
             }
             
@@ -527,10 +547,10 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
 
             const userBalance = userData.tokenBalance || 0;
             const extraMinutes = burnRate > 0 ? Math.floor(userBalance / burnRate) : 0;
+            console.log(`[DEBUG] Volunteer ${userId} has balance ${userBalance}, can fund ${extraMinutes} extra minutes.`);
             
             if (extraMinutes <= 0) {
-                // User has no tokens to contribute, don't change anything.
-                // A system message could be sent, but for now we fail silently.
+                 console.log(`[DEBUG] Volunteer has insufficient balance. Aborting.`);
                 return;
             }
 
@@ -538,26 +558,29 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
             const currentEffectiveEnd = roomData.effectiveEndTime ? (roomData.effectiveEndTime as Timestamp).toMillis() : now;
             const newEffectiveEndTime = new Date(currentEffectiveEnd + (extraMinutes * 60 * 1000));
             
-            transaction.update(roomRef, {
+            const updatePayload = {
                 currentPayorId: userId,
                 effectiveEndTime: newEffectiveEndTime,
                 endingReminderSent: false // Reset the reminder flag for the next cycle
-            });
+            };
+            console.log(`[DEBUG] Updating room ${roomId} with:`, updatePayload);
+            transaction.update(roomRef, updatePayload);
             
              const messageRef = roomRef.collection('messages').doc();
-             transaction.set(messageRef, {
+             const systemMessage = {
                 speakerUid: 'system',
                 speakerName: 'VibeSync Bot',
                 type: 'system',
                 text: `${userData.name} has extended the meeting by ${extraMinutes} minutes!`,
                 createdAt: FieldValue.serverTimestamp(),
                 speakerLanguage: 'en-US'
-            });
-
+            };
+            console.log(`[DEBUG] Sending system message:`, systemMessage);
+             transaction.set(messageRef, systemMessage);
         });
         return { success: true };
     } catch (error: any) {
-        console.error(`[Payor] Error volunteering for room ${roomId}:`, error);
+        console.error(`[DEBUG] Error in volunteerAsPayor for room ${roomId}:`, error);
         return { success: false, error: error.message || 'Could not volunteer to pay.' };
     }
 }
