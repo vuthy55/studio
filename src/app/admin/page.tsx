@@ -48,6 +48,7 @@ import { getFeedbackSubmissions, type FeedbackSubmission } from '@/actions/feedb
 import Image from 'next/image';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { findUserByEmailAdmin } from '@/lib/firebase-utils';
 
 
 interface UserWithId extends UserProfile {
@@ -1891,35 +1892,25 @@ function AdminPageContent() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-            <div className="p-1 bg-muted rounded-md grid grid-cols-9 gap-1">
-                {adminTabs.map(tab => (
-                    <TooltipProvider key={tab.value}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant={activeTab === tab.value ? 'default' : 'ghost'}
-                                    onClick={() => setActiveTab(tab.value)}
-                                    className={cn("h-12 flex-1", 
-                                        activeTab === tab.value && "bg-background text-foreground shadow-sm"
-                                    )}
-                                >
-                                    <tab.icon className="h-5 w-5" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>{tab.label}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                ))}
-            </div>
-
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="hidden">
+             <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-9 h-auto">
                     {adminTabs.map(tab => (
-                        <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+                        <TooltipProvider key={tab.value} delayDuration={0}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <TabsTrigger value={tab.value} className="flex-1 flex-col h-14 gap-1.5">
+                                        <tab.icon className="h-5 w-5" />
+                                        <span className="hidden lg:inline text-xs">{tab.label}</span>
+                                    </TabsTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent className="lg:hidden">
+                                    <p>{tab.label}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     ))}
                 </TabsList>
+
                  <TabsContent value="rooms" className="mt-6">
                     <RoomsTabContent />
                 </TabsContent>
