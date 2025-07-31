@@ -495,6 +495,7 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
         text: `This meeting is scheduled to end in ${minutesRemaining} minutes. Anyone can click to pay to continue.`,
         createdAt: FieldValue.serverTimestamp(),
         actions: ['payToContinue'],
+        speakerLanguage: 'en-US'
     });
 
     // Mark that the reminder has been sent
@@ -574,6 +575,7 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
                 type: 'system',
                 text: `${userData.name} has extended the meeting by ${extraMinutes} minutes!`,
                 createdAt: FieldValue.serverTimestamp(),
+                speakerLanguage: 'en-US'
             });
 
         });
