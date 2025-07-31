@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder, volunteerAsPayor } from '@/actions/room';
+import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder, extendMeeting } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -412,7 +412,7 @@ export default function SyncRoomPage() {
     const [isSendingInvites, setIsSendingInvites] = useState(false);
     
     const [isSummarizing, setIsSummarizing] = useState(false);
-    const [isPaying, setIsPaying] = useState(false);
+    const [isExtending, setIsExtending] = useState(false);
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -541,6 +541,8 @@ export default function SyncRoomPage() {
         if (!user || !roomData) return false;
         return roomData.creatorUid === user.uid || (user.email && roomData.emceeEmails?.includes(user.email));
     }, [user, roomData]);
+
+    const isCreator = useMemo(() => user?.uid === roomData?.creatorUid, [user, roomData]);
     
      const timerTooltipContent = useMemo(() => {
         return (
@@ -880,18 +882,18 @@ export default function SyncRoomPage() {
         }
     };
 
-    const handlePayToContinue = async () => {
-        if (!user || isPaying) return;
-        setIsPaying(true);
-        const result = await volunteerAsPayor(roomId, user.uid);
+    const handleExtendMeeting = async () => {
+        if (!user || isExtending) return;
+        setIsExtending(true);
+        const result = await extendMeeting(roomId, user.uid);
         if (!result.success) {
             toast({
                 variant: 'destructive',
                 title: 'Could not extend meeting',
-                description: result.error || 'Please ensure you have enough tokens.'
+                description: result.error || 'An unexpected error occurred.'
             });
         }
-        setIsPaying(false);
+        setIsExtending(false);
     };
 
 
@@ -1000,10 +1002,10 @@ export default function SyncRoomPage() {
                                                 <Info className="h-5 w-5" />
                                                 <div className="flex-grow">
                                                     <p>{msg.text}</p>
-                                                    {msg.actions?.includes('payToContinue') && (
-                                                        <Button size="sm" className="mt-2" onClick={handlePayToContinue} disabled={isPaying}>
-                                                            {isPaying ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Coins className="mr-2 h-4 w-4" />}
-                                                            Pay to Continue
+                                                    {msg.actions?.includes('extendMeeting') && isCreator && (
+                                                        <Button size="sm" className="mt-2" onClick={handleExtendMeeting} disabled={isExtending}>
+                                                            {isExtending ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Coins className="mr-2 h-4 w-4" />}
+                                                            Use My Tokens to Extend
                                                         </Button>
                                                     )}
                                                 </div>

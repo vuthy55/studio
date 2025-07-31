@@ -252,7 +252,6 @@ export async function setRoomEditability(roomId: string, allowEdits: boolean): P
 export async function endAndReconcileRoom(roomId: string): Promise<{ success: boolean; error?: string }> {
     if (!roomId) return { success: false, error: 'Room ID is required.' };
 
-    console.log(`[DEBUG] endAndReconcileRoom called for room: ${roomId}`);
     const roomRef = db.collection('syncRooms').doc(roomId);
 
     try {
@@ -261,82 +260,65 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             if (!roomDoc.exists) throw new Error('Room not found.');
 
             const roomData = roomDoc.data() as SyncRoom;
-            const initialCost = roomData.initialCost || 0;
+            
+            // If the room is already closed, do nothing.
+            if (roomData.status === 'closed') {
+                return;
+            }
 
-            console.log(`[DEBUG] Reconciling room "${roomData.topic}". Status: ${roomData.status}`);
+            const creatorRef = db.collection('users').doc(roomData.creatorUid);
+            const creatorDoc = await transaction.get(creatorRef);
+            if (!creatorDoc.exists) throw new Error("Room creator's user profile not found.");
 
             // Phase 1: Handle meetings that never started.
             if (!roomData.firstMessageAt) {
-                console.log(`[DEBUG] Meeting never started. Refunding creator ${roomData.creatorUid} for ${initialCost} tokens.`);
-                transaction.update(roomRef, { status: 'closed', lastActivityAt: FieldValue.serverTimestamp() });
-                if (initialCost > 0) {
-                    const creatorRef = db.collection('users').doc(roomData.creatorUid);
-                    transaction.update(creatorRef, { tokenBalance: FieldValue.increment(initialCost) });
+                if ((roomData.initialCost ?? 0) > 0) {
+                    transaction.update(creatorRef, { tokenBalance: FieldValue.increment(roomData.initialCost!) });
                     const logRef = creatorRef.collection('transactionLogs').doc();
                     transaction.set(logRef, {
                         actionType: 'sync_online_refund',
-                        tokenChange: initialCost,
+                        tokenChange: roomData.initialCost,
                         timestamp: FieldValue.serverTimestamp(),
                         description: `Refund for unused room: "${roomData.topic}"`
                     });
                 }
-                return; // Reconciliation complete for unused room.
-            }
-            
-            // If we reach here, the meeting started.
-            const creatorRef = db.collection('users').doc(roomData.creatorUid);
-            const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
-            const endTime = Date.now();
-            const actualDurationMinutes = Math.ceil((endTime - startTime) / 60000);
-            const bookedDurationMinutes = roomData.durationMinutes || 0;
-
-            console.log(`[DEBUG] actualDuration: ${actualDurationMinutes}min, bookedDuration: ${bookedDurationMinutes}min`);
-
-            // Phase 2: Reconcile the initial booked time for the CREATOR.
-            let refundAmount = 0;
-            if (actualDurationMinutes < bookedDurationMinutes) {
-                const costPerMinute = initialCost / bookedDurationMinutes;
-                const minutesToRefund = bookedDurationMinutes - actualDurationMinutes;
-                refundAmount = Math.round(minutesToRefund * costPerMinute);
-                console.log(`[DEBUG] Prorated refund for creator: ${refundAmount} tokens for ${minutesToRefund} unused minutes.`);
-            }
-            
-            if (refundAmount > 0) {
-                transaction.update(creatorRef, { tokenBalance: FieldValue.increment(refundAmount) });
-                const logRef = creatorRef.collection('transactionLogs').doc();
-                transaction.set(logRef, {
-                    actionType: 'sync_online_refund',
-                    tokenChange: refundAmount,
-                    timestamp: FieldValue.serverTimestamp(),
-                    description: `Prorated refund for room: "${roomData.topic}"`
-                });
-            }
-
-            // Phase 3: Reconcile OVERTIME for the VOLUNTEER.
-            const overtimeMinutes = Math.max(0, actualDurationMinutes - bookedDurationMinutes);
-            console.log(`[DEBUG] Overtime calculated: ${overtimeMinutes} minutes.`);
-
-            if (overtimeMinutes > 0 && roomData.currentPayorId) {
-                console.log(`[DEBUG] Processing overtime for payor: ${roomData.currentPayorId}`);
+            } else {
+                // Phase 2: Meeting started, reconcile full cost.
                 const settings = await getAppSettingsAction();
-                const participantsSnapshot = await transaction.get(roomRef.collection('participants'));
-                const participantCount = participantsSnapshot.size;
                 const costPerPersonPerMinute = settings.costPerSyncOnlineMinute || 1;
                 
-                const overtimeCost = overtimeMinutes * participantCount * costPerPersonPerMinute;
-                 console.log(`[DEBUG] Overtime cost: ${overtimeCost} tokens (${overtimeMinutes}m * ${participantCount}p * ${costPerPersonPerMinute}t/p/m).`);
-                
-                if (overtimeCost > 0) {
-                    const payorRef = db.collection('users').doc(roomData.currentPayorId);
-                    // Check payor's balance before debiting
-                    const payorDoc = await transaction.get(payorRef);
-                    const payorBalance = payorDoc.data()?.tokenBalance || 0;
-                    const finalCharge = Math.min(overtimeCost, payorBalance); // Don't charge more than they have
-                    console.log(`[DEBUG] Final overtime charge for payor ${roomData.currentPayorId}: ${finalCharge} tokens.`);
+                const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
+                const endTime = Date.now();
+                const actualDurationMinutes = Math.ceil((endTime - startTime) / 60000);
 
-                    if(finalCharge > 0) {
-                        transaction.update(payorRef, { tokenBalance: FieldValue.increment(-finalCharge) });
-                        const logRef = payorRef.collection('transactionLogs').doc();
+                // Fetch participants within the transaction to get an accurate count
+                const participantsSnapshot = await transaction.get(roomRef.collection('participants'));
+                const participantCount = participantsSnapshot.size > 0 ? participantsSnapshot.size : 1; // Avoid division by zero
+
+                const totalCost = actualDurationMinutes * participantCount * costPerPersonPerMinute;
+                const prepaidCost = roomData.initialCost || 0;
+                
+                const costDifference = totalCost - prepaidCost;
+
+                if (costDifference < 0) {
+                    // Refund for unused time
+                    const refundAmount = Math.abs(costDifference);
+                    transaction.update(creatorRef, { tokenBalance: FieldValue.increment(refundAmount) });
+                    const logRef = creatorRef.collection('transactionLogs').doc();
+                    transaction.set(logRef, {
+                        actionType: 'sync_online_refund',
+                        tokenChange: refundAmount,
+                        timestamp: FieldValue.serverTimestamp(),
+                        description: `Prorated refund for room: "${roomData.topic}"`
+                    });
+                } else if (costDifference > 0) {
+                    // Charge for overtime
+                    const creatorBalance = creatorDoc.data()?.tokenBalance || 0;
+                    const finalCharge = Math.min(costDifference, creatorBalance);
+
+                    if (finalCharge > 0) {
+                        transaction.update(creatorRef, { tokenBalance: FieldValue.increment(-finalCharge) });
+                        const logRef = creatorRef.collection('transactionLogs').doc();
                         transaction.set(logRef, {
                             actionType: 'live_sync_online_spend',
                             tokenChange: -finalCharge,
@@ -348,7 +330,6 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             }
 
             // Finally, update the room status.
-            console.log(`[DEBUG] Setting room ${roomId} status to 'closed'.`);
             transaction.update(roomRef, { 
                 status: 'closed',
                 lastActivityAt: FieldValue.serverTimestamp() 
@@ -371,7 +352,6 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
         return { success: false, error: 'Room ID and User ID are required.' };
     }
 
-    console.log(`[DEBUG] handleParticipantExit called for user ${userId} in room ${roomId}.`);
     const roomRef = db.collection('syncRooms').doc(roomId);
     
     try {
@@ -383,7 +363,7 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
             }
             const roomData = roomDoc.data() as SyncRoom;
             
-            // --- Idempotency Check ---
+            // --- Idempotency Check & Guard Clause ---
             // If the room is already closed, do nothing to prevent multiple refunds.
             if (roomData.status === 'closed') {
                 console.log(`[DEBUG] handleParticipantExit: Room ${roomId} is already closed. Halting operation.`);
@@ -447,7 +427,7 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
 }
 
 /**
- * Handles sending an in-session reminder to all participants, including a special email to the creator.
+ * Handles sending an in-session reminder to all participants.
  * This is an idempotent action.
  */
 export async function handleMeetingReminder(roomId: string, creatorId: string): Promise<{ success: boolean; error?: string }> {
@@ -478,18 +458,27 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
     if (!creatorData) throw new Error(`Creator with ID ${creatorId} not found.`);
 
     const minutesRemaining = roomData.reminderMinutes || 5;
+    const participantCount = participantsSnapshot.size;
+    const costPerMinute = settings.costPerSyncOnlineMinute || 1;
+    const burnRate = participantCount * costPerMinute;
 
+    const creatorBalance = creatorData.tokenBalance || 0;
+    const extraMinutes = burnRate > 0 ? Math.floor(creatorBalance / burnRate) : 0;
+    
     const batch = db.batch();
     
-    // In-Chat System Message
+    const messageText = extraMinutes > 0
+        ? `This meeting is scheduled to end in ${minutesRemaining} minutes. The creator's balance can extend it for about ${extraMinutes} more minutes.`
+        : `This meeting is scheduled to end in ${minutesRemaining} minutes. To continue, the creator needs more tokens.`;
+
     const messageRef = roomRef.collection('messages').doc();
     batch.set(messageRef, {
         speakerUid: 'system',
         speakerName: 'VibeSync Bot',
         type: 'reminder',
-        text: `This meeting is scheduled to end in ${minutesRemaining} minutes. Anyone can click to pay to continue.`,
+        text: messageText,
         createdAt: FieldValue.serverTimestamp(),
-        actions: ['payToContinue'],
+        actions: extraMinutes > 0 ? ['extendMeeting'] : [], // Action only available if creator can afford it
         speakerLanguage: 'en-US'
     });
 
@@ -506,64 +495,50 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
 }
       
 /**
- * Allows a user to volunteer to pay for a meeting's overtime.
- * This action is transactional to prevent race conditions.
+ * Allows the creator to extend a meeting using their available tokens.
  */
-export async function volunteerAsPayor(roomId: string, userId: string): Promise<{ success: boolean; error?: string }> {
-    if (!roomId || !userId) {
-        return { success: false, error: 'Room and User IDs are required.' };
+export async function extendMeeting(roomId: string, creatorId: string): Promise<{ success: boolean; error?: string }> {
+    if (!roomId || !creatorId) {
+        return { success: false, error: 'Room and Creator IDs are required.' };
     }
-    console.log(`[DEBUG] volunteerAsPayor called by user ${userId} for room ${roomId}.`);
 
     const roomRef = db.collection('syncRooms').doc(roomId);
-    const userRef = db.collection('users').doc(userId);
+    const creatorRef = db.collection('users').doc(creatorId);
 
     try {
         await db.runTransaction(async (transaction) => {
-            const [roomDoc, userDoc, participantsSnapshot, settings] = await Promise.all([
+            const [roomDoc, creatorDoc, participantsSnapshot, settings] = await Promise.all([
                 transaction.get(roomRef),
-                transaction.get(userRef),
+                transaction.get(creatorRef),
                 transaction.get(roomRef.collection('participants')),
-                getAppSettingsAction() // This is read-only, safe to get outside transaction
+                getAppSettingsAction()
             ]);
 
             if (!roomDoc.exists) throw new Error('Room not found.');
-            if (!userDoc.exists) throw new Error('User not found.');
+            if (!creatorDoc.exists) throw new Error('Creator not found.');
 
             const roomData = roomDoc.data() as SyncRoom;
-            const userData = userDoc.data()!;
-
-            // --- Prevent Race Condition ---
-            // If another user just became the payor, the endingReminderSent flag would be reset to false
-            // by the time this transaction runs. This check ensures we only act on the *first* volunteer for a cycle.
-            if (!roomData.endingReminderSent) {
-                console.log(`[DEBUG] Race condition prevented. Room ${roomId} already has a volunteer for this cycle.`);
-                return; 
-            }
+            const creatorData = creatorDoc.data()!;
             
             const participantCount = participantsSnapshot.size;
             const costPerMinute = settings.costPerSyncOnlineMinute || 1;
             const burnRate = participantCount * costPerMinute;
 
-            const userBalance = userData.tokenBalance || 0;
-            const extraMinutes = burnRate > 0 ? Math.floor(userBalance / burnRate) : 0;
-            console.log(`[DEBUG] Volunteer ${userId} has balance ${userBalance}, can fund ${extraMinutes} extra minutes.`);
+            const creatorBalance = creatorData.tokenBalance || 0;
+            const extraMinutes = burnRate > 0 ? Math.floor(creatorBalance / burnRate) : 0;
             
             if (extraMinutes <= 0) {
-                 console.log(`[DEBUG] Volunteer has insufficient balance. Aborting.`);
                 return;
             }
 
             const now = Date.now();
-            const currentEffectiveEnd = roomData.effectiveEndTime ? (roomData.effectiveEndTime as Timestamp).toMillis() : now;
+            const currentEffectiveEnd = roomData.effectiveEndTime ? (roomData.effectiveEndTime as Timestamp).toMillis() : (roomData.scheduledAt as Timestamp).toMillis() + (roomData.durationMinutes! * 60 * 1000);
             const newEffectiveEndTime = new Date(currentEffectiveEnd + (extraMinutes * 60 * 1000));
             
             const updatePayload = {
-                currentPayorId: userId,
                 effectiveEndTime: newEffectiveEndTime,
                 endingReminderSent: false // Reset the reminder flag for the next cycle
             };
-            console.log(`[DEBUG] Updating room ${roomId} with:`, updatePayload);
             transaction.update(roomRef, updatePayload);
             
              const messageRef = roomRef.collection('messages').doc();
@@ -571,19 +546,16 @@ export async function volunteerAsPayor(roomId: string, userId: string): Promise<
                 speakerUid: 'system',
                 speakerName: 'VibeSync Bot',
                 type: 'system',
-                text: `${userData.name} has extended the meeting by ${extraMinutes} minutes!`,
+                text: `${creatorData.name} has extended the meeting by ${extraMinutes} minutes!`,
                 createdAt: FieldValue.serverTimestamp(),
                 speakerLanguage: 'en-US'
             };
-            console.log(`[DEBUG] Sending system message:`, systemMessage);
              transaction.set(messageRef, systemMessage);
         });
         return { success: true };
     } catch (error: any) {
-        console.error(`[DEBUG] Error in volunteerAsPayor for room ${roomId}:`, error);
-        return { success: false, error: error.message || 'Could not volunteer to pay.' };
+        console.error(`[DEBUG] Error in extendMeeting for room ${roomId}:`, error);
+        return { success: false, error: error.message || 'Could not extend the meeting.' };
     }
 }
-
     
-
