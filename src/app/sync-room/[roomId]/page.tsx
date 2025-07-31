@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -479,10 +477,12 @@ export default function SyncRoomPage() {
         const startReminderTimer = () => {
             if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
             
-            if (roomData.firstMessageAt && roomData.durationMinutes && roomData.reminderMinutes) {
+            if (roomData.firstMessageAt && roomData.durationMinutes) {
                 const startTimeMs = (roomData.firstMessageAt as Timestamp).toMillis();
                 const durationMs = roomData.durationMinutes * 60 * 1000;
-                const reminderLeadMs = roomData.reminderMinutes * 60 * 1000;
+                
+                // Fetch the latest reminder setting directly when needed.
+                const reminderLeadMs = (settings?.roomReminderMinutes || 5) * 60 * 1000;
 
                 const reminderTimeMs = startTimeMs + durationMs - reminderLeadMs;
                 const timeoutDuration = reminderTimeMs - Date.now();
@@ -508,7 +508,7 @@ export default function SyncRoomPage() {
             if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
         };
     
-    }, [participants, roomData, user, roomId]);
+    }, [participants, roomData, user, roomId, settings]);
 
     
     useEffect(() => {

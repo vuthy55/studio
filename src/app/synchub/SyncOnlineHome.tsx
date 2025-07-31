@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1024,7 +1023,7 @@ export default function SyncOnlineHome() {
             } else if (room.status === 'closed' && room.summary) {
                 acc.closed.push(room);
             }
-            return acc;
+            return acc, { active: [] as InvitedRoomClient[], scheduled: [] as InvitedRoomClient[], closed: [] as InvitedRoomClient[] };
         }, { active: [] as InvitedRoomClient[], scheduled: [] as InvitedRoomClient[], closed: [] as InvitedRoomClient[] });
     }, [invitedRooms]);
 
@@ -1207,8 +1206,8 @@ export default function SyncOnlineHome() {
                 </div>
                 {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
-                <CollapsibleContent>
-                <Card className="mt-4 bg-accent/10 border-accent/50">
+                <CollapsibleContent className="bg-accent/10 rounded-lg p-1 mt-4">
+                    <Card className="bg-transparent border-0 shadow-none">
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>

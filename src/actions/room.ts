@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
@@ -451,16 +449,18 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
       return { success: true };
     }
 
-    const [participantsSnapshot, settings, creatorDoc] = await Promise.all([
+    // Always fetch the latest settings to ensure the reminder is dynamic
+    const settings = await getAppSettingsAction();
+    const minutesRemaining = settings.roomReminderMinutes || 5;
+
+    const [participantsSnapshot, creatorDoc] = await Promise.all([
       roomRef.collection('participants').get(),
-      getAppSettingsAction(),
       db.collection('users').doc(creatorId).get()
     ]);
     
     const creatorData = creatorDoc.data();
     if (!creatorData) throw new Error(`Creator with ID ${creatorId} not found.`);
 
-    const minutesRemaining = roomData.reminderMinutes || 5;
     const participantCount = participantsSnapshot.size;
     const costPerMinute = settings.costPerSyncOnlineMinute || 1;
     const burnRate = participantCount * costPerMinute;
