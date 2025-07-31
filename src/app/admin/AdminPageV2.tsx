@@ -1315,20 +1315,21 @@ function RoomsTabContent() {
     });
   };
   
-  const handleSelectAll = (type: 'active' | 'closed' | 'scheduled', checked: boolean) => {
-    let roomIdsToChange: string[] = [];
-    if (type === 'active') roomIdsToChange = activeRooms.map(r => r.id);
-    else if (type === 'closed') roomIdsToChange = closedWithSummary.map(r => r.id);
-    else if (type === 'scheduled') roomIdsToChange = scheduledRooms.map(r => r.id);
+  const handleSelectAll = (type: 'summary' | 'active' | 'closed', checked: boolean | 'indeterminate') => {
+      let roomIdsToToggle: string[] = [];
+      if (type === 'summary') roomIdsToToggle = closedWithSummary.map(r => r.id);
+      if (type === 'active') roomIdsToToggle = [...activeRooms, ...scheduledRooms].map(r => r.id);
+      if (type === 'closed') roomIdsToToggle = closedWithoutSummary.map(r => r.id);
 
-    setSelectedRoomIds(prev => {
-        const otherTypeIds = prev.filter(id => !roomIdsToChange.includes(id));
-        if (checked) {
-            return [...new Set([...otherTypeIds, ...roomIdsToChange])];
-        } else {
-            return otherTypeIds;
-        }
-    });
+      setSelectedRoomIds(prev => {
+          const newSelection = new Set(prev);
+          if (checked) {
+              roomIdsToToggle.forEach(id => newSelection.add(id));
+          } else {
+              roomIdsToToggle.forEach(id => newSelection.delete(id));
+          }
+          return Array.from(newSelection);
+      });
   };
 
   const handleDeleteSelected = async () => {
@@ -1398,7 +1399,13 @@ function RoomsTabContent() {
         {rooms.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                <div>
-                    <h4 className="font-semibold p-2 border-b">Rooms with Summaries ({closedWithSummary.length})</h4>
+                    <div className="font-semibold p-2 border-b flex items-center justify-between">
+                      <h4>Rooms with Summaries ({closedWithSummary.length})</h4>
+                       <div className="flex items-center gap-1.5 text-xs">
+                          <Label htmlFor="select-all-summary">All</Label>
+                          <Checkbox id="select-all-summary" onCheckedChange={(c) => handleSelectAll('summary', c)} />
+                       </div>
+                    </div>
                     <div className="border rounded-md max-h-60 overflow-y-auto">
                         <Table>
                              <TableBody>
@@ -1425,7 +1432,13 @@ function RoomsTabContent() {
                     </div>
                 </div>
                 <div>
-                     <h4 className="font-semibold p-2 border-b">Active & Scheduled Rooms ({activeRooms.length + scheduledRooms.length})</h4>
+                     <div className="font-semibold p-2 border-b flex items-center justify-between">
+                        <h4>Active & Scheduled ({activeRooms.length + scheduledRooms.length})</h4>
+                         <div className="flex items-center gap-1.5 text-xs">
+                          <Label htmlFor="select-all-active">All</Label>
+                           <Checkbox id="select-all-active" onCheckedChange={(c) => handleSelectAll('active', c)} />
+                       </div>
+                     </div>
                      <div className="border rounded-md max-h-60 overflow-y-auto">
                         <Table>
                              <TableBody>
@@ -1447,7 +1460,13 @@ function RoomsTabContent() {
                       </div>
                 </div>
                  <div>
-                    <h4 className="font-semibold p-2 border-b">Closed (No Summary) ({closedWithoutSummary.length})</h4>
+                    <div className="font-semibold p-2 border-b flex items-center justify-between">
+                        <h4>Closed (No Summary) ({closedWithoutSummary.length})</h4>
+                         <div className="flex items-center gap-1.5 text-xs">
+                           <Label htmlFor="select-all-closed">All</Label>
+                           <Checkbox id="select-all-closed" onCheckedChange={(c) => handleSelectAll('closed', c)} />
+                       </div>
+                    </div>
                     <div className="border rounded-md max-h-60 overflow-y-auto">
                         <Table>
                              <TableBody>
