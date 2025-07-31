@@ -533,7 +533,7 @@ export default function SyncRoomPage() {
             if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
         };
 
-    }, [participants, roomData, user]);
+    }, [participants, roomData, user, roomId]);
 
     
     useEffect(() => {
@@ -1094,4 +1094,3 @@ export default function SyncRoomPage() {
     );
 }
 
-    
