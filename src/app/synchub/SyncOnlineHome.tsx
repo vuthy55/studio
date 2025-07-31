@@ -1208,8 +1208,7 @@ export default function SyncOnlineHome() {
                 {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                 <CollapsibleContent>
-                <div className="mt-4 bg-red-500 rounded-lg p-1">
-                    <Card>
+                <Card className="mt-4 bg-accent/10">
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
@@ -1385,7 +1384,6 @@ export default function SyncOnlineHome() {
                             )}
                         </CardFooter>
                     </Card>
-                    </div>
                 </CollapsibleContent>
             </Collapsible>
 
@@ -1422,3 +1420,4 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
