@@ -156,7 +156,7 @@ function ParticipantsPanel({
     handleDemoteEmcee,
     handleRemoveParticipant,
     handleManualExit,
-    handleEndMeeting,
+    handleEndAndReconcile,
     sessionTimer,
     timerTooltipContent
 }: any) {
@@ -367,36 +367,15 @@ function ParticipantsPanel({
                                 <DialogHeader>
                                     <DialogTitle>End Meeting for All?</DialogTitle>
                                     <DialogDescription>
-                                        Choose how you would like to end this meeting for all participants.
+                                        Closing the room will reconcile all costs and generate a meeting summary. This cannot be undone.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <DialogFooter className="sm:justify-end gap-2 pt-4">
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <DialogClose asChild>
-                                                    <Button type="button" variant="ghost">Cancel</Button>
-                                                </DialogClose>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Return to the room.</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button type="button" variant="destructive" onClick={handleEndMeeting}>
-                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                    End &amp; Delete
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>End the meeting and close the room permanently.</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                    <Button type="button" variant="ghost" as={DialogClose}>Cancel</Button>
+                                    <Button type="button" variant="destructive" onClick={handleEndAndReconcile}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        End & Reconcile
+                                    </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
@@ -437,7 +416,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string>());
+    const processedMessages = useRef(new Set<string,>());
     
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
@@ -706,13 +685,11 @@ export default function SyncRoomPage() {
             try {
                 setIsSpeaking(true);
                 
-                // If it's a system message, the text is already in English.
                 let textToTranslate = msg.text;
                 let fromLangLabel = msg.speakerLanguage ? getAzureLanguageLabel(msg.speakerLanguage) : 'English';
                 const toLangLabel = getAzureLanguageLabel(currentUserParticipant.selectedLanguage!);
 
-                // No need to translate if the source and target are the same language group (e.g., en-US to en-GB)
-                if (fromLangLabel.split(' ')[0] !== toLangLabel.split(' ')[0]) {
+                if (fromLangLabel !== toLangLabel) {
                      const translated = await translateText({
                         text: textToTranslate,
                         fromLanguage: fromLangLabel,
@@ -761,40 +738,22 @@ export default function SyncRoomPage() {
     }, [user, authLoading, router]);
     
 
-    const handleEndMeeting = async () => {
+    const handleEndAndReconcile = async () => {
         if (!isCurrentUserEmcee) {
              return;
         }
         try {
-            
             const result = await endAndReconcileRoom(roomId);
-            if (result.success) {
-                // The room status change will trigger the exit for all participants
-            } else {
+            if (!result.success) {
                  toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not end the meeting.' });
             }
+            // If successful, the room status change will trigger the exit for all participants.
         } catch (error) {
             console.error("Error ending meeting:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not end the meeting.' });
         }
     };
     
-    const handleSaveAndEndMeeting = async () => {
-        if (!isCurrentUserEmcee) return;
-        setIsSummarizing(true);
-        toast({ title: 'Summarizing...', description: 'The AI is generating a meeting summary. This may take a moment.' });
-        try {
-            await summarizeRoom({ roomId });
-            toast({ title: 'Summary Saved!', description: 'The meeting has ended and the summary is available.' });
-            // The summarizeRoom action closes the room, which will trigger the exit.
-        } catch (error) {
-            console.error("Error saving and ending meeting:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the summary and end the meeting.' });
-        } finally {
-            setIsSummarizing(false);
-        }
-    };
-
     const handleSendInvites = async () => {
         if (!user || !roomData) return;
         const emails = emailsToInvite.split(/[ ,]+/).map(e => e.trim()).filter(Boolean);
@@ -976,7 +935,7 @@ export default function SyncRoomPage() {
         handleDemoteEmcee,
         handleRemoveParticipant,
         handleManualExit,
-        handleEndMeeting,
+        handleEndAndReconcile,
         sessionTimer,
         timerTooltipContent
     };

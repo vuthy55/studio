@@ -3,7 +3,7 @@
 
 import { db, auth } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
-import type { SyncRoom, Participant, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
+import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail } from './email';
 
@@ -89,61 +89,6 @@ export async function setFirstMessageTimestamp(roomId: string): Promise<{success
     }
 }
 
-
-/**
- * Performs a "soft delete" on a room by setting its status to 'closed'.
- * This is a server action and requires Firebase Admin privileges.
- * This will now also reset the timer state by clearing `firstMessageAt`.
- * @param {string} roomId The ID of the room to close.
- * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
- */
-export async function softDeleteRoom(roomId: string): Promise<{success: boolean, error?: string}> {
-  if (!roomId) {
-    console.error('softDeleteRoom error: No roomId provided.');
-    return { success: false, error: 'Room ID is required.' };
-  }
-
-  try {
-    const roomRef = db.collection('syncRooms').doc(roomId);
-    
-    // Use a transaction to ensure atomicity
-    await db.runTransaction(async (transaction) => {
-        const roomDoc = await transaction.get(roomRef);
-        if (!roomDoc.exists) {
-            throw new Error('Room not found.');
-        }
-        const roomData = roomDoc.data()!;
-
-        // 1. Update room status and reset timer state
-        transaction.update(roomRef, {
-            status: 'closed',
-            lastActivityAt: FieldValue.serverTimestamp(),
-            firstMessageAt: null, // Reset the timer
-        });
-        
-        // 2. Create notifications for all admins
-        const adminUids = await getAdminUids();
-        if (adminUids.length > 0) {
-            for (const adminId of adminUids) {
-                const notificationRef = db.collection('notifications').doc();
-                transaction.set(notificationRef, {
-                    userId: adminId,
-                    type: 'room_closed',
-                    message: `Room "${roomData.topic}" has been closed.`,
-                    createdAt: FieldValue.serverTimestamp(),
-                    read: false,
-                    roomId: roomId,
-                });
-            }
-        }
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error(`Error closing room ${roomId}:`, error);
-    return { success: false, error: `An unexpected server error occurred: ${error.message}` };
-  }
-}
 
 export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{success: boolean, error?: string}> {
   if (!roomIds || roomIds.length === 0) {
