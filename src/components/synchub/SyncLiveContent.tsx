@@ -47,7 +47,7 @@ const syncLiveTourSteps: TourStep[] = [
 
 
 export default function SyncLiveContent() {
-  const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
+  const { user, userProfile, settings, syncLiveUsage, handleSyncLiveTurn } = useUserData();
   const [selectedLanguages, setSelectedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
@@ -149,7 +149,7 @@ export default function SyncLiveContent() {
         sessionUsageRef.current += turnDuration;
         setSessionUsage(sessionUsageRef.current);
 
-        const tokensIncurred = updateSyncLiveUsage(turnDuration);
+        const tokensIncurred = handleSyncLiveTurn(turnDuration);
         setSessionTokensUsed(prev => prev + tokensIncurred);
 
         setStatus('idle');

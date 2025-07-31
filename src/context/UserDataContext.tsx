@@ -42,7 +42,7 @@ interface UserDataContextType {
     recordPracticeAttempt: (args: RecordPracticeAttemptArgs) => { wasRewardable: boolean, rewardAmount: number };
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string, cost?: number) => boolean;
-    updateSyncLiveUsage: (durationMs: number) => number;
+    handleSyncLiveTurn: (durationMs: number) => number;
     handleSyncOnlineSessionEnd: (durationMs: number) => Promise<void>;
     loadSingleOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
@@ -291,7 +291,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, [debouncedCommitToFirestore, clearLocalState]);
 
 
-    const updateSyncLiveUsage = useCallback((durationMs: number): number => {
+    const handleSyncLiveTurn = useCallback((durationMs: number): number => {
         if (!user || !settings) return 0;
         
         const currentTotalUsage = syncLiveUsage;
@@ -500,7 +500,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         recordPracticeAttempt,
         getTopicStats,
         spendTokensForTranslation,
-        updateSyncLiveUsage,
+        handleSyncLiveTurn,
         handleSyncOnlineSessionEnd,
         loadSingleOfflinePack,
         removeOfflinePack
