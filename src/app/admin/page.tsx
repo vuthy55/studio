@@ -347,6 +347,11 @@ function SettingsTabContent() {
                             <p className="text-sm text-muted-foreground">Max users in a Sync Online room.</p>
                         </div>
                         <div className="space-y-2">
+                            <Label htmlFor="roomReminderMinutes">Room Reminder (minutes)</Label>
+                            <Input id="roomReminderMinutes" type="number" value={settings.roomReminderMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
+                            <p className="text-sm text-muted-foreground">Remind users N minutes before a room's booked time ends.</p>
+                        </div>
+                        <div className="space-y-2">
                             <Label htmlFor="transcriptCost" className="flex items-center gap-1.5"><FileSignature/> Transcript Cost</Label>
                             <Input id="transcriptCost" type="number" value={settings.transcriptCost ?? ''} onChange={handleInputChange} placeholder="e.g., 50" />
                             <p className="text-sm text-muted-foreground">One-time token cost to generate a raw meeting transcript.</p>

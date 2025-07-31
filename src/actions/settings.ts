@@ -19,6 +19,7 @@ export interface AppSettings {
   languageUnlockCost: number;
   freeSavedPhrasesLimit: number;
   savedPhrasesPerToken: number;
+  roomReminderMinutes: number;
 }
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
@@ -44,6 +45,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         languageUnlockCost: 100,
         freeSavedPhrasesLimit: 100,
         savedPhrasesPerToken: 5,
+        roomReminderMinutes: 5,
     };
     
     try {
