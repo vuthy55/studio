@@ -1897,34 +1897,17 @@ export default function AdminPageV2() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-             <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical" className="md:grid md:grid-cols-12 md:gap-6">
-                <TabsList className="hidden md:flex md:col-span-3 lg:col-span-2 md:flex-col md:h-auto md:items-stretch">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-9 h-auto">
                     {adminTabs.map(tab => (
-                        <TabsTrigger key={tab.value} value={tab.value} className="justify-start gap-2">
-                           <tab.icon className="h-5 w-5" />
-                            {tab.label}
+                        <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full">
+                            <tab.icon className="h-5 w-5" />
+                            <span className="hidden md:inline">{tab.label}</span>
                         </TabsTrigger>
                     ))}
                 </TabsList>
 
-                {/* Mobile Dropdown */}
-                <div className="md:hidden mb-4">
-                    <Select value={activeTab} onValueChange={handleTabChange}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a section" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {adminTabs.map(tab => (
-                                <SelectItem key={tab.value} value={tab.value}>
-                                    {tab.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-
-                 <div className="md:col-span-9 lg:col-span-10">
+                <div className="mt-6">
                     <TabsContent value="rooms">
                         <RoomsTabContent />
                     </TabsContent>
@@ -1957,3 +1940,6 @@ export default function AdminPageV2() {
         </div>
     );
 }
+
+
+    
