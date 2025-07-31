@@ -45,7 +45,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { softDeleteRoom, requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
+import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
@@ -1208,7 +1208,7 @@ export default function SyncOnlineHome() {
                 {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                 <CollapsibleContent>
-                <Card className="mt-4 border-2 border-accent shadow-lg shadow-accent/20">
+                <Card className="mt-4 bg-accent/10 border-accent/50">
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
@@ -1242,7 +1242,7 @@ export default function SyncOnlineHome() {
                                         <Label htmlFor="duration">Duration (minutes)</Label>
                                         <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
                                             <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
-                                            <SelectContent>{[15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                                            <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
                                         </Select>
                                     </div>
                                     {!startNow && (
