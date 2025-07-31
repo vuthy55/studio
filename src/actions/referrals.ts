@@ -1,4 +1,3 @@
-
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -13,7 +12,6 @@ export interface ReferredUser {
 
 /**
  * Fetches users who were referred by a specific user by querying the dedicated 'referrals' collection.
- * This query is intentionally simplified to avoid requiring a composite index. Sorting is handled client-side.
  * @param {string} referrerId - The UID of the user who made the referrals.
  * @returns {Promise<ReferredUser[]>} A list of users referred by the given user.
  */
@@ -24,8 +22,8 @@ export async function getReferredUsers(referrerId: string): Promise<ReferredUser
 
     try {
         const referralsRef = db.collection('referrals');
-        // This simplified query does not require a composite index.
-        const q = referralsRef.where('referrerId', '==', referrerId);
+        // This query now targets the dedicated, indexed 'referrals' collection
+        const q = referralsRef.where('referrerId', '==', referrerId).orderBy('createdAt', 'desc');
         
         const snapshot = await q.get();
 
