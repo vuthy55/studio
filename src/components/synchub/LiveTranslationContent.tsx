@@ -7,7 +7,7 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -402,23 +402,37 @@ export default function LiveTranslationContent() {
                         <div className="space-y-2" data-tour="lt-input-textarea">
                             <div className="flex justify-between items-center">
                                 <Label htmlFor="from-language-live">{languages.find(l => l.value === fromLanguage)?.label}</Label>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                             <div className="relative" data-tour="lt-mic-button">
-                                                <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={!isOnline || isRecognizing || !!assessingPhraseId}>
-                                                    {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                    <span className="sr-only">Record from microphone</span>
+                                <div className="flex items-center">
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                 <Button size="icon" variant="ghost" onClick={() => setInputText('')} disabled={!inputText}>
+                                                    <X className="h-5 w-5 text-muted-foreground" />
+                                                    <span className="sr-only">Clear text</span>
                                                 </Button>
-                                             </div>
-                                        </TooltipTrigger>
-                                        {!isOnline && (
-                                            <TooltipContent>
-                                                <p>Voice input is disabled while offline.</p>
-                                            </TooltipContent>
-                                        )}
-                                    </Tooltip>
-                                </TooltipProvider>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Clear text</TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                 <div className="relative" data-tour="lt-mic-button">
+                                                    <Button size="icon" variant="ghost" onClick={doRecognizeFromMicrophone} disabled={!isOnline || isRecognizing || !!assessingPhraseId}>
+                                                        {isRecognizing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                        <span className="sr-only">Record from microphone</span>
+                                                    </Button>
+                                                 </div>
+                                            </TooltipTrigger>
+                                            {!isOnline && (
+                                                <TooltipContent>
+                                                    <p>Voice input is disabled while offline.</p>
+                                                </TooltipContent>
+                                            )}
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
                             </div>
                             <Textarea
                                 id="from-language-live"
