@@ -262,7 +262,7 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
 
             const roomData = roomDoc.data() as SyncRoom;
             
-            // If the room is already closed, do nothing.
+            // Idempotency: If the room is already closed, do nothing.
             if (roomData.status === 'closed') {
                 return;
             }
@@ -270,6 +270,8 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             const creatorRef = db.collection('users').doc(roomData.creatorUid);
             const creatorDoc = await transaction.get(creatorRef);
             if (!creatorDoc.exists) throw new Error("Room creator's user profile not found.");
+            
+            const now = Date.now();
 
             // Phase 1: Handle meetings that never started.
             if (!roomData.firstMessageAt) {
@@ -284,25 +286,24 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
                     });
                 }
             } else {
-                // Phase 2: Meeting started, reconcile full cost.
+                // Phase 2: Meeting started, reconcile full cost against the creator.
                 const settings = await getAppSettingsAction();
                 const costPerPersonPerMinute = settings.costPerSyncOnlineMinute || 1;
                 
                 const startTime = (roomData.firstMessageAt as Timestamp).toMillis();
-                const endTime = Date.now();
+                const endTime = now;
                 const actualDurationMinutes = Math.ceil((endTime - startTime) / 60000);
-
-                // Fetch participants within the transaction to get an accurate count
+                
                 const participantsSnapshot = await transaction.get(roomRef.collection('participants'));
-                const participantCount = participantsSnapshot.size > 0 ? participantsSnapshot.size : 1; // Avoid division by zero
+                const participantCount = participantsSnapshot.size > 0 ? participantsSnapshot.size : 1; 
 
                 const totalCost = actualDurationMinutes * participantCount * costPerPersonPerMinute;
                 const prepaidCost = roomData.initialCost || 0;
                 
                 const costDifference = totalCost - prepaidCost;
-
+                
                 if (costDifference < 0) {
-                    // Refund for unused time
+                    // Refund for unused time to the creator
                     const refundAmount = Math.abs(costDifference);
                     transaction.update(creatorRef, { tokenBalance: FieldValue.increment(refundAmount) });
                     const logRef = creatorRef.collection('transactionLogs').doc();
@@ -313,7 +314,7 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
                         description: `Prorated refund for room: "${roomData.topic}"`
                     });
                 } else if (costDifference > 0) {
-                    // Charge for overtime
+                    // Charge for overtime to the creator
                     const creatorBalance = creatorDoc.data()?.tokenBalance || 0;
                     const finalCharge = Math.min(costDifference, creatorBalance);
 
@@ -333,7 +334,8 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
             // Finally, update the room status.
             transaction.update(roomRef, { 
                 status: 'closed',
-                lastActivityAt: FieldValue.serverTimestamp() 
+                lastActivityAt: FieldValue.serverTimestamp(),
+                lastSessionEndedAt: Timestamp.fromMillis(now)
             });
         });
         return { success: true };
@@ -560,4 +562,3 @@ export async function extendMeeting(roomId: string, creatorId: string): Promise<
     }
 }
     
-
