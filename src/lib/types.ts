@@ -1,4 +1,3 @@
-
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 import type { LanguageCode } from './data';
@@ -96,8 +95,6 @@ export type RoomMessage = {
     createdAt: Timestamp;
     // New fields for special system messages
     type?: 'reminder' | 'system';
-    privateText?: string;
-    creatorUid?: string;
     actions?: ('payToContinue')[];
 }
 

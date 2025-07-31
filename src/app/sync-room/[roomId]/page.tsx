@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder } from '@/actions/room';
+import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder, volunteerAsPayor } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -433,10 +433,11 @@ export default function SyncRoomPage() {
     const [isSendingInvites, setIsSendingInvites] = useState(false);
     
     const [isSummarizing, setIsSummarizing] = useState(false);
+    const [isPaying, setIsPaying] = useState(false);
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef<Set<string>>(new Set());
+    const processedMessages = useRef(new Set<string>());
     
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
@@ -489,37 +490,27 @@ export default function SyncRoomPage() {
         }
     }, [roomData?.firstMessageAt]);
 
-    // Dynamic reminder timer logic - now runs for everyone but only triggers for one.
+    // Centralized, dynamic reminder logic
     useEffect(() => {
         if (!roomData || !user || !participants.length || roomData.status !== 'active' || roomData.endingReminderSent) {
             return;
         }
 
-        // 1. Determine who is responsible for the trigger
-        const activeEmcees = participants
-            .filter(p => roomData.emceeEmails.includes(p.email))
-            .sort((a, b) => a.uid.localeCompare(b.uid));
+        // 1. Deterministically find the trigger participant.
+        const activeParticipants = [...participants].sort((a, b) => a.uid.localeCompare(b.uid));
+        if (activeParticipants.length === 0) return;
 
-        // If no emcees are present, fall back to any participant
-        const potentialTriggers = activeEmcees.length > 0 ? activeEmcees : [...participants].sort((a, b) => a.uid.localeCompare(b.uid));
-
-        if (potentialTriggers.length === 0) return; // No one to trigger
-
-        const triggerParticipantId = potentialTriggers[0].uid;
+        const triggerParticipantId = activeParticipants[0].uid;
         const amITrigger = user.uid === triggerParticipantId;
 
         // 2. Logic to set or clear the timer
         const startReminderTimer = () => {
             if (roomData.firstMessageAt && roomData.durationMinutes && roomData.reminderMinutes) {
-                const totalDurationMs = roomData.durationMinutes * 60 * 1000;
-                const reminderTimeMs = roomData.reminderMinutes * 60 * 1000;
+                const scheduledEnd = (roomData.firstMessageAt as Timestamp).toMillis() + (roomData.durationMinutes * 60 * 1000);
+                const reminderTime = scheduledEnd - (roomData.reminderMinutes * 60 * 1000);
+                const timeoutDuration = reminderTime - Date.now();
                 
-                const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
-                const timeSinceStart = Date.now() - startTime;
-                
-                const timeoutDuration = totalDurationMs - reminderTimeMs - timeSinceStart;
-
-                if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current); // Clear previous timer
+                if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
 
                 if (timeoutDuration > 0) {
                     reminderTimeoutRef.current = setTimeout(() => {
@@ -532,14 +523,12 @@ export default function SyncRoomPage() {
         if (amITrigger) {
             startReminderTimer();
         } else {
-            // If I am not the trigger, I must ensure I have no active timer.
             if (reminderTimeoutRef.current) {
                 clearTimeout(reminderTimeoutRef.current);
                 reminderTimeoutRef.current = null;
             }
         }
         
-        // Cleanup on unmount or dependency change
         return () => {
             if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
         };
@@ -926,6 +915,20 @@ export default function SyncRoomPage() {
         }
     };
 
+    const handlePayToContinue = async () => {
+        if (!user || isPaying) return;
+        setIsPaying(true);
+        const result = await volunteerAsPayor(roomId, user.uid);
+        if (!result.success) {
+            toast({
+                variant: 'destructive',
+                title: 'Could not extend meeting',
+                description: result.error || 'Please ensure you have enough tokens.'
+            });
+        }
+        setIsPaying(false);
+    };
+
 
     if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
         return <div className="flex h-screen items-center justify-center flex-col gap-4">
@@ -1025,21 +1028,18 @@ export default function SyncRoomPage() {
                                 const isOwnMessage = msg.speakerUid === user?.uid;
                                 let displayText: React.ReactNode = isOwnMessage ? msg.text : (translatedMessages[msg.id] || `Translating from ${getAzureLanguageLabel(msg.speakerLanguage || '')}...`);
                                 
-                                // Handle system messages
-                                if (msg.type === 'reminder') {
-                                    const isCreator = user?.uid === msg.creatorUid;
-                                    displayText = isCreator ? msg.privateText || msg.text : msg.text;
-                                }
-
                                 if (msg.type === 'reminder') {
                                     return (
                                         <div key={msg.id} className="p-3 my-2 rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-sm">
                                             <div className="flex items-center gap-3">
                                                 <Info className="h-5 w-5" />
                                                 <div className="flex-grow">
-                                                    <p>{displayText}</p>
+                                                    <p>{msg.text}</p>
                                                     {msg.actions?.includes('payToContinue') && (
-                                                        <Button size="sm" className="mt-2">Pay to Continue</Button>
+                                                        <Button size="sm" className="mt-2" onClick={handlePayToContinue} disabled={isPaying}>
+                                                            {isPaying ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Coins className="mr-2 h-4 w-4" />}
+                                                            Pay to Continue
+                                                        </Button>
                                                     )}
                                                 </div>
                                             </div>
