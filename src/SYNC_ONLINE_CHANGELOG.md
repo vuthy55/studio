@@ -11,6 +11,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 
 ### Fixed
+- **`[FIX]`** Resolved a critical race condition that caused a `permission-denied` error upon exiting a Sync Online room. The root cause was that client-side Firestore listeners remained active for a moment after the user's participant record was deleted on the server. The fix ensures that all Firestore listeners within the component (`participants` and `messages`) are manually and synchronously detached *before* the server action to exit the room is called. This guarantees the client stops listening before its permissions are revoked, fully resolving the error. The logic for emcee hand-off and last-participant-out room closure has been confirmed as stable and correct.
 - **`[FIX]`** Resolved a regression where referral records were not being created in the `referrals` collection upon user signup, although the referrer correctly received their bonus tokens. The issue was caused by a misplaced batch operation that overwrote the referral creation command before it could be committed to the database. The logic in the `signUpUser` action has been corrected to ensure all referral-related database writes are executed atomically and correctly.
 - **`[FIX]`** Resolved a persistent and critical `npm ERESOLVE` dependency conflict that blocked all builds and installations. The root cause was an inability for `npm` to find a compatible version of the `genkit` package that satisfied all of its peer dependencies (e.g., `@genkit-ai/googleai`, `@genkit-ai/firebase`).
     - **Initial Problem:** The `package.json` file used a caret (`^`) versioning for `genkit` packages, allowing `npm` to install newer minor versions. This flexibility led to dependency tree conflicts where sub-dependencies had incompatible requirements.
@@ -28,6 +29,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
