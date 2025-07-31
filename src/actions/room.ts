@@ -509,19 +509,16 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
         actions: ['payToContinue'],
     });
 
-    // 2. In-App Notifications for all participants
-    participantsSnapshot.docs.forEach(p => {
-      const isCreator = p.id === creatorId;
-      const notificationRef = db.collection('notifications').doc();
+    // 2. Guaranteed notification for the creator
+     const notificationRef = db.collection('notifications').doc();
       batch.set(notificationRef, {
-          userId: p.id,
+          userId: creatorId,
           type: 'ending_soon_reminder',
-          message: isCreator ? creatorReminderMessage : genericReminderMessage,
+          message: creatorReminderMessage,
           roomId: roomId,
           createdAt: FieldValue.serverTimestamp(),
           read: false,
       });
-    });
 
     // Mark that the reminder has been sent
     batch.update(roomRef, { endingReminderSent: true });
@@ -543,3 +540,5 @@ export async function handleMeetingReminder(roomId: string, creatorId: string): 
   }
 }
       
+
+    

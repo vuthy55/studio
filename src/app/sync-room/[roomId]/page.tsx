@@ -466,50 +466,51 @@ export default function SyncRoomPage() {
     }, [user, roomId, router, handleSyncOnlineSessionEnd]);
 
 
+    // Dynamic reminder timer logic
     useEffect(() => {
-        if (roomData?.firstMessageAt && isParticipant === 'yes' && !roomData?.lastSessionEndedAt) {
-            const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
-            
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-            }
+        if (!roomData || !user || !participants.length) {
+            return;
+        }
 
-            timerIntervalRef.current = setInterval(() => {
-                const elapsedMs = Date.now() - startTime;
-                const totalSeconds = Math.floor(elapsedMs / 1000);
-                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                setSessionTimer(`${minutes}:${seconds}`);
-            }, 1000);
+        const activeEmcees = participants
+            .filter(p => roomData.emceeEmails.includes(p.email))
+            .sort((a, b) => a.uid.localeCompare(b.uid));
 
-            // Set up the end-of-meeting reminder timer
-            if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
-            if (roomData.durationMinutes && roomData.reminderMinutes && !roomData.endingReminderSent) {
+        if (activeEmcees.length === 0) return;
+
+        const triggerEmceeId = activeEmcees[0].uid;
+        const amITrigger = user.uid === triggerEmceeId;
+
+        const startTimer = () => {
+            if (roomData.firstMessageAt && roomData.durationMinutes && roomData.reminderMinutes && !roomData.endingReminderSent) {
                 const totalDurationMs = roomData.durationMinutes * 60 * 1000;
                 const reminderTimeMs = roomData.reminderMinutes * 60 * 1000;
-                const timeoutDuration = totalDurationMs - reminderTimeMs;
                 
+                const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
+                const timeSinceStart = Date.now() - startTime;
+                
+                const timeoutDuration = totalDurationMs - reminderTimeMs - timeSinceStart;
+
                 if (timeoutDuration > 0) {
+                    if (reminderTimeoutRef.current) clearTimeout(reminderTimeoutRef.current);
                     reminderTimeoutRef.current = setTimeout(() => {
                         handleMeetingReminder(roomId, roomData.creatorUid);
                     }, timeoutDuration);
                 }
             }
-        }
+        };
 
-        return () => {
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-            }
+        if (amITrigger) {
+            startTimer();
+        } else {
             if (reminderTimeoutRef.current) {
                 clearTimeout(reminderTimeoutRef.current);
                 reminderTimeoutRef.current = null;
             }
-             setSessionTimer('00:00'); 
-        };
-    }, [roomData, isParticipant, roomId]);
-    
+        }
+
+    }, [participants, roomData, user]);
+
     
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1059,3 +1060,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
