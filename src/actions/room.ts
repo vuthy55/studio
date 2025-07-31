@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
@@ -5,6 +6,7 @@ import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
 import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail } from './email';
+import { deleteCollection } from '@/lib/firestore-utils';
 
 
 /**
@@ -20,37 +22,6 @@ async function getAdminUids(): Promise<string[]> {
     return snapshot.docs.map(doc => doc.id);
 }
 
-/**
- * Recursively deletes a subcollection.
- */
-async function deleteCollection(collectionPath: string, batchSize: number) {
-    const collectionRef = db.collection(collectionPath);
-    const query = collectionRef.orderBy('__name__').limit(batchSize);
-
-    return new Promise((resolve, reject) => {
-        deleteQueryBatch(query, resolve).catch(reject);
-    });
-}
-
-async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?: unknown) => void) {
-    const snapshot = await query.get();
-
-    const batchSize = snapshot.size;
-    if (batchSize === 0) {
-        resolve();
-        return;
-    }
-
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-    });
-    await batch.commit();
-
-    process.nextTick(() => {
-        deleteQueryBatch(query, resolve);
-    });
-}
 
 /**
  * Sets the 'firstMessageAt' timestamp on a room document if it doesn't already exist.

@@ -562,6 +562,17 @@ function PaymentHistorySection() {
         }
     }, [user, hasFetched, toast]);
 
+    const handleTabClick = () => {
+        if (!hasFetched) {
+            fetchPaymentHistory();
+        }
+    };
+    
+    useEffect(() => {
+        // This effect can be removed if we rely solely on the button click
+    }, []);
+
+
     return (
         <Card>
             <CardHeader>
@@ -896,6 +907,11 @@ function ProfilePageContent() {
         }
     }, [searchParams]);
 
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        router.push(`/profile?tab=${value}`, { scroll: false });
+    }
+
     const profileTabs = [
         { value: 'profile', label: 'Profile', icon: UserIcon },
         { value: 'buddies', label: 'Buddies', icon: Users },
@@ -916,7 +932,7 @@ function ProfilePageContent() {
         <div className="space-y-8">
             <MainHeader title="My Account" description="Manage settings and track your history." />
             
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <div className="grid w-full grid-cols-5">
                     <TabsList className="col-span-5 grid h-auto w-full grid-cols-5">
                         {profileTabs.map((tab) => (

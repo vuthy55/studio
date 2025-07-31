@@ -3,38 +3,7 @@
 
 import { db, auth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-
-/**
- * Recursively deletes a collection in Firestore.
- */
-async function deleteCollection(collectionPath: string, batchSize: number) {
-    const collectionRef = db.collection(collectionPath);
-    const query = collectionRef.orderBy('__name__').limit(batchSize);
-
-    return new Promise((resolve, reject) => {
-        deleteQueryBatch(query, resolve).catch(reject);
-    });
-}
-
-async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?: unknown) => void) {
-    const snapshot = await query.get();
-
-    const batchSize = snapshot.size;
-    if (batchSize === 0) {
-        resolve();
-        return;
-    }
-
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-    });
-    await batch.commit();
-
-    process.nextTick(() => {
-        deleteQueryBatch(query, resolve);
-    });
-}
+import { deleteCollection } from '@/lib/firestore-utils';
 
 
 /**
@@ -169,24 +138,7 @@ export async function resetUserPracticeHistory(userId: string): Promise<{success
     }
 
     try {
-        const historyRef = db.collection('users').doc(userId).collection('practiceHistory');
-        const snapshot = await historyRef.limit(500).get(); // Limit batch size for safety
-
-        if (snapshot.empty) {
-            return { success: true };
-        }
-
-        const batch = db.batch();
-        snapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-
-        // If there might be more documents than the limit, recursively call until all are deleted.
-        if (snapshot.size >= 500) {
-            return resetUserPracticeHistory(userId);
-        }
-
+        await deleteCollection(`users/${userId}/practiceHistory`, 100);
         return { success: true };
     } catch (error: any) {
         console.error(`Error clearing practice history for user ${userId}:`, error);
