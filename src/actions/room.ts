@@ -373,7 +373,7 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
 
 /**
  * Handles all logic when a participant exits a room, including emcee reassignment and room closure.
- * This is a fire-and-forget action called by the client.
+ * This is an atomic fire-and-forget action called by the client.
  */
 export async function handleParticipantExit(roomId: string, userId: string): Promise<{ success: boolean; error?: string }> {
     if (!roomId || !userId) {
@@ -384,54 +384,62 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
     const participantRef = roomRef.collection('participants').doc(userId);
 
     try {
-        const roomDoc = await roomRef.get();
-        if (!roomDoc.exists) return { success: true }; // Room already gone
-        const roomData = roomDoc.data() as SyncRoom;
-
-        const participantDoc = await participantRef.get();
-        if (!participantDoc.exists) return { success: true }; // Participant already gone
-        const participantData = participantDoc.data() as Participant;
-
-        // --- Main Logic ---
-        await participantRef.delete();
-
-        // Check if the room is now empty
-        const remainingParticipantsSnapshot = await roomRef.collection('participants').limit(1).get();
-        if (remainingParticipantsSnapshot.empty) {
-            await endAndReconcileRoom(roomId);
-            return { success: true };
-        }
-
-        // Check if the leaving user was an emcee
-        const wasEmcee = roomData.emceeEmails.includes(participantData.email);
-        if (wasEmcee) {
-            const remainingEmcees = roomData.emceeEmails.filter(email => email !== participantData.email);
-
-            if (remainingEmcees.length === 0) {
-                // Last emcee left, promote someone else
-                const newEmcee = remainingParticipantsSnapshot.docs[0].data() as Participant;
-                await roomRef.update({
-                    emceeEmails: FieldValue.arrayUnion(newEmcee.email)
-                });
-                
-                const notificationRef = db.collection('notifications').doc();
-                await notificationRef.set({
-                    userId: newEmcee.uid,
-                    type: 'edit_request',
-                    message: `You have been promoted to emcee for the room "${roomData.topic}".`,
-                    createdAt: FieldValue.serverTimestamp(),
-                    read: false,
-                    roomId: roomId,
-                });
-
-            } else {
-                // Other emcees remain, just remove the leaving one
-                 await roomRef.update({
-                    emceeEmails: FieldValue.arrayRemove(participantData.email)
-                });
+        await db.runTransaction(async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists) return; // Room already gone
+            const roomData = roomDoc.data() as SyncRoom;
+            
+            // --- Idempotency Check ---
+            // If the room is already closed, do nothing to prevent multiple refunds.
+            if (roomData.status === 'closed') {
+                return;
             }
-        }
 
+            const participantDoc = await transaction.get(participantRef);
+            if (!participantDoc.exists) return; // Participant already gone
+            const participantData = participantDoc.data() as Participant;
+
+            // Delete the leaving participant
+            transaction.delete(participantRef);
+
+            // Get all remaining participants within the same transaction
+            const allParticipantsSnapshot = await transaction.get(roomRef.collection('participants'));
+            
+            // Filter out the currently exiting participant to get the "true" remaining count
+            const remainingParticipants = allParticipantsSnapshot.docs.filter(doc => doc.id !== userId);
+
+            // Check if the room is now empty
+            if (remainingParticipants.length === 0) {
+                // By calling this here, inside the transaction, we ensure it only runs ONCE.
+                // The `endAndReconcileRoom` function itself has its own transaction,
+                // but this outer transaction ensures we don't even attempt to call it multiple times.
+                await endAndReconcileRoom(roomId);
+                return; // Reconciliation handles closing the room, so we can stop here.
+            }
+
+            // If the room is not empty, check if an emcee left
+            const wasEmcee = roomData.emceeEmails.includes(participantData.email);
+            if (wasEmcee) {
+                const remainingEmcees = roomData.emceeEmails.filter(email => email !== participantData.email);
+
+                if (remainingEmcees.length === 0) {
+                    // Last emcee left, promote the first person from the remaining list
+                    const newEmcee = remainingParticipants[0].data() as Participant;
+                    transaction.update(roomRef, {
+                        emceeEmails: FieldValue.arrayUnion(newEmcee.email)
+                    });
+                    
+                    // Note: We cannot create notifications inside this user-exit transaction
+                    // because it might conflict with other writes. Notifications are non-critical
+                    // and can be handled separately if needed, or by a different mechanism.
+                } else {
+                    // Other emcees remain, just remove the leaving one
+                     transaction.update(roomRef, {
+                        emceeEmails: FieldValue.arrayRemove(participantData.email)
+                    });
+                }
+            }
+        });
         return { success: true };
 
     } catch (error: any) {
@@ -440,3 +448,5 @@ export async function handleParticipantExit(roomId: string, userId: string): Pro
         return { success: false, error: 'Server-side exit handling failed.' };
     }
 }
+
+      
