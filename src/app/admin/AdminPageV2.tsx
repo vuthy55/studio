@@ -856,8 +856,6 @@ function IssueTokensContent({ onIssueSuccess }: { onIssueSuccess: () => void }) 
 
     const handleIssueTokens = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { email, amount, reason, description } = formState;
-
         if (!user || !user.email) {
             toast({ variant: 'destructive', title: 'Error', description: 'Admin user not found.' });
             return;
@@ -1247,16 +1245,13 @@ function RoomsTabContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
-  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
   const { toast } = useToast();
   const [user] = useAuthState(auth);
   const [editability, setEditability] = useState<Record<string, boolean>>({});
 
-
   const handleFetchRooms = useCallback(async () => {
     setIsLoading(true);
     setError('');
-    setSelectedRoomIds([]);
     try {
       const fetchedRooms = await getAllRooms();
       setRooms(fetchedRooms);
@@ -1295,40 +1290,13 @@ function RoomsTabContent() {
     };
   }, [rooms]);
 
-  const handleSelectRoom = (roomId: string, checked: boolean) => {
-    setSelectedRoomIds(prev => {
-      if (checked) {
-        return [...prev, roomId];
-      } else {
-        return prev.filter(id => id !== roomId);
-      }
-    });
-  };
-  
-  const handleSelectAll = (type: 'summary' | 'active' | 'closed', checked: boolean | 'indeterminate') => {
-      let roomIdsToToggle: string[] = [];
-      if (type === 'summary') roomIdsToToggle = closedWithSummary.map(r => r.id);
-      if (type === 'active') roomIdsToToggle = [...activeRooms, ...scheduledRooms].map(r => r.id);
-      if (type === 'closed') roomIdsToToggle = closedWithoutSummary.map(r => r.id);
-
-      setSelectedRoomIds(prev => {
-          const newSelection = new Set(prev);
-          if (checked) {
-              roomIdsToToggle.forEach(id => newSelection.add(id));
-          } else {
-              roomIdsToToggle.forEach(id => newSelection.delete(id));
-          }
-          return Array.from(newSelection);
-      });
-  };
-
-  const handleDeleteSelected = async () => {
-    if (!user) return;
+  const handleDeleteRooms = async (roomIds: string[]) => {
+    if (!user || roomIds.length === 0) return;
     setIsDeleting(true);
     try {
-        const result = await permanentlyDeleteRooms(selectedRoomIds);
+        const result = await permanentlyDeleteRooms(roomIds);
         if (result.success) {
-            toast({ title: "Success", description: `${selectedRoomIds.length} room(s) permanently deleted.` });
+            toast({ title: "Success", description: `${roomIds.length} room(s) permanently deleted.` });
             await handleFetchRooms();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -1339,7 +1307,74 @@ function RoomsTabContent() {
     } finally {
         setIsDeleting(false);
     }
-};
+  };
+
+  const RoomList = ({ title, rooms, allowDeleteAll }: { title: string; rooms: ClientSyncRoom[], allowDeleteAll: boolean }) => (
+    <div>
+        <div className="font-semibold p-2 border-b flex items-center justify-between">
+            <h4>{title} ({rooms.length})</h4>
+            {allowDeleteAll && rooms.length > 0 && (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm">Delete All</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>This will permanently delete all {rooms.length} rooms in this category. This action cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteRooms(rooms.map(r => r.id))}>Confirm Delete All</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+        </div>
+        <div className="border rounded-md max-h-60 overflow-y-auto">
+            <Table>
+                <TableBody>
+                    {rooms.map(room => (
+                        <TableRow key={room.id}>
+                            <TableCell className="p-2 font-medium">
+                                {room.topic}
+                            </TableCell>
+                            <TableCell className="p-2 text-right flex items-center justify-end gap-2">
+                                {room.status === 'closed' && room.summary && (
+                                  <>
+                                    <Label htmlFor={`edit-switch-${room.id}`} className="text-xs">Allow Edits</Label>
+                                    <Switch 
+                                        id={`edit-switch-${room.id}`}
+                                        checked={editability[room.id] || false}
+                                        onCheckedChange={(checked) => handleEditabilityChange(room.id, checked)}
+                                    />
+                                  </>
+                                )}
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Delete room: "{room.topic}"?</AlertDialogTitle>
+                                            <AlertDialogDescription>This action is permanent and cannot be undone.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteRooms([room.id])}>Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    </div>
+  );
 
   return (
     <Card>
@@ -1350,34 +1385,10 @@ function RoomsTabContent() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex justify-between items-center">
-             <Button onClick={handleFetchRooms} disabled={isLoading}>
-                {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-                {rooms.length > 0 ? 'Refresh List' : 'Fetch All Rooms'}
-            </Button>
-            {selectedRoomIds.length > 0 && (
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={isDeleting}>
-                            {isDeleting ? <LoaderCircle className="animate-spin mr-2" /> : <Trash2 className="mr-2" />}
-                            Delete ({selectedRoomIds.length})
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This action is permanent and cannot be undone. This will permanently delete the selected {selectedRoomIds.length} room(s) and all associated data (participants, messages). Rooms with summaries or transcripts will also be deleted.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteSelected}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
-        </div>
+        <Button onClick={handleFetchRooms} disabled={isLoading}>
+            {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
+            {rooms.length > 0 ? 'Refresh List' : 'Fetch All Rooms'}
+        </Button>
 
         {error && (
           <div className="p-4 bg-destructive/20 text-destructive rounded-md">
@@ -1386,97 +1397,17 @@ function RoomsTabContent() {
           </div>
         )}
         
+        {isDeleting && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+                <LoaderCircle className="h-4 w-4 animate-spin"/> Deleting...
+            </div>
+        )}
+
         {rooms.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               <div>
-                    <div className="font-semibold p-2 border-b flex items-center justify-between">
-                      <h4>Rooms with Summaries ({closedWithSummary.length})</h4>
-                       <div className="flex items-center gap-1.5 text-xs">
-                          <Label htmlFor="select-all-summary">All</Label>
-                          <Checkbox id="select-all-summary" onCheckedChange={(c) => handleSelectAll('summary', c)} />
-                       </div>
-                    </div>
-                    <div className="border rounded-md max-h-60 overflow-y-auto">
-                        <Table>
-                             <TableBody>
-                                {closedWithSummary.map(room => (
-                                    <TableRow key={room.id}>
-                                        <TableCell className="p-2 w-10">
-                                            <Checkbox id={`cb-closed-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
-                                        </TableCell>
-                                        <TableCell className="p-2">
-                                            <label htmlFor={`cb-closed-${room.id}`} className="font-medium">{room.topic}</label>
-                                        </TableCell>
-                                        <TableCell className="p-2 text-right flex items-center justify-end gap-2">
-                                            <Label htmlFor={`edit-switch-${room.id}`} className="text-xs">Allow Edits</Label>
-                                            <Switch 
-                                                id={`edit-switch-${room.id}`}
-                                                checked={editability[room.id] || false}
-                                                onCheckedChange={(checked) => handleEditabilityChange(room.id, checked)}
-                                            />
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                             </TableBody>
-                        </Table>
-                    </div>
-                </div>
-                <div>
-                     <div className="font-semibold p-2 border-b flex items-center justify-between">
-                        <h4>Active & Scheduled ({activeRooms.length + scheduledRooms.length})</h4>
-                         <div className="flex items-center gap-1.5 text-xs">
-                          <Label htmlFor="select-all-active">All</Label>
-                           <Checkbox id="select-all-active" onCheckedChange={(c) => handleSelectAll('active', c)} />
-                       </div>
-                     </div>
-                     <div className="border rounded-md max-h-60 overflow-y-auto">
-                        <Table>
-                             <TableBody>
-                                {[...activeRooms, ...scheduledRooms].map(room => (
-                                    <TableRow key={room.id}>
-                                        <TableCell className="p-2 w-10">
-                                            <Checkbox id={`cb-active-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
-                                        </TableCell>
-                                        <TableCell className="p-2">
-                                            <label htmlFor={`cb-active-${room.id}`} className="font-medium">{room.topic}</label>
-                                        </TableCell>
-                                        <TableCell className="p-2 text-right">
-                                            <Badge variant="default" className={room.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>{room.status}</Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                             </TableBody>
-                        </Table>
-                      </div>
-                </div>
-                 <div>
-                    <div className="font-semibold p-2 border-b flex items-center justify-between">
-                        <h4>Closed (No Summary) ({closedWithoutSummary.length})</h4>
-                         <div className="flex items-center gap-1.5 text-xs">
-                           <Label htmlFor="select-all-closed">All</Label>
-                           <Checkbox id="select-all-closed" onCheckedChange={(c) => handleSelectAll('closed', c)} />
-                       </div>
-                    </div>
-                    <div className="border rounded-md max-h-60 overflow-y-auto">
-                        <Table>
-                             <TableBody>
-                                {closedWithoutSummary.map(room => (
-                                    <TableRow key={room.id}>
-                                        <TableCell className="p-2 w-10">
-                                            <Checkbox id={`cb-closed-ns-${room.id}`} onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)} checked={selectedRoomIds.includes(room.id)}/>
-                                        </TableCell>
-                                        <TableCell className="p-2">
-                                            <label htmlFor={`cb-closed-ns-${room.id}`} className="font-medium">{room.topic}</label>
-                                        </TableCell>
-                                         <TableCell className="p-2 text-right">
-                                            <Badge variant="destructive">Closed</Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                             </TableBody>
-                        </Table>
-                    </div>
-                </div>
+               <RoomList title="Rooms with Summaries" rooms={closedWithSummary} allowDeleteAll={true} />
+               <RoomList title="Active & Scheduled" rooms={[...activeRooms, ...scheduledRooms]} allowDeleteAll={false} />
+               <RoomList title="Closed (No Summary)" rooms={closedWithoutSummary} allowDeleteAll={true} />
           </div>
         )}
       </CardContent>
