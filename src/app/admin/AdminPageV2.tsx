@@ -1897,52 +1897,62 @@ export default function AdminPageV2() {
         <div className="space-y-8">
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
-             <Tabs value={activeTab} onValueChange={handleTabChange}>
-                <TabsList className="grid w-full grid-cols-9 h-auto">
+             <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical" className="md:grid md:grid-cols-12 md:gap-6">
+                <TabsList className="hidden md:flex md:col-span-3 lg:col-span-2 md:flex-col md:h-auto md:items-stretch">
                     {adminTabs.map(tab => (
-                        <TooltipProvider key={tab.value} delayDuration={0}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <TabsTrigger value={tab.value} className="flex-1 flex-col h-14 gap-1.5">
-                                        <tab.icon className="h-5 w-5" />
-                                        <span className="hidden lg:inline text-xs">{tab.label}</span>
-                                    </TabsTrigger>
-                                </TooltipTrigger>
-                                <TooltipContent className="lg:hidden">
-                                    <p>{tab.label}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <TabsTrigger key={tab.value} value={tab.value} className="justify-start gap-2">
+                           <tab.icon className="h-5 w-5" />
+                            {tab.label}
+                        </TabsTrigger>
                     ))}
                 </TabsList>
 
-                 <TabsContent value="rooms" className="mt-6">
-                    <RoomsTabContent />
-                </TabsContent>
-                <TabsContent value="users" className="mt-6">
-                    <UsersTabContent />
-                </TabsContent>
-                 <TabsContent value="feedback" className="mt-6">
-                    <FeedbackTabContent />
-                </TabsContent>
-                <TabsContent value="settings" className="mt-6">
-                    <SettingsTabContent />
-                </TabsContent>
-                 <TabsContent value="financial" className="mt-6">
-                    <FinancialTabContent />
-                </TabsContent>
-                <TabsContent value="tokens" className="mt-6">
-                    <TokensTabContent />
-                </TabsContent>
-                <TabsContent value="language-packs" className="mt-6">
-                    <LanguagePacksTabContent />
-                </TabsContent>
-                 <TabsContent value="bulk-actions" className="mt-6">
-                    <BulkActionsContent />
-                </TabsContent>
-                <TabsContent value="messaging" className="mt-6">
-                    <MessagingContent />
-                </TabsContent>
+                {/* Mobile Dropdown */}
+                <div className="md:hidden mb-4">
+                    <Select value={activeTab} onValueChange={handleTabChange}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a section" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {adminTabs.map(tab => (
+                                <SelectItem key={tab.value} value={tab.value}>
+                                    {tab.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+
+                 <div className="md:col-span-9 lg:col-span-10">
+                    <TabsContent value="rooms">
+                        <RoomsTabContent />
+                    </TabsContent>
+                    <TabsContent value="users">
+                        <UsersTabContent />
+                    </TabsContent>
+                    <TabsContent value="feedback">
+                        <FeedbackTabContent />
+                    </TabsContent>
+                    <TabsContent value="settings">
+                        <SettingsTabContent />
+                    </TabsContent>
+                    <TabsContent value="financial">
+                        <FinancialTabContent />
+                    </TabsContent>
+                    <TabsContent value="tokens">
+                        <TokensTabContent />
+                    </TabsContent>
+                    <TabsContent value="language-packs">
+                        <LanguagePacksTabContent />
+                    </TabsContent>
+                    <TabsContent value="bulk-actions">
+                        <BulkActionsContent />
+                    </TabsContent>
+                    <TabsContent value="messaging">
+                        <MessagingContent />
+                    </TabsContent>
+                </div>
             </Tabs>
         </div>
     );
