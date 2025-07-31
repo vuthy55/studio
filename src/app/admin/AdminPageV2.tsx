@@ -1871,12 +1871,9 @@ export default function AdminPageV2() {
 
     const handleTabChange = (value: string) => {
         setActiveTab(value);
-        // Use router.push to update the URL without a full page reload
         router.push(`/admin?tab=${value}`, { scroll: false });
     };
     
-    // This effect ensures the component's state stays in sync with the URL
-    // if the user navigates with the back/forward browser buttons.
     useEffect(() => {
         const currentTab = searchParams.get('tab');
         if (currentTab && currentTab !== activeTab) {
@@ -1950,4 +1947,3 @@ export default function AdminPageV2() {
         </div>
     );
 }
-
