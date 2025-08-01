@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 // Create a comprehensive list of countries for the combobox
-const allCountriesForSearch = aseanCountries.map(c => ({ value: c.code, label: c.name }));
+const allCountriesForSearch = aseanCountries.map(c => ({ value: c.code.toLowerCase(), label: c.name }));
 
 export default function InfoHubPage() {
     const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
