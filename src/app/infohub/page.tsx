@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LoaderCircle, Wand2, AlertTriangle, Sparkles, Link as LinkIcon } from 'lucide-react';
-import { countries as aseanCountries, lightweightCountries } from '@/lib/location-data';
+import { LoaderCircle, Wand2, AlertTriangle, Sparkles, Link as LinkIcon, Calendar, BookUser, ShieldAlert, Phone } from 'lucide-react';
+import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { Button } from '@/components/ui/button';
@@ -16,89 +16,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { etiquetteData } from '@/lib/etiquette-data';
+import { visaData } from '@/lib/visa-data';
+import { emergencyData } from '@/lib/emergency-data';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-function IntelCard({ intel, countryName }: { intel: CountryIntel, countryName: string }) {
-    if (!intel) return null;
-    return (
-        <Card className="mt-6 bg-primary/10 border-primary">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Sparkles className="text-primary"/> AI Travel Advisory for {countryName}</CardTitle>
-                <CardDescription>This information is AI-generated and should be used as a starting point for your research.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div>
-                    <h3 className="font-semibold">Major Holidays & Festivals</h3>
-                    <ul className="list-disc pl-5 mt-1 text-sm">
-                        {intel.majorHolidays.map((item, index) => <li key={index}><strong>{item.name} ({item.date}):</strong> {item.description}</li>)}
-                    </ul>
-                </div>
-                <div>
-                    <h3 className="font-semibold">Cultural Etiquette</h3>
-                    <ul className="list-disc pl-5 mt-1 text-sm">
-                        {intel.culturalEtiquette.map((tip, index) => <li key={index}>{tip}</li>)}
-                    </ul>
-                </div>
-                 <div>
-                    <h3 className="font-semibold">Common Scams to Avoid</h3>
-                    <ul className="list-disc pl-5 mt-1 text-sm">
-                        {intel.commonScams.map((scam, index) => <li key={index}>{scam}</li>)}
-                    </ul>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
-function EventsTable({ events }: { events: StaticEvent[] }) {
-    if (events.length === 0) {
-        return (
-            <div className="text-center text-muted-foreground py-8">
-                <p>No major festivals or holidays found for this country in our database.</p>
-            </div>
-        )
-    }
-
-    return (
-        <Card className="mt-6">
-            <CardHeader>
-                <CardTitle>Major Festivals & Holidays</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Event</TableHead>
-                            <TableHead>Description</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {events.map((event, index) => (
-                            <TableRow key={index}>
-                                <TableCell className="whitespace-nowrap">{format(new Date(event.date), 'MMMM d')}</TableCell>
-                                <TableCell className="font-medium">
-                                    {event.link ? (
-                                        <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
-                                            {event.name}
-                                            <LinkIcon className="h-3 w-3"/>
-                                        </a>
-                                    ) : (
-                                        event.name
-                                    )}
-                                </TableCell>
-                                <TableCell>{event.description}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
-    )
-}
+type InfoTab = 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 export default function InfoHubPage() {
     const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
@@ -106,88 +33,84 @@ export default function InfoHubPage() {
     const { toast } = useToast();
 
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
-    const [events, setEvents] = useState<StaticEvent[]>([]);
+    const [selectedCountryName, setSelectedCountryName] = useState('');
+    
+    // State for static data
+    const [staticHolidays, setStaticHolidays] = useState<StaticEvent[]>([]);
+    const [staticEtiquette, setStaticEtiquette] = useState<string[]>([]);
+    const [staticVisa, setStaticVisa] = useState<string>('');
+    const [staticEmergency, setStaticEmergency] = useState<{ label: string, number: string }[]>([]);
 
-    const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
+    // State for AI-generated data
     const [aiIntel, setAiIntel] = useState<CountryIntel | null>(null);
-    const [selectedAiCountry, setSelectedAiCountry] = useState('');
+    const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
     
-    // State for the AI generation dialog
-    const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
-    const [dialogSelectedCountry, setDialogSelectedCountry] = useState('');
+    const worldCountryOptions = useMemo(() => lightweightCountries.map(c => ({ value: c.code, label: c.name })), []);
+    const isAsean = useMemo(() => !!staticEvents.find(e => e.countryCode === selectedCountryCode), [selectedCountryCode]);
 
-    useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-        }
-    }, [user, loading, router]);
-    
-    const selectedAseanCountry = useMemo(() => {
-        return aseanCountries.find(c => c.code.toLowerCase() === selectedCountryCode.toLowerCase());
-    }, [selectedCountryCode]);
+    const handleCountrySelection = (countryCode: string) => {
+        setSelectedCountryCode(countryCode);
+        const country = worldCountryOptions.find(c => c.value === countryCode);
+        setSelectedCountryName(country?.label || '');
+        
+        // Reset AI intel when a new country is selected
+        setAiIntel(null);
 
-    useEffect(() => {
-        if (selectedAseanCountry) {
-            const countryEvents = staticEvents.filter(e => e.countryCode === selectedAseanCountry.code);
-            setEvents(countryEvents);
-            setAiIntel(null); 
-            setSelectedAiCountry('');
+        // Load static data if it's an ASEAN country
+        const holidays = staticEvents.filter(e => e.countryCode === countryCode);
+        setStaticHolidays(holidays);
+        setStaticEtiquette(etiquetteData[countryCode] || []);
+        setStaticVisa(visaData[countryCode] || '');
+        const emergency = emergencyData[countryCode];
+        if (emergency) {
+            const emergencyList = [
+                { label: 'Police', number: emergency.police },
+                { label: 'Ambulance', number: emergency.ambulance },
+                { label: 'Fire', number: emergency.fire }
+            ];
+            if (emergency.touristPolice) {
+                emergencyList.push({ label: 'Tourist Police', number: emergency.touristPolice });
+            }
+            setStaticEmergency(emergencyList);
         } else {
-            setEvents([]);
-        }
-    }, [selectedAseanCountry]);
-    
-    const handleMainSelection = (value: string) => {
-        if (value === 'other') {
-            setIsAiDialogOpen(true);
-            setDialogSelectedCountry('');
-        } else {
-            setSelectedCountryCode(value);
-            setAiIntel(null);
-            setSelectedAiCountry('');
+            setStaticEmergency([]);
         }
     };
-
+    
     const handleGenerateIntel = async () => {
-        if (!dialogSelectedCountry) return;
+        if (!selectedCountryName) return;
         
         if (!settings || !userProfile) {
             toast({ variant: 'destructive', title: 'Error', description: 'User data or settings are not available.' });
             return;
         }
         
-        const cost = settings.infohubAiCost || 10;
-        if ((userProfile.tokenBalance || 0) < cost) {
-            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to generate this report.` });
-            return;
-        }
-
         setIsGeneratingIntel(true);
-        setIsAiDialogOpen(false); 
-        setAiIntel(null);
-        setSelectedCountryCode('');
-        const countryLabel = lightweightCountries.find(c => c.name === dialogSelectedCountry)?.name || dialogSelectedCountry;
-        setSelectedAiCountry(countryLabel);
-        
         try {
-            const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${dialogSelectedCountry}`, cost);
+            const intel = await getCountryIntel({ countryName: selectedCountryName });
+            
+            // Only deduct tokens after a successful response from the AI
+            const cost = settings.infohubAiCost || 10;
+            const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
+
             if (!spendSuccess) {
-                throw new Error("Token spending failed.");
+                // This case should be rare if we check balance first, but it's a good safeguard.
+                throw new Error("Token spending failed post-generation. Your balance may have changed.");
             }
-            const intel = await getCountryIntel({ countryName: dialogSelectedCountry });
+            
             setAiIntel(intel);
+            toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
         } catch (error: any) {
             console.error("Error generating country intel:", error);
             toast({ variant: 'destructive', title: 'AI Error', description: error.message || "Could not generate travel intel." });
-            setSelectedAiCountry('');
         } finally {
             setIsGeneratingIntel(false);
-            setDialogSelectedCountry(''); // Reset dialog selection
         }
     };
     
-    const worldCountryOptions = useMemo(() => lightweightCountries.map(c => ({ value: c.name, label: c.name })), []);
-
+    // Check balance before calling the AI
+    const canAffordIntel = (userProfile?.tokenBalance || 0) >= (settings?.infohubAiCost || 10);
+    
     if (loading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -198,76 +121,157 @@ export default function InfoHubPage() {
     
     return (
         <div className="space-y-8">
-            <MainHeader title="InfoHub" description="Your source for real-time travel intelligence." />
+            <MainHeader title="InfoHub" description="Your source for global travel intelligence." />
 
             <Card>
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
-                    <CardDescription>Select a pre-loaded ASEAN country to view its major festivals, or use AI to get travel intel for any other country in the world.</CardDescription>
+                    <CardDescription>Select a country to view standard information, or use our AI to get the latest travel advisories.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
                      <div className="space-y-2">
                         <Label>Select Country</Label>
-                         <Select value={selectedCountryCode} onValueChange={handleMainSelection}>
+                         <Select value={selectedCountryCode} onValueChange={handleCountrySelection}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select a country..." />
                             </SelectTrigger>
                             <SelectContent>
                                 <ScrollArea className="h-72">
-                                    {aseanCountries.map((country) => (
-                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                    {worldCountryOptions.map((country) => (
+                                        <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
                                     ))}
-                                    <SelectItem value="other">Other (AI-Powered {settings?.infohubAiCost || 10} Tokens)...</SelectItem>
                                 </ScrollArea>
                             </SelectContent>
                         </Select>
                     </div>
-
-                     <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Get AI-Powered Travel Intel</DialogTitle>
-                                <DialogDescription>
-                                    Select any country from the list below to generate a travel advisory using AI.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="py-4 space-y-4">
-                                <Label>Country</Label>
-                                <Select value={dialogSelectedCountry} onValueChange={setDialogSelectedCountry}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select from all countries..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <ScrollArea className="h-72">
-                                            {worldCountryOptions.map((country) => (
-                                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
-                                            ))}
-                                        </ScrollArea>
-                                    </SelectContent>
-                                </Select>
+                     {selectedCountryCode && (
+                         <div className="p-4 border rounded-lg bg-primary/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <p className="font-semibold text-lg">AI-Powered Latest Intel</p>
+                                <p className="text-sm text-muted-foreground">Get real-time advisories, scams, and cultural tips for {selectedCountryName}.</p>
                             </div>
-                            <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button type="button" variant="ghost">Cancel</Button>
-                                </DialogClose>
-                                <Button onClick={handleGenerateIntel} disabled={!dialogSelectedCountry || isGeneratingIntel}>
-                                    {isGeneratingIntel && <LoaderCircle className="animate-spin mr-2"/>}
-                                    Get Intel (Cost: {settings?.infohubAiCost || 10} Tokens)
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                            <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || !canAffordIntel}>
+                                {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
+                                Get Latest Intel ({settings?.infohubAiCost || 10} Tokens)
+                            </Button>
+                        </div>
+                     )}
                 </CardContent>
             </Card>
 
-            {isGeneratingIntel && (
-                <div className="flex items-center justify-center gap-2 text-muted-foreground p-4">
-                    <LoaderCircle className="h-5 w-5 animate-spin" />
-                    <span>Generating intel for {selectedAiCountry}...</span>
-                </div>
+            {selectedCountryCode && (
+                 <Tabs defaultValue="holidays" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4">
+                        {aiIntel?.latestAdvisory && <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>}
+                        <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
+                        <TabsTrigger value="etiquette"><BookUser className="mr-2"/> Etiquette</TabsTrigger>
+                        <TabsTrigger value="visa"><ShieldAlert className="mr-2"/> Visa</TabsTrigger>
+                        <TabsTrigger value="emergency"><Phone className="mr-2"/> Emergency</TabsTrigger>
+                    </TabsList>
+                    
+                    {aiIntel?.latestAdvisory && (
+                        <TabsContent value="latest" className="mt-4">
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle /> Latest Travel Advisory</CardTitle>
+                                    <CardDescription>AI-generated alerts and news. Last updated: {new Date().toLocaleDateString()}</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <ul className="list-disc pl-5 space-y-2 text-sm">
+                                        {aiIntel.latestAdvisory.map((item, index) => <li key={`advisory-${index}`}>{item}</li>)}
+                                    </ul>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
+
+                    <TabsContent value="holidays" className="mt-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle>Major Festivals & Holidays</CardTitle>
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information</CardDescription>}
+                            </CardHeader>
+                            <CardContent>
+                               <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Event</TableHead>
+                                            <TableHead>Description</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {(aiIntel?.majorHolidays || staticHolidays).map((event, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell className="whitespace-nowrap">{aiIntel ? event.date : format(new Date(event.date), 'MMMM d')}</TableCell>
+                                                <TableCell className="font-medium">
+                                                    {event.link ? (
+                                                        <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
+                                                            {event.name}
+                                                            <LinkIcon className="h-3 w-3"/>
+                                                        </a>
+                                                    ) : (
+                                                        event.name
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>{event.description}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="etiquette" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Cultural Etiquette</CardTitle>
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information</CardDescription>}
+                            </CardHeader>
+                             <CardContent>
+                                <ul className="list-disc pl-5 space-y-2 text-sm">
+                                    {(aiIntel?.culturalEtiquette || staticEtiquette).map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                </ul>
+                             </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="visa" className="mt-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle>Visa Information</CardTitle>
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information - Verify with embassy</CardDescription>}
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-sm">{aiIntel?.visaInfo || staticVisa}</p>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="emergency" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Emergency Numbers</CardTitle>
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information</CardDescription>}
+                            </CardHeader>
+                             <CardContent>
+                                 <Table>
+                                    <TableBody>
+                                        {(aiIntel ? Object.entries(aiIntel.emergencyNumbers) : staticEmergency).map(([key, value]) => (
+                                            <TableRow key={key}>
+                                                <TableCell className="font-medium capitalize">{aiIntel ? key.replace(/([A-Z])/g, ' $1') : (value as any).label}</TableCell>
+                                                <TableCell className="font-mono">{aiIntel ? value : (value as any).number}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                 </Table>
+                             </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                 </Tabs>
             )}
-            {aiIntel && <IntelCard intel={aiIntel} countryName={selectedAiCountry} />}
-            {selectedCountryCode && <EventsTable events={events} />}
         </div>
     )
 }

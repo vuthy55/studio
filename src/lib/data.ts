@@ -1,4 +1,3 @@
-
 import type { LucideIcon } from "lucide-react";
 import { Hand, Compass, Utensils, Hash, MessageCircleQuestion } from "lucide-react";
 
@@ -252,9 +251,3 @@ export const phrasebook: Topic[] = [
         ]
     }
 ];
-
-    
-
-    
-
-
