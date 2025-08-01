@@ -700,9 +700,7 @@ function BuddiesSection() {
         setSearchedEmailNotFound(null);
         setSearchTerm('');
         
-        if (activeTab === 'invites') {
-            fetchPendingInvites();
-        }
+        fetchPendingInvites();
     };
 
     const handleSendRequest = async (toEmail: string) => {
@@ -828,7 +826,7 @@ function BuddiesSection() {
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <div className="flex items-center gap-2">
+                                                     <div className="flex items-center gap-2">
                                                         <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
                                                         <Switch
                                                             id={`buddy-toggle-${friend.id}`}
