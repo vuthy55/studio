@@ -1252,7 +1252,7 @@ export default function SyncOnlineHome() {
                 {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
 
                 <CollapsibleContent>
-                <Card className="mt-4">
+                <Card className="mt-4 border-2 border-primary">
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
