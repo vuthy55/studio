@@ -18,6 +18,7 @@ export interface AppSettings {
   transcriptCost: number;
   languageUnlockCost: number;
   roomReminderMinutes: number;
+  infohubAiCost: number;
 }
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
@@ -42,6 +43,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         transcriptCost: 50,
         languageUnlockCost: 100,
         roomReminderMinutes: 5,
+        infohubAiCost: 10,
     };
     
     try {

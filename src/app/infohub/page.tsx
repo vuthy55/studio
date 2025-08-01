@@ -1,27 +1,38 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { countries, type Country } from '@/lib/location-data';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
+import { LoaderCircle, Wand2, AlertTriangle, Sparkles } from 'lucide-react';
+import { Combobox } from '@/components/ui/combobox';
+import { countries as aseanCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
-import { LoaderCircle } from 'lucide-react';
+import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+
+// Create a comprehensive list of countries for the combobox
+const allCountriesForSearch = aseanCountries.map(c => ({ value: c.name.toLowerCase(), label: c.name }));
+// A real app might load a much larger list of world countries here.
 
 export default function InfoHubPage() {
-    const { user, loading } = useUserData();
+    const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
     const router = useRouter();
-    const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
-    const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    const [selectedCountryName, setSelectedCountryName] = useState('');
+    const [selectedProvince, setSelectedProvince] = useState('');
 
     const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
     const [events, setEvents] = useState<StaticEvent[]>([]);
+    
+    const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
+    const [aiIntel, setAiIntel] = useState<CountryIntel | null>(null);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -29,20 +40,50 @@ export default function InfoHubPage() {
         }
     }, [user, loading, router]);
     
+    const selectedAseanCountry = useMemo(() => {
+        return aseanCountries.find(c => c.name.toLowerCase() === selectedCountryName.toLowerCase());
+    }, [selectedCountryName]);
+
     useEffect(() => {
-        if (selectedCountry) {
-            const countryEvents = staticEvents.filter(e => e.countryCode === selectedCountry.code);
+        setAiIntel(null); // Clear AI intel when country changes
+        if (selectedAseanCountry) {
+            const countryEvents = staticEvents.filter(e => e.countryCode === selectedAseanCountry.code);
             setEvents(countryEvents);
         } else {
             setEvents([]);
         }
-    }, [selectedCountry]);
+    }, [selectedAseanCountry]);
     
-    const handleCountryChange = (countryCode: string) => {
-        const country = countries.find(c => c.code === countryCode);
-        setSelectedCountry(country || null);
-        setSelectedProvince(null); 
+    const handleGenerateIntel = async () => {
+      if (!selectedCountryName || selectedAseanCountry) return;
+      
+      const cost = settings?.infohubAiCost || 10;
+      if (!spendTokensForTranslation(`AI Intel for ${selectedCountryName}`, cost)) {
+        toast({
+          variant: 'destructive',
+          title: 'Insufficient Tokens',
+          description: `You need ${cost} tokens to generate travel intel.`,
+        });
+        return;
+      }
+      
+      setIsGeneratingIntel(true);
+      setAiIntel(null);
+      try {
+        const intel = await getCountryIntel({ countryName: selectedCountryName });
+        setAiIntel(intel);
+      } catch (error: any) {
+        console.error("Error generating AI intel:", error);
+        toast({
+          variant: 'destructive',
+          title: 'AI Generation Failed',
+          description: error.message || 'Could not generate travel intel for this country.',
+        });
+      } finally {
+        setIsGeneratingIntel(false);
+      }
     };
+
 
     if (loading || !user) {
         return (
@@ -59,77 +100,99 @@ export default function InfoHubPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
-                    <CardDescription>Select a country and province to get the latest travel advisories, safety alerts, and local events.</CardDescription>
+                    <CardDescription>Select a country to get the latest travel advisories, safety alerts, and local events.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="country-select">Country</Label>
-                            <Select onValueChange={handleCountryChange} value={selectedCountry?.code || ''}>
-                                <SelectTrigger id="country-select">
-                                    <SelectValue placeholder="Select a country..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {countries.map(c => (
-                                        <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                             <Label htmlFor="province-select">Province / Area</Label>
-                            <Select onValueChange={setSelectedProvince} value={selectedProvince || ''} disabled={!selectedCountry}>
-                                <SelectTrigger id="province-select">
-                                    <SelectValue placeholder={selectedCountry ? "Select an area..." : "First, select a country"} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {selectedCountry?.provinces.map(p => (
-                                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Event Calendar</CardTitle>
-                    <CardDescription>Major festivals and events for the selected country.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex justify-center">
-                   <Calendar
-                        mode="single"
-                        month={currentMonth}
-                        onMonthChange={setCurrentMonth}
-                        className="p-0"
-                        components={{
-                            DayContent: ({ date }) => {
-                                const dailyEvents = events.filter(e => {
-                                    const eventDate = new Date(e.date);
-                                    return eventDate.getUTCFullYear() === date.getFullYear() &&
-                                           eventDate.getUTCMonth() === date.getMonth() &&
-                                           eventDate.getUTCDate() === date.getDate();
-                                });
-
-                                return (
-                                    <div className="relative h-full w-full">
-                                        <span className="relative z-10">{date.getDate()}</span>
-                                        {dailyEvents.length > 0 && (
-                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center gap-0.5">
-                                                 {dailyEvents.slice(0, 3).map((event, index) => (
-                                                    <Badge key={index} className="h-1.5 w-1.5 p-0 bg-primary rounded-full"></Badge>
-                                                 ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            },
-                        }}
+                     <Combobox
+                        options={allCountriesForSearch}
+                        value={selectedCountryName}
+                        onChange={setSelectedCountryName}
+                        placeholder="Select a country..."
+                        searchPlaceholder="Search country..."
+                        notfoundText="No country found."
                     />
+                     {selectedAseanCountry && (
+                        <Combobox
+                            options={selectedAseanCountry.provinces.map(p => ({ value: p.toLowerCase(), label: p }))}
+                            value={selectedProvince}
+                            onChange={setSelectedProvince}
+                            placeholder="Select an area..."
+                            searchPlaceholder="Search area..."
+                            notfoundText="No area found."
+                        />
+                     )}
                 </CardContent>
+                 {!selectedAseanCountry && selectedCountryName && (
+                    <CardFooter>
+                        <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel}>
+                            {isGeneratingIntel ? <LoaderCircle className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
+                            Generate AI Intel (Cost: {settings?.infohubAiCost || 10} Tokens)
+                        </Button>
+                    </CardFooter>
+                )}
             </Card>
+
+            {aiIntel && (
+                <Card className="border-primary">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Sparkles className="text-primary"/> AI Travel Advisory for {selectedCountryName}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div>
+                            <h3 className="font-semibold text-lg mb-2">Cultural Etiquette</h3>
+                            <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                                {aiIntel.culturalEtiquette.map((tip, i) => <li key={`etiquette-${i}`}>{tip}</li>)}
+                            </ul>
+                        </div>
+                         <div>
+                            <h3 className="font-semibold text-lg mb-2 flex items-center gap-2"><AlertTriangle className="text-destructive" /> Common Scams to Avoid</h3>
+                            <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                                {aiIntel.commonScams.map((scam, i) => <li key={`scam-${i}`}>{scam}</li>)}
+                            </ul>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {selectedAseanCountry && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Event Calendar</CardTitle>
+                        <CardDescription>Major festivals and events for {selectedAseanCountry.name}.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center">
+                    <Calendar
+                            mode="single"
+                            month={currentMonth}
+                            onMonthChange={setCurrentMonth}
+                            className="p-0"
+                            components={{
+                                DayContent: ({ date }) => {
+                                    const dailyEvents = events.filter(e => {
+                                        const eventDate = new Date(e.date);
+                                        return eventDate.getUTCFullYear() === date.getFullYear() &&
+                                            eventDate.getUTCMonth() === date.getMonth() &&
+                                            eventDate.getUTCDate() === date.getDate();
+                                    });
+
+                                    return (
+                                        <div className="relative h-full w-full">
+                                            <span className="relative z-10">{date.getDate()}</span>
+                                            {dailyEvents.length > 0 && (
+                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center gap-0.5">
+                                                    {dailyEvents.slice(0, 3).map((event, index) => (
+                                                        <Badge key={index} className="h-1.5 w-1.5 p-0 bg-primary rounded-full"></Badge>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                },
+                            }}
+                        />
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }

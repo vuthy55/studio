@@ -5,45 +5,121 @@ export interface Country {
   provinces: string[];
 }
 
-// Initially populated with Cambodia. More countries can be added here.
+// Data for all 10 ASEAN countries.
 export const countries: Country[] = [
-  {
-    name: 'Cambodia',
-    code: 'KH',
-    provinces: [
-      'Banteay Meanchey',
-      'Battambang',
-      'Kampong Cham',
-      'Kampong Chhnang',
-      'Kampong Speu',
-      'Kampong Thom',
-      'Kampot',
-      'Kandal',
-      'Koh Kong',
-      'Kratié',
-      'Mondulkiri',
-      'Phnom Penh',
-      'Preah Vihear',
-      'Prey Veng',
-      'Pursat',
-      'Ratanakiri',
-      'Siem Reap',
-      'Sihanoukville (Preah Sihanouk)',
-      'Stung Treng',
-      'Svay Rieng',
-      'Takéo',
-      'Oddar Meanchey',
-      'Kep',
-      'Pailin',
-      'Tboung Khmum',
-    ],
-  },
-    // Add other SEA countries here as needed
-    // {
-    //   name: 'Thailand',
-    //   code: 'TH',
-    //   provinces: ['Bangkok', 'Chiang Mai', 'Phuket', /* ... */],
-    // },
+    {
+        name: 'Brunei',
+        code: 'BN',
+        provinces: ['Belait', 'Brunei-Muara', 'Temburong', 'Tutong'],
+    },
+    {
+        name: 'Cambodia',
+        code: 'KH',
+        provinces: [
+          'Banteay Meanchey', 'Battambang', 'Kampong Cham', 'Kampong Chhnang', 'Kampong Speu',
+          'Kampong Thom', 'Kampot', 'Kandal', 'Koh Kong', 'Kratié', 'Mondulkiri',
+          'Phnom Penh', 'Preah Vihear', 'Prey Veng', 'Pursat', 'Ratanakiri', 'Siem Reap',
+          'Sihanoukville (Preah Sihanouk)', 'Stung Treng', 'Svay Rieng', 'Takéo',
+          'Oddar Meanchey', 'Kep', 'Pailin', 'Tboung Khmum',
+        ],
+    },
+    {
+        name: 'Indonesia',
+        code: 'ID',
+        provinces: [
+            'Aceh', 'Bali', 'Banten', 'Bengkulu', 'Gorontalo', 'Jakarta', 'Jambi', 'West Java',
+            'Central Java', 'East Java', 'West Kalimantan', 'South Kalimantan', 'Central Kalimantan',
+            'East Kalimantan', 'North Kalimantan', 'Bangka Belitung Islands', 'Riau Islands', 'Lampung',
+            'Maluku', 'North Maluku', 'West Nusa Tenggara', 'East Nusa Tenggara', 'Papua', 'West Papua',
+            'Riau', 'West Sulawesi', 'South Sulawesi', 'Central Sulawesi', 'Southeast Sulawesi',
+            'North Sulawesi', 'West Sumatra', 'South Sumatra', 'North Sumatra', 'Yogyakarta'
+        ],
+    },
+    {
+        name: 'Laos',
+        code: 'LA',
+        provinces: [
+            'Attapeu', 'Bokeo', 'Bolikhamsai', 'Champasak', 'Houaphanh', 'Khammouane', 'Luang Namtha',
+            'Luang Prabang', 'Oudomxay', 'Phongsaly', 'Salavan', 'Savannakhet', 'Vientiane Province',
+            'Vientiane Prefecture', 'Sainyabuli', 'Sekong', 'Xiangkhouang', 'Xaisomboun'
+        ],
+    },
+    {
+        name: 'Malaysia',
+        code: 'MY',
+        provinces: [
+            'Johor', 'Kedah', 'Kelantan', 'Malacca', 'Negeri Sembilan', 'Pahang', 'Penang', 'Perak',
+            'Perlis', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur', 'Labuan', 'Putrajaya'
+        ],
+    },
+    {
+        name: 'Myanmar',
+        code: 'MM',
+        provinces: [
+            'Ayeyarwady', 'Bago', 'Chin', 'Kachin', 'Kayah', 'Kayin', 'Magway', 'Mandalay', 'Mon',
+            'Rakhine', 'Sagaing', 'Shan', 'Tanintharyi', 'Yangon', 'Naypyidaw Union Territory'
+        ],
+    },
+    {
+        name: 'Philippines',
+        code: 'PH',
+        provinces: [
+            'Abra', 'Agusan del Norte', 'Agusan del Sur', 'Aklan', 'Albay', 'Antique', 'Apayao',
+            'Aurora', 'Basilan', 'Bataan', 'Batanes', 'Batangas', 'Benguet', 'Biliran', 'Bohol',
+            'Bukidnon', 'Bulacan', 'Cagayan', 'Camarines Norte', 'Camarines Sur', 'Camiguin',
+            'Capiz', 'Catanduanes', 'Cavite', 'Cebu', 'Cotabato', 'Davao de Oro', 'Davao del Norte',
+            'Davao del Sur', 'Davao Occidental', 'Davao Oriental', 'Dinagat Islands', 'Eastern Samar',
+            'Guimaras', 'Ifugao', 'Ilocos Norte', 'Ilocos Sur', 'Iloilo', 'Isabela', 'Kalinga',
+            'La Union', 'Laguna', 'Lanao del Norte', 'Lanao del Sur', 'Leyte', 'Maguindanao',
+            'Marinduque', 'Masbate', 'Metro Manila', 'Misamis Occidental', 'Misamis Oriental',
+            'Mountain Province', 'Negros Occidental', 'Negros Oriental', 'Northern Samar', 'Nueva Ecija',
+            'Nueva Vizcaya', 'Occidental Mindoro', 'Oriental Mindoro', 'Palawan', 'Pampanga', 'Pangasinan',
+            'Quezon', 'Quirino', 'Rizal', 'Romblon', 'Samar', 'Sarangani', 'Siquijor', 'Sorsogon',
+            'South Cotabato', 'Southern Leyte', 'Sultan Kudarat', 'Sulu', 'Surigao del Norte',
+            'Surigao del Sur', 'Tarlac', 'Tawi-Tawi', 'Zambales', 'Zamboanga del Norte',
+            'Zamboanga del Sur', 'Zamboanga Sibugay'
+        ],
+    },
+    {
+        name: 'Singapore',
+        code: 'SG',
+        provinces: [
+            'Central Region', 'East Region', 'North Region', 'North-East Region', 'West Region'
+        ],
+    },
+    {
+        name: 'Thailand',
+        code: 'TH',
+        provinces: [
+            'Amnat Charoen', 'Ang Thong', 'Bangkok', 'Bueng Kan', 'Buri Ram', 'Chachoengsao', 'Chai Nat',
+            'Chaiyaphum', 'Chanthaburi', 'Chiang Mai', 'Chiang Rai', 'Chon Buri', 'Chumphon', 'Kalasin',
+            'Kamphaeng Phet', 'Kanchanaburi', 'Khon Kaen', 'Krabi', 'Lampang', 'Lamphun', 'Loei',
+            'Lopburi', 'Mae Hong Son', 'Maha Sarakham', 'Mukdahan', 'Nakhon Nayok', 'Nakhon Pathom',
+            'Nakhon Phanom', 'Nakhon Ratchasima', 'Nakhon Sawan', 'Nakhon Si Thammarat', 'Nan',
+            'Narathiwat', 'Nong Bua Lam Phu', 'Nong Khai', 'Nonthaburi', 'Pathum Thani', 'Pattani',
+            'Phang Nga', 'Phatthalung', 'Phayao', 'Phetchabun', 'Phetchaburi', 'Phichit', 'Phitsanulok',
+            'Phra Nakhon Si Ayutthaya', 'Phrae', 'Phuket', 'Prachinburi', 'Prachuap Khiri Khan', 'Ranong',
+            'Ratchaburi', 'Rayong', 'Roi Et', 'Sa Kaeo', 'Sakon Nakhon', 'Samut Prakan', 'Samut Sakhon',
+            'Samut Songkhram', 'Saraburi', 'Satun', 'Sing Buri', 'Sisaket', 'Songkhla', 'Sukhothai',
+            'Suphan Buri', 'Surat Thani', 'Surin', 'Tak', 'Trang', 'Trat', 'Ubon Ratchathani',
+            'Udon Thani', 'Uthai Thani', 'Uttaradit', 'Yala', 'Yasothon'
+        ],
+    },
+    {
+        name: 'Vietnam',
+        code: 'VN',
+        provinces: [
+            'An Giang', 'Ba Ria-Vung Tau', 'Bac Giang', 'Bac Kan', 'Bac Lieu', 'Bac Ninh', 'Ben Tre',
+            'Binh Dinh', 'Binh Duong', 'Binh Phuoc', 'Binh Thuan', 'Ca Mau', 'Can Tho', 'Cao Bang',
+            'Da Nang', 'Dak Lak', 'Dak Nong', 'Dien Bien', 'Dong Nai', 'Dong Thap', 'Gia Lai', 'Ha Giang',
+            'Ha Nam', 'Ha Noi', 'Ha Tinh', 'Hai Duong', 'Hai Phong', 'Hau Giang', 'Hoa Binh', 'Ho Chi Minh City',
+            'Hung Yen', 'Khanh Hoa', 'Kien Giang', 'Kon Tum', 'Lai Chau', 'Lam Dong', 'Lang Son', 'Lao Cai',
+            'Long An', 'Nam Dinh', 'Nghe An', 'Ninh Binh', 'Ninh Thuan', 'Phu Tho', 'Phu Yen', 'Quang Binh',
+            'Quang Nam', 'Quang Ngai', 'Quang Ninh', 'Quang Tri', 'Soc Trang', 'Son La', 'Tay Ninh',
+            'Thai Binh', 'Thai Nguyen', 'Thanh Hoa', 'Thua Thien Hue', 'Tien Giang', 'Tra Vinh',
+            'Tuyen Quang', 'Vinh Long', 'Vinh Phuc', 'Yen Bai'
+        ],
+    },
 ];
 
 export interface LightweightCountry {
