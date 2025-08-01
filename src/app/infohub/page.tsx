@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, HelpCircle } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon } from 'lucide-react';
 import { lightweightCountries, countries as aseanCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -20,25 +20,7 @@ import { visaData } from '@/lib/visa-data';
 import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Combobox } from '@/components/ui/combobox';
-import { useTour, TourStep } from '@/context/TourContext';
 
-
-const infoHubTourSteps: TourStep[] = [
-    {
-        selector: '[data-tour="ih-country-selector"]',
-        content: 'Start by selecting a country from this list. You can either scroll or type to search.',
-    },
-    {
-        selector: '[data-tour="ih-tabs"]',
-        content: 'Information is organized into tabs. For ASEAN countries, standard info is loaded for free. For other countries, these will be empty until you generate AI intel.',
-        position: 'bottom'
-    },
-    {
-        selector: '[data-tour="ih-ai-button"]',
-        content: 'When you\'re ready for the most up-to-date information, click this button. It will use AI to fetch the latest advisories, holidays, and tips for the selected country for a small token fee.',
-        position: 'top'
-    }
-];
 
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
@@ -46,10 +28,8 @@ export default function InfoHubPage() {
     const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
     const router = useRouter();
     const { toast } = useToast();
-    const { startTour } = useTour();
-
-    const [selectedCountryCode, setSelectedCountryCode] = useState('');
     
+    const [selectedCountryCode, setSelectedCountryCode] = useState('');
     const [activeTab, setActiveTab] = useState<InfoTab>('latest');
     
     // State for static data
@@ -154,6 +134,13 @@ export default function InfoHubPage() {
         }));
     }, [aiIntel]);
 
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/login');
+        }
+    }, [user, loading, router]);
+
+
     if (loading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -170,12 +157,12 @@ export default function InfoHubPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">Location Intel</CardTitle>
                     <CardDescription>
-                        For ASEAN countries, view standard travel info for free. For the latest, real-time intel on <strong>any country</strong> (including ASEAN), use our AI-powered advisory service for a token fee.
+                         For ASEAN countries, view standard travel info for free. For the latest, real-time intel on <strong>any country</strong> (including ASEAN), use our AI-powered advisory service for a token fee.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="flex flex-col md:flex-row items-center gap-4">
-                         <div className="w-full md:w-1/2" data-tour="ih-country-selector">
+                         <div className="w-full md:w-1/2">
                             <Label>Select Country</Label>
                             <Combobox
                                 options={worldCountryOptions}
@@ -187,7 +174,7 @@ export default function InfoHubPage() {
                             />
                         </div>
                         {selectedCountryCode && (
-                             <div className="w-full md:w-1/2" data-tour="ih-ai-button">
+                             <div className="w-full md:w-1/2">
                                 <Label className="block h-5">&nbsp;</Label>
                                 <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || !canAffordIntel} className="w-full">
                                     {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
@@ -196,17 +183,11 @@ export default function InfoHubPage() {
                             </div>
                         )}
                      </div>
-                      <div className="flex flex-col items-center gap-4 text-center mt-4">
-                        <Button onClick={() => startTour(infoHubTourSteps)} size="sm" variant="outline">
-                            <HelpCircle className="mr-2" />
-                            Take a Tour
-                        </Button>
-                    </div>
                 </CardContent>
             </Card>
 
             {selectedCountryCode && (
-                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InfoTab)} className="w-full" data-tour="ih-tabs">
+                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InfoTab)} className="w-full">
                     <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>
                         <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
