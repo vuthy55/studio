@@ -28,9 +28,9 @@ export async function sendBuddyRequest(
         const toUserDoc = await toUserRef.get();
         const toUserData = toUserDoc.data();
 
-        // Check if they are already buddies
-        if (toUserData?.buddies?.includes(fromUser.uid)) {
-            return { success: false, error: `You are already buddies with ${toEmail}.` };
+        // Check if they are already friends
+        if (toUserData?.friends?.includes(fromUser.uid)) {
+            return { success: false, error: `You are already friends with ${toEmail}.` };
         }
         // Check if a request has already been sent
         if (toUserData?.buddyRequests?.some((req: BuddyRequest) => req.fromUid === fromUser.uid)) {
@@ -239,3 +239,5 @@ export async function updateUserBuddyList(userId: string, friendId: string, isBu
         return { success: false, error: 'A server error occurred.' };
     }
 }
+
+    
