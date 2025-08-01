@@ -31,7 +31,6 @@ interface ComboboxProps {
 
 export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notfoundText }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const selectedLabel = options.find((option) => option.value.toLowerCase() === value.toLowerCase())?.label;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -42,7 +41,9 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {value ? selectedLabel : placeholder || "Select option..."}
+          {value
+            ? options.find((option) => option.value === value)?.label
+            : placeholder || "Select option..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -55,12 +56,9 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.label} // Use label for searching
-                  onSelect={(currentLabel) => {
-                    const selectedOption = options.find(opt => opt.label.toLowerCase() === currentLabel.toLowerCase());
-                    if (selectedOption) {
-                        onChange(selectedOption.value);
-                    }
+                  value={option.value}
+                  onSelect={(currentValue) => {
+                    onChange(currentValue === value ? "" : currentValue)
                     setOpen(false)
                   }}
                 >
