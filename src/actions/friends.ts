@@ -85,12 +85,12 @@ export async function acceptBuddyRequest(
 
         // Add each user to the other's buddies list
         batch.update(currentUserRef, {
-            buddies: FieldValue.arrayUnion(request.fromUid),
+            friends: FieldValue.arrayUnion(request.fromUid),
             buddyRequests: FieldValue.arrayRemove(request) // Remove the request
         });
 
         batch.update(newBuddyRef, {
-            buddies: FieldValue.arrayUnion(currentUser.uid)
+            friends: FieldValue.arrayUnion(currentUser.uid)
         });
 
         // Send a notification back to the person who sent the request
@@ -138,18 +138,32 @@ export async function declineBuddyRequest(
 /**
  * Removes a buddy from the user's list. This is a one-way removal.
  */
-export async function removeBuddy(
+export async function removeFriend(
     currentUserUid: string,
-    buddyToRemoveUid: string
+    friendToRemoveUid: string
 ): Promise<{success: boolean, error?: string}> {
      try {
         const currentUserRef = db.collection('users').doc(currentUserUid);
-        await currentUserRef.update({
-             buddies: FieldValue.arrayRemove(buddyToRemoveUid)
+        const friendToRemoveRef = db.collection('users').doc(friendToRemoveUid);
+
+        const batch = db.batch();
+
+        // Remove each user from the other's lists
+        batch.update(currentUserRef, {
+             friends: FieldValue.arrayRemove(friendToRemoveUid),
+             buddies: FieldValue.arrayRemove(friendToRemoveUid) // Also remove from safety buddy list
         });
+        
+        batch.update(friendToRemoveRef, {
+             friends: FieldValue.arrayRemove(currentUserUid),
+             buddies: FieldValue.arrayRemove(currentUserUid) // Also remove from their safety buddy list
+        });
+        
+        await batch.commit();
+
         return { success: true };
     } catch (error: any) {
-        console.error("Error removing buddy:", error);
+        console.error("Error removing friend:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
@@ -172,7 +186,7 @@ export async function sendBuddyAlert(
         const buddies = userData.buddies || [];
 
         if (buddies.length === 0) {
-            return { success: false, error: "You have no buddies to alert." };
+            return { success: false, error: "You have no buddies in your Alert List." };
         }
 
         const mapsLink = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
@@ -196,5 +210,32 @@ export async function sendBuddyAlert(
     } catch (error: any) {
         console.error("Error sending buddy alert:", error);
         return { success: false, error: 'An unexpected server error occurred while sending alerts.' };
+    }
+}
+
+
+export async function updateUserBuddyList(userId: string, friendId: string, isBuddy: boolean): Promise<{success: boolean, error?: string}> {
+    if (!userId || !friendId) {
+        return { success: false, error: 'User and friend IDs are required.' };
+    }
+    
+    try {
+        const userRef = db.collection('users').doc(userId);
+        
+        if (isBuddy) {
+            await userRef.update({
+                buddies: FieldValue.arrayUnion(friendId)
+            });
+        } else {
+            await userRef.update({
+                buddies: FieldValue.arrayRemove(friendId)
+            });
+        }
+        
+        return { success: true };
+
+    } catch (error: any) {
+        console.error('Error updating buddy list:', error);
+        return { success: false, error: 'A server error occurred.' };
     }
 }

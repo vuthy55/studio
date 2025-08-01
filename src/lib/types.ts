@@ -143,7 +143,8 @@ export interface UserProfile {
   syncOnlineUsage?: number;
   syncOnlineUsageLastReset?: Timestamp;
   defaultLanguage?: AzureLanguageCode;
-  buddies?: string[];
+  friends?: string[]; // New: For all social connections
+  buddies?: string[]; // Existing: For high-trust safety alerts
   buddyRequests?: BuddyRequest[];
   referredBy?: string;
   unlockedLanguages?: LanguageCode[];
