@@ -37,10 +37,18 @@ export const staticEvents: StaticEvent[] = [
 
   // --- Indonesia (ID) ---
   { countryCode: 'ID', date: '2024-01-01', name: 'New Year\'s Day', description: 'Public holiday.' },
-  { countryCode: 'ID', date: '2024-04-10', name: 'Idul Fitri (Eid al-Fitr)', description: 'Marks the end of Ramadan. Dates vary.' },
+  { countryCode: 'ID', date: '2024-02-08', name: 'Isra Mi\'raj', description: 'Commemorates the Prophet Muhammad\'s night journey.' },
+  { countryCode: 'ID', date: '2024-03-11', name: 'Nyepi (Balinese Day of Silence)', description: 'A Hindu celebration mainly observed in Bali, a day of silence, fasting, and meditation.', link: 'https://en.wikipedia.org/wiki/Nyepi' },
+  { countryCode: 'ID', date: '2024-03-29', name: 'Good Friday', description: 'Christian holiday commemorating the crucifixion of Jesus.' },
+  { countryCode: 'ID', date: '2024-04-10', name: 'Idul Fitri (Eid al-Fitr)', description: 'Marks the end of Ramadan. A major Islamic holiday spanning two days.' },
   { countryCode: 'ID', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
+  { countryCode: 'ID', date: '2024-05-09', name: 'Ascension Day of Jesus Christ', description: 'Christian public holiday.' },
+  { countryCode: 'ID', date: '2024-05-23', name: 'Waisak Day (Buddha\'s Birthday)', description: 'Buddhist holiday commemorating the birth, enlightenment, and death of Buddha.' },
   { countryCode: 'ID', date: '2024-06-01', name: 'Pancasila Day', description: 'Commemorates the state philosophy.' },
+  { countryCode: 'ID', date: '2024-06-17', name: 'Idul Adha (Feast of the Sacrifice)', description: 'Major Islamic holiday.' },
+  { countryCode: 'ID', date: '2024-07-07', name: 'Islamic New Year', description: 'Public holiday marking the start of the Islamic calendar.' },
   { countryCode: 'ID', date: '2024-08-17', name: 'Independence Day', description: 'Celebrates independence from Dutch rule.' },
+  { countryCode: 'ID', date: '2024-09-16', name: 'Prophet Muhammad\'s Birthday', description: 'Public holiday celebrating the birth of the Prophet Muhammad.' },
   { countryCode: 'ID', date: '2024-12-25', name: 'Christmas Day', description: 'Public holiday.' },
 
   // --- Laos (LA) ---
