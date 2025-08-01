@@ -663,7 +663,9 @@ function BuddiesSection() {
         if (!user) return;
         setIsLoadingInvites(true);
         const invites = await getPendingInvitations(user.uid);
-        setPendingInvites(invites);
+        // Sort the invites client-side
+        const sortedInvites = invites.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setPendingInvites(sortedInvites);
         setIsLoadingInvites(false);
     }, [user]);
 
@@ -823,23 +825,23 @@ function BuddiesSection() {
                                         <p className="text-sm text-muted-foreground">{friend.email}</p>
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                     <div className="flex items-center gap-2">
-                                                        <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
-                                                        <Switch
-                                                            id={`buddy-toggle-${friend.id}`}
-                                                            checked={userProfile?.buddies?.includes(friend.id!)}
-                                                            onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
-                                                        />
-                                                    </div>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Enable to include this friend in emergency Buddy Alerts.</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                         <div className="flex items-center gap-2">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground cursor-pointer">Buddy Alert</Label>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Enable to include this friend in emergency Buddy Alerts.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            <Switch
+                                                id={`buddy-toggle-${friend.id}`}
+                                                checked={userProfile?.buddies?.includes(friend.id!)}
+                                                onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
+                                            />
+                                        </div>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button size="icon" variant="ghost"><UserMinus className="text-destructive" /></Button>

@@ -278,6 +278,7 @@ export async function sendInvitation(
 
 /**
  * Fetches pending invitations for a specific user.
+ * This query is simplified to avoid needing a composite index. Sorting is handled client-side.
  */
 export async function getPendingInvitations(inviterId: string): Promise<Invitation[]> {
     if (!inviterId) {
@@ -287,8 +288,7 @@ export async function getPendingInvitations(inviterId: string): Promise<Invitati
         const invitationsRef = db.collection('invitations');
         const q = invitationsRef
             .where('inviterId', '==', inviterId)
-            .where('status', '==', 'pending')
-            .orderBy('createdAt', 'desc');
+            .where('status', '==', 'pending');
             
         const snapshot = await q.get();
 
