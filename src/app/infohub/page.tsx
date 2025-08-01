@@ -134,7 +134,7 @@ export default function InfoHubPage() {
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
                     <CardDescription>
-                        Select a country to view standard information, or use our AI to get the latest travel advisories.
+                        Select an ASEAN country to view free standard information. For the latest, real-time intel on any country (including ASEAN), use our AI-powered advisory service for a token fee.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
