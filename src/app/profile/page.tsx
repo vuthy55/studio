@@ -638,6 +638,7 @@ function BuddiesSection() {
     const { toast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<UserProfileType | null>(null);
+    const [searchedEmailNotFound, setSearchedEmailNotFound] = useState<string | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [friendsDetails, setFriendsDetails] = useState<UserProfileType[]>([]);
 
@@ -659,9 +660,22 @@ function BuddiesSection() {
         e.preventDefault();
         if (!searchTerm.trim()) return;
         setIsSearching(true);
+        setSearchResults(null);
+        setSearchedEmailNotFound(null);
         const result = await findUserByEmail(searchTerm);
-        setSearchResults(result as UserProfileType | null);
+        if (result) {
+            setSearchResults(result as UserProfileType | null);
+        } else {
+            setSearchedEmailNotFound(searchTerm);
+        }
         setIsSearching(false);
+    };
+    
+    const handleInvite = () => {
+        if (!user || !user.uid) return;
+        const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+        navigator.clipboard.writeText(referralLink);
+        toast({ title: "Invite Link Copied!", description: "Share this link with your friend to have them join VibeSync." });
     };
 
     const handleSendRequest = async (toEmail: string) => {
@@ -736,6 +750,14 @@ function BuddiesSection() {
                             <Button size="sm" onClick={() => handleSendRequest(searchResults.email)}><UserPlus className="mr-2" /> Add Friend</Button>
                         </div>
                     )}
+                    {searchedEmailNotFound && (
+                        <div className="mt-4 p-4 border rounded-lg flex flex-col sm:flex-row justify-between items-center gap-4">
+                             <p className="text-sm text-center sm:text-left">
+                                <span className="font-semibold">{searchedEmailNotFound}</span> isn't on VibeSync yet.
+                             </p>
+                             <Button size="sm" onClick={handleInvite}><Send className="mr-2"/> Invite Friend</Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -768,7 +790,7 @@ function BuddiesSection() {
                                 <p className="font-semibold">{friend.name}</p>
                                 <p className="text-sm text-muted-foreground">{friend.email}</p>
                             </div>
-                            <div className="flex items-center gap-4">
+                             <div className="flex items-center gap-4">
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
