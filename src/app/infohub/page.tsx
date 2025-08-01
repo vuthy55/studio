@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Combobox } from '@/components/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -91,6 +90,7 @@ export default function InfoHubPage() {
             setShowAiSearch(true);
             setSelectedCountryCode('');
             setAiIntel(null);
+            setSelectedAiCountry('');
         } else {
             setShowAiSearch(false);
             setSelectedCountryCode(value);
@@ -172,14 +172,18 @@ export default function InfoHubPage() {
                             {showAiSearch && (
                                 <div className="space-y-2 border-t pt-4">
                                     <Label>Search Other Countries (AI-Powered)</Label>
-                                    <Combobox 
-                                        options={worldCountryOptions}
-                                        value={selectedAiCountry}
-                                        onChange={setSelectedAiCountry}
-                                        placeholder="Search for any country..."
-                                        searchPlaceholder='Search...'
-                                        notfoundText='No country found.'
-                                    />
+                                    <Select value={selectedAiCountry} onValueChange={setSelectedAiCountry}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select from all countries..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <ScrollArea className="h-72">
+                                                {worldCountryOptions.map((country) => (
+                                                    <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                                ))}
+                                            </ScrollArea>
+                                        </SelectContent>
+                                    </Select>
                                     <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || !selectedAiCountry} className="w-full mt-2">
                                         {isGeneratingIntel && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                                         Get AI Intel (Cost: {settings?.infohubAiCost || 10} Tokens)
@@ -239,4 +243,5 @@ export default function InfoHubPage() {
             </Card>
         </div>
     )
-}
+
+    
