@@ -58,8 +58,8 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
                   key={option.value}
                   value={option.value}
                   onSelect={(currentValue) => {
-                    onChange(currentValue === value ? "" : currentValue)
-                    setOpen(false)
+                    onChange(currentValue);
+                    setOpen(false);
                   }}
                 >
                   <Check
