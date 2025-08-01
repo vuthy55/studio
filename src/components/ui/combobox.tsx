@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -27,9 +26,18 @@ interface ComboboxProps {
     placeholder?: string;
     searchPlaceholder?: string;
     notfoundText?: string;
+    className?: string;
 }
 
-export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notfoundText }: ComboboxProps) {
+export function Combobox({ 
+    options, 
+    value, 
+    onChange, 
+    placeholder, 
+    searchPlaceholder, 
+    notfoundText,
+    className
+}: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
   return (
@@ -39,7 +47,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className={cn("w-full justify-between", className)}
         >
           {value
             ? options.find((option) => option.value === value)?.label
@@ -58,8 +66,8 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
                   key={option.value}
                   value={option.value}
                   onSelect={(currentValue) => {
-                    onChange(currentValue);
-                    setOpen(false);
+                    onChange(currentValue)
+                    setOpen(false)
                   }}
                 >
                   <Check
