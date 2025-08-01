@@ -660,8 +660,9 @@ export default function SyncOnlineHome() {
     const router = useRouter();
     const { toast } = useToast();
     const { startTour } = useTour();
+    
+    const [activeMainTab, setActiveMainTab] = useState('your-rooms');
 
-    const [isScheduling, setIsScheduling] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Form State
@@ -697,14 +698,14 @@ export default function SyncOnlineHome() {
     }, [userProfile?.friends]);
 
     useEffect(() => {
-        if (isScheduling) {
+        if (activeMainTab === 'schedule') {
             fetchFriends();
         }
-    }, [isScheduling, fetchFriends]);
+    }, [activeMainTab, fetchFriends]);
 
     // Defer date initialization to client-side to avoid hydration mismatch
     useEffect(() => {
-        if (!isScheduling) return;
+        if (activeMainTab !== 'schedule') return;
         if (!isEditMode) {
              const defaultDate = new Date();
             defaultDate.setMinutes(defaultDate.getMinutes() + 30);
@@ -713,12 +714,11 @@ export default function SyncOnlineHome() {
             setScheduledDate(defaultDate);
         } else if (editingRoom?.scheduledAt) {
             const scheduled = editingRoom.scheduledAt;
-            // Safely create a date object
             if (scheduled && typeof scheduled === 'string') {
                 setScheduledDate(new Date(scheduled));
             }
         }
-    }, [isScheduling, isEditMode, editingRoom]);
+    }, [activeMainTab, isEditMode, editingRoom]);
 
 
      const resetForm = useCallback(() => {
@@ -738,10 +738,10 @@ export default function SyncOnlineHome() {
     }, [user?.email, userProfile?.defaultLanguage]);
 
      useEffect(() => {
-        if (isScheduling && !isEditMode) {
+        if (activeMainTab === 'schedule' && !isEditMode) {
              resetForm();
         }
-    }, [isScheduling, isEditMode, resetForm]);
+    }, [activeMainTab, isEditMode, resetForm]);
     
      useEffect(() => {
         if (userProfile?.defaultLanguage && !creatorLanguage) {
@@ -758,7 +758,6 @@ export default function SyncOnlineHome() {
             setStartNow(false); // "Start Now" is not applicable for editing
             
             const scheduled = editingRoom.scheduledAt;
-            // Safely create a date object
             if (scheduled && typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
                 setScheduledDate(new Date(scheduled));
             } else {
@@ -766,6 +765,7 @@ export default function SyncOnlineHome() {
             }
         }
     }, [editingRoom, isEditMode, user?.email]);
+
 
     const parsedInviteeEmails = useMemo(() => {
         return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
@@ -880,12 +880,12 @@ export default function SyncOnlineHome() {
     
     const handleOpenEditDialog = (room: InvitedRoomClient) => {
         setEditingRoom(room);
-        setIsScheduling(true);
+        setActiveMainTab('schedule');
     };
     
-    const handleCancelScheduling = () => {
-        setIsScheduling(false);
+    const handleOpenScheduleTab = () => {
         setEditingRoom(null);
+        setActiveMainTab('schedule');
     }
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
@@ -1020,7 +1020,7 @@ export default function SyncOnlineHome() {
             }
             
             fetchInvitedRooms();
-            handleCancelScheduling();
+            setActiveMainTab('your-rooms');
 
         } catch (error) {
             console.error("Error submitting room:", error);
@@ -1240,19 +1240,45 @@ export default function SyncOnlineHome() {
                 </CardContent>
             </Card>
 
-             <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
-                <div className="flex items-center gap-2" data-tour="so-schedule-button">
-                    <CollapsibleTrigger asChild>
-                        <Button disabled={!user}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            {isEditMode ? 'Editing Room...' : 'Schedule New Room'}
-                        </Button>
-                    </CollapsibleTrigger>
-                </div>
-                {!user && <p className="text-sm text-muted-foreground mt-2">Please log in to create a room.</p>}
-
-                <CollapsibleContent>
-                <Card className="mt-4 border-2 border-primary">
+            <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
+                    <TabsTrigger value="schedule" data-tour="so-schedule-button">Schedule a Room</TabsTrigger>
+                </TabsList>
+                <TabsContent value="your-rooms" className="mt-4">
+                    {user && (
+                        <Card data-tour="so-room-list">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
+                                <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {isFetchingRooms ? (
+                                    <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
+                                ) : (
+                                    <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
+                                        <TabsList className="grid w-full grid-cols-3">
+                                            <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                                            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                                            <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                                        </TabsList>
+                                        <TabsContent value="scheduled" className="mt-4">
+                                            {renderRoomList(scheduled, 'scheduled')}
+                                        </TabsContent>
+                                        <TabsContent value="active" className="mt-4">
+                                            {renderRoomList(active, 'active')}
+                                        </TabsContent>
+                                        <TabsContent value="closed" className="mt-4">
+                                            {renderRoomList(closed, 'closed')}
+                                        </TabsContent>
+                                    </Tabs>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+                </TabsContent>
+                <TabsContent value="schedule" className="mt-4">
+                     <Card className="border-2 border-primary">
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
@@ -1434,7 +1460,9 @@ export default function SyncOnlineHome() {
                             </form>
                         </CardContent>
                         <CardFooter className="flex justify-end gap-2">
-                            <Button type="button" variant="ghost" onClick={handleCancelScheduling}>Cancel</Button>
+                             {isEditMode ? (
+                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                            ) : null}
                             {(userProfile?.tokenBalance || 0) < costDifference ? (
                                 <div className="flex flex-col items-end gap-2">
                                     <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
@@ -1450,39 +1478,8 @@ export default function SyncOnlineHome() {
                             )}
                         </CardFooter>
                     </Card>
-                </CollapsibleContent>
-            </Collapsible>
-
-            {user && (
-                <Card data-tour="so-room-list" className="mt-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><List /> Your Rooms</CardTitle>
-                        <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isFetchingRooms ? (
-                             <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
-                        ) : (
-                            <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
-                                <TabsList className="grid w-full grid-cols-3">
-                                    <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                    <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                                    <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="scheduled" className="mt-4">
-                                    {renderRoomList(scheduled, 'scheduled')}
-                                </TabsContent>
-                                <TabsContent value="active" className="mt-4">
-                                     {renderRoomList(active, 'active')}
-                                </TabsContent>
-                                <TabsContent value="closed" className="mt-4">
-                                     {renderRoomList(closed, 'closed')}
-                                </TabsContent>
-                            </Tabs>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
