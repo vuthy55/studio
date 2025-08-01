@@ -34,7 +34,7 @@ import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
-import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeBuddy, sendBuddyAlert } from '@/actions/friends';
+import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeFriend, sendBuddyAlert, updateUserBuddyList } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
 import { getReferredUsers, type ReferredUser } from '@/actions/referrals';
 import { Switch } from '@/components/ui/switch';
@@ -639,21 +639,21 @@ function BuddiesSection() {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<UserProfileType | null>(null);
     const [isSearching, setIsSearching] = useState(false);
-    const [buddiesDetails, setBuddiesDetails] = useState<UserProfileType[]>([]);
+    const [friendsDetails, setFriendsDetails] = useState<UserProfileType[]>([]);
 
     useEffect(() => {
-        const fetchBuddiesDetails = async () => {
-            if (userProfile?.buddies && userProfile.buddies.length > 0) {
-                const buddiesQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.buddies));
-                const snapshot = await getDocs(buddiesQuery);
+        const fetchFriendsDetails = async () => {
+            if (userProfile?.friends && userProfile.friends.length > 0) {
+                const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
+                const snapshot = await getDocs(friendsQuery);
                 const details = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfileType));
-                setBuddiesDetails(details);
+                setFriendsDetails(details);
             } else {
-                setBuddiesDetails([]);
+                setFriendsDetails([]);
             }
         };
-        fetchBuddiesDetails();
-    }, [userProfile?.buddies]);
+        fetchFriendsDetails();
+    }, [userProfile?.friends]);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -694,23 +694,32 @@ function BuddiesSection() {
         }
     };
 
-    const handleRemoveBuddy = async (buddyId: string) => {
+    const handleRemoveFriend = async (friendId: string) => {
         if (!user) return;
-        const result = await removeBuddy(user.uid, buddyId);
+        const result = await removeFriend(user.uid, friendId);
         if (result.success) {
-            toast({ title: "Buddy Removed" });
+            toast({ title: "Friend Removed" });
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }
     };
+    
+    const handleBuddyToggle = async (friendId: string, isBuddy: boolean) => {
+        if (!user) return;
+        const result = await updateUserBuddyList(user.uid, friendId, isBuddy);
+        if (!result.success) {
+             toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+    }
+
 
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Find New Buddies</CardTitle>
+                    <CardTitle>Find New Friends</CardTitle>
                     <CardDescription>
-                        Add a user by searching for their email. Once they accept your request, you can use the Buddy Alert button (the triangle icon) in the sidebar to send them your location.
+                       Add friends by email to easily invite them to Sync Online rooms. You can then choose which friends to add to your high-trust Buddy Alert list for safety.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -724,7 +733,7 @@ function BuddiesSection() {
                                 <p className="font-semibold">{searchResults.name}</p>
                                 <p className="text-sm text-muted-foreground">{searchResults.email}</p>
                             </div>
-                            <Button size="sm" onClick={() => handleSendRequest(searchResults.email)}><UserPlus className="mr-2" /> Add Buddy</Button>
+                            <Button size="sm" onClick={() => handleSendRequest(searchResults.email)}><UserPlus className="mr-2" /> Add Friend</Button>
                         </div>
                     )}
                 </CardContent>
@@ -751,31 +760,48 @@ function BuddiesSection() {
             )}
 
              <Card>
-                <CardHeader><CardTitle>Your Buddies ({buddiesDetails.length})</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Your Friends ({friendsDetails.length})</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
-                    {buddiesDetails.length > 0 ? buddiesDetails.map(buddy => (
-                         <div key={buddy.id} className="p-3 border rounded-lg flex justify-between items-center">
-                            <div>
-                                <p className="font-semibold">{buddy.name}</p>
-                                <p className="text-sm text-muted-foreground">{buddy.email}</p>
+                    {friendsDetails.length > 0 ? friendsDetails.map(friend => (
+                         <div key={friend.id} className="p-3 border rounded-lg flex justify-between items-center">
+                            <div className="flex-1">
+                                <p className="font-semibold">{friend.name}</p>
+                                <p className="text-sm text-muted-foreground">{friend.email}</p>
                             </div>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button size="sm" variant="destructive"><UserMinus className="mr-2" /> Remove</Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Remove {buddy.name}?</AlertDialogTitle>
-                                        <AlertDialogDescription>This will remove them from your buddy list. This action does not affect their buddy list.</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleRemoveBuddy(buddy.id!)}>Confirm</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                            <div className="flex items-center gap-4">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger className="flex items-center gap-2">
+                                            <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
+                                            <Switch
+                                                id={`buddy-toggle-${friend.id}`}
+                                                checked={userProfile?.buddies?.includes(friend.id!)}
+                                                onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
+                                            />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Enable to include this friend in emergency Buddy Alerts.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button size="icon" variant="ghost"><UserMinus className="text-destructive" /></Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove {friend.name}?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will remove them from your friends list and buddy list. This action cannot be undone.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleRemoveFriend(friend.id!)}>Confirm</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
                         </div>
-                    )) : <p className="text-muted-foreground text-center py-4">You haven't added any buddies yet.</p>}
+                    )) : <p className="text-muted-foreground text-center py-4">You haven't added any friends yet.</p>}
                 </CardContent>
             </Card>
 
