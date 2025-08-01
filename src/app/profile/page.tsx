@@ -644,6 +644,7 @@ function BuddiesSection() {
     const [activeTab, setActiveTab] = useState('friends');
     const [pendingInvites, setPendingInvites] = useState<Invitation[]>([]);
     const [isLoadingInvites, setIsLoadingInvites] = useState(false);
+    const [hasFetchedInvites, setHasFetchedInvites] = useState(false);
 
     useEffect(() => {
         const fetchFriendsDetails = async () => {
@@ -663,17 +664,10 @@ function BuddiesSection() {
         if (!user) return;
         setIsLoadingInvites(true);
         const invites = await getPendingInvitations(user.uid);
-        // Sort the invites client-side
-        const sortedInvites = invites.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setPendingInvites(sortedInvites);
+        setPendingInvites(invites);
         setIsLoadingInvites(false);
+        setHasFetchedInvites(true);
     }, [user]);
-
-    useEffect(() => {
-        if (activeTab === 'invites') {
-            fetchPendingInvites();
-        }
-    }, [activeTab, fetchPendingInvites]);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -702,7 +696,8 @@ function BuddiesSection() {
         setSearchedEmailNotFound(null);
         setSearchTerm('');
         
-        fetchPendingInvites();
+        // Refresh the pending invites list
+        await fetchPendingInvites();
     };
 
     const handleSendRequest = async (toEmail: string) => {
@@ -865,22 +860,32 @@ function BuddiesSection() {
                 </TabsContent>
                 <TabsContent value="invites" className="mt-4">
                      <Card>
-                        <CardHeader><CardTitle>Pending Invitations</CardTitle></CardHeader>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>Pending Invitations</CardTitle>
+                                <Button variant="outline" size="sm" onClick={fetchPendingInvites} disabled={isLoadingInvites}>
+                                    <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingInvites && "animate-spin")} />
+                                    {hasFetchedInvites ? 'Refresh' : 'Load Invites'}
+                                </Button>
+                            </div>
+                        </CardHeader>
                         <CardContent>
-                            {isLoadingInvites ? <LoaderCircle className="animate-spin" /> : (
-                                pendingInvites.length > 0 ? (
-                                    <div className="space-y-2">
-                                        {pendingInvites.map(invite => (
-                                            <div key={invite.id} className="p-3 border rounded-lg flex justify-between items-center">
-                                                <div>
-                                                    <p className="font-semibold">{invite.invitedEmail}</p>
-                                                     <p className="text-xs text-muted-foreground">Invited {formatDistanceToNow(new Date(invite.createdAt), { addSuffix: true })}</p>
+                            {isLoadingInvites ? <div className="flex justify-center py-4"><LoaderCircle className="animate-spin" /></div> : (
+                                hasFetchedInvites ? (
+                                    pendingInvites.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {pendingInvites.map(invite => (
+                                                <div key={invite.id} className="p-3 border rounded-lg flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-semibold">{invite.invitedEmail}</p>
+                                                        <p className="text-xs text-muted-foreground">Invited {formatDistanceToNow(new Date(invite.createdAt), { addSuffix: true })}</p>
+                                                    </div>
+                                                    <Button size="sm" variant="outline" onClick={() => handleInvite(invite.invitedEmail)}><Copy className="mr-2"/> Re-copy Link</Button>
                                                 </div>
-                                                <Button size="sm" variant="outline" onClick={() => handleInvite(invite.invitedEmail)}><Copy className="mr-2"/> Re-copy Link</Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : <p className="text-muted-foreground text-center py-4">You have no pending invitations.</p>
+                                            ))}
+                                        </div>
+                                    ) : <p className="text-muted-foreground text-center py-4">You have no pending invitations.</p>
+                                ) : <p className="text-muted-foreground text-center py-4">Click the button to load your pending invitations.</p>
                             )}
                         </CardContent>
                     </Card>
