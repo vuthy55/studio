@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -18,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { ScrollArea } from "./scroll-area"
 
 interface ComboboxProps {
     options: { value: string; label: string }[];
@@ -61,24 +63,26 @@ export function Combobox({
           <CommandList>
             <CommandEmpty>{notfoundText || "No option found."}</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => {
-                    onChange(currentValue)
-                    setOpen(false)
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === option.value ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {option.label}
-                </CommandItem>
-              ))}
+                <ScrollArea className="h-72">
+                    {options.map((option) => (
+                        <CommandItem
+                        key={option.value}
+                        value={option.label} // Search by label
+                        onSelect={() => {
+                            onChange(option.value)
+                            setOpen(false)
+                        }}
+                        >
+                        <Check
+                            className={cn(
+                            "mr-2 h-4 w-4",
+                            value === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                        />
+                        {option.label}
+                        </CommandItem>
+                    ))}
+                </ScrollArea>
             </CommandGroup>
           </CommandList>
         </Command>
