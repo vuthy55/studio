@@ -31,7 +31,7 @@ interface ComboboxProps {
 
 export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notfoundText }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const selectedLabel = options.find((option) => option.value === value)?.label;
+  const selectedLabel = options.find((option) => option.value.toLowerCase() === value.toLowerCase())?.label;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -55,9 +55,12 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => {
-                    onChange(currentValue === value ? "" : currentValue)
+                  value={option.label} // Use label for searching
+                  onSelect={(currentLabel) => {
+                    const selectedOption = options.find(opt => opt.label.toLowerCase() === currentLabel.toLowerCase());
+                    if (selectedOption) {
+                        onChange(selectedOption.value === value ? "" : selectedOption.value)
+                    }
                     setOpen(false)
                   }}
                 >

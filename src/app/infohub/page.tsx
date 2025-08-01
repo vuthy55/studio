@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { LoaderCircle, Wand2, AlertTriangle, Sparkles } from 'lucide-react';
@@ -17,15 +17,14 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 // Create a comprehensive list of countries for the combobox
-const allCountriesForSearch = aseanCountries.map(c => ({ value: c.name.toLowerCase(), label: c.name }));
-// A real app might load a much larger list of world countries here.
+const allCountriesForSearch = aseanCountries.map(c => ({ value: c.code, label: c.name }));
 
 export default function InfoHubPage() {
     const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
     const router = useRouter();
     const { toast } = useToast();
 
-    const [selectedCountryName, setSelectedCountryName] = useState('');
+    const [selectedCountryCode, setSelectedCountryCode] = useState('');
     const [selectedProvince, setSelectedProvince] = useState('');
 
     const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -41,8 +40,12 @@ export default function InfoHubPage() {
     }, [user, loading, router]);
     
     const selectedAseanCountry = useMemo(() => {
-        return aseanCountries.find(c => c.name.toLowerCase() === selectedCountryName.toLowerCase());
-    }, [selectedCountryName]);
+        return aseanCountries.find(c => c.code.toLowerCase() === selectedCountryCode.toLowerCase());
+    }, [selectedCountryCode]);
+
+    const selectedCountryName = useMemo(() => {
+        return allCountriesForSearch.find(c => c.value.toLowerCase() === selectedCountryCode.toLowerCase())?.label || selectedCountryCode;
+    }, [selectedCountryCode]);
 
     useEffect(() => {
         setAiIntel(null); // Clear AI intel when country changes
@@ -55,7 +58,7 @@ export default function InfoHubPage() {
     }, [selectedAseanCountry]);
     
     const handleGenerateIntel = async () => {
-      if (!selectedCountryName || selectedAseanCountry) return;
+      if (!selectedCountryCode || selectedAseanCountry) return;
       
       const cost = settings?.infohubAiCost || 10;
       if (!spendTokensForTranslation(`AI Intel for ${selectedCountryName}`, cost)) {
@@ -105,8 +108,8 @@ export default function InfoHubPage() {
                 <CardContent className="grid md:grid-cols-2 gap-6">
                      <Combobox
                         options={allCountriesForSearch}
-                        value={selectedCountryName}
-                        onChange={setSelectedCountryName}
+                        value={selectedCountryCode}
+                        onChange={setSelectedCountryCode}
                         placeholder="Select a country..."
                         searchPlaceholder="Search country..."
                         notfoundText="No country found."
@@ -122,7 +125,7 @@ export default function InfoHubPage() {
                         />
                      )}
                 </CardContent>
-                 {!selectedAseanCountry && selectedCountryName && (
+                 {!selectedAseanCountry && selectedCountryCode && (
                     <CardFooter>
                         <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel}>
                             {isGeneratingIntel ? <LoaderCircle className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
