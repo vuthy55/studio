@@ -4,6 +4,7 @@ export interface StaticEvent {
   date: string; // YYYY-MM-DD format
   name: string;
   description: string;
+  link?: string;
 }
 
 // All dates are in YYYY-MM-DD format for a generic year (e.g., 2024, but the year can be ignored for annual events)
@@ -20,7 +21,7 @@ export const staticEvents: StaticEvent[] = [
   { countryCode: 'KH', date: '2024-01-01', name: 'International New Year\'s Day', description: 'Public holiday celebrating the start of the Gregorian new year.' },
   { countryCode: 'KH', date: '2024-01-07', name: 'Victory Over Genocide Day', description: 'Commemorates the end of the Khmer Rouge regime in 1979.' },
   { countryCode: 'KH', date: '2024-03-08', name: 'International Women\'s Day', description: 'Public holiday celebrating women\'s rights and achievements.' },
-  { countryCode: 'KH', date: '2024-04-13', name: 'Khmer New Year (Day 1)', description: 'The first day of the traditional Cambodian New Year, a major national festival.' },
+  { countryCode: 'KH', date: '2024-04-13', name: 'Khmer New Year (Choul Chnam Thmey)', description: 'The first day of the traditional Cambodian New Year, a major national festival.', link: 'https://en.wikipedia.org/wiki/Cambodian_New_Year' },
   { countryCode: 'KH', date: '2024-04-14', name: 'Khmer New Year (Day 2)', description: 'The second day of Khmer New Year celebrations.' },
   { countryCode: 'KH', date: '2024-04-15', name: 'Khmer New Year (Day 3)', description: 'The final day of Khmer New Year celebrations.' },
   { countryCode: 'KH', date: '2024-05-01', name: 'International Labour Day', description: 'Public holiday celebrating workers.' },
@@ -32,9 +33,7 @@ export const staticEvents: StaticEvent[] = [
   { countryCode: 'KH', date: '2024-10-15', name: 'Commemoration Day of King\'s Father', description: 'A day to honor the late King Norodom Sihanouk.' },
   { countryCode: 'KH', date: '2024-10-29', name: 'King Norodom Sihamoni\'s Coronation Day', description: 'Celebrates the anniversary of the King\'s coronation.' },
   { countryCode: 'KH', date: '2024-11-09', name: 'Independence Day', description: 'Celebrates Cambodia\'s independence from France in 1953.' },
-  { countryCode: 'KH', date: '2024-11-26', name: 'Water Festival (Bon Om Touk) - Day 1', description: 'First day of the Water Festival, celebrating the reversal of the Tonle Sap river flow.' },
-  { countryCode: 'KH', date: '2024-11-27', name: 'Water Festival (Bon Om Touk) - Day 2', description: 'Second day of the Water Festival, featuring boat races.' },
-  { countryCode: 'KH', date: '2024-11-28', name: 'Water Festival (Bon Om Touk) - Day 3', description: 'Final day of the Water Festival with illuminated floats.' },
+  { countryCode: 'KH', date: '2024-11-26', name: 'Water Festival (Bon Om Touk)', description: 'Major festival celebrating the reversal of the Tonle Sap river flow with boat races.', link: 'https://en.wikipedia.org/wiki/Bon_Om_Touk' },
 
   // --- Indonesia (ID) ---
   { countryCode: 'ID', date: '2024-01-01', name: 'New Year\'s Day', description: 'Public holiday.' },
@@ -47,7 +46,7 @@ export const staticEvents: StaticEvent[] = [
   // --- Laos (LA) ---
   { countryCode: 'LA', date: '2024-01-01', name: 'International New Year\'s Day', description: 'Public holiday.' },
   { countryCode: 'LA', date: '2024-03-08', name: 'International Women\'s Day', description: 'Public holiday.' },
-  { countryCode: 'LA', date: '2024-04-14', name: 'Lao New Year (Pi Mai)', description: 'Major traditional festival, similar to Songkran and Khmer New Year.' },
+  { countryCode: 'LA', date: '2024-04-14', name: 'Lao New Year (Pi Mai)', description: 'Major traditional festival, similar to Songkran and Khmer New Year.', link: 'https://en.wikipedia.org/wiki/Lao_New_Year' },
   { countryCode: 'LA', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
   { countryCode: 'LA', date: '2024-12-02', name: 'Lao National Day', description: 'Commemorates the establishment of the Lao People\'s Democratic Republic in 1975.' },
 
@@ -63,7 +62,7 @@ export const staticEvents: StaticEvent[] = [
   // --- Myanmar (MM) ---
   { countryCode: 'MM', date: '2024-01-04', name: 'Independence Day', description: 'Celebrates independence from the British.' },
   { countryCode: 'MM', date: '2024-02-12', name: 'Union Day', description: 'Commemorates the Panglong Agreement.' },
-  { countryCode: 'MM', date: '2024-04-13', name: 'Thingyan (Water Festival)', description: 'Myanmar\'s New Year water festival, lasting several days.' },
+  { countryCode: 'MM', date: '2024-04-13', name: 'Thingyan (Water Festival)', description: 'Myanmar\'s New Year water festival, lasting several days.', link: 'https://en.wikipedia.org/wiki/Thingyan' },
   { countryCode: 'MM', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
   { countryCode: 'MM', date: '2024-07-19', name: 'Martyrs\' Day', description: 'Commemorates the assassination of General Aung San and other leaders.' },
 
@@ -90,7 +89,7 @@ export const staticEvents: StaticEvent[] = [
   // --- Thailand (TH) ---
   { countryCode: 'TH', date: '2024-02-24', name: 'Makha Bucha Day', description: 'Important Buddhist holiday.' },
   { countryCode: 'TH', date: '2024-04-06', name: 'Chakri Memorial Day', description: 'Commemorates the founding of the Chakri Dynasty.' },
-  { countryCode: 'TH', date: '2024-04-13', name: 'Songkran Festival', description: 'The famous Thai New Year water festival.' },
+  { countryCode: 'TH', date: '2024-04-13', name: 'Songkran Festival', description: 'The famous Thai New Year water festival.', link: 'https://en.wikipedia.org/wiki/Songkran_(Thailand)' },
   { countryCode: 'TH', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
   { countryCode: 'TH', date: '2024-07-28', name: 'King Vajiralongkorn\'s Birthday', description: 'Celebrates the current king\'s birthday.' },
   { countryCode: 'TH', date: '2024-08-12', name: 'The Queen Mother\'s Birthday (Mother\'s Day)', description: 'Public holiday.' },
@@ -100,7 +99,7 @@ export const staticEvents: StaticEvent[] = [
 
   // --- Vietnam (VN) ---
   { countryCode: 'VN', date: '2024-01-01', name: 'New Year\'s Day', description: 'Gregorian New Year.' },
-  { countryCode: 'VN', date: '2024-02-10', name: 'Tết Nguyên Đán (Lunar New Year)', description: 'The most important festival in Vietnam, lasting several days.' },
+  { countryCode: 'VN', date: '2024-02-10', name: 'Tết Nguyên Đán (Lunar New Year)', description: 'The most important festival in Vietnam, lasting several days.', link: 'https://en.wikipedia.org/wiki/T%E1%BA%BFt' },
   { countryCode: 'VN', date: '2024-04-18', name: 'Hung Kings\' Commemoration Day', description: 'Commemorates the ancient Hung Kings.' },
   { countryCode: 'VN', date: '2024-04-30', name: 'Reunification Day', description: 'Marks the end of the Vietnam War.' },
   { countryCode: 'VN', date: '2024-05-01', name: 'International Labour Day', description: 'Public holiday.' },

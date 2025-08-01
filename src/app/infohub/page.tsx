@@ -6,9 +6,8 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
-import { LoaderCircle, Wand2, AlertTriangle, Sparkles } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Sparkles, Link as LinkIcon } from 'lucide-react';
 import { countries as aseanCountries, lightweightCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -17,9 +16,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
+import Link from 'next/link';
 
 function IntelCard({ intel, countryName }: { intel: CountryIntel, countryName: string }) {
     if (!intel) return null;
@@ -51,6 +51,53 @@ function IntelCard({ intel, countryName }: { intel: CountryIntel, countryName: s
             </CardContent>
         </Card>
     );
+}
+
+function EventsTable({ events }: { events: StaticEvent[] }) {
+    if (events.length === 0) {
+        return (
+            <div className="text-center text-muted-foreground py-8">
+                <p>No major festivals or holidays found for this country in our database.</p>
+            </div>
+        )
+    }
+
+    return (
+        <Card className="mt-6">
+            <CardHeader>
+                <CardTitle>Major Festivals & Holidays</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Event</TableHead>
+                            <TableHead>Description</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {events.map((event, index) => (
+                            <TableRow key={index}>
+                                <TableCell className="whitespace-nowrap">{format(new Date(event.date), 'MMMM d')}</TableCell>
+                                <TableCell className="font-medium">
+                                    {event.link ? (
+                                        <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
+                                            {event.name}
+                                            <LinkIcon className="h-3 w-3"/>
+                                        </a>
+                                    ) : (
+                                        event.name
+                                    )}
+                                </TableCell>
+                                <TableCell>{event.description}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    )
 }
 
 export default function InfoHubPage() {
@@ -93,7 +140,7 @@ export default function InfoHubPage() {
     const handleMainSelection = (value: string) => {
         if (value === 'other') {
             setIsAiDialogOpen(true);
-            // Don't change selectedCountryCode, so the calendar for the previously selected country remains visible
+            setDialogSelectedCountry('');
         } else {
             setSelectedCountryCode(value);
             setAiIntel(null);
@@ -116,9 +163,11 @@ export default function InfoHubPage() {
         }
 
         setIsGeneratingIntel(true);
-        setIsAiDialogOpen(false); // Close dialog on submission
+        setIsAiDialogOpen(false); 
         setAiIntel(null);
-        setSelectedAiCountry(dialogSelectedCountry); // Set the display name for the card title
+        setSelectedCountryCode('');
+        const countryLabel = lightweightCountries.find(c => c.name === dialogSelectedCountry)?.name || dialogSelectedCountry;
+        setSelectedAiCountry(countryLabel);
         
         try {
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${dialogSelectedCountry}`, cost);
@@ -157,116 +206,68 @@ export default function InfoHubPage() {
                     <CardDescription>Select a pre-loaded ASEAN country to view its major festivals, or use AI to get travel intel for any other country in the world.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6 items-start">
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Select Country</Label>
-                                <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
-                                    <Select value={selectedCountryCode} onValueChange={handleMainSelection}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a country..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <ScrollArea className="h-72">
-                                                {aseanCountries.map((country) => (
-                                                    <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                                ))}
-                                                <DialogTrigger asChild>
-                                                    <SelectItem value="other">Other (AI-Powered {settings?.infohubAiCost || 10} Tokens)...</SelectItem>
-                                                </DialogTrigger>
-                                            </ScrollArea>
-                                        </SelectContent>
-                                    </Select>
-                                    <DialogContent>
-                                        <DialogHeader>
-                                            <DialogTitle>Get AI-Powered Travel Intel</DialogTitle>
-                                            <DialogDescription>
-                                                Select any country from the list below to generate a travel advisory using AI.
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                        <div className="py-4 space-y-4">
-                                            <Label>Country</Label>
-                                            <Select value={dialogSelectedCountry} onValueChange={setDialogSelectedCountry}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select from all countries..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <ScrollArea className="h-72">
-                                                        {worldCountryOptions.map((country) => (
-                                                            <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
-                                                        ))}
-                                                    </ScrollArea>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <DialogFooter>
-                                            <DialogClose asChild>
-                                                <Button type="button" variant="ghost">Cancel</Button>
-                                            </DialogClose>
-                                            <Button onClick={handleGenerateIntel} disabled={!dialogSelectedCountry}>
-                                                Get Intel
-                                            </Button>
-                                        </DialogFooter>
-                                    </DialogContent>
-                                </Dialog>
-                            </div>
-                        </div>
-                        <div>
-                             {(selectedCountryCode || aiIntel) ? (
-                                <Calendar
-                                    mode="single"
-                                    className="p-0 rounded-md border"
-                                    components={{
-                                        DayContent: ({ date }) => {
-                                            const dailyEvents = events.filter(e => {
-                                                const eventDate = new Date(e.date);
-                                                return eventDate.getUTCFullYear() === date.getFullYear() &&
-                                                    eventDate.getUTCMonth() === date.getMonth() &&
-                                                    eventDate.getUTCDate() === date.getDate();
-                                            });
-
-                                            return (
-                                                <div className="relative h-full w-full flex items-center justify-center">
-                                                    <span className="relative z-10">{date.getDate()}</span>
-                                                    {dailyEvents.length > 0 && (
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <div className="absolute bottom-1 w-full flex justify-center items-center gap-0.5">
-                                                                        {dailyEvents.slice(0, 3).map((event, index) => (
-                                                                            <Badge key={index} className="h-1.5 w-1.5 p-0 bg-primary rounded-full"></Badge>
-                                                                        ))}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <ul className="space-y-1">
-                                                                        {dailyEvents.map(event => <li key={event.name}>{event.name}</li>)}
-                                                                    </ul>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
-                                                    )}
-                                                </div>
-                                            );
-                                        },
-                                    }}
-                                />
-                            ) : (
-                                <div className="h-full min-h-[300px] flex items-center justify-center border rounded-md bg-muted/50">
-                                    <p className="text-muted-foreground">Select a country to see calendar events.</p>
-                                </div>
-                            )}
-                        </div>
+                     <div className="space-y-2">
+                        <Label>Select Country</Label>
+                         <Select value={selectedCountryCode} onValueChange={handleMainSelection}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a country..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <ScrollArea className="h-72">
+                                    {aseanCountries.map((country) => (
+                                        <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                    ))}
+                                    <SelectItem value="other">Other (AI-Powered {settings?.infohubAiCost || 10} Tokens)...</SelectItem>
+                                </ScrollArea>
+                            </SelectContent>
+                        </Select>
                     </div>
-                     {isGeneratingIntel && !aiIntel && (
-                        <div className="flex items-center justify-center gap-2 text-muted-foreground p-4">
-                            <LoaderCircle className="h-5 w-5 animate-spin" />
-                            <span>Generating intel for {selectedAiCountry}...</span>
-                        </div>
-                     )}
-                     {aiIntel && <IntelCard intel={aiIntel} countryName={selectedAiCountry} />}
+
+                     <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Get AI-Powered Travel Intel</DialogTitle>
+                                <DialogDescription>
+                                    Select any country from the list below to generate a travel advisory using AI.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4 space-y-4">
+                                <Label>Country</Label>
+                                <Select value={dialogSelectedCountry} onValueChange={setDialogSelectedCountry}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select from all countries..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <ScrollArea className="h-72">
+                                            {worldCountryOptions.map((country) => (
+                                                <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
+                                            ))}
+                                        </ScrollArea>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button type="button" variant="ghost">Cancel</Button>
+                                </DialogClose>
+                                <Button onClick={handleGenerateIntel} disabled={!dialogSelectedCountry || isGeneratingIntel}>
+                                    {isGeneratingIntel && <LoaderCircle className="animate-spin mr-2"/>}
+                                    Get Intel (Cost: {settings?.infohubAiCost || 10} Tokens)
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </CardContent>
             </Card>
+
+            {isGeneratingIntel && (
+                <div className="flex items-center justify-center gap-2 text-muted-foreground p-4">
+                    <LoaderCircle className="h-5 w-5 animate-spin" />
+                    <span>Generating intel for {selectedAiCountry}...</span>
+                </div>
+            )}
+            {aiIntel && <IntelCard intel={aiIntel} countryName={selectedAiCountry} />}
+            {selectedCountryCode && <EventsTable events={events} />}
         </div>
     )
 }
