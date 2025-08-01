@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
@@ -22,9 +22,10 @@ import { visaData } from '@/lib/visa-data';
 import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Combobox } from '@/components/ui/combobox';
 
 
-type InfoTab = 'holidays' | 'etiquette' | 'visa' | 'emergency';
+type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 export default function InfoHubPage() {
     const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
@@ -33,7 +34,7 @@ export default function InfoHubPage() {
 
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
     const [selectedCountryName, setSelectedCountryName] = useState('');
-    const [activeTab, setActiveTab] = useState('holidays');
+    const [activeTab, setActiveTab] = useState<InfoTab>('latest');
     
     // State for static data
     const [staticHolidays, setStaticHolidays] = useState<StaticEvent[]>([]);
@@ -55,7 +56,7 @@ export default function InfoHubPage() {
         setSelectedCountryName(country?.label || '');
         
         setAiIntel(null);
-        setActiveTab('holidays');
+        setActiveTab('latest');
 
         setStaticHolidays(staticEvents.filter(e => e.countryCode === countryCode));
         setStaticEtiquette(etiquetteData[countryCode] || []);
@@ -90,13 +91,18 @@ export default function InfoHubPage() {
             return;
         }
         
+        const cost = settings.infohubAiCost || 10;
+        if ((userProfile.tokenBalance || 0) < cost) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens to perform this action.' });
+            return;
+        }
+
         setIsGeneratingIntel(true);
         try {
             // First, get the data from the AI
             const intel = await getCountryIntel({ countryName: selectedCountryName });
             
             // THEN, charge the user
-            const cost = settings.infohubAiCost || 10;
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
 
             if (!spendSuccess) {
@@ -105,7 +111,7 @@ export default function InfoHubPage() {
             }
             
             setAiIntel(intel);
-            setActiveTab('holidays'); // Switch to the first tab to show new data
+            setActiveTab('latest'); // Switch to the first tab to show new data
             toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
         } catch (error: any) {
             console.error("Error generating country intel:", error);
@@ -125,6 +131,7 @@ export default function InfoHubPage() {
         }));
     }, [aiIntel]);
 
+    // Move loading return AFTER all hooks
     if (loading || !user) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -147,18 +154,14 @@ export default function InfoHubPage() {
                 <CardContent className="space-y-4">
                      <div className="space-y-2">
                         <Label>Select Country</Label>
-                         <Select value={selectedCountryCode} onValueChange={handleCountrySelection}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a country from the list..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <ScrollArea className="h-72">
-                                    {worldCountryOptions.map((country) => (
-                                        <SelectItem key={country.value} value={country.value}>{country.label}</SelectItem>
-                                    ))}
-                                </ScrollArea>
-                            </SelectContent>
-                        </Select>
+                        <Combobox
+                            options={worldCountryOptions}
+                            value={selectedCountryCode}
+                            onChange={handleCountrySelection}
+                            placeholder="Select or search for any country..."
+                            searchPlaceholder='Search countries...'
+                            notfoundText='No country found.'
+                         />
                     </div>
 
                      <div className="text-sm text-muted-foreground">
@@ -201,13 +204,32 @@ export default function InfoHubPage() {
             </Card>
 
             {selectedCountryCode && (
-                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InfoTab)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-5">
+                        <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>
                         <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
                         <TabsTrigger value="etiquette"><BookUser className="mr-2"/> Etiquette</TabsTrigger>
                         <TabsTrigger value="visa"><ShieldAlert className="mr-2"/> Visa</TabsTrigger>
                         <TabsTrigger value="emergency"><Phone className="mr-2"/> Emergency</TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="latest" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Latest Advisories & Scams</CardTitle>
+                                <CardDescription>This information is generated by AI and reflects recent data.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                               {aiIntel ? (
+                                    <ul className="list-disc pl-5 space-y-2 text-sm">
+                                        {aiIntel.latestAdvisory.map((item, index) => <li key={`advisory-${index}`}>{item}</li>)}
+                                    </ul>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">Select a country and use "Get Latest Intel" to view advisories.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
                     <TabsContent value="holidays" className="mt-4">
                         <Card>
@@ -216,33 +238,37 @@ export default function InfoHubPage() {
                                 {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                             <CardContent>
-                               <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Event</TableHead>
-                                            <TableHead>Description</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {(aiIntel?.majorHolidays || (isAsean ? staticHolidays : [])).map((event: any, index: number) => (
-                                            <TableRow key={index}>
-                                                <TableCell className="whitespace-nowrap">{aiIntel ? event.date : format(new Date(event.date), 'MMMM d')}</TableCell>
-                                                <TableCell className="font-medium">
-                                                    {event.link ? (
-                                                        <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
-                                                            {event.name}
-                                                            <LinkIcon className="h-3 w-3"/>
-                                                        </a>
-                                                    ) : (
-                                                        event.name
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>{event.description}</TableCell>
+                               {((aiIntel?.majorHolidays && aiIntel.majorHolidays.length > 0) || (isAsean && staticHolidays.length > 0)) ? (
+                                   <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Event</TableHead>
+                                                <TableHead>Description</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(aiIntel?.majorHolidays || (isAsean ? staticHolidays : [])).map((event: any, index: number) => (
+                                                <TableRow key={index}>
+                                                    <TableCell className="whitespace-nowrap">{aiIntel ? event.date : format(new Date(event.date), 'MMMM d')}</TableCell>
+                                                    <TableCell className="font-medium">
+                                                        {event.link ? (
+                                                            <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
+                                                                {event.name}
+                                                                <LinkIcon className="h-3 w-3"/>
+                                                            </a>
+                                                        ) : (
+                                                            event.name
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>{event.description}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                               ) : (
+                                   <p className="text-sm text-muted-foreground">Select a country and use AI to fetch data.</p>
+                               )}
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -254,9 +280,13 @@ export default function InfoHubPage() {
                                 {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                              <CardContent>
-                                <ul className="list-disc pl-5 space-y-2 text-sm">
-                                    {(aiIntel?.culturalEtiquette || (isAsean ? staticEtiquette : [])).map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
-                                </ul>
+                                {((aiIntel?.culturalEtiquette && aiIntel.culturalEtiquette.length > 0) || (isAsean && staticEtiquette.length > 0)) ? (
+                                    <ul className="list-disc pl-5 space-y-2 text-sm">
+                                        {(aiIntel?.culturalEtiquette || (isAsean ? staticEtiquette : [])).map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                    </ul>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">Select a country and use AI to fetch data.</p>
+                                )}
                              </CardContent>
                         </Card>
                     </TabsContent>
@@ -268,7 +298,7 @@ export default function InfoHubPage() {
                                 {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information - Verify with embassy</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm">{aiIntel?.visaInfo || (isAsean ? staticVisa : '')}</p>
+                                 <p className="text-sm">{aiIntel?.visaInfo || (isAsean ? staticVisa : 'Select a country and use AI to fetch data.')}</p>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -280,6 +310,7 @@ export default function InfoHubPage() {
                                 {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                              <CardContent>
+                                {((aiIntel && aiEmergencyList.length > 0) || (isAsean && staticEmergency.length > 0)) ? (
                                  <Table>
                                     <TableBody>
                                         {(aiIntel ? aiEmergencyList : staticEmergency).map((item, index) => (
@@ -290,6 +321,9 @@ export default function InfoHubPage() {
                                         ))}
                                     </TableBody>
                                  </Table>
+                                 ) : (
+                                     <p className="text-sm text-muted-foreground">Select a country and use AI to fetch data.</p>
+                                 )}
                              </CardContent>
                         </Card>
                     </TabsContent>
