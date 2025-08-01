@@ -6,8 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { LoaderCircle, Wand2, AlertTriangle, Sparkles, Link as LinkIcon, Calendar, BookUser, ShieldAlert, Phone } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -18,7 +17,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
-import Link from 'next/link';
 import { etiquetteData } from '@/lib/etiquette-data';
 import { visaData } from '@/lib/visa-data';
 import { emergencyData } from '@/lib/emergency-data';
@@ -108,7 +106,6 @@ export default function InfoHubPage() {
         }
     };
     
-    // Check balance before calling the AI
     const canAffordIntel = (userProfile?.tokenBalance || 0) >= (settings?.infohubAiCost || 10);
     
     if (loading || !user) {
@@ -119,6 +116,14 @@ export default function InfoHubPage() {
         );
     }
     
+    const aiEmergencyList = useMemo(() => {
+        if (!aiIntel?.emergencyNumbers) return [];
+        return Object.entries(aiIntel.emergencyNumbers).map(([key, value]) => ({
+            label: key.replace(/([A-Z])/g, ' $1'),
+            number: value
+        }));
+    }, [aiIntel]);
+
     return (
         <div className="space-y-8">
             <MainHeader title="InfoHub" description="Your source for global travel intelligence." />
@@ -161,7 +166,7 @@ export default function InfoHubPage() {
 
             {selectedCountryCode && (
                  <Tabs defaultValue="holidays" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                         {aiIntel?.latestAdvisory && <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>}
                         <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
                         <TabsTrigger value="etiquette"><BookUser className="mr-2"/> Etiquette</TabsTrigger>
@@ -189,7 +194,7 @@ export default function InfoHubPage() {
                         <Card>
                              <CardHeader>
                                 <CardTitle>Major Festivals & Holidays</CardTitle>
-                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information</CardDescription>}
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                             <CardContent>
                                <Table>
@@ -201,7 +206,7 @@ export default function InfoHubPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {(aiIntel?.majorHolidays || staticHolidays).map((event, index) => (
+                                        {(aiIntel?.majorHolidays || (isAsean ? staticHolidays : [])).map((event: any, index: number) => (
                                             <TableRow key={index}>
                                                 <TableCell className="whitespace-nowrap">{aiIntel ? event.date : format(new Date(event.date), 'MMMM d')}</TableCell>
                                                 <TableCell className="font-medium">
@@ -227,11 +232,11 @@ export default function InfoHubPage() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Cultural Etiquette</CardTitle>
-                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information</CardDescription>}
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                              <CardContent>
                                 <ul className="list-disc pl-5 space-y-2 text-sm">
-                                    {(aiIntel?.culturalEtiquette || staticEtiquette).map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                    {(aiIntel?.culturalEtiquette || (isAsean ? staticEtiquette : [])).map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
                                 </ul>
                              </CardContent>
                         </Card>
@@ -241,10 +246,10 @@ export default function InfoHubPage() {
                         <Card>
                              <CardHeader>
                                 <CardTitle>Visa Information</CardTitle>
-                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information - Verify with embassy</CardDescription>}
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information - Verify with embassy</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm">{aiIntel?.visaInfo || staticVisa}</p>
+                                <p className="text-sm">{aiIntel?.visaInfo || (isAsean ? staticVisa : '')}</p>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -253,15 +258,15 @@ export default function InfoHubPage() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Emergency Numbers</CardTitle>
-                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : <CardDescription>Standard Information</CardDescription>}
+                                {aiIntel ? <CardDescription>AI-Generated Data</CardDescription> : (isAsean ? <CardDescription>Standard Information</CardDescription> : <CardDescription>Select a country and use AI to fetch data.</CardDescription>)}
                             </CardHeader>
                              <CardContent>
                                  <Table>
                                     <TableBody>
-                                        {(aiIntel ? Object.entries(aiIntel.emergencyNumbers) : staticEmergency).map(([key, value]) => (
-                                            <TableRow key={key}>
-                                                <TableCell className="font-medium capitalize">{aiIntel ? key.replace(/([A-Z])/g, ' $1') : (value as any).label}</TableCell>
-                                                <TableCell className="font-mono">{aiIntel ? value : (value as any).number}</TableCell>
+                                        {(aiIntel ? aiEmergencyList : (isAsean ? staticEmergency : [])).map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell className="font-medium capitalize">{item.label}</TableCell>
+                                                <TableCell className="font-mono">{item.number}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
