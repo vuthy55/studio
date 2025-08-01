@@ -131,7 +131,9 @@ export default function InfoHubPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
-                    <CardDescription>Select a country to view standard information, or use our AI to get the latest travel advisories.</CardDescription>
+                    <CardDescription>
+                        For ASEAN countries, view standard travel info for free. For the latest, real-time intel on <strong>any country</strong> (including ASEAN), use our AI-powered advisory service for a token fee.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="space-y-2">
@@ -280,3 +282,4 @@ export default function InfoHubPage() {
         </div>
     )
 }
+
