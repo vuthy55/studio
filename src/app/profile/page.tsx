@@ -771,13 +771,15 @@ function BuddiesSection() {
                             <div className="flex items-center gap-4">
                                 <TooltipProvider>
                                     <Tooltip>
-                                        <TooltipTrigger className="flex items-center gap-2">
-                                            <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
-                                            <Switch
-                                                id={`buddy-toggle-${friend.id}`}
-                                                checked={userProfile?.buddies?.includes(friend.id!)}
-                                                onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
-                                            />
+                                        <TooltipTrigger asChild>
+                                            <div className="flex items-center gap-2">
+                                                <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
+                                                <Switch
+                                                    id={`buddy-toggle-${friend.id}`}
+                                                    checked={userProfile?.buddies?.includes(friend.id!)}
+                                                    onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
+                                                />
+                                            </div>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                             <p>Enable to include this friend in emergency Buddy Alerts.</p>
