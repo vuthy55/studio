@@ -32,6 +32,7 @@ export default function InfoHubPage() {
 
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
     const [selectedCountryName, setSelectedCountryName] = useState('');
+    const [activeTab, setActiveTab] = useState('holidays');
     
     // State for static data
     const [staticHolidays, setStaticHolidays] = useState<StaticEvent[]>([]);
@@ -51,14 +52,13 @@ export default function InfoHubPage() {
         const country = worldCountryOptions.find(c => c.value === countryCode);
         setSelectedCountryName(country?.label || '');
         
-        // Reset AI intel when a new country is selected
         setAiIntel(null);
+        setActiveTab('holidays');
 
-        // Load static data if it's an ASEAN country
-        const holidays = staticEvents.filter(e => e.countryCode === countryCode);
-        setStaticHolidays(holidays);
+        setStaticHolidays(staticEvents.filter(e => e.countryCode === countryCode));
         setStaticEtiquette(etiquetteData[countryCode] || []);
         setStaticVisa(visaData[countryCode] || '');
+
         const emergency = emergencyData[countryCode];
         if (emergency) {
             const emergencyList = [
@@ -87,16 +87,15 @@ export default function InfoHubPage() {
         try {
             const intel = await getCountryIntel({ countryName: selectedCountryName });
             
-            // Only deduct tokens after a successful response from the AI
             const cost = settings.infohubAiCost || 10;
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
 
             if (!spendSuccess) {
-                // This case should be rare if we check balance first, but it's a good safeguard.
                 throw new Error("Token spending failed post-generation. Your balance may have changed.");
             }
             
             setAiIntel(intel);
+            setActiveTab('latest');
             toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
         } catch (error: any) {
             console.error("Error generating country intel:", error);
@@ -108,14 +107,6 @@ export default function InfoHubPage() {
     
     const canAffordIntel = (userProfile?.tokenBalance || 0) >= (settings?.infohubAiCost || 10);
     
-    if (loading || !user) {
-        return (
-            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
-            </div>
-        );
-    }
-    
     const aiEmergencyList = useMemo(() => {
         if (!aiIntel?.emergencyNumbers) return [];
         return Object.entries(aiIntel.emergencyNumbers).map(([key, value]) => ({
@@ -124,6 +115,15 @@ export default function InfoHubPage() {
         }));
     }, [aiIntel]);
 
+    // This early return must come AFTER all hooks are called.
+    if (loading || !user) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
     return (
         <div className="space-y-8">
             <MainHeader title="InfoHub" description="Your source for global travel intelligence." />
@@ -165,17 +165,17 @@ export default function InfoHubPage() {
             </Card>
 
             {selectedCountryCode && (
-                 <Tabs defaultValue="holidays" className="w-full">
+                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-5">
-                        {aiIntel?.latestAdvisory && <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>}
+                        <TabsTrigger value="latest" disabled={!aiIntel}><AlertTriangle className="mr-2"/> Latest</TabsTrigger>
                         <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
                         <TabsTrigger value="etiquette"><BookUser className="mr-2"/> Etiquette</TabsTrigger>
                         <TabsTrigger value="visa"><ShieldAlert className="mr-2"/> Visa</TabsTrigger>
                         <TabsTrigger value="emergency"><Phone className="mr-2"/> Emergency</TabsTrigger>
                     </TabsList>
                     
-                    {aiIntel?.latestAdvisory && (
-                        <TabsContent value="latest" className="mt-4">
+                    <TabsContent value="latest" className="mt-4">
+                        {aiIntel?.latestAdvisory && (
                              <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle /> Latest Travel Advisory</CardTitle>
@@ -187,8 +187,8 @@ export default function InfoHubPage() {
                                     </ul>
                                 </CardContent>
                             </Card>
-                        </TabsContent>
-                    )}
+                        )}
+                    </TabsContent>
 
                     <TabsContent value="holidays" className="mt-4">
                         <Card>
@@ -263,7 +263,7 @@ export default function InfoHubPage() {
                              <CardContent>
                                  <Table>
                                     <TableBody>
-                                        {(aiIntel ? aiEmergencyList : (isAsean ? staticEmergency : [])).map((item, index) => (
+                                        {(aiIntel ? aiEmergencyList : staticEmergency).map((item, index) => (
                                             <TableRow key={index}>
                                                 <TableCell className="font-medium capitalize">{item.label}</TableCell>
                                                 <TableCell className="font-mono">{item.number}</TableCell>
