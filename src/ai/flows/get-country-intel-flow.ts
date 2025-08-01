@@ -7,12 +7,12 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 
-// --- Zod Schemas for Input/Output ---
+// --- Zod Schemas for Input/Output (kept internal to the module) ---
 
-export const GetCountryIntelInputSchema = z.object({
+const GetCountryIntelInputSchema = z.object({
   countryName: z.string().describe('The name of the country to get travel intel for.'),
 });
-export type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
+type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const HolidaySchema = z.object({
   name: z.string().describe('The name of the holiday or festival.'),
@@ -20,7 +20,7 @@ const HolidaySchema = z.object({
   description: z.string().describe('A brief description of the event.'),
 });
 
-export const CountryIntelSchema = z.object({
+const CountryIntelSchema = z.object({
   majorHolidays: z.array(HolidaySchema).describe('A list of 3-5 major public holidays or vibrant festivals.'),
   culturalEtiquette: z.array(z.string()).describe('A list of 3-5 crucial cultural etiquette tips for travelers (e.g., how to greet, dress code for temples, tipping customs).'),
   commonScams: z.array(z.string()).describe('A list of 2-3 common travel scams specific to this country that tourists should be aware of.'),
@@ -67,6 +67,7 @@ const getCountryIntelFlow = ai.defineFlow(
 /**
  * Main exported function that wraps and calls the Genkit flow.
  */
-export async function getCountryIntel(input: GetCountryIntelInput): Promise<CountryIntel> {
+export async function getCountryIntel(input: { countryName: string }): Promise<CountryIntel> {
+  // We pass a simple object that matches the internal schema
   return getCountryIntelFlow(input);
 }
