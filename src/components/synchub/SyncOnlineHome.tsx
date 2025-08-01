@@ -684,6 +684,23 @@ export default function SyncOnlineHome() {
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     
     const { settings } = useUserData();
+    
+    const fetchFriends = useCallback(async () => {
+        if (userProfile?.friends && userProfile.friends.length > 0) {
+            const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
+            const snapshot = await getDocs(friendsQuery);
+            const friendsDetails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+            setFriends(friendsDetails);
+        } else {
+            setFriends([]);
+        }
+    }, [userProfile?.friends]);
+
+    useEffect(() => {
+        if (isScheduling) {
+            fetchFriends();
+        }
+    }, [isScheduling, fetchFriends]);
 
     // Defer date initialization to client-side to avoid hydration mismatch
     useEffect(() => {
@@ -1060,6 +1077,17 @@ export default function SyncOnlineHome() {
         toast({ title: 'Invite Link Copied!', description: 'You can now share this link with anyone.' });
     };
 
+    const toggleFriendInvite = (friend: UserProfile) => {
+        if (!friend.email) return;
+        const currentEmails = new Set(parsedInviteeEmails);
+        if (currentEmails.has(friend.email)) {
+            currentEmails.delete(friend.email);
+        } else {
+            currentEmails.add(friend.email);
+        }
+        setInviteeEmails(Array.from(currentEmails).join(', '));
+    };
+
 
     const renderRoomList = (rooms: InvitedRoomClient[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
@@ -1325,6 +1353,28 @@ export default function SyncOnlineHome() {
                                     <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
                                     <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
                                 </div>
+                                 {friends.length > 0 && (
+                                    <div className="space-y-2">
+                                        <Label>Or Select Friends</Label>
+                                        <ScrollArea className="max-h-32 border rounded-md">
+                                            <div className="p-4 space-y-2">
+                                                {friends.map(friend => (
+                                                    <div key={friend.id} className="flex items-center space-x-2">
+                                                        <Checkbox 
+                                                            id={`friend-${friend.id}`}
+                                                            checked={parsedInviteeEmails.includes(friend.email)}
+                                                            onCheckedChange={() => toggleFriendInvite(friend)}
+                                                        />
+                                                        <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
+                                                            <span>{friend.name}</span>
+                                                            <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                )}
                                 
                                 <div className="space-y-3">
                                     <Separator/>
