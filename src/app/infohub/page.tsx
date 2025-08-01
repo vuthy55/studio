@@ -11,8 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { LoaderCircle, Wand2, AlertTriangle, Sparkles } from 'lucide-react';
 import { countries as aseanCountries, lightweightCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
-import { getCountryIntel } from '@/ai/flows/get-country-intel-flow';
-import type { CountryIntel } from '@/ai/flows/get-country-intel-flow';
+import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -58,6 +57,7 @@ export default function InfoHubPage() {
     const { toast } = useToast();
 
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
+    const [showAiSearch, setShowAiSearch] = useState(false);
     const [events, setEvents] = useState<StaticEvent[]>([]);
 
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
@@ -78,13 +78,26 @@ export default function InfoHubPage() {
         if (selectedAseanCountry) {
             const countryEvents = staticEvents.filter(e => e.countryCode === selectedAseanCountry.code);
             setEvents(countryEvents);
-            setAiIntel(null); // Clear AI intel when selecting a pre-loaded country
+            setAiIntel(null); 
             setSelectedAiCountry('');
         } else {
             setEvents([]);
         }
     }, [selectedAseanCountry]);
     
+     const handleMainSelection = (value: string) => {
+        if (value === 'other') {
+            setShowAiSearch(true);
+            setSelectedCountryCode('');
+            setAiIntel(null);
+        } else {
+            setShowAiSearch(false);
+            setSelectedCountryCode(value);
+            setAiIntel(null);
+            setSelectedAiCountry('');
+        }
+    };
+
     const handleGenerateIntel = async () => {
         if (!selectedAiCountry) return;
         
@@ -94,14 +107,13 @@ export default function InfoHubPage() {
         }
         
         const cost = settings.infohubAiCost || 10;
-        if (userProfile.tokenBalance === undefined || userProfile.tokenBalance < cost) {
+        if ((userProfile.tokenBalance || 0) < cost) {
             toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to generate this report.` });
             return;
         }
 
         setIsGeneratingIntel(true);
         setAiIntel(null);
-        setSelectedCountryCode('');
         
         try {
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedAiCountry}`, cost);
@@ -141,33 +153,36 @@ export default function InfoHubPage() {
                     <div className="grid md:grid-cols-2 gap-6 items-start">
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label>ASEAN Countries (Pre-loaded)</Label>
-                                 <Select value={selectedCountryCode} onValueChange={setSelectedCountryCode}>
+                                <Label>Select Country</Label>
+                                 <Select value={showAiSearch ? 'other' : selectedCountryCode} onValueChange={handleMainSelection}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select an ASEAN country..." />
+                                        <SelectValue placeholder="Select a country..." />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {aseanCountries.map((country) => (
                                             <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
                                         ))}
+                                         <SelectItem value="other">Other (AI-Powered)...</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Other Countries (AI-Powered)</Label>
-                                <Combobox 
-                                    options={worldCountryOptions}
-                                    value={selectedAiCountry}
-                                    onChange={setSelectedAiCountry}
-                                    placeholder="Search for any country..."
-                                    searchPlaceholder='Search...'
-                                    notfoundText='No country found.'
-                                />
-                                <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || !selectedAiCountry} className="w-full mt-2">
-                                    {isGeneratingIntel && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                                    Get AI Intel (Cost: {settings?.infohubAiCost || 10} Tokens)
-                                </Button>
-                            </div>
+                            {showAiSearch && (
+                                <div className="space-y-2 border-t pt-4">
+                                    <Label>Search Other Countries (AI-Powered)</Label>
+                                    <Combobox 
+                                        options={worldCountryOptions}
+                                        value={selectedAiCountry}
+                                        onChange={setSelectedAiCountry}
+                                        placeholder="Search for any country..."
+                                        searchPlaceholder='Search...'
+                                        notfoundText='No country found.'
+                                    />
+                                    <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || !selectedAiCountry} className="w-full mt-2">
+                                        {isGeneratingIntel && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                                        Get AI Intel (Cost: {settings?.infohubAiCost || 10} Tokens)
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                         <div>
                              {(selectedCountryCode || aiIntel) ? (
