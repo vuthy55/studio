@@ -58,7 +58,7 @@ export default function InfoHubPage() {
     }, [selectedAseanCountry]);
     
     const handleGenerateIntel = async () => {
-      if (!selectedCountryCode || selectedAseanCountry) return;
+      if (!selectedCountryCode || !selectedCountryName) return;
       
       const cost = settings?.infohubAiCost || 10;
       if (!spendTokensForTranslation(`AI Intel for ${selectedCountryName}`, cost)) {
@@ -109,7 +109,7 @@ export default function InfoHubPage() {
                      <Combobox
                         options={allCountriesForSearch}
                         value={selectedCountryCode}
-                        onChange={setSelectedCountryCode}
+                        onChange={(value) => setSelectedCountryCode(value)}
                         placeholder="Select a country..."
                         searchPlaceholder="Search country..."
                         notfoundText="No country found."
@@ -118,14 +118,14 @@ export default function InfoHubPage() {
                         <Combobox
                             options={selectedAseanCountry.provinces.map(p => ({ value: p.toLowerCase(), label: p }))}
                             value={selectedProvince}
-                            onChange={setSelectedProvince}
+                            onChange={(value) => setSelectedProvince(value)}
                             placeholder="Select an area..."
                             searchPlaceholder="Search area..."
                             notfoundText="No area found."
                         />
                      )}
                 </CardContent>
-                 {!selectedAseanCountry && selectedCountryCode && (
+                 {selectedCountryCode && !selectedAseanCountry && (
                     <CardFooter>
                         <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel}>
                             {isGeneratingIntel ? <LoaderCircle className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
