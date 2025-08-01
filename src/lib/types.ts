@@ -121,7 +121,7 @@ export type PaymentLog = {
     createdAt: FieldValue;
 }
 
-export type BuddyRequest = {
+export type FriendRequest = {
     fromUid: string;
     fromName: string;
     fromEmail: string;
@@ -145,13 +145,13 @@ export interface UserProfile {
   defaultLanguage?: AzureLanguageCode;
   friends?: string[]; // New: For all social connections
   buddies?: string[]; // Existing: For high-trust safety alerts
-  buddyRequests?: BuddyRequest[];
+  friendRequests?: FriendRequest[];
   referredBy?: string;
   unlockedLanguages?: LanguageCode[];
   immediateBuddyAlert?: boolean;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'buddy_request' | 'buddy_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder';
 
 export type Notification = {
     id: string;
@@ -203,4 +203,12 @@ export interface FeedbackSubmission {
     userId: string;
     createdAt: Timestamp;
     screenshotUrl?: string;
+}
+
+export interface Invitation {
+    id: string;
+    inviterId: string;
+    invitedEmail: string;
+    createdAt: string; // ISO String for client
+    status: 'pending' | 'accepted';
 }

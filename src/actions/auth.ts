@@ -156,6 +156,17 @@ export async function signUpUser(
     } else if (referralId) {
         console.log('[signUpUser] Skipping referral operations because referrer document was not found.');
     }
+    
+    // 3d. Check for and delete a pending invitation for this email
+    const invitationsRef = db.collection('invitations');
+    const q = invitationsRef.where('invitedEmail', '==', lowerCaseEmail).limit(1);
+    const invitationSnapshot = await q.get();
+
+    if (!invitationSnapshot.empty) {
+        const invitationDoc = invitationSnapshot.docs[0];
+        console.log(`[signUpUser] Deleting pending invitation document ${invitationDoc.id}`);
+        batch.delete(invitationDoc.ref);
+    }
 
     // --- Step 4: Commit the entire batch ---
     console.log('[signUpUser] Step 4: Committing batch to Firestore...');

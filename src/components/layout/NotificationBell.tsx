@@ -126,8 +126,8 @@ export default function NotificationBell() {
                 return <Gift className="h-4 w-4 text-primary" />;
             case 'referral_bonus':
                  return <Award className="h-4 w-4 text-amber-500" />;
-            case 'buddy_request':
-            case 'buddy_request_accepted':
+            case 'friend_request':
+            case 'friend_request_accepted':
                 return <UserPlus className="h-4 w-4 text-blue-500" />;
             case 'buddy_alert':
                  return <AlertTriangle className="h-4 w-4 text-destructive" />;
@@ -152,8 +152,8 @@ export default function NotificationBell() {
             case 'p2p_transfer':
             case 'referral_bonus':
                 return '/profile?tab=wallet';
-             case 'buddy_request':
-             case 'buddy_request_accepted':
+             case 'friend_request':
+             case 'friend_request_accepted':
                 return '/profile?tab=buddies';
             case 'room_closed':
             case 'room_closed_summary':

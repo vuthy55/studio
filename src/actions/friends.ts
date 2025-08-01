@@ -2,20 +2,20 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
-import type { BuddyRequest, UserProfile } from '@/lib/types';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import type { FriendRequest, UserProfile, Invitation } from '@/lib/types';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
 
 
 /**
- * Sends a buddy request from one user to another.
+ * Sends a friend request from one user to another.
  */
-export async function sendBuddyRequest(
+export async function sendFriendRequest(
     fromUser: { uid: string, name: string, email: string },
     toEmail: string
 ): Promise<{success: boolean, error?: string}> {
     if (fromUser.email.toLowerCase() === toEmail.toLowerCase()) {
-        return { success: false, error: 'You cannot add yourself as a buddy.' };
+        return { success: false, error: 'You cannot add yourself as a friend.' };
     }
     
     try {
@@ -33,11 +33,11 @@ export async function sendBuddyRequest(
             return { success: false, error: `You are already friends with ${toEmail}.` };
         }
         // Check if a request has already been sent
-        if (toUserData?.buddyRequests?.some((req: BuddyRequest) => req.fromUid === fromUser.uid)) {
+        if (toUserData?.friendRequests?.some((req: FriendRequest) => req.fromUid === fromUser.uid)) {
             return { success: false, error: 'You have already sent a request to this user.' };
         }
 
-        const newRequest: BuddyRequest = {
+        const newRequest: FriendRequest = {
             fromUid: fromUser.uid,
             fromName: fromUser.name,
             fromEmail: fromUser.email,
@@ -47,15 +47,15 @@ export async function sendBuddyRequest(
         const batch = db.batch();
 
         batch.update(toUserRef, {
-            buddyRequests: FieldValue.arrayUnion(newRequest)
+            friendRequests: FieldValue.arrayUnion(newRequest)
         });
 
         const notificationRef = db.collection('notifications').doc();
         batch.set(notificationRef, {
             userId: toUser.id,
-            type: 'buddy_request',
+            type: 'friend_request',
             fromUserName: fromUser.name,
-            message: `${fromUser.name} wants to add you as a buddy.`,
+            message: `${fromUser.name} wants to add you as a friend.`,
             createdAt: FieldValue.serverTimestamp(),
             read: false,
         });
@@ -65,31 +65,31 @@ export async function sendBuddyRequest(
         return { success: true };
 
     } catch (error: any) {
-        console.error("Error sending buddy request:", error);
+        console.error("Error sending friend request:", error);
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
     }
 }
 
 /**
- * Accepts a buddy request.
+ * Accepts a friend request.
  */
-export async function acceptBuddyRequest(
+export async function acceptFriendRequest(
     currentUser: { uid: string, name: string },
-    request: BuddyRequest
+    request: FriendRequest
 ): Promise<{success: boolean, error?: string}> {
      try {
         const currentUserRef = db.collection('users').doc(currentUser.uid);
-        const newBuddyRef = db.collection('users').doc(request.fromUid);
+        const newFriendRef = db.collection('users').doc(request.fromUid);
 
         const batch = db.batch();
 
-        // Add each user to the other's buddies list
+        // Add each user to the other's friends list
         batch.update(currentUserRef, {
             friends: FieldValue.arrayUnion(request.fromUid),
-            buddyRequests: FieldValue.arrayRemove(request) // Remove the request
+            friendRequests: FieldValue.arrayRemove(request) // Remove the request
         });
 
-        batch.update(newBuddyRef, {
+        batch.update(newFriendRef, {
             friends: FieldValue.arrayUnion(currentUser.uid)
         });
 
@@ -97,9 +97,9 @@ export async function acceptBuddyRequest(
         const notificationRef = db.collection('notifications').doc();
         batch.set(notificationRef, {
             userId: request.fromUid,
-            type: 'buddy_request_accepted', 
+            type: 'friend_request_accepted', 
             fromUserName: currentUser.name,
-            message: `${currentUser.name} accepted your buddy request!`,
+            message: `${currentUser.name} accepted your friend request!`,
             createdAt: FieldValue.serverTimestamp(),
             read: false,
         });
@@ -110,33 +110,33 @@ export async function acceptBuddyRequest(
         return { success: true };
 
     } catch (error: any) {
-        console.error("Error accepting buddy request:", error);
+        console.error("Error accepting friend request:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
 
 
 /**
- * Declines a buddy request.
+ * Declines a friend request.
  */
-export async function declineBuddyRequest(
+export async function declineFriendRequest(
     currentUserUid: string,
-    request: BuddyRequest
+    request: FriendRequest
 ): Promise<{success: boolean, error?: string}> {
      try {
         const currentUserRef = db.collection('users').doc(currentUserUid);
         await currentUserRef.update({
-             buddyRequests: FieldValue.arrayRemove(request)
+             friendRequests: FieldValue.arrayRemove(request)
         });
         return { success: true };
     } catch (error: any) {
-        console.error("Error declining buddy request:", error);
+        console.error("Error declining friend request:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
 
 /**
- * Removes a buddy from the user's list. This is a one-way removal.
+ * Removes a friend from the user's list. This is a one-way removal.
  */
 export async function removeFriend(
     currentUserUid: string,
@@ -240,4 +240,71 @@ export async function updateUserBuddyList(userId: string, friendId: string, isBu
     }
 }
 
-    
+
+/**
+ * Creates a pending invitation if one doesn't already exist.
+ */
+export async function sendInvitation(
+    inviterId: string,
+    invitedEmail: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!inviterId || !invitedEmail) {
+        return { success: false, error: 'Inviter ID and email are required.' };
+    }
+    try {
+        const invitationsRef = db.collection('invitations');
+        const q = invitationsRef
+            .where('inviterId', '==', inviterId)
+            .where('invitedEmail', '==', invitedEmail.toLowerCase());
+        
+        const existingInvite = await q.get();
+        if (!existingInvite.empty) {
+            return { success: true }; // Invitation already exists, no-op
+        }
+
+        await invitationsRef.add({
+            inviterId: inviterId,
+            invitedEmail: invitedEmail.toLowerCase(),
+            status: 'pending',
+            createdAt: FieldValue.serverTimestamp(),
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error sending invitation:', error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+
+/**
+ * Fetches pending invitations for a specific user.
+ */
+export async function getPendingInvitations(inviterId: string): Promise<Invitation[]> {
+    if (!inviterId) {
+        return [];
+    }
+    try {
+        const invitationsRef = db.collection('invitations');
+        const q = invitationsRef
+            .where('inviterId', '==', inviterId)
+            .where('status', '==', 'pending')
+            .orderBy('createdAt', 'desc');
+            
+        const snapshot = await q.get();
+
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                inviterId: data.inviterId,
+                invitedEmail: data.invitedEmail,
+                status: data.status,
+                createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+            } as Invitation;
+        });
+
+    } catch (error) {
+        console.error('Error fetching pending invitations:', error);
+        return [];
+    }
+}

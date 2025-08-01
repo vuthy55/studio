@@ -19,7 +19,7 @@ import { lightweightCountries } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { TransactionLog, PaymentLog, BuddyRequest, UserProfile as UserProfileType } from '@/lib/types';
+import type { TransactionLog, PaymentLog, FriendRequest, UserProfile as UserProfileType, Invitation } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useUserData } from '@/context/UserDataContext';
 import BuyTokens from '@/components/BuyTokens';
@@ -34,7 +34,7 @@ import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { findUserByEmail } from '@/services/ledger';
-import { sendBuddyRequest, acceptBuddyRequest, declineBuddyRequest, removeFriend, sendBuddyAlert, updateUserBuddyList } from '@/actions/friends';
+import { sendFriendRequest, acceptFriendRequest, declineFriendRequest, removeFriend, sendBuddyAlert, updateUserBuddyList, sendInvitation, getPendingInvitations } from '@/actions/friends';
 import { resetUserPracticeHistory } from '@/actions/admin';
 import { getReferredUsers, type ReferredUser } from '@/actions/referrals';
 import { Switch } from '@/components/ui/switch';
@@ -641,6 +641,9 @@ function BuddiesSection() {
     const [searchedEmailNotFound, setSearchedEmailNotFound] = useState<string | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [friendsDetails, setFriendsDetails] = useState<UserProfileType[]>([]);
+    const [activeTab, setActiveTab] = useState('friends');
+    const [pendingInvites, setPendingInvites] = useState<Invitation[]>([]);
+    const [isLoadingInvites, setIsLoadingInvites] = useState(false);
 
     useEffect(() => {
         const fetchFriendsDetails = async () => {
@@ -655,6 +658,20 @@ function BuddiesSection() {
         };
         fetchFriendsDetails();
     }, [userProfile?.friends]);
+    
+    const fetchPendingInvites = useCallback(async () => {
+        if (!user) return;
+        setIsLoadingInvites(true);
+        const invites = await getPendingInvitations(user.uid);
+        setPendingInvites(invites);
+        setIsLoadingInvites(false);
+    }, [user]);
+
+    useEffect(() => {
+        if (activeTab === 'invites') {
+            fetchPendingInvites();
+        }
+    }, [activeTab, fetchPendingInvites]);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -671,36 +688,46 @@ function BuddiesSection() {
         setIsSearching(false);
     };
     
-    const handleInvite = () => {
+    const handleInvite = async (email: string) => {
         if (!user || !user.uid) return;
+        
+        await sendInvitation(user.uid, email);
+
         const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
         navigator.clipboard.writeText(referralLink);
-        toast({ title: "Invite Link Copied!", description: "Share this link with your friend to have them join VibeSync." });
+        toast({ title: "Invite Link Copied!", description: `Share this link with ${email} to have them join VibeSync. A pending invitation has been created.` });
+        
+        setSearchedEmailNotFound(null);
+        setSearchTerm('');
+        
+        if (activeTab === 'invites') {
+            fetchPendingInvites();
+        }
     };
 
     const handleSendRequest = async (toEmail: string) => {
         if (!user || !user.displayName || !user.email) return;
-        const result = await sendBuddyRequest({ uid: user.uid, name: user.displayName, email: user.email }, toEmail);
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, toEmail);
         if (result.success) {
-            toast({ title: "Request Sent!", description: `Your buddy request to ${toEmail} has been sent.` });
+            toast({ title: "Request Sent!", description: `Your friend request to ${toEmail} has been sent.` });
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }
     };
     
-    const handleAcceptRequest = async (request: BuddyRequest) => {
+    const handleAcceptRequest = async (request: FriendRequest) => {
         if (!user || !user.displayName) return;
-        const result = await acceptBuddyRequest({uid: user.uid, name: user.displayName}, request);
+        const result = await acceptFriendRequest({uid: user.uid, name: user.displayName}, request);
         if (result.success) {
-            toast({ title: 'Buddy Added!', description: `You are now buddies with ${request.fromName}.`});
+            toast({ title: 'Friend Added!', description: `You are now friends with ${request.fromName}.`});
         } else {
             toast({ variant: 'destructive', title: "Error", description: result.error });
         }
     };
     
-    const handleDeclineRequest = async (request: BuddyRequest) => {
+    const handleDeclineRequest = async (request: FriendRequest) => {
         if (!user) return;
-        const result = await declineBuddyRequest(user.uid, request);
+        const result = await declineFriendRequest(user.uid, request);
         if (result.success) {
             toast({ title: 'Request Declined' });
         } else {
@@ -733,7 +760,7 @@ function BuddiesSection() {
                 <CardHeader>
                     <CardTitle>Find New Friends</CardTitle>
                     <CardDescription>
-                       Add friends by email to easily invite them to Sync Online rooms. You can then choose which friends to add to your high-trust Buddy Alert list for safety.
+                       Add friends by email. If they're on VibeSync, you can send a friend request. If not, you can invite them to join.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -755,79 +782,110 @@ function BuddiesSection() {
                              <p className="text-sm text-center sm:text-left">
                                 <span className="font-semibold">{searchedEmailNotFound}</span> isn't on VibeSync yet.
                              </p>
-                             <Button size="sm" onClick={handleInvite}><Send className="mr-2"/> Invite Friend</Button>
+                             <Button size="sm" onClick={() => handleInvite(searchedEmailNotFound)}><Send className="mr-2"/> Invite & Copy Link</Button>
                         </div>
                     )}
                 </CardContent>
             </Card>
 
-            {userProfile?.buddyRequests && userProfile.buddyRequests.length > 0 && (
-                 <Card>
-                    <CardHeader><CardTitle>Incoming Requests ({userProfile.buddyRequests.length})</CardTitle></CardHeader>
-                    <CardContent className="space-y-2">
-                        {userProfile.buddyRequests.map((req: BuddyRequest) => (
-                            <div key={req.fromUid} className="p-3 border rounded-lg flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold">{req.fromName}</p>
-                                    <p className="text-sm text-muted-foreground">{req.fromEmail}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button size="icon" variant="outline" onClick={() => handleAcceptRequest(req)}><UserCheck className="text-green-600" /></Button>
-                                    <Button size="icon" variant="outline" onClick={() => handleDeclineRequest(req)}><XCircle className="text-red-600" /></Button>
-                                </div>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
-
-             <Card>
-                <CardHeader><CardTitle>Your Friends ({friendsDetails.length})</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
-                    {friendsDetails.length > 0 ? friendsDetails.map(friend => (
-                         <div key={friend.id} className="p-3 border rounded-lg flex justify-between items-center">
-                            <div className="flex-1">
-                                <p className="font-semibold">{friend.name}</p>
-                                <p className="text-sm text-muted-foreground">{friend.email}</p>
-                            </div>
-                             <div className="flex items-center gap-4">
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <div className="flex items-center gap-2">
-                                                <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
-                                                <Switch
-                                                    id={`buddy-toggle-${friend.id}`}
-                                                    checked={userProfile?.buddies?.includes(friend.id!)}
-                                                    onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
-                                                />
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="friends">Your Friends ({friendsDetails.length})</TabsTrigger>
+                    <TabsTrigger value="invites">Pending Invites ({pendingInvites.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="friends" className="mt-4">
+                     <Card>
+                        <CardHeader><CardTitle>Manage Connections</CardTitle></CardHeader>
+                        <CardContent className="space-y-2">
+                            {userProfile?.friendRequests && userProfile.friendRequests.length > 0 && (
+                                <div className="mb-4">
+                                    <h4 className="font-semibold mb-2">Incoming Requests ({userProfile.friendRequests.length})</h4>
+                                    <div className="space-y-2">
+                                        {userProfile.friendRequests.map((req: FriendRequest) => (
+                                            <div key={req.fromUid} className="p-3 border rounded-lg flex justify-between items-center">
+                                                <div>
+                                                    <p className="font-semibold">{req.fromName}</p>
+                                                    <p className="text-sm text-muted-foreground">{req.fromEmail}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button size="icon" variant="outline" onClick={() => handleAcceptRequest(req)}><UserCheck className="text-green-600" /></Button>
+                                                    <Button size="icon" variant="outline" onClick={() => handleDeclineRequest(req)}><XCircle className="text-red-600" /></Button>
+                                                </div>
                                             </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>Enable to include this friend in emergency Buddy Alerts.</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button size="icon" variant="ghost"><UserMinus className="text-destructive" /></Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Remove {friend.name}?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will remove them from your friends list and buddy list. This action cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleRemoveFriend(friend.id!)}>Confirm</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                        </div>
-                    )) : <p className="text-muted-foreground text-center py-4">You haven't added any friends yet.</p>}
-                </CardContent>
-            </Card>
+                                        ))}
+                                    </div>
+                                    <Separator className="my-4"/>
+                                </div>
+                            )}
+
+                            {friendsDetails.length > 0 ? friendsDetails.map(friend => (
+                                <div key={friend.id} className="p-3 border rounded-lg flex justify-between items-center">
+                                    <div className="flex-1">
+                                        <p className="font-semibold">{friend.name}</p>
+                                        <p className="text-sm text-muted-foreground">{friend.email}</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="flex items-center gap-2">
+                                                        <Label htmlFor={`buddy-toggle-${friend.id}`} className="text-xs text-muted-foreground">Buddy Alert</Label>
+                                                        <Switch
+                                                            id={`buddy-toggle-${friend.id}`}
+                                                            checked={userProfile?.buddies?.includes(friend.id!)}
+                                                            onCheckedChange={(checked) => handleBuddyToggle(friend.id!, checked)}
+                                                        />
+                                                    </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Enable to include this friend in emergency Buddy Alerts.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="icon" variant="ghost"><UserMinus className="text-destructive" /></Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Remove {friend.name}?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This will remove them from your friends list and buddy list. This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleRemoveFriend(friend.id!)}>Confirm</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </div>
+                            )) : <p className="text-muted-foreground text-center py-4">You haven't added any friends yet.</p>}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="invites" className="mt-4">
+                     <Card>
+                        <CardHeader><CardTitle>Pending Invitations</CardTitle></CardHeader>
+                        <CardContent>
+                            {isLoadingInvites ? <LoaderCircle className="animate-spin" /> : (
+                                pendingInvites.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {pendingInvites.map(invite => (
+                                            <div key={invite.id} className="p-3 border rounded-lg flex justify-between items-center">
+                                                <div>
+                                                    <p className="font-semibold">{invite.invitedEmail}</p>
+                                                     <p className="text-xs text-muted-foreground">Invited {formatDistanceToNow(new Date(invite.createdAt), { addSuffix: true })}</p>
+                                                </div>
+                                                <Button size="sm" variant="outline" onClick={() => handleInvite(invite.invitedEmail)}><Copy className="mr-2"/> Re-copy Link</Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : <p className="text-muted-foreground text-center py-4">You have no pending invitations.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
 
         </div>
     )
