@@ -178,6 +178,14 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
+                  <Link href="/infohub" onClick={closeSidebar}>
+                    <Compass />
+                    InfoHub
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>

@@ -1,4 +1,51 @@
 
+export interface Country {
+  name: string;
+  code: string;
+  provinces: string[];
+}
+
+// Initially populated with Cambodia. More countries can be added here.
+export const countries: Country[] = [
+  {
+    name: 'Cambodia',
+    code: 'KH',
+    provinces: [
+      'Banteay Meanchey',
+      'Battambang',
+      'Kampong Cham',
+      'Kampong Chhnang',
+      'Kampong Speu',
+      'Kampong Thom',
+      'Kampot',
+      'Kandal',
+      'Koh Kong',
+      'Kratié',
+      'Mondulkiri',
+      'Phnom Penh',
+      'Preah Vihear',
+      'Prey Veng',
+      'Pursat',
+      'Ratanakiri',
+      'Siem Reap',
+      'Sihanoukville (Preah Sihanouk)',
+      'Stung Treng',
+      'Svay Rieng',
+      'Takéo',
+      'Oddar Meanchey',
+      'Kep',
+      'Pailin',
+      'Tboung Khmum',
+    ],
+  },
+    // Add other SEA countries here as needed
+    // {
+    //   name: 'Thailand',
+    //   code: 'TH',
+    //   provinces: ['Bangkok', 'Chiang Mai', 'Phuket', /* ... */],
+    // },
+];
+
 export interface LightweightCountry {
   name: string;
   code: string;
