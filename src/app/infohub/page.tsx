@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Combobox } from '@/components/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 function IntelCard({ intel, countryName }: { intel: CountryIntel, countryName: string }) {
     if (!intel) return null;
@@ -159,10 +160,12 @@ export default function InfoHubPage() {
                                         <SelectValue placeholder="Select a country..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {aseanCountries.map((country) => (
-                                            <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
-                                        ))}
-                                         <SelectItem value="other">Other (AI-Powered)...</SelectItem>
+                                        <ScrollArea className="h-72">
+                                            {aseanCountries.map((country) => (
+                                                <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                                            ))}
+                                            <SelectItem value="other">Other (AI-Powered)...</SelectItem>
+                                        </ScrollArea>
                                     </SelectContent>
                                 </Select>
                             </div>
