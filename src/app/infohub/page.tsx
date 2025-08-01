@@ -19,8 +19,9 @@ import { etiquetteData } from '@/lib/etiquette-data';
 import { visaData } from '@/lib/visa-data';
 import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Combobox } from '@/components/ui/combobox';
 import type { LanguageCode } from '@/lib/data';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const aseanCountryCodes = ['BN', 'KH', 'ID', 'LA', 'MY', 'MM', 'PH', 'SG', 'TH', 'VN'];
 
@@ -37,17 +38,18 @@ export default function InfoHubPage() {
     const [aiIntel, setAiIntel] = useState<CountryIntel | null>(null);
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
     
-    const countryOptions = useMemo(() => lightweightCountries.map(c => ({ value: c.code, label: c.name })), []);
+    const countryOptions = useMemo(() => lightweightCountries, []);
 
     const selectedCountryName = useMemo(() => {
-        return lightweightCountries.find(c => c.code === selectedCountryCode)?.name || '';
-    }, [selectedCountryCode]);
+        return countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
+    }, [selectedCountryCode, countryOptions]);
 
     const isAseanCountry = useMemo(() => aseanCountryCodes.includes(selectedCountryCode), [selectedCountryCode]);
 
     const staticHolidays = useMemo(() => staticEvents.filter(e => e.countryCode === selectedCountryCode), [selectedCountryCode]);
     const staticEtiquette = useMemo(() => etiquetteData[selectedCountryCode] || [], [selectedCountryCode]);
     const staticVisa = useMemo(() => visaData[selectedCountryCode] || '', [selectedCountryCode]);
+    
     const staticEmergency = useMemo(() => {
         const emergency = emergencyData[selectedCountryCode];
         if (!emergency) return [];
@@ -59,23 +61,17 @@ export default function InfoHubPage() {
         ];
     }, [selectedCountryCode]);
     
-    const aiEmergencyList = useMemo(() => {
+     const aiEmergencyList = useMemo(() => {
         if (!aiIntel?.emergencyNumbers) return [];
         return Object.entries(aiIntel.emergencyNumbers).map(([key, value]) => ({
-            label: key.replace(/([A-Z])/g, ' $1'),
+            label: key.replace(/([A-Z])/g, ' $1').trim(),
             number: value
         }));
     }, [aiIntel]);
 
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push('/login');
-        }
-    }, [user, authLoading, router]);
-
     const handleCountrySelection = (countryCode: string) => {
         setSelectedCountryCode(countryCode);
-        setAiIntel(null);
+        setAiIntel(null); // Reset AI intel when country changes
         setActiveTab('latest');
     };
 
@@ -97,9 +93,11 @@ export default function InfoHubPage() {
         try {
             const intel = await getCountryIntel({ countryName: selectedCountryName });
             
+            // Only spend tokens after successful generation
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
 
             if (!spendSuccess) {
+                // This case should be rare since we check balance before, but it's a good safeguard
                 throw new Error("Token spending failed post-generation. Your balance may have changed.");
             }
             
@@ -114,7 +112,11 @@ export default function InfoHubPage() {
         }
     };
     
-    const canAffordIntel = (userProfile?.tokenBalance || 0) >= (settings?.infohubAiCost || 10);
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
 
     if (authLoading || !user) {
         return (
@@ -132,18 +134,22 @@ export default function InfoHubPage() {
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
                     <CardDescription>
-                       Select a country to view standard information, or use our AI to get the latest travel advisories.
+                        Select a country to view standard information, or use our AI to get the latest travel advisories.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Combobox 
-                        options={countryOptions}
-                        value={selectedCountryCode}
-                        onChange={handleCountrySelection}
-                        placeholder="Select a country..."
-                        searchPlaceholder="Search for a country..."
-                        notfoundText="No country found."
-                     />
+                    <Select onValueChange={handleCountrySelection} value={selectedCountryCode}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a country..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <ScrollArea className="h-72">
+                                {countryOptions.map(c => (
+                                    <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                                ))}
+                            </ScrollArea>
+                        </SelectContent>
+                    </Select>
                 </CardContent>
             </Card>
 
@@ -155,11 +161,11 @@ export default function InfoHubPage() {
                         <CardDescription>Click the button below to get the latest, real-time travel advisories, scams, and cultural tips for your selected country.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || !canAffordIntel}>
+                         <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || (userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10)}>
                             {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
                             Get Latest AI Intel ({settings?.infohubAiCost || 10} Tokens)
                         </Button>
-                        {!canAffordIntel && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
+                        {(userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10) && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
                     </CardContent>
                 </Card>
 
@@ -200,7 +206,7 @@ export default function InfoHubPage() {
                              <CardHeader>
                                 <CardTitle>Major Festivals & Holidays</CardTitle>
                                 <CardDescription>
-                                    {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data.'}
+                                    {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data for non-ASEAN countries.'}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -233,7 +239,7 @@ export default function InfoHubPage() {
                                         </TableBody>
                                     </Table>
                                ) : (
-                                   <p className="text-sm text-muted-foreground">No standard data available. Use AI to fetch data for this country.</p>
+                                   <p className="text-sm text-muted-foreground">No standard data available. Use the AI feature to fetch information for this country.</p>
                                )}
                             </CardContent>
                         </Card>
@@ -244,7 +250,7 @@ export default function InfoHubPage() {
                             <CardHeader>
                                 <CardTitle>Cultural Etiquette</CardTitle>
                                 <CardDescription>
-                                     {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data.'}
+                                     {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data for non-ASEAN countries.'}
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
@@ -253,7 +259,7 @@ export default function InfoHubPage() {
                                         {(aiIntel?.culturalEtiquette || staticEtiquette).map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
                                     </ul>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground">No standard data available. Use AI to fetch data for this country.</p>
+                                    <p className="text-sm text-muted-foreground">No standard data available. Use the AI feature to fetch information for this country.</p>
                                 )}
                              </CardContent>
                         </Card>
@@ -264,7 +270,7 @@ export default function InfoHubPage() {
                              <CardHeader>
                                 <CardTitle>Visa Information</CardTitle>
                                 <CardDescription>
-                                     {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information - Verify with embassy' : 'Use AI to fetch data.'}
+                                     {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information - Verify with embassy' : 'Use AI to fetch data for non-ASEAN countries.'}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -278,7 +284,7 @@ export default function InfoHubPage() {
                             <CardHeader>
                                 <CardTitle>Emergency Numbers</CardTitle>
                                  <CardDescription>
-                                    {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data.'}
+                                    {aiIntel ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data for non-ASEAN countries.'}
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
