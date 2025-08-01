@@ -6,22 +6,19 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, MenuSquare } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon } from 'lucide-react';
 import { lightweightCountries, countries as aseanCountries } from '@/lib/location-data';
 import { staticEvents, type StaticEvent } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { etiquetteData } from '@/lib/etiquette-data';
 import { visaData } from '@/lib/visa-data';
 import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Combobox } from '@/components/ui/combobox';
 
 
@@ -45,7 +42,6 @@ export default function InfoHubPage() {
     // State for AI-generated data
     const [aiIntel, setAiIntel] = useState<CountryIntel | null>(null);
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
-    const [isAseanListOpen, setIsAseanListOpen] = useState(false);
     
     const worldCountryOptions = useMemo(() => lightweightCountries.map(c => ({ value: c.code, label: c.name })), []);
     const isAsean = useMemo(() => !!aseanCountries.find(e => e.code === selectedCountryCode), [selectedCountryCode]);
@@ -86,11 +82,6 @@ export default function InfoHubPage() {
             setStaticEmergency([]);
         }
     }, [worldCountryOptions]);
-
-    const handleAseanQuickSelect = (countryCode: string) => {
-        handleCountrySelection(countryCode);
-        setIsAseanListOpen(false);
-    }
     
     const handleGenerateIntel = async () => {
         if (!selectedCountryName) return;
@@ -171,30 +162,6 @@ export default function InfoHubPage() {
                             searchPlaceholder='Search countries...'
                             notfoundText='No country found.'
                          />
-                    </div>
-
-                     <div className="text-sm text-muted-foreground">
-                        Or, quickly view standard info for an {' '}
-                        <Dialog open={isAseanListOpen} onOpenChange={setIsAseanListOpen}>
-                            <DialogTrigger asChild>
-                                 <Button variant="link" className="p-0 h-auto">ASEAN country</Button>
-                            </DialogTrigger>
-                             <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Select an ASEAN Country</DialogTitle>
-                                    <DialogDescription>
-                                        View standard, pre-loaded information for these countries for free.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                 <div className="grid grid-cols-2 gap-2 py-4">
-                                    {aseanCountries.map(country => (
-                                        <Button key={country.code} variant="outline" onClick={() => handleAseanQuickSelect(country.code)}>
-                                            {country.name}
-                                        </Button>
-                                    ))}
-                                </div>
-                            </DialogContent>
-                        </Dialog>
                     </div>
 
                      {selectedCountryCode && (
@@ -363,6 +330,4 @@ export default function InfoHubPage() {
         </div>
     )
 }
- 
-
     
