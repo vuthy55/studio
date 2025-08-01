@@ -151,7 +151,7 @@ export interface UserProfile {
   immediateBuddyAlert?: boolean;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite';
 
 export type Notification = {
     id: string;

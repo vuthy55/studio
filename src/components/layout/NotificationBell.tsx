@@ -138,6 +138,8 @@ export default function NotificationBell() {
                 return <XCircle className="h-4 w-4 text-destructive" />;
             case 'edit_request':
                  return <Edit className="h-4 w-4 text-blue-500" />;
+            case 'room_invite':
+                 return <Wifi className="h-4 w-4 text-primary" />;
             default:
                 return <Bell className="h-4 w-4" />;
         }
@@ -160,6 +162,8 @@ export default function NotificationBell() {
             case 'edit_request':
             case 'room_canceled':
                 return `/admin?tab=rooms&highlight=${notification.roomId}`;
+             case 'room_invite':
+                return `/sync-room/${notification.roomId}`;
             default:
                 return '/notifications';
         }

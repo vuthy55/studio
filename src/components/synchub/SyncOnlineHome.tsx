@@ -34,7 +34,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle } from 'lucide-react';
-import type { SyncRoom, TranslatedContent } from '@/lib/types';
+import type { SyncRoom, TranslatedContent, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -672,6 +672,8 @@ export default function SyncOnlineHome() {
     const [duration, setDuration] = useState(30);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
     const [startNow, setStartNow] = useState(false);
+    const [friends, setFriends] = useState<UserProfile[]>([]);
+
     
     // Edit Mode State
     const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
@@ -747,7 +749,6 @@ export default function SyncOnlineHome() {
             }
         }
     }, [editingRoom, isEditMode, user?.email]);
-
 
     const parsedInviteeEmails = useMemo(() => {
         return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
@@ -964,6 +965,21 @@ export default function SyncOnlineHome() {
                 if(freeMinutesToDeduct > 0) {
                      batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
                 }
+
+                // Create in-app notifications for existing users
+                const friendsQuery = query(collection(db, 'users'), where('email', 'in', parsedInviteeEmails));
+                const friendsSnapshot = await getDocs(friendsQuery);
+                friendsSnapshot.forEach(friendDoc => {
+                    const notificationRef = doc(collection(db, 'notifications'));
+                    batch.set(notificationRef, {
+                        userId: friendDoc.id,
+                        type: 'room_invite',
+                        message: `${newRoom.creatorName} has invited you to the room: "${newRoom.topic}"`,
+                        roomId: newRoomRef.id,
+                        createdAt: serverTimestamp(),
+                        read: false,
+                    });
+                });
                 
                 await batch.commit();
 
