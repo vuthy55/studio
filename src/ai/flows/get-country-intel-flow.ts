@@ -2,12 +2,14 @@
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
- * This flow uses tools to perform web searches and scrape content, then analyzes the results.
+ * This flow orchestrates server-side actions to search and scrape the web,
+ * then uses an AI model to analyze and summarize the verified content.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
-import { performWebSearch, scrapeUrl } from '@/ai/tools/web-research';
+import { searchWebAction } from '@/actions/search';
+import { scrapeUrlAction } from '@/actions/scraper';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -20,7 +22,6 @@ const HolidaySchema = z.object({
   name: z.string().describe('The name of the holiday or festival.'),
   date: z.string().describe('The typical date or date range (e.g., "Late January", "April 13-15").'),
   description: z.string().describe('A brief description of the event.'),
-  link: z.string().optional().describe('A source URL if available.'),
 });
 
 const CountryIntelSchema = z.object({
@@ -53,27 +54,70 @@ const getCountryIntelFlow = ai.defineFlow(
     name: 'getCountryIntelFlow',
     inputSchema: GetCountryIntelInputSchema,
     outputSchema: CountryIntelSchema,
-    tools: [performWebSearch, scrapeUrl]
   },
   async ({ countryName }) => {
-    // Dynamically get the date for "one month ago"
+    
+    // Step 1: Search for relevant articles using a server action.
+    const searchResults = await searchWebAction(`travel advisory ${countryName} scams`);
+    if (!searchResults.success || !searchResults.results || searchResults.results.length === 0) {
+        console.warn(`[AI Flow] Web search failed or returned no results for ${countryName}.`);
+        // Fallback to AI's internal knowledge if search fails
+         const { output } = await ai.generate({
+            prompt: `Provide travel intelligence for ${countryName}. Focus on safety, culture, and visa info. Note that live web search failed, so use your general knowledge.`,
+            model: 'googleai/gemini-1.5-flash',
+            output: { schema: CountryIntelSchema },
+        });
+        if (!output) throw new Error("AI failed to generate fallback intel.");
+        return output;
+    }
+    
+    // Step 2: Scrape and verify each URL.
     const oneMonthAgo = new Date();
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const oneMonthAgoISO = oneMonthAgo.toISOString().split('T')[0];
+
+    const verifiedSources: { url: string; content: string; }[] = [];
+    
+    for (const result of searchResults.results) {
+        const scrapeResult = await scrapeUrlAction(result.link);
+        
+        // Verification check 1: Was the scrape successful?
+        if (!scrapeResult.success || !scrapeResult.content) {
+            console.log(`[AI Flow] Discarding source (scrape failed): ${result.link}`);
+            continue;
+        }
+        
+        // Verification check 2: Is the article recent?
+        if (scrapeResult.publishedDate) {
+            const published = new Date(scrapeResult.publishedDate);
+            if (published < oneMonthAgo) {
+                console.log(`[AI Flow] Discarding source (too old): ${result.link}`);
+                continue;
+            }
+        }
+        
+        // If it passes all checks, add it to our list of good sources.
+        verifiedSources.push({
+            url: result.link,
+            content: scrapeResult.content,
+        });
+    }
+    
+    // Step 3: Pass ONLY the verified context to the AI for summarization.
+    const webContext = verifiedSources.map(source => `Source URL: ${source.url}\nContent: ${source.content}`).join('\n\n---\n\n');
 
     const prompt = `
         You are a diligent Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
 
-        **Mandatory Process:**
-        1.  **Search:** First, use the 'performWebSearch' tool to find 3-4 RECENT articles about travel advisories, news, or scams for ${countryName}.
-        2.  **Verify & Filter:** For each URL returned by the search, you MUST use the 'scrapeUrl' tool. Critically evaluate the result of the scrape:
-            - If the scrape `success` field is 'false' (e.g., it resulted in a 404 error), you MUST DISCARD this source completely.
-            - If the scrape is successful, you MUST check the 'publishedDate'. If the date is older than **${oneMonthAgoISO}**, you MUST DISCARD this source as it is outdated.
-        3.  **Synthesize:** Finally, generate the output in the required JSON format. Your response for the 'latestAdvisory' field MUST be based ONLY on the content from the sources that you successfully verified and that were recent enough.
+        You have been provided with the following content, which has been scraped from verified, recent web articles. Your response for the 'latestAdvisory' field MUST be based ONLY on this provided content.
+        
+        -   For each advisory, you MUST cite the specific source URL where you found the information.
+        -   If the provided content is empty or contains no relevant advisories, return an empty array for the 'latestAdvisory' field.
+        -   For all other fields (Holidays, Etiquette, Visa, Emergency Numbers), use your own internal knowledge.
 
-        **Output Formatting Rules:**
-        -   **latestAdvisory:** List only the most critical and recent travel advisories. For each advisory, you MUST cite the specific source URL where you found the information. If after filtering you have no valid sources, return an empty array for this field.
-        -   **Other Fields (Holidays, Etiquette, etc.):** Fill these out using your own internal knowledge. You do not need to use tools for these fields.
+        Verified Web Content:
+        ---
+        ${webContext || 'No recent, verifiable web content was found.'}
+        ---
     `;
     
     try {
@@ -89,7 +133,7 @@ const getCountryIntelFlow = ai.defineFlow(
         });
         
         if (!output) {
-           throw new Error("The AI model returned an empty output. This may be due to a lack of recent news or a content safety filter.");
+           throw new Error("The AI model returned an empty output. This may be due to a content safety filter.");
         }
         return output;
 
