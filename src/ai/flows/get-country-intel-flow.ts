@@ -12,8 +12,6 @@ import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
 import { getAppSettingsAction } from '@/actions/settings';
 import { subDays, parseISO } from 'date-fns';
-import { db } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
 
 
 // --- Source Definitions for Targeted Searches ---
@@ -54,13 +52,20 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
     score: z.number().min(0).max(10).describe('An overall travel safety score from 0 (very dangerous) to 10 (very safe).'),
-    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, including the number of verified articles reviewed.'),
-    categoryAssessments: z.record(z.string(), z.number()).describe("A key-value map where the key is the category name (e.g., 'Health') and the value is a risk score from 0-10 for that category."),
+    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, stating the number of unique articles that were used for the summary.'),
+    categoryAssessments: z.object({
+        'Official Advisory': z.number().describe("Risk score for Official Advisory"),
+        'Scams': z.number().describe("Risk score for Scams"),
+        'Theft': z.number().describe("Risk score for Theft"),
+        'Health': z.number().describe("Risk score for Health"),
+        'Political Stability': z.number().describe("Risk score for Political Stability"),
+    }).describe("A key-value map where the key is the category name and the value is a risk score from 0-10 for that category."),
     sourcesUsed: z.array(z.object({
         url: z.string(),
         publishedDate: z.string().optional().nullable(),
     })).describe('A list of the specific source URLs and their publication dates that were most influential in writing the summary.')
 });
+
 
 const CountryIntelSchema = z.object({
   overallAssessment: OverallAssessmentSchema,
@@ -220,7 +225,13 @@ const getCountryIntelFlow = ai.defineFlow(
                 score: 5,
                 summary: "No specific, recent, and verifiable information was found across all categories. This could indicate a lack of major reported issues. \n\nTravelers should exercise standard precautions. \n\nWithout specific data, it's recommended to consult your country's official travel advisory and stay aware of your surroundings.",
                 sourcesUsed: [],
-                categoryAssessments: {}
+                categoryAssessments: {
+                    'Official Advisory': 5,
+                    'Scams': 5,
+                    'Theft': 5,
+                    'Health': 5,
+                    'Political Stability': 5
+                }
             },
             allReviewedSources: []
         };
@@ -252,7 +263,7 @@ const getCountryIntelFlow = ai.defineFlow(
       4.  **Generate a 3-paragraph summary.** 
           *   First, start with a direct statement about the current travel situation. Is it stable? Are there significant concerns?
           *   Next, detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
-          *   Finally, provide a concluding thought or recommendation for a backpacker. This final paragraph must also state the total number of unique articles that were reviewed for this assessment.`,
+          *   Finally, provide a concluding thought or recommendation for a backpacker. This final paragraph must also state the total number of unique articles that were used for this assessment.`,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
       debugLog
@@ -266,4 +277,6 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
+    
+
     
