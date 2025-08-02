@@ -222,6 +222,17 @@ function InfoHubContent() {
                                         {aiIntel.latestAdvisory.map((item, index) => (
                                             <li key={`advisory-${index}`} className="border-l-4 border-primary pl-4 py-2 bg-muted/50">
                                                 <p>{item.advisory}</p>
+                                                {item.source && (
+                                                    <a 
+                                                        href={item.source} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        className="text-primary hover:underline text-xs flex items-center gap-1 mt-2"
+                                                    >
+                                                        <LinkIcon className="h-3 w-3" />
+                                                        Source
+                                                    </a>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
