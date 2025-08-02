@@ -14,35 +14,6 @@ import { getAppSettingsAction } from '@/actions/settings';
 import { subDays, parseISO } from 'date-fns';
 
 
-// --- Source Definitions for Targeted Searches ---
-
-const REGIONAL_NEWS_SITES = [
-    'channelnewsasia.com',
-    'straitstimes.com',
-    'bangkokpost.com',
-    'thejakartapost.com',
-    'vietnamnews.vn',
-    'irrawaddy.com',
-    'asean.org',
-    'aljazeera.com', // Regional perspective
-    'bbc.com/news/world/asia', // Regional perspective
-    'reuters.com/world/asia-pacific' // Regional perspective
-];
-
-const LOCAL_NEWS_SITES: Record<string, string[]> = {
-    'Cambodia': ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'],
-    'Vietnam': ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'],
-    'Thailand': ['bangkokpost.com', 'nationthailand.com', 'thaipbsworld.com'],
-    'Malaysia': ['thestar.com.my', 'malaysiakini.com', 'freemalaysiatoday.com'],
-    'Indonesia': ['thejakartapost.com', 'en.tempo.co', 'antaranews.com'],
-    'Philippines': ['rappler.com', 'inquirer.net', 'philstar.com'],
-    'Singapore': ['straitstimes.com', 'todayonline.com', 'channelnewsasia.com'],
-    'Myanmar': ['irrawaddy.com', 'frontiermyanmar.net'],
-    'Laos': ['laotiantimes.com', 'vientianetimes.org.la'],
-    'Brunei': ['thebruneian.news', 'borneobulletin.com.bn']
-};
-
-
 // --- Zod Schemas for Input/Output ---
 
 const GetCountryIntelInputSchema = z.object({
@@ -51,7 +22,7 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
-    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, which MUST include the total number of unique articles that were used for the summary.'),
+    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers.'),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
@@ -178,15 +149,29 @@ const getCountryIntelFlow = ai.defineFlow(
     
     const settings = await getAppSettingsAction();
     const governmentSitesQuery = settings.infohubSources ? buildSiteSearchQuery(settings.infohubSources.split(',')) : '';
-    const regionalNewsQuery = buildSiteSearchQuery(REGIONAL_NEWS_SITES);
-    const localNewsQuery = buildSiteSearchQuery(LOCAL_NEWS_SITES[countryName] || []);
+    const localNewsSites: Record<string, string[]> = {
+        'Cambodia': ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'],
+        'Vietnam': ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'],
+        'Thailand': ['bangkokpost.com', 'nationthailand.com', 'thaipbsworld.com'],
+        'Malaysia': ['thestar.com.my', 'malaysiakini.com', 'freemalaysiatoday.com'],
+        'Indonesia': ['thejakartapost.com', 'en.tempo.co', 'antaranews.com'],
+        'Philippines': ['rappler.com', 'inquirer.net', 'philstar.com'],
+        'Singapore': ['straitstimes.com', 'todayonline.com', 'channelnewsasia.com'],
+        'Myanmar': ['irrawaddy.com', 'frontiermyanmar.net'],
+        'Laos': ['laotiantimes.com', 'vientianetimes.org.la'],
+        'Brunei': ['thebruneian.news', 'borneobulletin.com.bn']
+    };
+    const regionalNewsSites = ['aljazeera.com/news/asia', 'bbc.com/news/world/asia'];
+
+    const localNewsQuery = buildSiteSearchQuery(localNewsSites[countryName] || []);
+    const regionalNewsQuery = buildSiteSearchQuery(regionalNewsSites);
 
     const categories = {
         'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
-        'Scams': `(tourist scams OR fraud) ${countryName} ${regionalNewsQuery}`,
+        'Scams': `(tourist scams OR fraud) ${countryName} ${localNewsQuery}`,
         'Theft': `(theft OR robbery OR kidnapping) risk ${countryName} ${localNewsQuery}`,
         'Health': `(health risks OR disease outbreaks) ${countryName} ${localNewsQuery}`,
-        'Political Stability': `(political situation OR protests OR civil unrest OR war) ${countryName} ${localNewsQuery} OR ${regionalNewsQuery}`
+        'Political Stability': `(political situation OR protests OR civil unrest OR war) ${countryName} ${regionalNewsQuery}`
     };
 
     const apiKey = process.env.GOOGLE_API_KEY;
