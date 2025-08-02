@@ -113,6 +113,14 @@ const getCountryIntelFlow = ai.defineFlow(
             model: 'googleai/gemini-1.5-pro', // Use the more powerful model for tool use
             tools: [webSearch, scrapeWeb],
             output: { schema },
+            config: {
+                safetySettings: [
+                  {
+                    category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                    threshold: 'BLOCK_ONLY_HIGH',
+                  },
+                ],
+            }
         });
         
         if (!output) {
