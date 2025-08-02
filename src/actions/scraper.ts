@@ -39,6 +39,7 @@ export async function scrapeSourcesForCountry(countryName: string): Promise<Scra
             try {
                 console.log(`[Scraper] Fetching URL: ${url}`);
                 const { data } = await axios.get(url, {
+                    timeout: 5000, // 5-second timeout for the request
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                     }
@@ -63,8 +64,8 @@ export async function scrapeSourcesForCountry(countryName: string): Promise<Scra
             }
         }
         
-        // Self-check: Ensure meaningful content was scraped
-        if (allText.trim().length < 100) { // Arbitrary threshold for "meaningful"
+        // Self-check: Ensure meaningful content was scraped. Lowered threshold.
+        if (allText.trim().length < 50) { 
             console.warn(`[Scraper] Scrape for ${countryName} resulted in very little content (${allText.trim().length} chars). Treating as failure.`);
             return { success: false, error: 'Could not find recent, relevant advisories from the configured sources.' };
         }
