@@ -266,10 +266,12 @@ const getCountryIntelFlow = ai.defineFlow(
       Based *only* on the information provided above, perform the following actions:
 
       1.  **Overall Assessment Score:** Assign a single, holistic travel safety score for ${countryName} on a scale from -5 (Very High Risk) to +5 (Very Low Risk). A score of 0 is neutral. Consider all factors together.
-      2.  **Generate a 3-Paragraph Summary:**
-          *   **Paragraph 1 (Overall Summary):** Start with a direct statement about the current travel situation. Is it stable? Are there significant concerns?
-          *   **Paragraph 2 (Issue Focus):** Detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
-          *   **Paragraph 3 (Conclusion):** Provide a concluding thought or recommendation for a backpacker. Should they be extra vigilant? Can they travel with standard precautions?
+      
+      2.  **Generate a 3-paragraph summary, without using "Paragraph 1, Paragraph 2" labels.** 
+          *   First, start with a direct statement about the current travel situation. Is it stable? Are there significant concerns?
+          *   Next, detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
+          *   Finally, provide a concluding thought or recommendation for a backpacker. Should they be extra vigilant? Can they travel with standard precautions?
+
       3.  **List of Sources:** Compile a simple list of all the unique source URLs you used for this analysis.`,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
