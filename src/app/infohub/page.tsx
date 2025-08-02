@@ -28,12 +28,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 
 function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
-    if (!intel?.overallAssessment) {
+    if (!intel?.finalScore) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    const { finalScore, summary, sourcesUsed, categoryAssessments, analystScore, quantitativeScore } = intel.overallAssessment;
-    const allReviewedSources = intel.allReviewedSources || [];
+    const { finalScore, summary, sourcesUsed, categoryAssessments, allReviewedSources } = intel;
 
     const getScoreAppearance = (currentScore: number) => {
         if (currentScore <= 3) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
@@ -42,11 +41,11 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
     };
 
     const mainScoreAppearance = getScoreAppearance(finalScore);
-
+    
     const summaryWithClickableLink = () => {
         if (!summary) return null;
         
-        const match = summary.match(/This assessment is based on (\d+) unique articles/);
+        const match = summary.match(/This assessment is based on a review of (\d+) unique articles/);
         
         if (match && sourcesUsed && sourcesUsed.length > 0) {
             const count = match[1];
@@ -56,7 +55,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                     <p>{parts[0]}</p>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on {count} unique articles</span>
+                            <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on a review of {count} unique articles</span>
                         </PopoverTrigger>
                         <PopoverContent className="w-80">
                             <div className="grid gap-4">
@@ -90,6 +89,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
         return <div className="text-sm text-muted-foreground whitespace-pre-wrap">{summary}</div>
     };
 
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
@@ -112,22 +112,14 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
 
             {categoryAssessments && (
                  <Card>
-                    <CardHeader><CardTitle className="text-lg">Risk Breakdown</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <CardHeader><CardTitle className="text-lg">Risk Breakdown (Severity 0-10)</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                        {Object.entries(categoryAssessments).map(([category, catScore]) => (
-                            <div key={category} className="text-left p-2 rounded-lg bg-background">
+                            <div key={category} className="text-center p-2 rounded-lg bg-background border">
                                 <p className="text-sm font-semibold">{category}</p>
-                                <p className="text-2xl font-bold">{catScore}/2</p>
+                                <p className="text-3xl font-bold">{catScore}</p>
                             </div>
                         ))}
-                         <div className="text-left p-2 rounded-lg bg-background font-semibold">
-                            <p className="text-sm">Quantitative Score</p>
-                            <p className="text-2xl font-bold">{quantitativeScore}/10</p>
-                         </div>
-                          <div className="text-left p-2 rounded-lg bg-background font-semibold">
-                            <p className="text-sm">AI Analyst Score</p>
-                            <p className="text-2xl font-bold">{analystScore}/10</p>
-                         </div>
                     </CardContent>
                  </Card>
             )}
@@ -222,18 +214,18 @@ function InfoHubContent() {
         setLastSearchDate(new Date());
 
         try {
-            const { intel, debugLog } = await getCountryIntel({ countryName: selectedCountryName });
-            console.log("--- InfoHub Debug Log ---");
-            debugLog.forEach(log => console.log(log));
-            console.log("--- End Debug Log ---");
-            
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
             if (!spendSuccess) {
                 throw new Error("Token spending failed. Your balance may have changed.");
             }
             
-            if (!intel || !intel.overallAssessment) {
-                 throw new Error("The AI returned an empty response. Please check the debug logs in the console.");
+            const { intel, debugLog } = await getCountryIntel({ countryName: selectedCountryName });
+            console.log("--- InfoHub Debug Log ---");
+            debugLog.forEach(log => console.log(log));
+            console.log("--- End Debug Log ---");
+            
+            if (!intel || !intel.finalScore) {
+                 throw new Error("The AI returned an empty or invalid response. Please check the debug logs in the console.");
             }
             
             setAiIntel(intel);
@@ -490,3 +482,4 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
+`
