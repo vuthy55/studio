@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { format } from 'date-fns';
-import { scrapeWeb, webSearch } from '@/ai/tools/web-search';
+import { webSearch, scrapeWeb } from '@/ai/tools/web-search';
 import { getAppSettingsAction } from '@/actions/settings';
 
 // --- Zod Schemas for Input/Output ---
@@ -110,7 +110,7 @@ const getCountryIntelFlow = ai.defineFlow(
     try {
         const { output } = await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.5-pro', // Use the more powerful model for tool use
+            model: 'googleai/gemini-1.5-pro',
             tools: [webSearch, scrapeWeb],
             output: { schema },
             config: {
@@ -128,9 +128,9 @@ const getCountryIntelFlow = ai.defineFlow(
         }
         return output;
 
-    } catch (error) {
-        console.error(`[AI Flow] CRITICAL: Model failed to generate intel for ${countryName}:`, error);
-        throw new Error(`The AI agent could not generate travel information for ${countryName}. It might be a restricted or unsupported location.`);
+    } catch (error: any) {
+        console.error(`[AI Flow] CRITICAL: Model failed to generate intel for ${countryName}. Full error:`, error);
+        throw new Error(`The AI agent could not generate travel information for ${countryName}. Reason: ${error.message || 'An unknown error occurred.'}`);
     }
   }
 );
