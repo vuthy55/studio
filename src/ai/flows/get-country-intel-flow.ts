@@ -148,7 +148,7 @@ const getCountryIntelFlow = ai.defineFlow(
         }
         return output;
 
-    } catch (error: any)
+    } catch (error: any) {
         console.error(`[AI Flow] CRITICAL: Model failed to generate intel for ${countryName}. Full error:`, error);
         throw new Error(`The AI agent could not generate travel information for ${countryName}. Reason: ${error.message}`);
     }
