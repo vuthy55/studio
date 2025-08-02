@@ -33,12 +33,14 @@ export const webSearch = ai.defineTool(
         outputSchema: WebSearchOutputSchema,
     },
     async ({ query }) => {
+        console.log(`[AI Tool: webSearch] Received query: "${query}"`);
         const apiKey = process.env.GOOGLE_API_KEY;
         const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
         
         if (!apiKey || !searchEngineId) {
-            console.error("[AI Tool Error] Missing GOOGLE_API_KEY or GOOGLE_SEARCH_ENGINE_ID in environment variables.");
-            throw new Error("Google Search API credentials are not configured on the server. Please set GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID.");
+            const errorMsg = "Google Search API credentials are not configured on the server. Please set GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID.";
+            console.error("[AI Tool Error] " + errorMsg);
+            throw new Error(errorMsg);
         }
         
         const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(query)}`;
@@ -46,13 +48,15 @@ export const webSearch = ai.defineTool(
         try {
             const response = await axios.get(url);
             const items = response.data.items || [];
-            return items.slice(0, 5).map((item: any) => ({ // Return top 5 results
+            const results = items.slice(0, 5).map((item: any) => ({ // Return top 5 results
                 title: item.title,
                 link: item.link,
                 snippet: item.snippet,
             }));
+            console.log(`[AI Tool: webSearch] Found ${results.length} results.`);
+            return results;
         } catch (error: any) {
-            console.error("Error performing Google search:", error.response?.data || error.message);
+            console.error("[AI Tool: webSearch] Error performing Google search:", error.response?.data || error.message);
             throw new Error("Failed to execute web search.");
         }
     }
@@ -75,6 +79,7 @@ export const scrapeWeb = ai.defineTool(
         outputSchema: ScrapeWebOutputSchema,
     },
     async ({ url }) => {
+        console.log(`[AI Tool: scrapeWeb] Attempting to scrape URL: ${url}`);
         try {
             const { data } = await axios.get(url, {
                 timeout: 5000,
@@ -96,13 +101,19 @@ export const scrapeWeb = ai.defineTool(
             // Clean up the text: remove extra whitespace, newlines, etc.
             const cleanedText = mainContent.replace(/\s+/g, ' ').trim();
             
+            if (cleanedText.length > 0) {
+                 console.log(`[AI Tool: scrapeWeb] Successfully scraped ${cleanedText.length} characters from ${url}`);
+            } else {
+                 console.log(`[AI Tool: scrapeWeb] Scraped ${url}, but found no significant content.`);
+            }
+            
             // Return a substring to avoid massive context windows for the AI
             return cleanedText.substring(0, 15000);
 
         } catch (error: any) {
-            console.error(`[scrapeWeb] Failed to fetch or parse URL ${url}:`, error.message);
-            // Instead of throwing an error, return an empty string to allow the agent to continue
-            return ""; 
+            console.error(`[AI Tool: scrapeWeb] Failed to fetch or parse URL ${url}:`, error.message);
+            // Return a descriptive error message instead of an empty string
+            return `Scraping failed for this URL.`; 
         }
     }
 );
