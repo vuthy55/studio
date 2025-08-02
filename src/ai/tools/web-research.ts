@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -22,7 +23,9 @@ export const performWebSearch = ai.defineTool(
     async (input) => {
         const searchResult = await searchWebAction(input.query);
         if (!searchResult.success) {
-            throw new Error(searchResult.error || 'Web search failed.');
+            // Instead of throwing, we return an empty array, as the AI should handle cases with no results.
+            console.warn(`Web search failed with error: ${searchResult.error}. Returning empty array.`);
+            return [];
         }
         return searchResult.results || [];
     }
