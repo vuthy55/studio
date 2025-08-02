@@ -100,21 +100,24 @@ function InfoHubContent() {
         try {
             // Step 1: Scrape data first (the "Check")
             const scrapeResult = await scrapeSourcesForCountry(selectedCountryName);
-            if (!scrapeResult.success || !scrapeResult.content) {
-                throw new Error(scrapeResult.error || "Could not retrieve latest advisories. No tokens were charged.");
-            }
+            
+            // This is now the definitive check. If scraping succeeds, we proceed.
+            // If it fails, we still proceed but pass an empty string to the AI.
+            // This ensures the user is charged for the AI check, as knowing there's no new info is valuable.
+            const contentForAI = scrapeResult.success ? scrapeResult.content : '';
 
-            // Step 2: Deduct tokens only after successful scraping
+            // Step 2: Deduct tokens. This happens regardless of scrape success.
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
             if (!spendSuccess) {
-                throw new Error("Token spending failed post-generation. Your balance may have changed.");
+                // This check is a safeguard in case the balance changes between the button click and here.
+                throw new Error("Token spending failed. Your balance may have changed.");
             }
             
-            // Step 3: Call the AI flow with the scraped data
+            // Step 3: Call the AI flow with the scraped data (or empty string)
             const intel = await getCountryIntel({ 
                 countryName: selectedCountryName, 
                 isAseanCountry,
-                scrapedContent: scrapeResult.content
+                scrapedContent: contentForAI || '',
             });
 
             if (!intel || Object.keys(intel).length === 0) {
@@ -124,7 +127,11 @@ function InfoHubContent() {
             // Step 4: Update UI
             setAiIntel(intel);
             setActiveTab('latest');
-            toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
+             if (intel.latestAdvisory && intel.latestAdvisory.length > 0) {
+                 toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
+            } else {
+                 toast({ title: 'No New Advisories', description: `Our check found no recent critical advisories for ${selectedCountryName}.` });
+            }
 
         } catch (error: any) {
             console.error("Error generating country intel:", error);
