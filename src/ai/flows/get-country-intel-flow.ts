@@ -109,8 +109,14 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
     // 3. Store the new result in the cache
     if (intel && intel.overallAssessment) {
         debugLog.push(`[Intel Flow] Storing new intel in cache for ${countryName}.`);
+        
+        // Sanitize the data for Firestore: convert undefined to null
+        const intelForFirestore = JSON.parse(JSON.stringify(intel), (key, value) => {
+            return value === undefined ? null : value;
+        });
+
         await cacheRef.set({
-            intel,
+            intel: intelForFirestore,
             lastUpdatedAt: Timestamp.now(),
         });
     }
