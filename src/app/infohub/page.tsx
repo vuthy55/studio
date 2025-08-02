@@ -47,14 +47,14 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                 </div>
                 <div className="flex-1">
                     <h3 className="text-2xl font-bold">Overall Assessment</h3>
-                    <p className="text-sm text-muted-foreground">
-                        AI-generated analysis based on recent, verifiable sources.
+                    <div className="text-sm text-muted-foreground mt-1">
+                        <span>AI-generated analysis based on recent, verifiable sources.</span>
                         {searchDate && (
-                            <Badge variant={fromCache ? 'default' : 'secondary'} className="mt-1">
+                            <Badge variant={fromCache ? 'default' : 'secondary'} className="ml-2">
                                 As of {format(searchDate, 'PPp')} {fromCache && '(Cached)'}
                             </Badge>
                         )}
-                    </p>
+                    </div>
                 </div>
                  <div className="text-center">
                     <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
