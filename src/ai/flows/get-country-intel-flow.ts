@@ -2,16 +2,19 @@
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
+ * It now orchestrates fetching live data for advisories and then summarizing it.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
+import { format } from 'date-fns';
 
 // --- Zod Schemas for Input/Output ---
 
 const GetCountryIntelInputSchema = z.object({
   countryName: z.string().describe('The name of the country to get travel intel for.'),
   isAseanCountry: z.boolean().describe('Whether the country is a member of ASEAN.'),
+  scrapedContent: z.string().describe('The pre-scraped content from reliable sources.'),
 });
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
@@ -22,9 +25,9 @@ const HolidaySchema = z.object({
   link: z.string().optional().describe('A URL to a Wikipedia or official page about the event, if available.'),
 });
 
-// Schema for the "advisory-only" AI call for ASEAN countries
+// Schema for the "advisory-only" AI call for ASEAN countries, based on scraped data
 const AseanIntelSchema = z.object({
-  latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country. Focus on information from the last 6 months. If none, state that there are no major recent advisories."),
+  latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country, summarized from the provided text. The response must start with 'As of {current_date}:' and only include information from the last month."),
 });
 
 // Full schema for non-ASEAN countries
@@ -50,7 +53,7 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
  * Main exported function that wraps and calls the Genkit flow.
  * Returns a partial object for ASEAN countries (advisory only) or a full object for others.
  */
-export async function getCountryIntel(input: { countryName: string; isAseanCountry: boolean }): Promise<Partial<CountryIntel>> {
+export async function getCountryIntel(input: { countryName: string; isAseanCountry: boolean; scrapedContent: string }): Promise<Partial<CountryIntel>> {
   return getCountryIntelFlow(input);
 }
 
@@ -86,35 +89,44 @@ const getCountryIntelFlow = ai.defineFlow(
     inputSchema: GetCountryIntelInputSchema,
     outputSchema: z.union([CountryIntelSchema, AseanIntelSchema]),
   },
-  async ({ countryName, isAseanCountry }) => {
+  async ({ countryName, isAseanCountry, scrapedContent }) => {
     let prompt: string;
     let schema: z.ZodType;
-    
-    // Trusted sources for the AI to reference
-    const sources = "UN Department of Safety and Security, US Travel Advisory, Australian Smartraveller, European Union travel advisories, CNN, Reuters, Channel NewsAsia, CGTN, and UK government travel advice.";
+    const currentDate = format(new Date(), 'MMMM d, yyyy');
 
     if (isAseanCountry) {
-        // More targeted prompt for ASEAN countries - only get the latest advisories
+        // More targeted prompt for ASEAN countries - ONLY summarize the provided scraped content.
         prompt = `
-            Act as a travel security analyst. Synthesize a list of the 2-3 most critical and recent travel advisories for tourists visiting ${countryName}.
-            Your information must be based on data from the last 3-6 months from the following trusted sources: ${sources}.
+            Act as a travel security analyst. Your task is to summarize the following raw text from recent travel advisories for ${countryName}.
+            Your response MUST begin with the exact phrase: 'As of ${currentDate}:'.
+            From the text below, extract and list 2-3 of the most critical and recent (within the last month) travel advisories.
             Focus on new scams, political instability affecting tourists, significant health notices, or major transport disruptions.
-            If there are no major recent advisories from these sources, state that clearly.
+            If the provided text is empty or contains no relevant new information, your entire response should be an empty array for the 'latestAdvisory' field.
+
+            Raw Text to Summarize:
+            ---
+            ${scrapedContent}
+            ---
         `;
         schema = AseanIntelSchema;
     } else {
-        // The comprehensive prompt for non-ASEAN countries
+        // The comprehensive prompt for non-ASEAN countries. It uses scraped content for advisories and its own knowledge for the rest.
         prompt = `
             Act as a seasoned travel expert preparing a comprehensive briefing document for a backpacker visiting ${countryName}. 
-            Your information must be detailed, actionable, and drawn from sources like ${sources}, as well as official tourism and government websites.
             
-            Generate a complete travel profile with the following sections:
+            You will generate a complete travel profile with the following sections.
+            For the 'latestAdvisory' section, you MUST use the provided raw text below. For all other sections, use your general knowledge.
 
-            - latestAdvisory: Synthesize the 3-4 most critical and recent (last 6 months) travel advisories. Mention specific scams, safety concerns, health notices, or political situations relevant to tourists.
+            - latestAdvisory: Your response for this section MUST begin with the exact phrase: 'As of ${currentDate}:'. Summarize the provided raw text to extract the 2-3 most critical and recent (last month) travel advisories. Focus on scams, safety, health, or political situations relevant to tourists. If the text is empty, return an empty array for this field.
             - majorHolidays: Provide a comprehensive list of all major public holidays and significant festivals for the entire year. Include the typical date range and a brief description. For at least 2-3 major festivals, provide a source link to a Wikipedia or official tourism page.
             - culturalEtiquette: Detail 5-7 crucial cultural etiquette tips. Go beyond basics; include advice on dress codes for religious sites, dining etiquette, gift-giving, and social interactions.
             - visaInfo: Give a detailed but non-legally-binding overview of tourist visa policies for USA, UK, EU, and Australian citizens. Mention typical visa-free days, e-visa procedures, and possibilities for extension. Provide a link to an official immigration or embassy page if possible.
             - emergencyNumbers: List all key emergency contacts. Include Police, Ambulance, and Fire. Find the specific Tourist Police number if one exists. Also, provide any official public contact emails for these services where available.
+
+            Raw Text for 'latestAdvisory' section:
+            ---
+            ${scrapedContent}
+            ---
         `;
         schema = CountryIntelSchema;
     }

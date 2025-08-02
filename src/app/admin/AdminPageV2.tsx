@@ -265,9 +265,10 @@ function SettingsTabContent() {
         }
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
-        setSettings(prev => ({...prev, [id]: Number(value) }));
+        const isNumeric = !['infohubSources'].includes(id);
+        setSettings(prev => ({...prev, [id]: isNumeric ? Number(value) : value }));
     };
 
     if (isLoading) {
@@ -363,14 +364,30 @@ function SettingsTabContent() {
                         </div>
                     </div>
 
-                    {/* Column 3: Language & Phrase Costs */}
+                    {/* Column 3: AI & Language */}
                     <div className="space-y-6">
-                         <h3 className="text-lg font-semibold flex items-center gap-2"><Music className="text-primary"/> Language Packs</h3>
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Music className="text-primary"/> AI & Language</h3>
                          <Separator />
                         <div className="space-y-2">
                             <Label htmlFor="languageUnlockCost">Language Unlock Cost</Label>
                             <Input id="languageUnlockCost" type="number" value={settings.languageUnlockCost ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
                             <p className="text-sm text-muted-foreground">Tokens to permanently unlock a language.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="infohubAiCost" className="flex items-center gap-1.5"><Info/> InfoHub AI Cost</Label>
+                            <Input id="infohubAiCost" type="number" value={settings.infohubAiCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
+                            <p className="text-sm text-muted-foreground">Tokens to get latest AI travel intel for one country.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="infohubSources" className="flex items-center gap-1.5"><LinkIcon/> InfoHub Sources</Label>
+                            <Textarea 
+                                id="infohubSources" 
+                                value={settings.infohubSources ?? ''} 
+                                onChange={handleInputChange} 
+                                placeholder="https://..."
+                                rows={4}
+                            />
+                            <p className="text-sm text-muted-foreground">Comma-separated list of URLs for the AI to scrape for InfoHub data.</p>
                         </div>
                     </div>
                  </div>

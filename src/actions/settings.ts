@@ -19,6 +19,7 @@ export interface AppSettings {
   languageUnlockCost: number;
   roomReminderMinutes: number;
   infohubAiCost: number;
+  infohubSources?: string; // New field for sources
 }
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
@@ -44,6 +45,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         languageUnlockCost: 100,
         roomReminderMinutes: 5,
         infohubAiCost: 10,
+        infohubSources: 'https://www.state.gov/traveladvisories.html, https://www.gov.uk/foreign-travel-advice, https://www.smartraveller.gov.au/destinations',
     };
     
     try {
@@ -73,10 +75,10 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
             return { success: false, error: 'No settings provided to update.' };
         }
         
-        // Basic validation: ensure all values are numbers
+        // Basic validation: ensure all non-string values are numbers
         for (const key in newSettings) {
-            if (typeof (newSettings as any)[key] !== 'number') {
-                 return { success: false, error: `Invalid value for ${key}. All settings must be numbers.`};
+            if (key !== 'infohubSources' && typeof (newSettings as any)[key] !== 'number') {
+                 return { success: false, error: `Invalid value for ${key}. All settings except sources must be numbers.`};
             }
         }
 

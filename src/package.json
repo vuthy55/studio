@@ -1,3 +1,4 @@
+
 {
   "name": "nextn",
   "version": "0.1.0",
@@ -47,7 +48,6 @@
     "firebase-admin": "12.2.0",
     "framer-motion": "^11.2.12",
     "genkit": "1.14.1",
-    "idb": "^8.0.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.38.0",
@@ -79,7 +79,6 @@
     "genkit": "1.14.1",
     "@genkit-ai/google-cloud": {
       "genkit": "1.14.1"
-    },
-    "undici": "6.19.2"
+    }
   }
 }
