@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2, CheckCircle2, Info } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { etiquetteData } from '@/lib/etiquette-data';
 import { visaData } from '@/lib/visa-data';
 import { emergencyData } from '@/lib/emergency-data';
@@ -24,67 +24,131 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
 
 function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<CountryIntel> | null, searchDate: Date | null, fromCache: boolean }) {
     if (!intel?.overallAssessment) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    const { score, summary, sources } = intel.overallAssessment;
+    const { score, summary, sourcesUsed, categoryAssessments } = intel.overallAssessment;
+    const allReviewedSources = intel.allReviewedSources || [];
 
-    const getScoreAppearance = () => {
-        if (score <= 3) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
-        if (score <= 7) return { color: 'text-muted-foreground', icon: <Info className="h-full w-full" /> };
-        return { color: 'text-green-600', icon: <CheckCircle2 className="h-full w-full" /> };
+    const getScoreAppearance = (currentScore: number) => {
+        if (currentScore <= 3) return { color: 'text-destructive' };
+        if (currentScore <= 7) return { color: 'text-amber-600' };
+        return { color: 'text-green-600' };
     };
 
-    const { color, icon } = getScoreAppearance();
+    const mainScoreAppearance = getScoreAppearance(score);
+
+    const summaryWithClickableLink = () => {
+        if (!summary) return null;
+        const match = summary.match(/This assessment is based on (\d+) unique articles/);
+        if (match) {
+            const count = match[1];
+            const parts = summary.split(match[0]);
+            return (
+                <>
+                    {parts[0]}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on {count} unique articles</span>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                            <div className="grid gap-4">
+                                <div className="space-y-1">
+                                    <h4 className="font-medium leading-none">Key Sources</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        These articles were most influential in the summary.
+                                    </p>
+                                </div>
+                                <div className="grid gap-2">
+                                     <ScrollArea className="h-48">
+                                         <ul className="list-disc pl-5 text-sm space-y-1">
+                                            {sourcesUsed?.map((source, index) => (
+                                                <li key={`used-${index}`}>
+                                                    <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                                        {source.url}
+                                                    </a>
+                                                    {source.publishedDate && (
+                                                        <span className="text-muted-foreground text-xs ml-2">({format(new Date(source.publishedDate), 'MMM d, yyyy')})</span>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                     </ScrollArea>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                    {parts[1]}
+                </>
+            );
+        }
+        return summary;
+    };
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
-                <div className={cn("flex-shrink-0 w-20 h-20", color)}>
-                    {icon}
+                <div className={cn("flex-shrink-0 w-20 h-20", mainScoreAppearance.color)}>
+                    {score <= 3 ? <AlertTriangle className="h-full w-full" /> : score <=7 ? <Info className="h-full w-full" /> : <CheckCircle2 className="h-full w-full" />}
                 </div>
                 <div className="flex-1">
                     <h3 className="text-2xl font-bold">Overall Assessment</h3>
-                    <div className="text-sm text-muted-foreground mt-1">
-                        <span>AI-generated analysis based on recent, verifiable sources.</span>
-                        {searchDate && (
-                            <Badge variant={fromCache ? 'default' : 'secondary'} className="ml-2">
-                                As of {format(searchDate, 'PPp')} {fromCache && '(Cached)'}
-                            </Badge>
-                        )}
-                    </div>
+                    {searchDate && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                            <span>As of {format(searchDate, 'PPp')}</span>
+                        </div>
+                    )}
                 </div>
                  <div className="text-center">
                     <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
-                    <p className={cn("text-6xl font-bold", color)}>{score}</p>
+                    <p className={cn("text-6xl font-bold", mainScoreAppearance.color)}>{score}</p>
                 </div>
             </div>
+
+            {categoryAssessments && Object.keys(categoryAssessments).length > 0 && (
+                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {Object.entries(categoryAssessments).map(([category, catScore]) => (
+                        <Card key={category} className="text-center">
+                            <CardHeader className="p-3">
+                                <CardTitle className="text-sm">{category}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-3 pt-0">
+                                <p className={cn("text-3xl font-bold", getScoreAppearance(catScore).color)}>{catScore}</p>
+                            </CardContent>
+                        </Card>
+                    ))}
+                 </div>
+            )}
             
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
                 <div className="whitespace-pre-wrap text-sm text-muted-foreground p-4 border rounded-md bg-background">
-                    {summary}
+                    {summaryWithClickableLink()}
                 </div>
             </div>
 
-            {sources && sources.length > 0 && (
+            {allReviewedSources && allReviewedSources.length > 0 && (
                 <div className="space-y-2">
-                    <h4 className="text-lg font-semibold">Sources Used</h4>
+                    <h4 className="text-lg font-semibold">Sources Reviewed</h4>
+                    <ScrollArea className="h-48 border rounded-md p-4">
                     <ul className="list-disc pl-5 space-y-1 text-sm">
-                        {sources.map((source, index) => (
-                            <li key={index}>
+                        {allReviewedSources.map((source, index) => (
+                            <li key={`reviewed-${index}`}>
                                 <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
                                     {source.url}
                                 </a>
                                 {source.publishedDate && (
-                                    <span className="text-muted-foreground text-xs ml-2">({format(new Date(source.publishedDate), 'MMM d, yyyy')})</span>
+                                    <span className="text-muted-foreground text-xs ml-2">({format(parseISO(source.publishedDate), 'MMM d, yyyy')})</span>
                                 )}
                             </li>
                         ))}
                     </ul>
+                    </ScrollArea>
                 </div>
             )}
         </div>
@@ -179,7 +243,7 @@ function InfoHubContent() {
             }
             
             setAiIntel(intel);
-            setResultFromCache(false); // It's never from cache anymore
+            setResultFromCache(false);
             setActiveTab('latest');
             toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName}.` });
 
@@ -322,7 +386,7 @@ function InfoHubContent() {
                     <TabsContent value="holidays" className="mt-4">
                         <Card>
                              <CardHeader>
-                                <CardTitle>Major Festivals &amp; Holidays</CardTitle>
+                                <CardTitle>Major Festivals & Holidays</CardTitle>
                                 <CardDescription>
                                     Standard information for {selectedCountryName}.
                                 </CardDescription>
