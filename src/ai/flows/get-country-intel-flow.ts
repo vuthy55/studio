@@ -11,6 +11,8 @@ import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
 import { getAppSettingsAction } from '@/actions/settings';
+import { subDays, parseISO } from 'date-fns';
+
 
 // --- Zod Schemas for Input/Output ---
 
@@ -20,8 +22,8 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const IntelItemSchema = z.object({
-    summary: z.string().describe('A concise, one-paragraph summary of the key information from the source article.'),
-    source: z.string().describe('The URL of the source article.'),
+    summary: z.string().describe('A concise, one-paragraph summary of the key information from the source article that is DIRECTLY relevant to the query and country. Do not summarize the website\'s general purpose.'),
+    source: z.string().url().describe('The URL of the source article.'),
 });
 
 const CountryIntelSchema = z.object({
@@ -65,17 +67,33 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
     
     debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources.`);
     const verifiedSources = [];
-    for (const item of searchResult.results.slice(0, 3)) { // Limit to top 3 results per query
+    const oneMonthAgo = subDays(new Date(), 30);
+
+    for (const item of searchResult.results.slice(0, 5)) { // Process top 5 results
         debugLog.push(`[Intel Flow] (searchAndVerify) - Scraping URL: ${item.link}`);
         const scrapeResult = await scrapeUrlAction(item.link);
         if (scrapeResult.success && scrapeResult.content) {
+            if (scrapeResult.publishedDate) {
+                 try {
+                    const publishedDate = parseISO(scrapeResult.publishedDate);
+                    if (publishedDate < oneMonthAgo) {
+                        debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (too old): ${item.link}`);
+                        continue; // Skip this article because it's too old
+                    }
+                } catch (e) {
+                     debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: Could not parse date "${scrapeResult.publishedDate}" for ${item.link}. Including it anyway.`);
+                }
+            } else {
+                 debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: No publication date found for ${item.link}. Including it anyway.`);
+            }
+
             debugLog.push(`[Intel Flow] (searchAndVerify) - SUCCESS scraping ${item.link}.`);
             verifiedSources.push({ content: scrapeResult.content, url: item.link });
         } else {
             debugLog.push(`[Intel Flow] (searchAndVerify) - FAILED scraping ${item.link}. Reason: ${scrapeResult.error}`);
         }
     }
-    debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} out of ${Math.min(3, searchResult.results.length)} sources for query: "${query}"`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} recent sources for query: "${query}"`);
     return verifiedSources;
 }
 
@@ -109,10 +127,10 @@ const getCountryIntelFlow = ai.defineFlow(
   async ({ countryName, debugLog }) => {
     
     const settings = await getAppSettingsAction();
-    const infohubSites = settings.infohubSources?.split(',').map(s => `site:${s.trim()}`).join(' OR ') || '';
+    const siteQuery = settings.infohubSources?.split(',').map(s => `site:${s.trim()}`).join(' OR ') || '';
     
     const categories = {
-        latestAdvisory: `official government travel advisory ${countryName} ${infohubSites}`,
+        latestAdvisory: `official government travel advisory ${countryName} ${siteQuery}`,
         scams: `tourist scams ${countryName}`,
         theft: `theft robbery kidnapping risk ${countryName}`,
         health: `health risks disease outbreaks ${countryName}`,
@@ -126,7 +144,6 @@ const getCountryIntelFlow = ai.defineFlow(
         debugLog.push('[Intel Flow] CRITICAL: GOOGLE_API_KEY or GOOGLE_SEARCH_ENGINE_ID is missing from server environment.');
         return {};
     }
-    debugLog.push(`[Intel Flow] (searchAndVerify) - API Key Used: "${apiKey}", Search Engine ID Used: "${searchEngineId}"`);
 
     const allPromises = Object.entries(categories).map(async ([key, query]) => {
         debugLog.push(`[Intel Flow] Starting process for category: "${key}"`);
@@ -139,10 +156,15 @@ const getCountryIntelFlow = ai.defineFlow(
         
         debugLog.push(`[Intel Flow] Calling AI to summarize ${sources.length} sources for category: "${key}"`);
         const { output } = await generateSummaryWithFallback(
-            `You are an expert travel intelligence analyst. Based on the provided articles, generate a concise, one-paragraph summary for each article. For each summary, you MUST cite the source URL provided with it.
+            `You are an expert travel intelligence analyst. Your task is to provide a concise, one-paragraph summary for each provided article.
             
-            Your task is to summarize the following articles about: ${query}
+            IMPORTANT:
+            1.  Your summary MUST be about the specific topic: "${query}".
+            2.  Your summary MUST be specifically about ${countryName}.
+            3.  DO NOT summarize the general purpose of the website. Focus only on the content relevant to the query.
+            4.  For each summary, you MUST cite the source URL provided with it.
             
+            Here are the articles:
             {{#each sources}}
             Source URL: {{{url}}}
             Article Content:
@@ -167,3 +189,4 @@ const getCountryIntelFlow = ai.defineFlow(
     return finalOutput as CountryIntel;
   }
 );
+
