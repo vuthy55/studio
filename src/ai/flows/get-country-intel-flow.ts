@@ -2,12 +2,14 @@
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
- * This has been refactored to a direct search-and-summarize flow to improve reliability.
+ * This flow now orchestrates web search and scraping as separate server actions.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { format } from 'date-fns';
+import { searchWebAction } from '@/actions/search';
+import { scrapeUrlAction } from '@/actions/scraper';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -56,17 +58,49 @@ const getCountryIntelFlow = ai.defineFlow(
   },
   async ({ countryName }) => {
     
-    // Call the AI for summarization based on its internal knowledge
+    // 1. Perform web searches
+    const queries = [
+      `travel advisory ${countryName} official`,
+      `common tourist scams ${countryName}`,
+      `${countryName} local news`,
+    ];
+
+    let searchContext = '';
+    
+    for (const query of queries) {
+      const searchResult = await searchWebAction(query);
+      if (searchResult.success && searchResult.results) {
+        for (const result of searchResult.results) {
+          // 2. Scrape the content of each search result URL
+          const scrapeResult = await scrapeUrlAction(result.link);
+          if (scrapeResult.success && scrapeResult.data) {
+            searchContext += `\n\n--- Source: ${result.link} ---\n${scrapeResult.data.content.substring(0, 2000)}`;
+          }
+        }
+      }
+    }
+    
+    if (!searchContext) {
+      console.warn(`[AI Flow] No web search results or content found for ${countryName}. Relying on internal knowledge.`);
+    }
+
+    // 3. Call the AI for summarization
     const currentDate = format(new Date(), 'MMMM d, yyyy');
     const prompt = `
-        You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName} based on your internal knowledge.
+        You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
+        Use the provided context from web searches as your primary source. If the context is empty, use your internal knowledge.
 
         **Output Formatting Rules:**
-        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. Based on your knowledge, list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on scams, political instability, or health notices. If you have no recent information, return an empty array for this field.
+        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. Based on the context, list only 2-3 of the most critical and recent travel advisories. Focus on scams, political instability, or health notices. If you have no recent information, return an empty array for this field.
         -   **majorHolidays:** Provide a comprehensive list of major public holidays and significant festivals.
         -   **culturalEtiquette:** Detail 5-7 crucial cultural etiquette tips.
         -   **visaInfo:** Give a general overview of tourist visa policies for common nationalities.
         -   **emergencyNumbers:** List key emergency contacts.
+
+        **Web Search Context:**
+        ---
+        ${searchContext || "No web context available. Use internal knowledge."}
+        ---
     `;
     
     try {

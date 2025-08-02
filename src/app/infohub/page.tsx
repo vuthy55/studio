@@ -21,6 +21,7 @@ import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { scrapeUrlAction } from '@/actions/scraper';
 
 const aseanCountryCodes = ['BN', 'KH', 'ID', 'LA', 'MY', 'MM', 'PH', 'SG', 'TH', 'VN'];
 
@@ -103,8 +104,7 @@ function InfoHubContent() {
             }
             
             const intel = await getCountryIntel({ 
-                countryName: selectedCountryName, 
-                isAseanCountry,
+                countryName: selectedCountryName,
             });
 
             if (!intel || Object.keys(intel).length === 0) {

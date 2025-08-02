@@ -48,7 +48,7 @@ import Image from 'next/image';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
-import { scrapeUrlForTest } from '@/actions/scraper';
+import { scrapeUrlAction } from '@/actions/scraper';
 
 
 interface UserWithId extends UserProfile {
@@ -1831,7 +1831,7 @@ function FeedbackTabContent() {
 }
 
 function ScraperTestTabContent() {
-    const [url, setUrl] = useState('https://www.state.gov/traveladvisories.html');
+    const [url, setUrl] = useState('https://edition.cnn.com');
     const [isLoading, setIsLoading] = useState(false);
     const [results, setResults] = useState<{ title: string; paragraphs: string[] } | null>(null);
     const [error, setError] = useState('');
@@ -1844,7 +1844,7 @@ function ScraperTestTabContent() {
         setResults(null);
         
         try {
-            const response = await scrapeUrlForTest(url);
+            const response = await scrapeUrlAction(url);
             if (response.success && response.data) {
                 setResults(response.data);
                 toast({ title: 'Scrape Successful', description: `Found title and ${response.data.paragraphs.length} paragraphs.` });
@@ -1991,6 +1991,3 @@ export default function AdminPageV2() {
         </div>
     );
 }
-
-
-    

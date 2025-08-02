@@ -7,6 +7,7 @@ import * as cheerio from 'cheerio';
 interface ScrapeResult {
     title: string;
     paragraphs: string[];
+    content: string;
 }
 
 /**
@@ -15,7 +16,7 @@ interface ScrapeResult {
  * @param url The URL to scrape.
  * @returns An object indicating success or failure, with scraped data or an error message.
  */
-export async function scrapeUrlForTest(url: string): Promise<{ success: boolean; data?: ScrapeResult; error?: string }> {
+export async function scrapeUrlAction(url: string): Promise<{ success: boolean; data?: ScrapeResult; error?: string }> {
     if (!url) {
         return { success: false, error: 'URL is required.' };
     }
@@ -38,9 +39,12 @@ export async function scrapeUrlForTest(url: string): Promise<{ success: boolean;
         // Extract the text from the first 3 paragraph tags
         const paragraphs = $('p').slice(0, 3).map((i, elem) => $(elem).text()).get();
 
+        const content = $('body').text().replace(/\s\s+/g, ' ').trim();
+
+
         return { 
             success: true, 
-            data: { title, paragraphs } 
+            data: { title, paragraphs, content } 
         };
 
     } catch (error: any) {
