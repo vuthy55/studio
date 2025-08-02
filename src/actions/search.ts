@@ -16,7 +16,7 @@ interface SearchResult {
  * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
  */
 export async function searchWebAction(query: string): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY; // Use the existing Gemini key
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
     if (!apiKey || !searchEngineId) {
