@@ -23,54 +23,70 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
-const aseanCountryCodes = ['BN', 'KH', 'ID', 'LA', 'MY', 'MM', 'PH', 'SG', 'TH', 'VN'];
-
-type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
-
 function LatestIntelDisplay({ intel }: { intel: Partial<CountryIntel> | null }) {
     if (!intel) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    if (Object.values(intel).every(value => !value)) {
+    if (Object.values(intel).every(value => !value || (Array.isArray(value) && value.length === 0))) {
         return <p className="text-sm text-center text-muted-foreground py-8">No specific advisories found by the AI. Exercise normal precautions.</p>;
+    }
+
+    const renderIntelList = (items: {summary: string; source: string}[]) => {
+        if (!items || items.length === 0) return <p className="text-sm text-muted-foreground">No specific information found for this category.</p>;
+
+        return (
+            <ul className="space-y-4">
+                {items.map((item, index) => (
+                    <li key={index} className="space-y-1">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.summary}</p>
+                        <a href={item.source} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                            <LinkIcon className="h-3 w-3" />
+                            Source
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        )
     }
 
     return (
         <div className="space-y-6">
-            {intel.latestAdvisory && (
+            {intel.latestAdvisory && intel.latestAdvisory.length > 0 && (
                 <div className="space-y-3">
                     <h3 className="text-lg font-semibold flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-primary" /> Official Advisories</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{intel.latestAdvisory}</p>
+                    {renderIntelList(intel.latestAdvisory)}
                 </div>
             )}
-             {intel.scams && (
+             {intel.scams && intel.scams.length > 0 && (
                 <div className="space-y-3">
                     <h3 className="text-lg font-semibold flex items-center gap-2"><Briefcase className="h-5 w-5 text-primary" /> Scams & Fraud</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{intel.scams}</p>
+                     {renderIntelList(intel.scams)}
                 </div>
             )}
-            {intel.theft && (
+            {intel.theft && intel.theft.length > 0 && (
                 <div className="space-y-3">
                     <h3 className="text-lg font-semibold flex items-center gap-2"><BookUser className="h-5 w-5 text-primary" /> Theft & Safety</h3>
-                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{intel.theft}</p>
+                    {renderIntelList(intel.theft)}
                 </div>
             )}
-             {intel.health && (
+             {intel.health && intel.health.length > 0 && (
                 <div className="space-y-3">
                     <h3 className="text-lg font-semibold flex items-center gap-2"><Syringe className="h-5 w-5 text-primary" /> Health & Disease</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{intel.health}</p>
+                     {renderIntelList(intel.health)}
                 </div>
             )}
-            {intel.political && (
+            {intel.political && intel.political.length > 0 && (
                 <div className="space-y-3">
                     <h3 className="text-lg font-semibold flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Political Situation</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{intel.political}</p>
+                     {renderIntelList(intel.political)}
                 </div>
             )}
         </div>
     );
 }
+
+type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 function InfoHubContent() {
     const { user, loading: authLoading, userProfile, settings, spendTokensForTranslation } = useUserData();
@@ -88,8 +104,6 @@ function InfoHubContent() {
     const selectedCountryName = useMemo(() => {
         return countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
     }, [selectedCountryCode, countryOptions]);
-
-    const isAseanCountry = useMemo(() => aseanCountryCodes.includes(selectedCountryCode), [selectedCountryCode]);
 
     // Static data memoization
     const staticHolidays = useMemo(() => staticEvents.filter(e => e.countryCode === selectedCountryCode), [selectedCountryCode]);
@@ -248,7 +262,7 @@ function InfoHubContent() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Latest Intelligence</CardTitle>
-                                <CardDescription>This information is generated by AI based on its knowledge of recent events.</CardDescription>
+                                <CardDescription>This information is summarized by AI based on verified, recent web sources.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                {isGeneratingIntel ? (

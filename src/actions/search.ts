@@ -21,7 +21,7 @@ export async function searchWebAction(query: string): Promise<{success: boolean,
     
     if (!apiKey || !searchEngineId) {
         // This error is now expected if the feature is disabled.
-        console.warn("Google Search API credentials are not configured. The web search tool is disabled.");
+        console.error("Google Search API credentials are not configured. The web search tool is disabled.");
         return { success: false, error: "Google Search API credentials are not configured on the server." };
     }
     
@@ -33,7 +33,7 @@ export async function searchWebAction(query: string): Promise<{success: boolean,
                 key: apiKey,
                 cx: searchEngineId,
                 q: query,
-                num: 5 // Limit to 5 results
+                num: 3 // Limit to 3 results per category
             }
         });
 
