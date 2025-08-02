@@ -19,8 +19,11 @@ export async function searchWebAction(query: string): Promise<{success: boolean,
     const apiKey = process.env.GOOGLE_API_KEY;
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
+    // Added for debugging to verify environment variables are loaded.
+    console.log(`[Search Action Debug] Using API Key: ${apiKey ? 'Loaded' : 'MISSING'}, Search Engine ID: ${searchEngineId ? 'Loaded' : 'MISSING'}`);
+
     if (!apiKey || !searchEngineId) {
-        console.error("Google Search API credentials are not configured. The web search tool is disabled.");
+        console.error("Google Search API credentials are not configured on the server.");
         return { success: false, error: "Google Search API key or Search Engine ID is not configured on the server." };
     }
     
