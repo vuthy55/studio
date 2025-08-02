@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
@@ -26,12 +25,12 @@ const HolidaySchema = z.object({
   link: z.string().optional().describe('A URL to a Wikipedia or official page about the event, if available.'),
 });
 
-// Schema for the "advisory-only" AI call for ASEAN countries, based on scraped data
+// Schema for the "advisory-only" AI call for ASEAN countries.
 const AseanIntelSchema = z.object({
   latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country, summarized from the provided text. The response must start with 'As of {current_date}:' and only include information from the last month."),
 });
 
-// Full schema for non-ASEAN countries
+// Full schema for non-ASEAN countries, extending the ASEAN schema.
 const CountryIntelSchema = AseanIntelSchema.extend({
   majorHolidays: z.array(HolidaySchema).describe('A comprehensive list of all major public holidays and significant festivals for the entire year.'),
   culturalEtiquette: z.array(z.string()).describe('A detailed list of 5-7 crucial cultural etiquette tips for travelers (e.g., how to greet, dress code for temples, tipping customs, dining etiquette).'),
@@ -65,55 +64,42 @@ const getCountryIntelFlow = ai.defineFlow(
     outputSchema: z.union([CountryIntelSchema, AseanIntelSchema]),
   },
   async ({ countryName, isAseanCountry }) => {
-    let prompt: string;
-    let schema: z.ZodType;
+    
+    // Choose the correct schema based on the country type.
+    const schema = isAseanCountry ? AseanIntelSchema : CountryIntelSchema;
     const currentDate = format(new Date(), 'MMMM d, yyyy');
-
     const settings = await getAppSettingsAction();
     const globalSources = settings.infohubSources;
 
-    if (isAseanCountry) {
-        // ASEAN countries get a more limited, targeted response. The agent will still research,
-        // but the prompt asks for a much more constrained output.
-        prompt = `
-            You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel advisory for ${countryName}.
+    // A unified prompt to handle both ASEAN and non-ASEAN countries.
+    // The model will intelligently skip sections if they are not part of the requested output schema.
+    const prompt = `
+        You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
+        For the 'latestAdvisory' section, you MUST perform live research using the provided tools.
+        For all other sections (if requested by the schema), use your general knowledge.
 
-            Your instructions are:
-            1.  **Search:** Use the webSearch tool with the query "latest travel news and advisories for ${countryName}" to find relevant, recent articles.
-            2.  **Scrape:** Use the scrapeWeb tool on the most promising search result URL AND the following global advisory URLs: ${globalSources}.
-            3.  **Summarize:** Based on ALL the text you have gathered, extract and list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on new scams, political instability affecting tourists, or significant health notices.
-            4.  **Format:** Your response for the 'latestAdvisory' field MUST begin with the exact phrase: 'As of ${currentDate}:'. If you find no relevant new information, return an empty array for this field.
-        `;
-        schema = AseanIntelSchema;
-    } else {
-        // The comprehensive prompt for non-ASEAN countries.
-        prompt = `
-            Act as a seasoned travel expert preparing a comprehensive briefing document for a backpacker visiting ${countryName}.
-            
-            You will generate a complete travel profile with multiple sections. For the 'latestAdvisory' section, you MUST perform live research using the provided tools. For all other sections, use your general knowledge.
+        **Research Instructions for 'latestAdvisory':**
+        1.  **Search:** Use the webSearch tool with queries like "latest travel news and advisories for ${countryName}" and "travel scams ${countryName}" to find relevant, recent articles.
+        2.  **Scrape:** Use the scrapeWeb tool on the most promising search result URL AND the following global advisory URLs: ${globalSources}.
+        3.  **Summarize:** Based on ALL the text you have gathered, extract and list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on new scams, political instability affecting tourists, or significant health notices.
 
-            **Research Instructions for 'latestAdvisory':**
-            1.  **Search:** Use the webSearch tool with queries like "travel advisories for ${countryName}" and "latest news in ${countryName} for tourists" to find the most relevant URLs.
-            2.  **Scrape:** Use the scrapeWeb tool to read the content from the top 2-3 most relevant URLs you found, AND the following global advisory URLs: ${globalSources}.
-            3.  **Synthesize:** Analyze all the text you have scraped.
-
-            **Output Formatting:**
-            -   **latestAdvisory:** Your response for this section MUST begin with the exact phrase: 'As of ${currentDate}:'. Summarize the scraped text to extract the 2-3 most critical and recent (last month) travel advisories. Focus on scams, safety, health, or political situations relevant to tourists. If you find no relevant new information, return an empty array for this field.
-            -   **majorHolidays:** Provide a comprehensive list of all major public holidays and significant festivals for the entire year. Include the typical date range and a brief description. For at least 2-3 major festivals, provide a source link to a Wikipedia or official tourism page.
-            -   **culturalEtiquette:** Detail 5-7 crucial cultural etiquette tips. Go beyond basics; include advice on dress codes for religious sites, dining etiquette, gift-giving, and social interactions.
-            -   **visaInfo:** Give a detailed but non-legally-binding overview of tourist visa policies for USA, UK, EU, and Australian citizens. Mention typical visa-free days, e-visa procedures, and possibilities for extension. Provide a link to an official immigration or embassy page if possible.
-            -   **emergencyNumbers:** List all key emergency contacts. Include Police, Ambulance, and Fire. Find the specific Tourist Police number if one exists. Also, provide any official public contact emails for these services where available.
-        `;
-        schema = CountryIntelSchema;
-    }
+        **Output Formatting Rules:**
+        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. If you find no relevant new information, return an empty array for this field.
+        -   **majorHolidays:** (If requested) Provide a comprehensive list of all major public holidays and significant festivals for the entire year. Include a source link for at least two major events.
+        -   **culturalEtiquette:** (If requested) Detail 5-7 crucial cultural etiquette tips.
+        -   **visaInfo:** (If requested) Give a detailed but non-legally-binding overview of tourist visa policies for USA, UK, EU, and Australian citizens. Provide a link to an official immigration or embassy page if possible.
+        -   **emergencyNumbers:** (If requested) List all key emergency contacts, including tourist police and any available public emails.
+    `;
 
     try {
         const { output } = await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.5-pro',
+            // Using a more powerful model better suited for complex reasoning and tool use.
+            model: 'googleai/gemini-1.5-pro', 
             tools: [webSearch, scrapeWeb],
             output: { schema },
             config: {
+                // Adjust safety settings to allow discussion of potentially sensitive travel advisory topics.
                 safetySettings: [
                   {
                     category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
@@ -124,13 +110,16 @@ const getCountryIntelFlow = ai.defineFlow(
         });
         
         if (!output) {
-           throw new Error("The AI model returned an empty output.");
+           throw new Error("The AI model returned an empty output, which is unexpected.");
         }
         return output;
 
     } catch (error: any) {
+        // Log the complete, original error from the AI service for better debugging.
         console.error(`[AI Flow] CRITICAL: Model failed to generate intel for ${countryName}. Full error:`, error);
-        throw new Error(`The AI agent could not generate travel information for ${countryName}. Reason: ${error.message || 'An unknown error occurred.'}`);
+        // Provide a more descriptive error to the user, including the actual reason if available.
+        throw new Error(`The AI agent could not generate travel information for ${countryName}. Reason: ${error.message}`);
     }
   }
 );
+```
