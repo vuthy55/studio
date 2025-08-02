@@ -2,19 +2,20 @@
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
- * It now orchestrates fetching live data for advisories and then summarizing it.
+ * This has been refactored into an AI Agent that uses tools to perform research.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { format } from 'date-fns';
+import { scrapeWeb, webSearch } from '@/ai/tools/web-search';
+import { getAppSettingsAction } from '@/actions/settings';
 
 // --- Zod Schemas for Input/Output ---
 
 const GetCountryIntelInputSchema = z.object({
   countryName: z.string().describe('The name of the country to get travel intel for.'),
   isAseanCountry: z.boolean().describe('Whether the country is a member of ASEAN.'),
-  scrapedContent: z.string().describe('The pre-scraped content from reliable sources.'),
 });
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
@@ -53,35 +54,9 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
  * Main exported function that wraps and calls the Genkit flow.
  * Returns a partial object for ASEAN countries (advisory only) or a full object for others.
  */
-export async function getCountryIntel(input: { countryName: string; isAseanCountry: boolean; scrapedContent: string }): Promise<Partial<CountryIntel>> {
+export async function getCountryIntel(input: GetCountryIntelInput): Promise<Partial<CountryIntel>> {
   return getCountryIntelFlow(input);
 }
-
-
-const generateWithFallback = async (prompt: string, schema: z.ZodType) => {
-    try {
-        const { output } = await ai.generate({
-            prompt,
-            model: 'googleai/gemini-1.5-flash',
-            output: { schema },
-        });
-        if (!output) {
-           throw new Error("Primary model returned an empty output.");
-        }
-        return output;
-    } catch (error) {
-        console.warn(`[AI Flow] Primary model (gemini-1.5-flash) failed for country intel. Retrying with fallback.`, error);
-        const { output } = await ai.generate({
-            prompt,
-            model: 'googleai/gemini-1.5-pro',
-            output: { schema },
-        });
-         if (!output) {
-           throw new Error("Fallback model also returned an empty output.");
-        }
-        return output;
-    }
-};
 
 const getCountryIntelFlow = ai.defineFlow(
   {
@@ -89,55 +64,65 @@ const getCountryIntelFlow = ai.defineFlow(
     inputSchema: GetCountryIntelInputSchema,
     outputSchema: z.union([CountryIntelSchema, AseanIntelSchema]),
   },
-  async ({ countryName, isAseanCountry, scrapedContent }) => {
+  async ({ countryName, isAseanCountry }) => {
     let prompt: string;
     let schema: z.ZodType;
     const currentDate = format(new Date(), 'MMMM d, yyyy');
 
-    if (isAseanCountry) {
-        // More targeted prompt for ASEAN countries - ONLY summarize the provided scraped content.
-        prompt = `
-            Act as a travel security analyst. Your task is to summarize the following raw text from recent travel advisories for ${countryName}.
-            Your response MUST begin with the exact phrase: 'As of ${currentDate}:'.
-            From the text below, extract and list 2-3 of the most critical and recent (within the last month) travel advisories.
-            Focus on new scams, political instability affecting tourists, significant health notices, or major transport disruptions.
-            If the provided text is empty or contains no relevant new information, your entire response should be an empty array for the 'latestAdvisory' field.
+    const settings = await getAppSettingsAction();
+    const globalSources = settings.infohubSources;
 
-            Raw Text to Summarize:
-            ---
-            ${scrapedContent}
-            ---
+    if (isAseanCountry) {
+        // ASEAN countries get a more limited, targeted response. The agent will still research,
+        // but the prompt asks for a much more constrained output.
+        prompt = `
+            You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel advisory for ${countryName}.
+
+            Your instructions are:
+            1.  **Search:** Use the webSearch tool with the query "latest travel news and advisories for ${countryName}" to find relevant, recent articles.
+            2.  **Scrape:** Use the scrapeWeb tool on the most promising search result URL AND the following global advisory URLs: ${globalSources}.
+            3.  **Summarize:** Based on ALL the text you have gathered, extract and list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on new scams, political instability affecting tourists, or significant health notices.
+            4.  **Format:** Your response for the 'latestAdvisory' field MUST begin with the exact phrase: 'As of ${currentDate}:'. If you find no relevant new information, return an empty array for this field.
         `;
         schema = AseanIntelSchema;
     } else {
-        // The comprehensive prompt for non-ASEAN countries. It uses scraped content for advisories and its own knowledge for the rest.
+        // The comprehensive prompt for non-ASEAN countries.
         prompt = `
-            Act as a seasoned travel expert preparing a comprehensive briefing document for a backpacker visiting ${countryName}. 
+            Act as a seasoned travel expert preparing a comprehensive briefing document for a backpacker visiting ${countryName}.
             
-            You will generate a complete travel profile with the following sections.
-            For the 'latestAdvisory' section, you MUST use the provided raw text below. For all other sections, use your general knowledge.
+            You will generate a complete travel profile with multiple sections. For the 'latestAdvisory' section, you MUST perform live research using the provided tools. For all other sections, use your general knowledge.
 
-            - latestAdvisory: Your response for this section MUST begin with the exact phrase: 'As of ${currentDate}:'. Summarize the provided raw text to extract the 2-3 most critical and recent (last month) travel advisories. Focus on scams, safety, health, or political situations relevant to tourists. If the provided text is empty or contains no relevant new information, your entire response should be an empty array for the 'latestAdvisory' field.
-            - majorHolidays: Provide a comprehensive list of all major public holidays and significant festivals for the entire year. Include the typical date range and a brief description. For at least 2-3 major festivals, provide a source link to a Wikipedia or official tourism page.
-            - culturalEtiquette: Detail 5-7 crucial cultural etiquette tips. Go beyond basics; include advice on dress codes for religious sites, dining etiquette, gift-giving, and social interactions.
-            - visaInfo: Give a detailed but non-legally-binding overview of tourist visa policies for USA, UK, EU, and Australian citizens. Mention typical visa-free days, e-visa procedures, and possibilities for extension. Provide a link to an official immigration or embassy page if possible.
-            - emergencyNumbers: List all key emergency contacts. Include Police, Ambulance, and Fire. Find the specific Tourist Police number if one exists. Also, provide any official public contact emails for these services where available.
+            **Research Instructions for 'latestAdvisory':**
+            1.  **Search:** Use the webSearch tool with queries like "travel advisories for ${countryName}" and "latest news in ${countryName} for tourists" to find the most relevant URLs.
+            2.  **Scrape:** Use the scrapeWeb tool to read the content from the top 2-3 most relevant URLs you found, AND the following global advisory URLs: ${globalSources}.
+            3.  **Synthesize:** Analyze all the text you have scraped.
 
-            Raw Text for 'latestAdvisory' section:
-            ---
-            ${scrapedContent}
-            ---
+            **Output Formatting:**
+            -   **latestAdvisory:** Your response for this section MUST begin with the exact phrase: 'As of ${currentDate}:'. Summarize the scraped text to extract the 2-3 most critical and recent (last month) travel advisories. Focus on scams, safety, health, or political situations relevant to tourists. If you find no relevant new information, return an empty array for this field.
+            -   **majorHolidays:** Provide a comprehensive list of all major public holidays and significant festivals for the entire year. Include the typical date range and a brief description. For at least 2-3 major festivals, provide a source link to a Wikipedia or official tourism page.
+            -   **culturalEtiquette:** Detail 5-7 crucial cultural etiquette tips. Go beyond basics; include advice on dress codes for religious sites, dining etiquette, gift-giving, and social interactions.
+            -   **visaInfo:** Give a detailed but non-legally-binding overview of tourist visa policies for USA, UK, EU, and Australian citizens. Mention typical visa-free days, e-visa procedures, and possibilities for extension. Provide a link to an official immigration or embassy page if possible.
+            -   **emergencyNumbers:** List all key emergency contacts. Include Police, Ambulance, and Fire. Find the specific Tourist Police number if one exists. Also, provide any official public contact emails for these services where available.
         `;
         schema = CountryIntelSchema;
     }
 
-
     try {
-        const output = await generateWithFallback(prompt, schema);
+        const { output } = await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-pro', // Use the more powerful model for tool use
+            tools: [webSearch, scrapeWeb],
+            output: { schema },
+        });
+        
+        if (!output) {
+           throw new Error("The AI model returned an empty output.");
+        }
         return output;
+
     } catch (error) {
-        console.error(`[AI Flow] CRITICAL: Both models failed to generate intel for ${countryName}:`, error);
-        throw new Error(`The AI model could not generate travel information for ${countryName}. It might be a restricted or unsupported location.`);
+        console.error(`[AI Flow] CRITICAL: Model failed to generate intel for ${countryName}:`, error);
+        throw new Error(`The AI agent could not generate travel information for ${countryName}. It might be a restricted or unsupported location.`);
     }
   }
 );

@@ -21,7 +21,6 @@ import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { scrapeSourcesForCountry } from '@/actions/scraper';
 
 const aseanCountryCodes = ['BN', 'KH', 'ID', 'LA', 'MY', 'MM', 'PH', 'SG', 'TH', 'VN'];
 
@@ -98,33 +97,20 @@ function InfoHubContent() {
         setIsGeneratingIntel(true);
         setAiIntel(null);
         try {
-            // Step 1: Scrape data first (the "Check")
-            const scrapeResult = await scrapeSourcesForCountry(selectedCountryName);
-            
-            // This is now the definitive check. If scraping succeeds, we proceed.
-            // If it fails, we still proceed but pass an empty string to the AI.
-            // This ensures the user is charged for the AI check, as knowing there's no new info is valuable.
-            const contentForAI = scrapeResult.success ? scrapeResult.content : '';
-
-            // Step 2: Deduct tokens. This happens regardless of scrape success.
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
             if (!spendSuccess) {
-                // This check is a safeguard in case the balance changes between the button click and here.
                 throw new Error("Token spending failed. Your balance may have changed.");
             }
             
-            // Step 3: Call the AI flow with the scraped data (or empty string)
             const intel = await getCountryIntel({ 
                 countryName: selectedCountryName, 
                 isAseanCountry,
-                scrapedContent: contentForAI || '',
             });
 
             if (!intel || Object.keys(intel).length === 0) {
                  throw new Error("The AI returned an empty response. Please try again.");
             }
             
-            // Step 4: Update UI
             setAiIntel(intel);
             setActiveTab('latest');
              if (intel.latestAdvisory && intel.latestAdvisory.length > 0) {
@@ -216,7 +202,7 @@ function InfoHubContent() {
                                {isGeneratingIntel ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                                        <p className="ml-2 text-muted-foreground">Scraping sources & generating intel...</p>
+                                        <p className="ml-2 text-muted-foreground">AI agent is researching... this may take a moment.</p>
                                     </div>
                                 ) : aiIntel?.latestAdvisory && aiIntel.latestAdvisory.length > 0 ? (
                                     <ul className="list-disc pl-5 space-y-2 text-sm">
