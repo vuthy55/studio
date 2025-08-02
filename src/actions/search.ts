@@ -9,22 +9,25 @@ interface SearchResult {
     snippet: string;
 }
 
+interface SearchWebActionPayload {
+    query: string;
+    apiKey: string;
+    searchEngineId: string;
+}
+
 /**
  * Performs a web search using the Google Custom Search API.
  * This is a server-side action to protect the API key.
- * @param {string} query - The search query.
+ * @param {SearchWebActionPayload} payload - The search payload containing query and credentials.
  * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
  */
-export async function searchWebAction(query: string): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
-    const apiKey = process.env.GOOGLE_API_KEY;
-    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+export async function searchWebAction(payload: SearchWebActionPayload): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
+    const { query, apiKey, searchEngineId } = payload;
     
-    // Added for debugging to verify environment variables are loaded.
-    console.log(`[Search Action Debug] Using API Key: ${apiKey ? 'Loaded' : 'MISSING'}, Search Engine ID: ${searchEngineId ? 'Loaded' : 'MISSING'}`);
-
     if (!apiKey || !searchEngineId) {
-        console.error("Google Search API credentials are not configured on the server.");
-        return { success: false, error: "Google Search API key or Search Engine ID is not configured on the server." };
+        const errorMsg = "Google Search API key or Search Engine ID was not provided to the server action.";
+        console.error(errorMsg);
+        return { success: false, error: errorMsg };
     }
     
     const url = `https://www.googleapis.com/customsearch/v1`;

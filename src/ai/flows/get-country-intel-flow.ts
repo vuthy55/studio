@@ -49,7 +49,23 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
 
 async function searchAndVerify(query: string, debugLog: string[]): Promise<{content: string; url: string}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
-    const searchResult = await searchWebAction(query);
+    
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+    
+    debugLog.push(`[Intel Flow] (searchAndVerify) - API Key loaded: ${apiKey ? 'Yes' : 'No'}, Search Engine ID loaded: ${searchEngineId ? 'Yes' : 'No'}`);
+
+    if (!apiKey || !searchEngineId) {
+        debugLog.push('[Intel Flow] (searchAndVerify) - CRITICAL: API Key or Search Engine ID is missing from server environment.');
+        return [];
+    }
+
+    const searchResult = await searchWebAction({
+        query,
+        apiKey,
+        searchEngineId,
+    });
+
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
         debugLog.push(`[Intel Flow] (searchAndVerify) - Web search failed or returned no results for query: "${query}"`);
