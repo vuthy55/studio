@@ -40,6 +40,13 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
         if (score <= 7) return { color: 'text-amber-600' };
         return { color: 'text-green-600' };
     };
+    
+    const getSeverityAppearance = (score?: number) => {
+        if (typeof score !== 'number') return { color: 'text-muted-foreground' };
+        if (score >= 8) return { color: 'text-destructive' };
+        if (score >= 4) return { color: 'text-amber-600' };
+        return { color: 'text-green-600' };
+    };
 
     const mainScoreAppearance = getScoreAppearance(finalScore);
     
@@ -67,7 +74,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                        {Object.entries(categoryAssessments).map(([category, catScore]) => (
                             <div key={category} className="text-center p-2 rounded-lg bg-background border">
                                 <p className="text-sm font-semibold">{category}</p>
-                                <p className={cn("text-3xl font-bold", getScoreAppearance(10 - catScore).color)}>{catScore}/10</p>
+                                <p className={cn("text-3xl font-bold", getSeverityAppearance(catScore).color)}>{catScore}/10</p>
                             </div>
                         ))}
                     </CardContent>
@@ -79,7 +86,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                 <div className="p-4 border rounded-md bg-background text-sm text-muted-foreground whitespace-pre-wrap">
                     {summary}
                 </div>
-                <Card className="border-amber-500/50 bg-amber-500/10 mt-4">
+                 <Card className="border-amber-500/50 bg-amber-500/10 mt-4">
                     <CardContent className="p-3 text-amber-800 text-xs font-semibold">
                         Reminder: AI intelligence can make mistakes. Always double-check critical information with other sources.
                     </CardContent>
@@ -461,5 +468,4 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-
     
