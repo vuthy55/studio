@@ -54,7 +54,7 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
     score: z.number().min(0).max(10).describe('An overall travel safety score from 0 (very dangerous) to 10 (very safe).'),
-    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers.'),
+    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, including the number of verified articles reviewed.'),
     sources: z.array(z.object({
         url: z.string(),
         publishedDate: z.string().optional(),
@@ -111,9 +111,9 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
         debugLog.push(`[Intel Flow] Storing new intel in cache for ${countryName}.`);
         
         // Sanitize the data for Firestore: convert undefined to null
-        const intelForFirestore = JSON.parse(JSON.stringify(intel), (key, value) => {
+        const intelForFirestore = JSON.parse(JSON.stringify(intel, (key, value) => {
             return value === undefined ? null : value;
-        });
+        }));
 
         await cacheRef.set({
             intel: intelForFirestore,
@@ -280,7 +280,7 @@ const getCountryIntelFlow = ai.defineFlow(
       2.  **Generate a 3-paragraph summary.** 
           *   First, start with a direct statement about the current travel situation. Is it stable? Are there significant concerns?
           *   Next, detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
-          *   Finally, provide a concluding thought or recommendation for a backpacker. Should they be extra vigilant? Can they travel with standard precautions?
+          *   Finally, provide a concluding thought or recommendation for a backpacker. Should they be extra vigilant? Can they travel with standard precautions? This final paragraph must also state the total number of unique articles that were reviewed for this assessment.
 
       3.  **List of Sources:** Compile a simple list of all the unique source URLs and their publication dates that you used for this analysis.`,
       { categories: allSourcesByCategory },

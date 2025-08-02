@@ -248,7 +248,7 @@ function InfoHubContent() {
                                 <div className="space-y-4 text-sm py-4">
                                     <p><strong>1. Targeted Search:</strong> The system performs targeted Google searches across five key categories: official advisories, scams, theft, health, and political stability.</p>
                                     <p><strong>2. Source Verification:</strong> It only uses verifiable sources, focusing on government travel sites and reputable regional news outlets. Any source article older than 30 days is discarded.</p>
-                                    <p><strong>3. AI Analysis & Scoring:</strong> The content from these sources is fed to an AI which is instructed to act as a travel analyst. It generates a single risk score from -5 (High Risk) to +5 (Very Safe) based on all factors.</p>
+                                    <p><strong>3. AI Analysis & Scoring:</strong> The content from these sources is fed to an AI which is instructed to act as a travel analyst. It generates a single risk score from 0 (High Risk) to 10 (Very Safe) based on all factors.</p>
                                     <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues (including specific locations if mentioned), and a final recommendation for backpackers.</p>
                                 </div>
                             </DialogContent>
