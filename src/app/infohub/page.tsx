@@ -132,7 +132,7 @@ function InfoHubContent() {
                  toast({ title: 'No New Information', description: `Our search found no recent articles for ${selectedCountryName}.` });
             }
 
-        } catch (error: any) => {
+        } catch (error: any) {
             console.error("Error generating country intel:", error);
             toast({ 
                 variant: 'destructive', 
