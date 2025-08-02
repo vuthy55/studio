@@ -95,7 +95,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
                 <div className="flex-1">
-                    <h3 className="text-2xl font-bold">Overall Assessment</h3>
+                    <h3 className="text-2xl font-bold">Overall Travel Safety Score</h3>
                     {searchDate && (
                         <div className="text-sm text-muted-foreground mt-1">
                             <span>As of {format(searchDate, 'PPp')}</span>
@@ -103,14 +103,14 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                     )}
                 </div>
                  <div className="text-center">
-                    <p className="text-sm font-bold text-muted-foreground">FINAL RISK SCORE</p>
+                    <p className="text-sm font-bold text-muted-foreground">FINAL SCORE</p>
                     <p className={cn("text-6xl font-bold", mainScoreAppearance.color)}>{finalScore}</p>
                 </div>
             </div>
 
             {categoryAssessments && (
                  <Card>
-                    <CardHeader><CardTitle className="text-lg">Risk Breakdown</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-lg">Risk Severity Levels</CardTitle></CardHeader>
                     <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                        {Object.entries(categoryAssessments).map(([category, catScore]) => (
                             <div key={category} className="text-center p-2 rounded-lg bg-background border">

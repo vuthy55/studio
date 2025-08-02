@@ -22,7 +22,7 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
-    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers.'),
+    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, which MUST end with the sentence "This assessment is based on a review of [number] unique articles."'),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
@@ -31,7 +31,7 @@ const OverallAssessmentSchema = z.object({
         'Political Stability': z.number().min(0).max(10).describe("Severity score (0-10) for Political Stability."),
     }).describe("A key-value map where the key is the category name and the value is a severity score from 0 (low severity) to 10 (extreme severity)."),
     sourcesUsed: z.array(z.object({
-        url: z.string(),
+        url: z.string().url(),
         publishedDate: z.string().optional().nullable(),
     })).describe('A list of the specific source URLs and their publication dates that were most influential in writing the summary.')
 });
@@ -231,7 +231,7 @@ const getCountryIntelFlow = ai.defineFlow(
         3.  **Generate a 3-paragraph summary:**
             *   Paragraph 1: Start with a direct statement about the overall travel situation.
             *   Paragraph 2: Detail the *most important* issues affecting travelers, specifying the category.
-            *   Paragraph 3: Provide a concluding recommendation. This final paragraph **MUST** also state the total number of unique articles that were used for this assessment.
+            *   Paragraph 3: Provide a concluding recommendation. This final paragraph **MUST** end with the sentence: "This assessment is based on a review of [number] unique articles." where [number] is the count of URLs in your sourcesUsed list.
         `,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
