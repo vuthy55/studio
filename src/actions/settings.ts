@@ -45,7 +45,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         languageUnlockCost: 100,
         roomReminderMinutes: 5,
         infohubAiCost: 10,
-        infohubSources: 'https://www.state.gov/traveladvisories.html, https://www.gov.uk/foreign-travel-advice, https://www.smartraveller.gov.au/destinations',
+        infohubSources: 'https://www.state.gov/traveladvisories.html, https://www.gov.uk/foreign-travel-advice, https://www.smartraveller.gov.au/destinations, https://www.reuters.com/world/asia-pacific, https://www.bbc.com/news/world/asia',
     };
     
     try {
