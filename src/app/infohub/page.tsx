@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2 } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -21,10 +21,32 @@ import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 const aseanCountryCodes = ['BN', 'KH', 'ID', 'LA', 'MY', 'MM', 'PH', 'SG', 'TH', 'VN'];
 
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
+
+function ArticleList({ title, articles, icon: Icon }: { title: string, articles: CountryIntel['advisories'], icon: React.ElementType }) {
+    if (!articles || articles.length === 0) {
+        return null;
+    }
+    return (
+        <div className="space-y-3">
+             <h3 className="text-lg font-semibold flex items-center gap-2"><Icon className="h-5 w-5 text-primary" /> {title}</h3>
+            <ul className="space-y-2 border-l-2 border-muted pl-4">
+                {articles.map((item, index) => (
+                    <li key={`article-${index}`} className="p-2 rounded-md hover:bg-muted/50">
+                        <a href={item.link} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                            {item.title}
+                        </a>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.snippet}</p>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
 
 function InfoHubContent() {
     const { user, loading: authLoading, userProfile, settings, spendTokensForTranslation } = useUserData();
@@ -61,18 +83,10 @@ function InfoHubContent() {
     }, [selectedCountryCode]);
     
     // Derived data sources for rendering
-    const holidays = useMemo(() => aiIntel?.majorHolidays || (isAseanCountry ? staticHolidays : []), [aiIntel, staticHolidays, isAseanCountry]);
-    const etiquette = useMemo(() => aiIntel?.culturalEtiquette || (isAseanCountry ? staticEtiquette : []), [aiIntel, staticEtiquette, isAseanCountry]);
-    const visa = useMemo(() => aiIntel?.visaInfo || (isAseanCountry ? staticVisa : ''), [aiIntel, staticVisa, isAseanCountry]);
-    const emergencyList = useMemo(() => {
-        if (aiIntel?.emergencyNumbers) {
-             return Object.entries(aiIntel.emergencyNumbers).map(([key, value]) => ({
-                label: key.replace(/([A-Z])/g, ' $1').trim(),
-                number: value
-            }));
-        }
-        return isAseanCountry ? staticEmergency : [];
-    }, [aiIntel, staticEmergency, isAseanCountry]);
+    const holidays = useMemo(() => staticHolidays, [staticHolidays]);
+    const etiquette = useMemo(() => staticEtiquette, [staticEtiquette]);
+    const visa = useMemo(() => staticVisa, [staticVisa]);
+    const emergencyList = useMemo(() => staticEmergency, [staticEmergency]);
 
     const handleCountrySelection = (countryCode: string) => {
         setSelectedCountryCode(countryCode);
@@ -112,17 +126,17 @@ function InfoHubContent() {
             
             setAiIntel(intel);
             setActiveTab('latest');
-             if (intel.latestAdvisory && intel.latestAdvisory.length > 0) {
-                 toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
+             if (Object.values(intel).some(arr => arr && arr.length > 0)) {
+                 toast({ title: 'Intel Generated', description: `Successfully found the latest information for ${selectedCountryName}.` });
             } else {
-                 toast({ title: 'No New Advisories', description: `Our check found no recent critical advisories for ${selectedCountryName}.` });
+                 toast({ title: 'No New Information', description: `Our search found no recent articles for ${selectedCountryName}.` });
             }
 
-        } catch (error: any) {
+        } catch (error: any) => {
             console.error("Error generating country intel:", error);
             toast({ 
                 variant: 'destructive', 
-                title: 'AI Generation Failed', 
+                title: 'AI Task Failed', 
                 description: `${error.message}`,
                 duration: 7000
             });
@@ -161,7 +175,7 @@ function InfoHubContent() {
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
                     <CardDescription>
-                        Select a country to view standard information. For ASEAN countries, this info is free. For the absolute latest on any country, use our AI service.
+                        Select a country to view standard information. For the absolute latest on any country, use our AI service.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -184,14 +198,19 @@ function InfoHubContent() {
                 <>
                 <Card>
                     <CardHeader>
-                        <CardTitle>AI-Powered Intel for {selectedCountryName}</CardTitle>
-                        <CardDescription>Click the button below to get the latest, real-time travel advisories, scams, and cultural tips for your selected country.</CardDescription>
+                        <CardTitle>AI-Powered Intel Search for {selectedCountryName}</CardTitle>
+                        <CardDescription>Click to search for the latest travel advisories, scams, and more for your selected country.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || (userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10)}>
-                            {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
-                            Get Latest AI Intel ({settings?.infohubAiCost || 10} Tokens)
-                        </Button>
+                        <div className="flex items-center gap-4">
+                            <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || (userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10)}>
+                                {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
+                                Get Latest Intel
+                            </Button>
+                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base">
+                                <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
+                            </Badge>
+                        </div>
                         {(userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10) && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
                     </CardContent>
                 </Card>
@@ -208,36 +227,29 @@ function InfoHubContent() {
                     <TabsContent value="latest" className="mt-4">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Latest Advisories & Scams</CardTitle>
-                                <CardDescription>This information is generated by our AI and reflects recent data.</CardDescription>
+                                <CardTitle>Latest Intelligence</CardTitle>
+                                <CardDescription>This information is gathered from live web searches on your behalf.</CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="space-y-6">
                                {isGeneratingIntel ? (
                                     <div className="flex justify-center items-center py-8">
                                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                                        <p className="ml-2 text-muted-foreground">AI agent is researching... this may take a moment.</p>
+                                        <p className="ml-2 text-muted-foreground">Searching and verifying sources... this may take a moment.</p>
                                     </div>
-                                ) : aiIntel?.latestAdvisory && aiIntel.latestAdvisory.length > 0 ? (
-                                    <ul className="space-y-4 text-sm">
-                                        {aiIntel.latestAdvisory.map((item, index) => (
-                                            <li key={`advisory-${index}`} className="border-l-4 border-primary pl-4 py-2 bg-muted/50">
-                                                <p>{item.advisory}</p>
-                                                {item.source && (
-                                                    <a 
-                                                        href={item.source} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer" 
-                                                        className="text-primary hover:underline text-xs flex items-center gap-1 mt-2"
-                                                    >
-                                                        <LinkIcon className="h-3 w-3" />
-                                                        Source
-                                                    </a>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
+                                ) : aiIntel ? (
+                                    <>
+                                        <ArticleList title="Official Advisories" articles={aiIntel.advisories} icon={ShieldAlert} />
+                                        <ArticleList title="Scams & Fraud" articles={aiIntel.scams} icon={Briefcase} />
+                                        <ArticleList title="Theft & Safety" articles={aiIntel.theft} icon={BookUser} />
+                                        <ArticleList title="Health & Disease" articles={aiIntel.health} icon={Syringe} />
+                                        <ArticleList title="Political Situation" articles={aiIntel.political} icon={Building2} />
+                                        
+                                        {Object.values(aiIntel).every(arr => !arr || arr.length === 0) && (
+                                            <p className="text-sm text-center text-muted-foreground py-8">No recent articles found for these categories.</p>
+                                        )}
+                                    </>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground">Use "Get Latest AI Intel" to view real-time advisories.</p>
+                                    <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>
                                 )}
                             </CardContent>
                         </Card>
@@ -248,7 +260,7 @@ function InfoHubContent() {
                              <CardHeader>
                                 <CardTitle>Major Festivals & Holidays</CardTitle>
                                 <CardDescription>
-                                    {aiIntel && !isAseanCountry ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information (Free)' : 'Use AI to fetch data for non-ASEAN countries.'}
+                                    Standard information for {selectedCountryName}.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -281,7 +293,7 @@ function InfoHubContent() {
                                         </TableBody>
                                     </Table>
                                ) : (
-                                   <p className="text-sm text-muted-foreground">No standard data available. Use the AI feature to fetch information for this country.</p>
+                                   <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                )}
                             </CardContent>
                         </Card>
@@ -292,7 +304,7 @@ function InfoHubContent() {
                             <CardHeader>
                                 <CardTitle>Cultural Etiquette</CardTitle>
                                 <CardDescription>
-                                     {aiIntel && !isAseanCountry ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information (Free)' : 'Use AI to fetch data for non-ASEAN countries.'}
+                                     Standard information for {selectedCountryName}.
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
@@ -301,7 +313,7 @@ function InfoHubContent() {
                                         {etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
                                     </ul>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground">No standard data available. Use the AI feature to fetch information for this country.</p>
+                                    <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                 )}
                              </CardContent>
                         </Card>
@@ -312,11 +324,11 @@ function InfoHubContent() {
                              <CardHeader>
                                 <CardTitle>Visa Information</CardTitle>
                                 <CardDescription>
-                                     {aiIntel && !isAseanCountry ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information - Always verify with an embassy' : 'Use AI to fetch data for non-ASEAN countries.'}
+                                     Standard information for {selectedCountryName} - Always verify with an official embassy.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                 <p className="text-sm">{visa || 'No standard data available. Use AI to fetch data for this country.'}</p>
+                                 <p className="text-sm">{visa || 'No standard data available for this country.'}</p>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -326,7 +338,7 @@ function InfoHubContent() {
                             <CardHeader>
                                 <CardTitle>Emergency Numbers</CardTitle>
                                  <CardDescription>
-                                    {aiIntel && !isAseanCountry ? 'AI-Generated Data' : isAseanCountry ? 'Standard Information' : 'Use AI to fetch data for non-ASEAN countries.'}
+                                    Standard information for {selectedCountryName}.
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
@@ -342,7 +354,7 @@ function InfoHubContent() {
                                     </TableBody>
                                  </Table>
                                  ) : (
-                                     <p className="text-sm text-muted-foreground">No standard data available. Use AI to fetch data for this country.</p>
+                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                  )}
                              </CardContent>
                         </Card>
