@@ -59,7 +59,7 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                 </div>
                  <div className="text-center">
                     <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
-                    <p className={cn("text-6xl font-bold", color)}>{score}</p>
+                    <p className={cn("text-6xl font-bold", color)}>{score > 0 ? `+${score}`: score}</p>
                 </div>
             </div>
             
@@ -237,7 +237,9 @@ function InfoHubContent() {
                                 <DialogHeader>
                                     <DialogTitle>How "Latest Intel" Works</DialogTitle>
                                     <DialogDescription>
-                                        Our AI analyst provides a real-time risk assessment for travelers. Here's the process:
+                                        Our AI analyst provides a real-time risk assessment for travelers. Here's the process.
+                                        <br/><br/>
+                                        <strong className="text-destructive">Disclaimer:</strong> While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions. We are not responsible for any unintentional errors.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 text-sm py-4">
@@ -437,7 +439,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-
-    
-
-    
