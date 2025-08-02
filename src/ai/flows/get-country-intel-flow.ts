@@ -61,30 +61,21 @@ const getCountryIntelFlow = ai.defineFlow(
   },
   async ({ countryName }) => {
     
-    // 1. Perform web searches
-    const queries = [
-      `travel advisory ${countryName} official`,
-      `common tourist scams ${countryName}`,
-      `${countryName} local news`,
-    ];
-
+    // DEBUGGING: Hardcode a known working URL to test scraping and summarization.
+    const testUrls = [{ link: 'https://edition.cnn.com/' }];
     let searchContext = '';
     
-    for (const query of queries) {
-      const searchResult = await searchWebAction(query);
-      if (searchResult.success && searchResult.results) {
-        for (const result of searchResult.results) {
-          // 2. Scrape the content of each search result URL
-          const scrapeResult = await scrapeUrlAction(result.link);
-          if (scrapeResult.success && scrapeResult.data) {
-            searchContext += `\n\n--- Source: ${result.link} ---\n${scrapeResult.data.content.substring(0, 2000)}`;
-          }
+    for (const result of testUrls) {
+        const scrapeResult = await scrapeUrlAction(result.link);
+        if (scrapeResult.success && scrapeResult.data) {
+          searchContext += `\n\n--- Source: ${result.link} ---\n${scrapeResult.data.content.substring(0, 3000)}`;
+        } else {
+            console.warn(`[AI Flow] Failed to scrape ${result.link}: ${scrapeResult.error}`);
         }
-      }
     }
     
     if (!searchContext) {
-      console.warn(`[AI Flow] No web search results or content found for ${countryName}. Relying on internal knowledge.`);
+      console.warn(`[AI Flow] No web context could be scraped for ${countryName}. Relying on internal knowledge.`);
     }
 
     // 3. Call the AI for summarization
