@@ -278,7 +278,7 @@ function InfoHubContent() {
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-4">
-                            <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || (userProfile?.tokenBalance ?? 0) &lt; (settings?.infohubAiCost ?? 10)}>
+                            <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || (userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10)}>
                                 {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>}
                                 Get Latest Intel
                             </Button>
@@ -286,155 +286,155 @@ function InfoHubContent() {
                                 <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
                             </Badge>
                         </div>
-                        {(userProfile?.tokenBalance ?? 0) &lt; (settings?.infohubAiCost ?? 10) && &lt;p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
+                        {(userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10) && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
                     </CardContent>
                 </Card>
 
-                 &lt;Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InfoTab)} className="w-full">
-                    &lt;TabsList className="grid w-full grid-cols-5">
-                        &lt;TabsTrigger value="latest">&lt;AlertTriangle className="mr-2"/> Latest&lt;/TabsTrigger>
-                        &lt;TabsTrigger value="holidays">&lt;Calendar className="mr-2"/> Holidays&lt;/TabsTrigger>
-                        &lt;TabsTrigger value="etiquette">&lt;Hand className="mr-2"/> Etiquette&lt;/TabsTrigger>
-                        &lt;TabsTrigger value="visa">&lt;ShieldAlert className="mr-2"/> Visa&lt;/TabsTrigger>
-                        &lt;TabsTrigger value="emergency">&lt;Phone className="mr-2"/> Emergency&lt;/TabsTrigger>
-                    &lt;/TabsList>
+                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InfoTab)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-5">
+                        <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>
+                        <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
+                        <TabsTrigger value="etiquette"><Hand className="mr-2"/> Etiquette</TabsTrigger>
+                        <TabsTrigger value="visa"><ShieldAlert className="mr-2"/> Visa</TabsTrigger>
+                        <TabsTrigger value="emergency"><Phone className="mr-2"/> Emergency</TabsTrigger>
+                    </TabsList>
 
-                    &lt;TabsContent value="latest" className="mt-4">
-                        &lt;Card>
-                            &lt;CardHeader>
-                                &lt;CardTitle>Latest Intelligence&lt;/CardTitle>
-                                &lt;CardDescription>This information is summarized by AI based on verified, recent web sources.&lt;/CardDescription>
-                            &lt;/CardHeader>
-                            &lt;CardContent className="space-y-6">
+                    <TabsContent value="latest" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Latest Intelligence</CardTitle>
+                                <CardDescription>This information is summarized by AI based on verified, recent web sources.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
                                {isGeneratingIntel ? (
-                                    &lt;div className="flex justify-center items-center py-8">
-                                        &lt;LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                                        &lt;p className="ml-2 text-muted-foreground">Generating AI briefing...</p>
-                                    &lt;/div>
+                                    <div className="flex justify-center items-center py-8">
+                                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                                        <p className="ml-2 text-muted-foreground">Generating AI briefing...</p>
+                                    </div>
                                 ) : (
-                                    &lt;LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} fromCache={resultFromCache} />
+                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} fromCache={resultFromCache} />
                                 )}
-                            &lt;/CardContent>
-                        &lt;/Card>
-                    &lt;/TabsContent>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                    &lt;TabsContent value="holidays" className="mt-4">
-                        &lt;Card>
-                             &lt;CardHeader>
-                                &lt;CardTitle>Major Festivals &amp; Holidays&lt;/CardTitle>
-                                &lt;CardDescription>
+                    <TabsContent value="holidays" className="mt-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle>Major Festivals &amp; Holidays</CardTitle>
+                                <CardDescription>
                                     Standard information for {selectedCountryName}.
-                                &lt;/CardDescription>
-                            &lt;/CardHeader>
-                            &lt;CardContent>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
                                {holidays.length > 0 ? (
-                                   &lt;Table>
-                                        &lt;TableHeader>
-                                            &lt;TableRow>
-                                                &lt;TableHead>Date&lt;/TableHead>
-                                                &lt;TableHead>Event&lt;/TableHead>
-                                                &lt;TableHead>Description&lt;/TableHead>
-                                            &lt;/TableRow>
-                                        &lt;/TableHeader>
-                                        &lt;TableBody>
+                                   <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Event</TableHead>
+                                                <TableHead>Description</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
                                             {holidays.map((event: any, index: number) => (
-                                                &lt;TableRow key={index}>
-                                                    &lt;TableCell className="whitespace-nowrap">{formatDateSafely(event.date)}&lt;/TableCell>
-                                                    &lt;TableCell className="font-medium">
+                                                <TableRow key={index}>
+                                                    <TableCell className="whitespace-nowrap">{formatDateSafely(event.date)}</TableCell>
+                                                    <TableCell className="font-medium">
                                                         {event.link ? (
-                                                            &lt;a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
+                                                            <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
                                                                 {event.name}
-                                                                &lt;LinkIcon className="h-3 w-3"/>
-                                                            &lt;/a>
+                                                                <LinkIcon className="h-3 w-3"/>
+                                                            </a>
                                                         ) : (
                                                             event.name
                                                         )}
-                                                    &lt;/TableCell>
-                                                    &lt;TableCell>{event.description}&lt;/TableCell>
-                                                &lt;/TableRow>
+                                                    </TableCell>
+                                                    <TableCell>{event.description}</TableCell>
+                                                </TableRow>
                                             ))}
-                                        &lt;/TableBody>
-                                    &lt;/Table>
+                                        </TableBody>
+                                    </Table>
                                ) : (
-                                   &lt;p className="text-sm text-muted-foreground">No standard data available for this country.&lt;/p>
+                                   <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                )}
-                            &lt;/CardContent>
-                        &lt;/Card>
-                    &lt;/TabsContent>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                    &lt;TabsContent value="etiquette" className="mt-4">
-                        &lt;Card>
-                            &lt;CardHeader>
-                                &lt;CardTitle>Cultural Etiquette&lt;/CardTitle>
-                                &lt;CardDescription>
+                    <TabsContent value="etiquette" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Cultural Etiquette</CardTitle>
+                                <CardDescription>
                                      Standard information for {selectedCountryName}.
-                                &lt;/CardDescription>
-                            &lt;/CardHeader>
-                             &lt;CardContent>
+                                </CardDescription>
+                            </CardHeader>
+                             <CardContent>
                                 {etiquette.length > 0 ? (
-                                    &lt;ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {etiquette.map((item, index) => &lt;li key={`etiquette-${index}`}>{item}&lt;/li>)}
-                                    &lt;/ul>
+                                    <ul className="list-disc pl-5 space-y-2 text-sm">
+                                        {etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                    </ul>
                                 ) : (
-                                    &lt;p className="text-sm text-muted-foreground">No standard data available for this country.&lt;/p>
+                                    <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                 )}
-                             &lt;/CardContent>
-                        &lt;/Card>
-                    &lt;/TabsContent>
+                             </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                    &lt;TabsContent value="visa" className="mt-4">
-                        &lt;Card>
-                             &lt;CardHeader>
-                                &lt;CardTitle>Visa Information&lt;/CardTitle>
-                                &lt;CardDescription>
+                    <TabsContent value="visa" className="mt-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle>Visa Information</CardTitle>
+                                <CardDescription>
                                      Standard information for {selectedCountryName} - Always verify with an official embassy.
-                                &lt;/CardDescription>
-                            &lt;/CardHeader>
-                            &lt;CardContent>
-                                 &lt;p className="text-sm">{visa || 'No standard data available for this country.'}&lt;/p>
-                            &lt;/CardContent>
-                        &lt;/Card>
-                    &lt;/TabsContent>
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                 <p className="text-sm">{visa || 'No standard data available for this country.'}</p>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                     
-                    &lt;TabsContent value="emergency" className="mt-4">
-                        &lt;Card>
-                            &lt;CardHeader>
-                                &lt;CardTitle>Emergency Numbers&lt;/CardTitle>
-                                 &lt;CardDescription>
+                    <TabsContent value="emergency" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Emergency Numbers</CardTitle>
+                                 <CardDescription>
                                     Standard information for {selectedCountryName}.
-                                &lt;/CardDescription>
-                            &lt;/CardHeader>
-                             &lt;CardContent>
+                                </CardDescription>
+                            </CardHeader>
+                             <CardContent>
                                 {emergencyList.length > 0 ? (
-                                 &lt;Table>
-                                    &lt;TableBody>
+                                 <Table>
+                                    <TableBody>
                                         {emergencyList.map((item, index) => (
-                                            &lt;TableRow key={index}>
-                                                &lt;TableCell className="font-medium capitalize">{item.label}&lt;/TableCell>
-                                                &lt;TableCell className="font-mono">{item.number}&lt;/TableCell>
-                                            &lt;/TableRow>
+                                            <TableRow key={index}>
+                                                <TableCell className="font-medium capitalize">{item.label}</TableCell>
+                                                <TableCell className="font-mono">{item.number}</TableCell>
+                                            </TableRow>
                                         ))}
-                                    &lt;/TableBody>
-                                 &lt;/Table>
+                                    </TableBody>
+                                 </Table>
                                  ) : (
-                                     &lt;p className="text-sm text-muted-foreground">No standard data available for this country.&lt;/p>
+                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                  )}
-                             &lt;/CardContent>
-                        &lt;/Card>
-                    &lt;/TabsContent>
+                             </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                 &lt;/Tabs>
-                &lt;/>
+                 </Tabs>
+                </>
             )}
-        &lt;/div>
+        </div>
     );
 }
 
 export default function InfoHubPage() {
     return (
-        &lt;Suspense fallback=&lt;div className="flex justify-center items-center h-[calc(100vh-8rem)]">&lt;LoaderCircle className="h-10 w-10 animate-spin text-primary" />&lt;/div>>
-            &lt;InfoHubContent />
-        &lt;/Suspense>
+        <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <InfoHubContent />
+        </Suspense>
     );
 }
 
