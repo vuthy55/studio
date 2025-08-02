@@ -130,6 +130,20 @@ function InfoHubContent() {
             setIsGeneratingIntel(false);
         }
     };
+
+    // Helper function to safely format dates
+    const formatDateSafely = (dateString: string) => {
+        // Check for YYYY-MM-DD format specifically for static data
+        if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+            try {
+                return format(new Date(dateString), 'MMMM d');
+            } catch (e) {
+                return dateString; // Fallback for invalid but matching formats
+            }
+        }
+        // For other formats (like "Late January" from AI), just return the string
+        return dateString;
+    };
     
     if (authLoading || !user) {
         return (
@@ -239,7 +253,7 @@ function InfoHubContent() {
                                         <TableBody>
                                             {holidays.map((event: any, index: number) => (
                                                 <TableRow key={index}>
-                                                    <TableCell className="whitespace-nowrap">{aiIntel && !isAseanCountry ? event.date : format(new Date(event.date), 'MMMM d')}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">{formatDateSafely(event.date)}</TableCell>
                                                     <TableCell className="font-medium">
                                                         {event.link ? (
                                                             <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
