@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -28,69 +28,21 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 
 function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
-    if (!intel || !intel.finalScore) {
+    if (!intel || intel.finalScore === undefined) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
     const { finalScore, summary, sourcesUsed, categoryAssessments, allReviewedSources } = intel;
 
-    const getScoreAppearance = (currentScore?: number) => {
-        if (typeof currentScore !== 'number') return { color: 'text-muted-foreground', icon: <Info className="h-full w-full" /> };
-        if (currentScore <= 3) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
-        if (currentScore <= 7) return { color: 'text-amber-600', icon: <Info className="h-full w-full" /> };
-        return { color: 'text-green-600', icon: <CheckCircle2 className="h-full w-full" /> };
+    const getScoreAppearance = (score?: number) => {
+        if (typeof score !== 'number') return { color: 'text-muted-foreground' };
+        if (score <= 3) return { color: 'text-destructive' };
+        if (score <= 7) return { color: 'text-amber-600' };
+        return { color: 'text-green-600' };
     };
 
     const mainScoreAppearance = getScoreAppearance(finalScore);
     
-    const summaryWithClickableLink = () => {
-        if (!summary) return null;
-        
-        const countMatch = summary.match(/This assessment is based on a review of (\d+) unique articles/);
-        
-        if (countMatch && sourcesUsed && sourcesUsed.length > 0) {
-            const count = countMatch[1];
-            const parts = summary.split(countMatch[0]);
-            return (
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    <p>{parts[0]}</p>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on a review of {count} unique articles</span>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                            <div className="grid gap-4">
-                                <div className="space-y-1">
-                                    <h4 className="font-medium leading-none">Key Sources Used in Summary</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                        These articles were most influential.
-                                    </p>
-                                </div>
-                                <ScrollArea className="h-48">
-                                     <ul className="list-disc pl-5 text-sm space-y-1">
-                                        {sourcesUsed?.map((source, index) => (
-                                            <li key={`used-${index}`}>
-                                                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                                                    {source.url}
-                                                </a>
-                                                {source.publishedDate && (
-                                                    <span className="text-muted-foreground text-xs ml-2">({format(new Date(source.publishedDate), 'MMM d, yyyy')})</span>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                 </ScrollArea>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-                    <p>{parts[1]}</p>
-                </div>
-            );
-        }
-        return <div className="text-sm text-muted-foreground whitespace-pre-wrap">{summary}</div>
-    };
-
-
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
@@ -104,7 +56,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                 </div>
                  <div className="text-center">
                     <p className="text-sm font-bold text-muted-foreground">FINAL SCORE</p>
-                    <p className={cn("text-6xl font-bold", mainScoreAppearance.color)}>{finalScore}</p>
+                    <p className={cn("text-6xl font-bold", mainScoreAppearance.color)}>{finalScore}/10</p>
                 </div>
             </div>
 
@@ -115,7 +67,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                        {Object.entries(categoryAssessments).map(([category, catScore]) => (
                             <div key={category} className="text-center p-2 rounded-lg bg-background border">
                                 <p className="text-sm font-semibold">{category}</p>
-                                <p className="text-3xl font-bold">{catScore}/10</p>
+                                <p className={cn("text-3xl font-bold", getScoreAppearance(10 - catScore).color)}>{catScore}/10</p>
                             </div>
                         ))}
                     </CardContent>
@@ -124,9 +76,14 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
 
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
-                <div className="p-4 border rounded-md bg-background">
-                    {summaryWithClickableLink()}
+                <div className="p-4 border rounded-md bg-background text-sm text-muted-foreground whitespace-pre-wrap">
+                    {summary}
                 </div>
+                <Card className="border-amber-500/50 bg-amber-500/10 mt-4">
+                    <CardContent className="p-3 text-amber-800 text-xs font-semibold">
+                        Reminder: AI intelligence can make mistakes. Always double-check critical information with other sources.
+                    </CardContent>
+                </Card>
             </div>
 
             {sourcesUsed && sourcesUsed.length > 0 && (
@@ -135,7 +92,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                     <div className="border rounded-md p-4 space-y-1">
                          <ul className="list-disc pl-5 space-y-1 text-sm">
                             {sourcesUsed.map((source, index) => (
-                                <li key={`displayed-source-${index}`}>
+                                <li key={`used-source-${index}`}>
                                     <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
                                         {source.url}
                                     </a>
@@ -246,7 +203,7 @@ function InfoHubContent() {
             log.forEach(l => console.log(l));
             console.log("--- End Debug Log ---");
             
-            if (!intel || !intel.finalScore) {
+            if (!intel || intel.finalScore === undefined) {
                  throw new Error("The AI returned an empty or invalid response. Please check the debug logs in the console.");
             }
             
@@ -310,7 +267,7 @@ function InfoHubContent() {
                                 <div className="space-y-4 text-sm py-4">
                                     <p><strong>1. Targeted Search:</strong> The system performs targeted Google searches across five key categories: official advisories, scams, theft, health, and political stability.</p>
                                     <p><strong>2. Source Verification:</strong> It only uses verifiable sources, focusing on government travel sites and reputable regional news outlets. Any source article older than 30 days is discarded.</p>
-                                    <p><strong>3. Scoring and Analysis:</strong> The AI assigns a 0-10 severity score to each category. A final, weighted score is calculated, giving more importance to political stability and official advisories. "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score.</p>
+                                    <p><strong>3. Scoring and Analysis:</strong> The AI assigns a 0-10 severity score to each category, where 10 is the most severe. A final, weighted score is calculated, giving more importance to political stability and official advisories. "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score.</p>
                                     <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a list of the key articles it used for its analysis.</p>
                                 </div>
                             </DialogContent>
@@ -362,7 +319,7 @@ function InfoHubContent() {
                         <TabsTrigger value="latest"><AlertTriangle className="mr-2"/> Latest</TabsTrigger>
                         <TabsTrigger value="holidays"><Calendar className="mr-2"/> Holidays</TabsTrigger>
                         <TabsTrigger value="etiquette"><Hand className="mr-2"/> Etiquette</TabsTrigger>
-                        <TabsTrigger value="visa"><ShieldAlert className="mr-2"/> Visa</TabsTrigger>
+                        <TabsTrigger value="visa"><Building2 className="mr-2"/> Visa</TabsTrigger>
                         <TabsTrigger value="emergency"><Phone className="mr-2"/> Emergency</TabsTrigger>
                     </TabsList>
 
@@ -504,3 +461,5 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
+
+    
