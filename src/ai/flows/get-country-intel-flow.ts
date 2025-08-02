@@ -53,7 +53,7 @@ async function searchAndVerify(query: string, debugLog: string[]): Promise<{cont
     const apiKey = process.env.GOOGLE_API_KEY;
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
-    debugLog.push(`[Intel Flow] (searchAndVerify) - API Key loaded: ${apiKey ? 'Yes' : 'No'}, Search Engine ID loaded: ${searchEngineId ? 'Yes' : 'No'}`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - API Key Used: "${apiKey}", Search Engine ID Used: "${searchEngineId}"`);
 
     if (!apiKey || !searchEngineId) {
         debugLog.push('[Intel Flow] (searchAndVerify) - CRITICAL: API Key or Search Engine ID is missing from server environment.');
