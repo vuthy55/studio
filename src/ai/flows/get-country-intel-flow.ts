@@ -14,6 +14,35 @@ import { getAppSettingsAction } from '@/actions/settings';
 import { subDays, parseISO } from 'date-fns';
 
 
+// --- Source Definitions for Targeted Searches ---
+
+const REGIONAL_NEWS_SITES = [
+    'channelnewsasia.com',
+    'straitstimes.com',
+    'bangkokpost.com',
+    'thejakartapost.com',
+    'vietnamnews.vn',
+    'irrawaddy.com',
+    'asean.org',
+    'aljazeera.com', // Regional perspective
+    'bbc.com/news/world/asia', // Regional perspective
+    'reuters.com/world/asia-pacific' // Regional perspective
+];
+
+const LOCAL_NEWS_SITES: Record<string, string[]> = {
+    'Cambodia': ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'],
+    'Vietnam': ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'],
+    'Thailand': ['bangkokpost.com', 'nationthailand.com', 'thaipbsworld.com'],
+    'Malaysia': ['thestar.com.my', 'malaysiakini.com', 'freemalaysiatoday.com'],
+    'Indonesia': ['thejakartapost.com', 'en.tempo.co', 'antaranews.com'],
+    'Philippines': ['rappler.com', 'inquirer.net', 'philstar.com'],
+    'Singapore': ['straitstimes.com', 'todayonline.com', 'channelnewsasia.com'],
+    'Myanmar': ['irrawaddy.com', 'frontiermyanmar.net'],
+    'Laos': ['laotiantimes.com', 'vientianetimes.org.la'],
+    'Brunei': ['thebruneian.news', 'borneobulletin.com.bn']
+};
+
+
 // --- Zod Schemas for Input/Output ---
 
 const GetCountryIntelInputSchema = z.object({
@@ -61,7 +90,11 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
 
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
-        debugLog.push(`[Intel Flow] (searchAndVerify) - Web search failed or returned no results for query: "${query}". Reason: ${searchResult.error || 'No results'}`);
+        let errorDetails = searchResult.error || 'No results';
+        if(searchResult.error?.includes("403")) {
+            errorDetails = "The provided API key does not have permission to access the Custom Search API. Please check your Google Cloud Console configuration.";
+        }
+        debugLog.push(`[Intel Flow] (searchAndVerify) - Web search failed or returned no results for query: "${query}". Reason: ${errorDetails}`);
         return [];
     }
     
@@ -117,6 +150,8 @@ const generateSummaryWithFallback = async (prompt: string, context: { sources: {
     }
 };
 
+const buildSiteSearchQuery = (sites: string[]): string => sites.map(s => `site:${s.trim()}`).join(' OR ');
+
 // --- Genkit Flow Definition ---
 const getCountryIntelFlow = ai.defineFlow(
   {
@@ -127,14 +162,17 @@ const getCountryIntelFlow = ai.defineFlow(
   async ({ countryName, debugLog }) => {
     
     const settings = await getAppSettingsAction();
-    const siteQuery = settings.infohubSources?.split(',').map(s => `site:${s.trim()}`).join(' OR ') || '';
-    
+    const governmentSitesQuery = settings.infohubSources ? buildSiteSearchQuery(settings.infohubSources.split(',')) : '';
+    const regionalNewsQuery = buildSiteSearchQuery(REGIONAL_NEWS_SITES);
+    const localNewsQuery = buildSiteSearchQuery(LOCAL_NEWS_SITES[countryName] || []);
+
+
     const categories = {
-        latestAdvisory: `official government travel advisory ${countryName} ${siteQuery}`,
-        scams: `tourist scams ${countryName}`,
-        theft: `theft robbery kidnapping risk ${countryName}`,
-        health: `health risks disease outbreaks ${countryName}`,
-        political: `political situation protests unrest ${countryName}`
+        latestAdvisory: `official government travel advisory ${countryName} ${governmentSitesQuery}`,
+        scams: `(tourist scams OR fraud) ${countryName} ${regionalNewsQuery}`,
+        theft: `(theft OR robbery OR kidnapping) risk ${countryName} ${localNewsQuery}`,
+        health: `(health risks OR disease outbreaks) ${countryName} ${localNewsQuery}`,
+        political: `(political situation OR protests OR unrest) ${countryName} ${localNewsQuery} OR ${regionalNewsQuery}`
     };
 
     const apiKey = process.env.GOOGLE_API_KEY;
