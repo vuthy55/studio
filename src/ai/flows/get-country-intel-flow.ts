@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
+import { getAppSettingsAction } from '@/actions/settings';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -47,19 +48,9 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
 
 // --- Helper Functions ---
 
-async function searchAndVerify(query: string, debugLog: string[]): Promise<{content: string; url: string}[]> {
+async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     
-    const apiKey = process.env.GOOGLE_API_KEY;
-    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
-    
-    debugLog.push(`[Intel Flow] (searchAndVerify) - API Key Used: "${apiKey}", Search Engine ID Used: "${searchEngineId}"`);
-
-    if (!apiKey || !searchEngineId) {
-        debugLog.push('[Intel Flow] (searchAndVerify) - CRITICAL: API Key or Search Engine ID is missing from server environment.');
-        return [];
-    }
-
     const searchResult = await searchWebAction({
         query,
         apiKey,
@@ -68,13 +59,13 @@ async function searchAndVerify(query: string, debugLog: string[]): Promise<{cont
 
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
-        debugLog.push(`[Intel Flow] (searchAndVerify) - Web search failed or returned no results for query: "${query}"`);
+        debugLog.push(`[Intel Flow] (searchAndVerify) - Web search failed or returned no results for query: "${query}". Reason: ${searchResult.error || 'No results'}`);
         return [];
     }
     
     debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources.`);
     const verifiedSources = [];
-    for (const item of searchResult.results) {
+    for (const item of searchResult.results.slice(0, 3)) { // Limit to top 3 results per query
         debugLog.push(`[Intel Flow] (searchAndVerify) - Scraping URL: ${item.link}`);
         const scrapeResult = await scrapeUrlAction(item.link);
         if (scrapeResult.success && scrapeResult.content) {
@@ -84,7 +75,7 @@ async function searchAndVerify(query: string, debugLog: string[]): Promise<{cont
             debugLog.push(`[Intel Flow] (searchAndVerify) - FAILED scraping ${item.link}. Reason: ${scrapeResult.error}`);
         }
     }
-    debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} out of ${searchResult.results.length} sources for query: "${query}"`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} out of ${Math.min(3, searchResult.results.length)} sources for query: "${query}"`);
     return verifiedSources;
 }
 
@@ -117,17 +108,29 @@ const getCountryIntelFlow = ai.defineFlow(
   },
   async ({ countryName, debugLog }) => {
     
+    const settings = await getAppSettingsAction();
+    const infohubSites = settings.infohubSources?.split(',').map(s => `site:${s.trim()}`).join(' OR ') || '';
+    
     const categories = {
-        latestAdvisory: `official government travel advisory ${countryName}`,
+        latestAdvisory: `official government travel advisory ${countryName} ${infohubSites}`,
         scams: `tourist scams ${countryName}`,
         theft: `theft robbery kidnapping risk ${countryName}`,
         health: `health risks disease outbreaks ${countryName}`,
         political: `political situation protests unrest ${countryName}`
     };
 
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+    
+    if (!apiKey || !searchEngineId) {
+        debugLog.push('[Intel Flow] CRITICAL: GOOGLE_API_KEY or GOOGLE_SEARCH_ENGINE_ID is missing from server environment.');
+        return {};
+    }
+     debugLog.push(`[Intel Flow] (searchAndVerify) - API Key Used: "${apiKey}", Search Engine ID Used: "${searchEngineId}"`);
+
     const allPromises = Object.entries(categories).map(async ([key, query]) => {
         debugLog.push(`[Intel Flow] Starting process for category: "${key}"`);
-        const sources = await searchAndVerify(query, debugLog);
+        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
 
         if (sources.length === 0) {
             debugLog.push(`[Intel Flow] No verified sources found for category: "${key}". Skipping AI generation.`);
@@ -164,3 +167,5 @@ const getCountryIntelFlow = ai.defineFlow(
     return finalOutput as CountryIntel;
   }
 );
+
+    
