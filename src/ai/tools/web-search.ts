@@ -38,7 +38,7 @@ export const webSearch = ai.defineTool(
         const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
         
         if (!apiKey || !searchEngineId) {
-            const errorMsg = "Google Search API credentials are not configured on the server. Please set GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID.";
+            const errorMsg = "Google Search API credentials are not configured on the server. Please set GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID in your .env.local file and restart the development server.";
             console.error("[AI Tool Error] " + errorMsg);
             throw new Error(errorMsg);
         }
