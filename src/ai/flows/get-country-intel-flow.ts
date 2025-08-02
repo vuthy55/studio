@@ -8,7 +8,6 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { format } from 'date-fns';
-import { getTravelIntelFromGoogle } from '@/lib/firebase-utils';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -25,7 +24,7 @@ const HolidaySchema = z.object({
 });
 
 const CountryIntelSchema = z.object({
-  latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country, summarized from the provided text. The response must start with 'As of {current_date}:' and only include information from the last month."),
+  latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country that you know of. The response must start with 'As of {current_date}:' and only include information from the last month."),
   majorHolidays: z.array(HolidaySchema).describe('A comprehensive list of all major public holidays and significant festivals for the entire year.'),
   culturalEtiquette: z.array(z.string()).describe('A detailed list of 5-7 crucial cultural etiquette tips for travelers (e.g., how to greet, dress code for temples, tipping customs, dining etiquette).'),
   visaInfo: z.string().describe("A comprehensive, general overview of the tourist visa policy for common nationalities (e.g., USA, UK, EU, Australia). Mention visa on arrival, e-visa options, and typical durations. Include a source link if possible."),
@@ -57,27 +56,13 @@ const getCountryIntelFlow = ai.defineFlow(
   },
   async ({ countryName }) => {
     
-    // Step 1: Perform web searches & scraping directly in a dedicated server utility.
-    // This resolves the environment variable loading issue.
-    const combinedContext = await getTravelIntelFromGoogle(countryName);
-
-    if (!combinedContext.trim()) {
-        throw new Error("Could not retrieve any information from the web.");
-    }
-
-    // Step 2: Call the AI for summarization
+    // Call the AI for summarization based on its internal knowledge
     const currentDate = format(new Date(), 'MMMM d, yyyy');
     const prompt = `
-        You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
-        Base your 'latestAdvisory' section *only* on the provided text below. For all other sections (holidays, etiquette, etc.), use your general knowledge.
-
-        **Provided Context from Web Search:**
-        ---
-        ${combinedContext}
-        ---
+        You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName} based on your internal knowledge.
 
         **Output Formatting Rules:**
-        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. From the provided context, extract and list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on scams, political instability, or health notices. If the context contains no relevant new information, return an empty array for this field.
+        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. Based on your knowledge, list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on scams, political instability, or health notices. If you have no recent information, return an empty array for this field.
         -   **majorHolidays:** Provide a comprehensive list of major public holidays and significant festivals.
         -   **culturalEtiquette:** Detail 5-7 crucial cultural etiquette tips.
         -   **visaInfo:** Give a general overview of tourist visa policies for common nationalities.
