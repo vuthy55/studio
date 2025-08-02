@@ -33,8 +33,8 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
     const { score, summary, sources } = intel.overallAssessment;
 
     const getScoreAppearance = () => {
-        if (score < 0) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
-        if (score === 0) return { color: 'text-muted-foreground', icon: <Info className="h-full w-full" /> };
+        if (score <= 3) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
+        if (score <= 7) return { color: 'text-muted-foreground', icon: <Info className="h-full w-full" /> };
         return { color: 'text-green-600', icon: <CheckCircle2 className="h-full w-full" /> };
     };
 
@@ -59,7 +59,7 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                 </div>
                  <div className="text-center">
                     <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
-                    <p className={cn("text-6xl font-bold", color)}>{score > 0 ? `+${score}`: score}</p>
+                    <p className={cn("text-6xl font-bold", color)}>{score}</p>
                 </div>
             </div>
             
@@ -76,9 +76,12 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                     <ul className="list-disc pl-5 space-y-1 text-sm">
                         {sources.map((source, index) => (
                             <li key={index}>
-                                <a href={source} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                                    {source}
+                                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                    {source.url}
                                 </a>
+                                {source.publishedDate && (
+                                    <span className="text-muted-foreground text-xs ml-2">({format(new Date(source.publishedDate), 'MMM d, yyyy')})</span>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -236,7 +239,7 @@ function InfoHubContent() {
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle>How "Latest Intel" Works</DialogTitle>
-                                    <DialogDescription>
+                                     <DialogDescription>
                                         Our AI analyst provides a real-time risk assessment for travelers. Here's the process.
                                         <br/><br/>
                                         <strong className="text-destructive">Disclaimer:</strong> While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions. We are not responsible for any unintentional errors.

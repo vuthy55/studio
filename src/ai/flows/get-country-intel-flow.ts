@@ -53,9 +53,12 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
-    score: z.number().min(-5).max(5).describe('An overall travel safety score from -5 (very dangerous) to +5 (very safe). 0 is neutral.'),
+    score: z.number().min(0).max(10).describe('An overall travel safety score from 0 (very dangerous) to 10 (very safe).'),
     summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers.'),
-    sources: z.array(z.string()).describe('A list of all source URLs used for the analysis.'),
+    sources: z.array(z.object({
+        url: z.string(),
+        publishedDate: z.string().optional(),
+    })).describe('A list of all source URLs and their publication dates used for the analysis.'),
 });
 
 const CountryIntelSchema = z.object({
@@ -119,7 +122,7 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
 
 // --- Helper Functions ---
 
-async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string}[]> {
+async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string; publishedDate?: string}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     
     const searchResult = await searchWebAction({
@@ -161,7 +164,7 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
             }
 
             debugLog.push(`[Intel Flow] (searchAndVerify) - SUCCESS scraping ${item.link}.`);
-            verifiedSources.push({ content: scrapeResult.content, url: item.link });
+            verifiedSources.push({ content: scrapeResult.content, url: item.link, publishedDate: scrapeResult.publishedDate });
         } else {
             debugLog.push(`[Intel Flow] (searchAndVerify) - FAILED scraping ${item.link}. Reason: ${scrapeResult.error}`);
         }
@@ -222,14 +225,15 @@ const getCountryIntelFlow = ai.defineFlow(
         return {};
     }
 
-    const allSourcesByCategory: Record<string, {content: string, url: string}[]> = {};
-    const allUniqueSources = new Set<string>();
+    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string}[]> = {};
+    const allUniqueSources = new Map<string, { url: string; publishedDate?: string }>();
+
 
     const searchPromises = Object.entries(categories).map(async ([key, query]) => {
         debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
         const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
         allSourcesByCategory[key] = sources;
-        sources.forEach(s => allUniqueSources.add(s.url));
+        sources.forEach(s => allUniqueSources.set(s.url, { url: s.url, publishedDate: s.publishedDate }));
     });
 
     await Promise.all(searchPromises);
@@ -238,7 +242,7 @@ const getCountryIntelFlow = ai.defineFlow(
         debugLog.push('[Intel Flow] No verifiable sources found across all categories. Returning empty assessment.');
         return {
             overallAssessment: {
-                score: 0,
+                score: 5,
                 summary: "No specific, recent, and verifiable information was found across all categories. This could indicate a lack of major reported issues. \n\nTravelers should exercise standard precautions. \n\nWithout specific data, it's recommended to consult your country's official travel advisory and stay aware of your surroundings.",
                 sources: []
             }
@@ -265,21 +269,24 @@ const getCountryIntelFlow = ai.defineFlow(
       --- ANALYSIS INSTRUCTIONS ---
       Based *only* on the information provided above, perform the following actions:
 
-      1.  **Overall Assessment Score:** Assign a single, holistic travel safety score for ${countryName} on a scale from -5 (Very High Risk) to +5 (Very Low Risk). A score of 0 is neutral. Consider all factors together.
+      1.  **Overall Assessment Score:** Assign a single, holistic travel safety score for ${countryName} on a scale from 0 (very high risk) to 10 (very safe). Consider all factors together. A high score (8-10) means stable conditions. A mid score (4-7) suggests some issues that require caution. A low score (0-3) indicates significant risks.
       
-      2.  **Generate a 3-paragraph summary, without using "Paragraph 1, Paragraph 2" labels.** 
+      2.  **Generate a 3-paragraph summary.** 
           *   First, start with a direct statement about the current travel situation. Is it stable? Are there significant concerns?
           *   Next, detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
           *   Finally, provide a concluding thought or recommendation for a backpacker. Should they be extra vigilant? Can they travel with standard precautions?
 
-      3.  **List of Sources:** Compile a simple list of all the unique source URLs you used for this analysis.`,
+      3.  **List of Sources:** Compile a simple list of all the unique source URLs and their publication dates that you used for this analysis.`,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
       debugLog
     );
+    
+    // Ensure the returned sources match what was used in the context.
+    const finalOutput = output!;
+    finalOutput.sources = Array.from(allUniqueSources.values());
 
-    return { overallAssessment: output! };
+
+    return { overallAssessment: finalOutput };
   }
 );
-
-    
