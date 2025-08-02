@@ -32,7 +32,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    const { finalScore, summary, sourcesUsed, categoryAssessments, allReviewedSources } = intel;
+    const { finalScore, summary, categoryAssessments, allReviewedSources } = intel;
 
     const getScoreAppearance = (score?: number) => {
         if (typeof score !== 'number') return { color: 'text-muted-foreground' };
@@ -92,30 +92,10 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                     </CardContent>
                 </Card>
             </div>
-
-            {sourcesUsed && sourcesUsed.length > 0 && (
-                <div className="space-y-2">
-                    <h4 className="text-lg font-semibold">Key Sources Used in Summary ({sourcesUsed.length})</h4>
-                    <div className="border rounded-md p-4 space-y-1">
-                         <ul className="list-disc pl-5 space-y-1 text-sm">
-                            {sourcesUsed.map((source, index) => (
-                                <li key={`used-source-${index}`}>
-                                    <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                                        {source.url}
-                                    </a>
-                                    {source.publishedDate && (
-                                        <span className="text-muted-foreground text-xs ml-2">({format(parseISO(source.publishedDate), 'MMM d, yyyy')})</span>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-            )}
             
             {allReviewedSources && allReviewedSources.length > 0 && (
                 <div className="space-y-2">
-                    <h4 className="text-lg font-semibold">All Sources Reviewed ({allReviewedSources.length})</h4>
+                    <h4 className="text-lg font-semibold">Sources Reviewed by AI ({allReviewedSources.length})</h4>
                     <ScrollArea className="h-48 border rounded-md p-4">
                     <ul className="list-disc pl-5 space-y-1 text-sm">
                         {allReviewedSources.map((source, index) => (
@@ -468,4 +448,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-    

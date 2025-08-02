@@ -22,7 +22,9 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
-    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Concluding recommendation for travelers.'),
+    paragraph1: z.string().describe("Paragraph 1: Start with a direct statement about the overall travel situation."),
+    paragraph2: z.string().describe("Paragraph 2: Detail the *most important* issues affecting travelers, specifying the category."),
+    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers."),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
@@ -30,10 +32,6 @@ const OverallAssessmentSchema = z.object({
         'Health': z.number().min(0).max(10).describe("Severity score (0-10) for Health."),
         'Political Stability': z.number().min(0).max(10).describe("Severity score (0-10) for Political Stability."),
     }).describe("A key-value map where the key is the category name and the value is a severity score from 0 (low severity) to 10 (extreme severity)."),
-    sourcesUsed: z.array(z.object({
-        url: z.string().describe("The full URL of the source article."),
-        publishedDate: z.string().optional().nullable().describe("The publication date of the article, if available."),
-    })).describe('A list of the specific source URLs and their publication dates that were most influential in writing the summary.')
 });
 
 
@@ -41,7 +39,6 @@ const CountryIntelSchema = z.object({
   finalScore: z.number().min(0).max(10),
   categoryAssessments: z.record(z.string(), z.number()),
   summary: z.string(),
-  sourcesUsed: z.array(z.object({ url: z.string(), publishedDate: z.string().optional().nullable() })),
   allReviewedSources: z.array(z.object({ url: z.string(), publishedDate: z.string().optional().nullable() })),
 });
 export type CountryIntel = z.infer<typeof CountryIntelSchema>;
@@ -200,7 +197,6 @@ const getCountryIntelFlow = ai.defineFlow(
         return {
             finalScore: 5,
             summary: "No specific, recent, and verifiable information was found across all categories. This could indicate a lack of major reported issues. \n\nTravelers should exercise standard precautions. \n\nWithout specific data, it's recommended to consult your country's official travel advisory and stay aware of your surroundings.",
-            sourcesUsed: [],
             categoryAssessments: { 'Official Advisory': 0, 'Scams': 0, 'Theft': 0, 'Health': 0, 'Political Stability': 0 },
             allReviewedSources: []
         };
@@ -227,11 +223,7 @@ const getCountryIntelFlow = ai.defineFlow(
         Based *only* on the information provided above, perform the following actions:
 
         1.  **Severity Score Assessment:** For each category (Official Advisory, Scams, Theft, Health, Political Stability), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel). If you see red flag terms like "war", "do not travel", "state of emergency", or "civil unrest", you MUST assign a 10 to the Political Stability category.
-        2.  **Generate a 3-paragraph summary:**
-            *   Paragraph 1: Start with a direct statement about the overall travel situation.
-            *   Paragraph 2: Detail the *most important* issues affecting travelers, specifying the category.
-            *   Paragraph 3: Provide a concluding recommendation for backpackers.
-        3.  **Identify Key Sources:** From the articles provided, identify the most critical URLs that directly informed your summary. List only these key sources with their publication dates.
+        2.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.**
         `,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
@@ -265,11 +257,9 @@ const getCountryIntelFlow = ai.defineFlow(
     
     return { 
         finalScore,
-        summary: aiOutput.summary,
+        summary: `${aiOutput.paragraph1}\n\n${aiOutput.paragraph2}\n\n${aiOutput.paragraph3}`,
         categoryAssessments: aiOutput.categoryAssessments,
-        sourcesUsed: aiOutput.sourcesUsed.map(s => ({...s, publishedDate: s.publishedDate || null })),
         allReviewedSources: Array.from(allUniqueSources.values())
     };
   }
 );
-    
