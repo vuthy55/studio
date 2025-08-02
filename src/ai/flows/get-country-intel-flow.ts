@@ -111,7 +111,7 @@ const getCountryIntelFlow = ai.defineFlow(
         });
         
         if (!output) {
-           throw new Error("The AI model returned an empty output, which is unexpected.");
+           throw new Error("The AI model returned an empty output. This may be due to a lack of recent news or a content safety filter.");
         }
         return output;
 
