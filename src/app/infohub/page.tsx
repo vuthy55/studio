@@ -24,7 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
+function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<CountryIntel> | null, searchDate: Date | null, fromCache: boolean }) {
     if (!intel?.overallAssessment) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
@@ -49,7 +49,11 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                     <h3 className="text-2xl font-bold">Overall Assessment</h3>
                     <p className="text-sm text-muted-foreground">
                         AI-generated analysis based on recent, verifiable sources.
-                        {searchDate && <span className="block font-semibold">As of {format(searchDate, 'PP')}</span>}
+                        {searchDate && (
+                            <Badge variant={fromCache ? 'default' : 'secondary'} className="mt-1">
+                                As of {format(searchDate, 'PPp')} {fromCache && '(Cached)'}
+                            </Badge>
+                        )}
                     </p>
                 </div>
                  <div className="text-center">
@@ -96,6 +100,7 @@ function InfoHubContent() {
     const [aiIntel, setAiIntel] = useState<Partial<CountryIntel> | null>(null);
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
     const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
+    const [resultFromCache, setResultFromCache] = useState(false);
     
     const countryOptions = useMemo(() => lightweightCountries, []);
 
@@ -150,12 +155,7 @@ function InfoHubContent() {
         setLastSearchDate(new Date());
 
         try {
-            const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
-            if (!spendSuccess) {
-                throw new Error("Token spending failed. Your balance may have changed.");
-            }
-            
-            const { intel, debugLog } = await getCountryIntel({ 
+            const { intel, debugLog, fromCache } = await getCountryIntel({ 
                 countryName: selectedCountryName,
             });
 
@@ -163,14 +163,25 @@ function InfoHubContent() {
             debugLog.forEach(log => console.log(log));
             console.log("--- End Debug Log ---");
 
-
+            if (!fromCache) {
+                const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
+                if (!spendSuccess) {
+                    throw new Error("Token spending failed. Your balance may have changed.");
+                }
+            }
+            
             if (!intel || !intel.overallAssessment) {
                  throw new Error("The AI returned an empty response. Please check the debug logs in the console.");
             }
             
             setAiIntel(intel);
+            setResultFromCache(fromCache);
             setActiveTab('latest');
-            toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName}.` });
+            if (fromCache) {
+                 toast({ title: 'Intel Loaded from Cache', description: `Displaying recent information for ${selectedCountryName}.` });
+            } else {
+                 toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName}.` });
+            }
 
         } catch (error: any) {
             console.error("Error generating country intel:", error);
@@ -277,7 +288,7 @@ function InfoHubContent() {
                                         <p className="ml-2 text-muted-foreground">Generating AI briefing...</p>
                                     </div>
                                 ) : (
-                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} />
+                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} fromCache={resultFromCache} />
                                 )}
                             </CardContent>
                         </Card>

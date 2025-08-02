@@ -12,6 +12,8 @@ import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
 import { getAppSettingsAction } from '@/actions/settings';
 import { subDays, parseISO } from 'date-fns';
+import { db } from '@/lib/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 
 // --- Source Definitions for Targeted Searches ---
@@ -66,17 +68,54 @@ const CountryIntelSchema = z.object({
 export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
 
-// --- Main Exported Function ---
+// --- Main Exported Function with Caching ---
 
-export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ intel: Partial<CountryIntel>, debugLog: string[] }> {
+const INTEL_CACHE_COLLECTION = 'countryIntelCache';
+const CACHE_DURATION_HOURS = 24;
+
+export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ intel: Partial<CountryIntel>, debugLog: string[], fromCache: boolean }> {
     const debugLog: string[] = [];
-    debugLog.push(`[Intel Flow] Starting getCountryIntel for: ${input.countryName}`);
+    const { countryName } = input;
+    const cacheRef = db.collection(INTEL_CACHE_COLLECTION).doc(countryName);
+
+    // 1. Check for a fresh cache entry first
+    debugLog.push(`[Intel Flow] Checking cache for: ${countryName}`);
+    try {
+        const cacheDoc = await cacheRef.get();
+        if (cacheDoc.exists) {
+            const data = cacheDoc.data();
+            const lastUpdatedAt = (data?.lastUpdatedAt as Timestamp).toDate();
+            const cacheAgeHours = (new Date().getTime() - lastUpdatedAt.getTime()) / (1000 * 60 * 60);
+
+            if (cacheAgeHours < CACHE_DURATION_HOURS) {
+                debugLog.push(`[Intel Flow] Fresh cache found (updated ${cacheAgeHours.toFixed(1)} hours ago). Returning cached data.`);
+                return { intel: data?.intel, debugLog, fromCache: true };
+            }
+            debugLog.push(`[Intel Flow] Stale cache found (updated ${cacheAgeHours.toFixed(1)} hours ago). Proceeding with fresh fetch.`);
+        } else {
+            debugLog.push(`[Intel Flow] No cache found for ${countryName}.`);
+        }
+    } catch (e) {
+        debugLog.push(`[Intel Flow] WARN: Could not read from cache. Proceeding with fresh fetch. Error: ${e}`);
+    }
+
+    // 2. If no fresh cache, run the flow
+    debugLog.push(`[Intel Flow] Starting getCountryIntelFlow for: ${countryName}`);
+    const intel = await getCountryIntelFlow({ countryName, debugLog });
     
-    const intel = await getCountryIntelFlow({ countryName: input.countryName, debugLog });
-    
+    // 3. Store the new result in the cache
+    if (intel && intel.overallAssessment) {
+        debugLog.push(`[Intel Flow] Storing new intel in cache for ${countryName}.`);
+        await cacheRef.set({
+            intel,
+            lastUpdatedAt: Timestamp.now(),
+        });
+    }
+
     debugLog.push("[Intel Flow] Process finished.");
-    return { intel, debugLog };
+    return { intel, debugLog, fromCache: false };
 }
+
 
 // --- Helper Functions ---
 
