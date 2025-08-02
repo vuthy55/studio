@@ -154,12 +154,17 @@ function InfoHubContent() {
                 throw new Error("Token spending failed. Your balance may have changed.");
             }
             
-            const intel = await getCountryIntel({ 
+            const { intel, debugLog } = await getCountryIntel({ 
                 countryName: selectedCountryName,
             });
 
+            console.log("--- InfoHub Debug Log ---");
+            debugLog.forEach(log => console.log(log));
+            console.log("--- End Debug Log ---");
+
+
             if (!intel || Object.keys(intel).length === 0) {
-                 throw new Error("The AI returned an empty response. Please try again.");
+                 throw new Error("The AI returned an empty response. Please check the debug logs in the console.");
             }
             
             setAiIntel(intel);
