@@ -26,7 +26,10 @@ const HolidaySchema = z.object({
 });
 
 const CountryIntelSchema = z.object({
-  latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country that you know of. The response must start with 'As of {current_date}:' and only include information from the last month."),
+  latestAdvisory: z.array(z.object({
+    advisory: z.string().describe("A single, specific travel advisory, scam, or relevant news item."),
+    source: z.string().describe("The source URL where this specific advisory was found."),
+  })).describe("A list of 2-3 of the most recent, urgent travel advisories for this country. The response must start with 'As of {current_date}:' and only include information from the last month."),
   majorHolidays: z.array(HolidaySchema).describe('A comprehensive list of all major public holidays and significant festivals for the entire year.'),
   culturalEtiquette: z.array(z.string()).describe('A detailed list of 5-7 crucial cultural etiquette tips for travelers (e.g., how to greet, dress code for temples, tipping customs, dining etiquette).'),
   visaInfo: z.string().describe("A comprehensive, general overview of the tourist visa policy for common nationalities (e.g., USA, UK, EU, Australia). Mention visa on arrival, e-visa options, and typical durations. Include a source link if possible."),
@@ -91,8 +94,8 @@ const getCountryIntelFlow = ai.defineFlow(
         Use the provided context from web searches as your primary source. If the context is empty, use your internal knowledge.
 
         **Output Formatting Rules:**
-        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. Based on the context, list only 2-3 of the most critical and recent travel advisories. Focus on scams, political instability, or health notices. If you have no recent information, return an empty array for this field.
-        -   **majorHolidays:** Provide a comprehensive list of major public holidays and significant festivals.
+        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. Based on the context, list only 2-3 of the most critical and recent travel advisories. Focus on scams, political instability, or health notices. **For each advisory, you MUST include the source URL in the 'source' field.** If you have no recent information, return an empty array for this field.
+        -   **majorHolidays:** Provide a comprehensive list of major public holidays and significant festivals. Include a source link if available.
         -   **culturalEtiquette:** Detail 5-7 crucial cultural etiquette tips.
         -   **visaInfo:** Give a general overview of tourist visa policies for common nationalities.
         -   **emergencyNumbers:** List key emergency contacts.
