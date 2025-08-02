@@ -34,25 +34,35 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
 // --- Main Exported Function ---
 export async function getCountryIntel(input: GetCountryIntelInput): Promise<Partial<CountryIntel>> {
+  console.log(`[Intel Flow] Starting getCountryIntel for: ${input.countryName}`);
   return getCountryIntelFlow(input);
 }
 
 // --- Helper Functions ---
 
 async function searchAndVerify(query: string): Promise<{content: string; url: string}[]> {
+    console.log(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     const searchResult = await searchWebAction(query);
-    if (!searchResult.success || !searchResult.results) {
+
+    if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
+        console.warn(`[Intel Flow] (searchAndVerify) - Web search failed or returned no results for query: "${query}"`);
         return [];
     }
     
+    console.log(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources.`);
     const verifiedSources = [];
     for (const item of searchResult.results) {
+        console.log(`[Intel Flow] (searchAndVerify) - Scraping URL: ${item.link}`);
         const scrapeResult = await scrapeUrlAction(item.link);
         if (scrapeResult.success && scrapeResult.content) {
+            console.log(`[Intel Flow] (searchAndVerify) - SUCCESS scraping ${item.link}.`);
             // Optional: Add date check here if scrapeResult returns a date
             verifiedSources.push({ content: scrapeResult.content, url: item.link });
+        } else {
+            console.warn(`[Intel Flow] (searchAndVerify) - FAILED scraping ${item.link}. Reason: ${scrapeResult.error}`);
         }
     }
+    console.log(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} out of ${searchResult.results.length} sources for query: "${query}"`);
     return verifiedSources;
 }
 
@@ -65,7 +75,7 @@ const generateSummaryWithFallback = async (prompt: string, context: { sources: {
             context,
         });
     } catch (error) {
-        console.warn("Primary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+        console.warn("[Intel Flow] Primary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
         return await ai.generate({
             prompt,
             model: 'googleai/gemini-1.5-pro',
@@ -93,11 +103,15 @@ const getCountryIntelFlow = ai.defineFlow(
     };
 
     const allPromises = Object.entries(categories).map(async ([key, query]) => {
+        console.log(`[Intel Flow] Starting process for category: "${key}"`);
         const sources = await searchAndVerify(query);
+
         if (sources.length === 0) {
+            console.log(`[Intel Flow] No verified sources found for category: "${key}". Skipping AI generation.`);
             return { [key]: [] };
         }
         
+        console.log(`[Intel Flow] Calling AI to summarize ${sources.length} sources for category: "${key}"`);
         const { output } = await generateSummaryWithFallback(
             `You are an expert travel intelligence analyst. Based on the provided articles, generate a concise, one-paragraph summary for each article. For each summary, you MUST cite the source URL provided with it.
             
@@ -113,7 +127,8 @@ const getCountryIntelFlow = ai.defineFlow(
             { sources },
             z.array(IntelItemSchema)
         );
-
+        
+        console.log(`[Intel Flow] AI summarization complete for category: "${key}". Found ${output?.length || 0} items.`);
         return { [key]: output || [] };
     });
 
@@ -121,6 +136,7 @@ const getCountryIntelFlow = ai.defineFlow(
     
     const finalOutput = results.reduce((acc, current) => ({ ...acc, ...current }), {});
     
+    console.log('[Intel Flow] All categories processed. Final combined output:', finalOutput);
     return finalOutput as CountryIntel;
   }
 );
