@@ -32,7 +32,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    const { finalScore, summary, sourcesUsed, categoryAssessments, allReviewedSources } = intel;
+    const { finalScore, summary, sourcesUsed, categoryAssessments, allReviewedSources, analystScore, quantitativeScore } = intel;
 
     const getScoreAppearance = (currentScore: number) => {
         if (currentScore <= 3) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
@@ -45,7 +45,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
     const summaryWithClickableLink = () => {
         if (!summary) return null;
         
-        const match = summary.match(/This assessment is based on a review of (\d+) unique articles/);
+        const match = summary.match(/This assessment is based on (\d+) unique articles/);
         
         if (match && sourcesUsed && sourcesUsed.length > 0) {
             const count = match[1];
@@ -55,7 +55,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                     <p>{parts[0]}</p>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on a review of {count} unique articles</span>
+                            <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on {count} unique articles</span>
                         </PopoverTrigger>
                         <PopoverContent className="w-80">
                             <div className="grid gap-4">
@@ -93,9 +93,6 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
-                <div className={cn("flex-shrink-0 w-20 h-20", mainScoreAppearance.color)}>
-                    {mainScoreAppearance.icon}
-                </div>
                 <div className="flex-1">
                     <h3 className="text-2xl font-bold">Overall Assessment</h3>
                     {searchDate && (
@@ -112,17 +109,35 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
 
             {categoryAssessments && (
                  <Card>
-                    <CardHeader><CardTitle className="text-lg">Risk Breakdown (Severity 0-10)</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-lg">Risk Breakdown</CardTitle></CardHeader>
                     <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                        {Object.entries(categoryAssessments).map(([category, catScore]) => (
                             <div key={category} className="text-center p-2 rounded-lg bg-background border">
                                 <p className="text-sm font-semibold">{category}</p>
-                                <p className="text-3xl font-bold">{catScore}</p>
+                                <p className="text-3xl font-bold">{catScore}/10</p>
                             </div>
                         ))}
                     </CardContent>
                  </Card>
             )}
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">Score Comparison</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="text-center p-4 border rounded-lg">
+                        <p className="text-sm font-semibold text-muted-foreground">Quantitative Score</p>
+                        <p className="text-4xl font-bold">{quantitativeScore}/10</p>
+                        <p className="text-xs text-muted-foreground mt-1">Based on a simple point system for news sentiment.</p>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                        <p className="text-sm font-semibold text-muted-foreground">AI Analyst Score</p>
+                        <p className="text-4xl font-bold">{analystScore}/10</p>
+                        <p className="text-xs text-muted-foreground mt-1">Based on the AI's holistic, weighted judgment of risk severity.</p>
+                    </div>
+                </CardContent>
+            </Card>
             
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
@@ -167,6 +182,7 @@ function InfoHubContent() {
     const [aiIntel, setAiIntel] = useState<Partial<CountryIntel> | null>(null);
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
     const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
+    const [debugLog, setDebugLog] = useState<string[]>([]);
     
     const countryOptions = useMemo(() => lightweightCountries, []);
 
@@ -193,6 +209,7 @@ function InfoHubContent() {
         setAiIntel(null);
         setLastSearchDate(null);
         setActiveTab('latest');
+        setDebugLog([]);
     };
 
     const handleGenerateIntel = async () => {
@@ -212,6 +229,7 @@ function InfoHubContent() {
         setIsGeneratingIntel(true);
         setAiIntel(null);
         setLastSearchDate(new Date());
+        setDebugLog([]);
 
         try {
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
@@ -219,9 +237,10 @@ function InfoHubContent() {
                 throw new Error("Token spending failed. Your balance may have changed.");
             }
             
-            const { intel, debugLog } = await getCountryIntel({ countryName: selectedCountryName });
+            const { intel, debugLog: log } = await getCountryIntel({ countryName: selectedCountryName });
+            setDebugLog(log);
             console.log("--- InfoHub Debug Log ---");
-            debugLog.forEach(log => console.log(log));
+            log.forEach(l => console.log(l));
             console.log("--- End Debug Log ---");
             
             if (!intel || !intel.finalScore) {
@@ -288,8 +307,8 @@ function InfoHubContent() {
                                 <div className="space-y-4 text-sm py-4">
                                     <p><strong>1. Targeted Search:</strong> The system performs targeted Google searches across five key categories: official advisories, scams, theft, health, and political stability.</p>
                                     <p><strong>2. Source Verification:</strong> It only uses verifiable sources, focusing on government travel sites and reputable regional news outlets. Any source article older than 30 days is discarded.</p>
-                                    <p><strong>3. AI Analysis & Scoring:</strong> The content from these sources is fed to an AI which is instructed to act as a travel analyst. It generates a single risk score from 0 (High Risk) to 10 (Very Safe) based on all factors.</p>
-                                    <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues (including specific locations if mentioned), and a final recommendation for backpackers.</p>
+                                    <p><strong>3. Two-Step Scoring:</strong> To ensure reliability, the AI first gives a simple quantitative score (0-2) for each category based on sentiment. It then performs a more nuanced "analyst" assessment (0-10) based on severity. If these two scores diverge significantly, the system flags the result as inconclusive and recommends manual verification, preventing misleading assessments.</p>
+                                    <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a clickable list of the main articles it used.</p>
                                 </div>
                             </DialogContent>
                         </Dialog>
@@ -482,4 +501,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-`
