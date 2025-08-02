@@ -57,7 +57,7 @@ const OverallAssessmentSchema = z.object({
     summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, including the number of verified articles reviewed.'),
     sources: z.array(z.object({
         url: z.string(),
-        publishedDate: z.string().optional(),
+        publishedDate: z.string().optional().nullable(),
     })).describe('A list of all source URLs and their publication dates used for the analysis.'),
 });
 
@@ -74,61 +74,36 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 // --- Main Exported Function with Caching ---
 
 const INTEL_CACHE_COLLECTION = 'countryIntelCache';
-const CACHE_DURATION_HOURS = 24;
 
+// The main exported function now ALWAYS fetches new data.
+// It still WRITES to the cache, so the latest data is stored, but it does not READ from it.
 export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ intel: Partial<CountryIntel>, debugLog: string[], fromCache: boolean }> {
     const debugLog: string[] = [];
     const { countryName } = input;
     const cacheRef = db.collection(INTEL_CACHE_COLLECTION).doc(countryName);
 
-    // 1. Check for a fresh cache entry first
-    debugLog.push(`[Intel Flow] Checking cache for: ${countryName}`);
-    try {
-        const cacheDoc = await cacheRef.get();
-        if (cacheDoc.exists) {
-            const data = cacheDoc.data();
-            const lastUpdatedAt = (data?.lastUpdatedAt as Timestamp).toDate();
-            const cacheAgeHours = (new Date().getTime() - lastUpdatedAt.getTime()) / (1000 * 60 * 60);
-
-            if (cacheAgeHours < CACHE_DURATION_HOURS) {
-                debugLog.push(`[Intel Flow] Fresh cache found (updated ${cacheAgeHours.toFixed(1)} hours ago). Returning cached data.`);
-                return { intel: data?.intel, debugLog, fromCache: true };
-            }
-            debugLog.push(`[Intel Flow] Stale cache found (updated ${cacheAgeHours.toFixed(1)} hours ago). Proceeding with fresh fetch.`);
-        } else {
-            debugLog.push(`[Intel Flow] No cache found for ${countryName}.`);
-        }
-    } catch (e) {
-        debugLog.push(`[Intel Flow] WARN: Could not read from cache. Proceeding with fresh fetch. Error: ${e}`);
-    }
-
-    // 2. If no fresh cache, run the flow
-    debugLog.push(`[Intel Flow] Starting getCountryIntelFlow for: ${countryName}`);
+    // Always run the flow to get fresh data
+    debugLog.push(`[Intel Flow] Force refresh: Starting getCountryIntelFlow for: ${countryName}`);
     const intel = await getCountryIntelFlow({ countryName, debugLog });
     
-    // 3. Store the new result in the cache
+    // After getting the fresh data, store it in the cache for logging and future use if needed.
     if (intel && intel.overallAssessment) {
         debugLog.push(`[Intel Flow] Storing new intel in cache for ${countryName}.`);
-        
-        // Sanitize the data for Firestore: convert undefined to null
-        const intelForFirestore = JSON.parse(JSON.stringify(intel, (key, value) => {
-            return value === undefined ? null : value;
-        }));
-
         await cacheRef.set({
-            intel: intelForFirestore,
+            intel: intel,
             lastUpdatedAt: Timestamp.now(),
         });
     }
 
     debugLog.push("[Intel Flow] Process finished.");
+    // `fromCache` is always false because we always fetch new data.
     return { intel, debugLog, fromCache: false };
 }
 
 
 // --- Helper Functions ---
 
-async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string; publishedDate?: string}[]> {
+async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string; publishedDate?: string | null}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     
     const searchResult = await searchWebAction({
@@ -155,22 +130,23 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
         debugLog.push(`[Intel Flow] (searchAndVerify) - Scraping URL: ${item.link}`);
         const scrapeResult = await scrapeUrlAction(item.link);
         if (scrapeResult.success && scrapeResult.content) {
-            if (scrapeResult.publishedDate) {
+            let publishedDate: string | null = scrapeResult.publishedDate || null;
+            if (publishedDate) {
                  try {
-                    const publishedDate = parseISO(scrapeResult.publishedDate);
-                    if (publishedDate < oneMonthAgo) {
+                    const parsedDate = parseISO(publishedDate);
+                    if (parsedDate < oneMonthAgo) {
                         debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (too old): ${item.link}`);
                         continue; // Skip this article because it's too old
                     }
                 } catch (e) {
-                     debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: Could not parse date "${scrapeResult.publishedDate}" for ${item.link}. Including it anyway.`);
+                     debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: Could not parse date "${publishedDate}" for ${item.link}. Including it anyway.`);
                 }
             } else {
                  debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: No publication date found for ${item.link}. Including it anyway.`);
             }
 
             debugLog.push(`[Intel Flow] (searchAndVerify) - SUCCESS scraping ${item.link}.`);
-            verifiedSources.push({ content: scrapeResult.content, url: item.link, publishedDate: scrapeResult.publishedDate });
+            verifiedSources.push({ content: scrapeResult.content, url: item.link, publishedDate });
         } else {
             debugLog.push(`[Intel Flow] (searchAndVerify) - FAILED scraping ${item.link}. Reason: ${scrapeResult.error}`);
         }
@@ -231,8 +207,8 @@ const getCountryIntelFlow = ai.defineFlow(
         return {};
     }
 
-    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string}[]> = {};
-    const allUniqueSources = new Map<string, { url: string; publishedDate?: string }>();
+    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
+    const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
 
 
     const searchPromises = Object.entries(categories).map(async ([key, query]) => {
@@ -296,5 +272,4 @@ const getCountryIntelFlow = ai.defineFlow(
     return { overallAssessment: finalOutput };
   }
 );
-
     

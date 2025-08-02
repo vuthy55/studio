@@ -65,7 +65,7 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
             
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
-                <div className="whitespace-pre-wrap text-muted-foreground text-sm p-4 border rounded-md bg-background">
+                <div className="whitespace-pre-wrap text-sm text-muted-foreground p-4 border rounded-md bg-background">
                     {summary}
                 </div>
             </div>
@@ -159,7 +159,8 @@ function InfoHubContent() {
         setLastSearchDate(new Date());
 
         try {
-            const { intel, debugLog, fromCache } = await getCountryIntel({ 
+            // Always fetch new data now
+            const { intel, debugLog } = await getCountryIntel({ 
                 countryName: selectedCountryName,
             });
 
@@ -167,11 +168,10 @@ function InfoHubContent() {
             debugLog.forEach(log => console.log(log));
             console.log("--- End Debug Log ---");
 
-            if (!fromCache) {
-                const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
-                if (!spendSuccess) {
-                    throw new Error("Token spending failed. Your balance may have changed.");
-                }
+            // Spend tokens on every successful fetch
+            const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
+            if (!spendSuccess) {
+                throw new Error("Token spending failed. Your balance may have changed.");
             }
             
             if (!intel || !intel.overallAssessment) {
@@ -179,13 +179,9 @@ function InfoHubContent() {
             }
             
             setAiIntel(intel);
-            setResultFromCache(fromCache);
+            setResultFromCache(false); // It's never from cache anymore
             setActiveTab('latest');
-            if (fromCache) {
-                 toast({ title: 'Intel Loaded from Cache', description: `Displaying recent information for ${selectedCountryName}.` });
-            } else {
-                 toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName}.` });
-            }
+            toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName}.` });
 
         } catch (error: any) {
             console.error("Error generating country intel:", error);
@@ -442,5 +438,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-
-    
