@@ -21,7 +21,7 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const IntelItemSchema = z.object({
     summary: z.string().describe('A concise, one-paragraph summary of the key information from the source article.'),
-    source: z.string().url().describe('The URL of the source article.'),
+    source: z.string().describe('The URL of the source article.'),
 });
 
 const CountryIntelSchema = z.object({
@@ -126,7 +126,7 @@ const getCountryIntelFlow = ai.defineFlow(
         debugLog.push('[Intel Flow] CRITICAL: GOOGLE_API_KEY or GOOGLE_SEARCH_ENGINE_ID is missing from server environment.');
         return {};
     }
-     debugLog.push(`[Intel Flow] (searchAndVerify) - API Key Used: "${apiKey}", Search Engine ID Used: "${searchEngineId}"`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - API Key Used: "${apiKey}", Search Engine ID Used: "${searchEngineId}"`);
 
     const allPromises = Object.entries(categories).map(async ([key, query]) => {
         debugLog.push(`[Intel Flow] Starting process for category: "${key}"`);
@@ -167,5 +167,3 @@ const getCountryIntelFlow = ai.defineFlow(
     return finalOutput as CountryIntel;
   }
 );
-
-    
