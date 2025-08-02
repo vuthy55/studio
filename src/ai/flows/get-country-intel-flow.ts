@@ -8,8 +8,7 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { format } from 'date-fns';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import { getTravelIntelFromGoogle } from '@/lib/firebase-utils';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -48,41 +47,6 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<Part
 }
 
 
-// --- Helper Functions for Search and Scrape ---
-async function searchWeb(query: string): Promise<string[]> {
-    const apiKey = process.env.GOOGLE_API_KEY;
-    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
-
-    if (!apiKey || !searchEngineId) {
-        throw new Error("Google Search API credentials are not configured on the server.");
-    }
-    
-    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(query)}`;
-    
-    try {
-        const response = await axios.get(url);
-        const items = response.data.items || [];
-        return items.slice(0, 4).map((item: any) => item.link); // Return top 4 URLs
-    } catch (error: any) {
-        console.error("[Intel Search] Error performing Google search:", error.response?.data || error.message);
-        throw new Error("Failed to execute web search.");
-    }
-}
-
-async function scrapeUrl(url: string): Promise<string> {
-    try {
-        const { data } = await axios.get(url, { timeout: 4000 });
-        const $ = cheerio.load(data);
-        $('script, style, nav, footer, header, aside').remove();
-        const mainContent = $('body').text().replace(/\s+/g, ' ').trim();
-        return mainContent.substring(0, 4000); // Limit content per page
-    } catch (error: any) {
-        console.warn(`[Intel Scrape] Failed to scrape ${url}:`, error.message);
-        return `Scraping failed for ${url}.`; // Return error message instead of empty string
-    }
-}
-
-
 // --- Genkit Flow Definition ---
 
 const getCountryIntelFlow = ai.defineFlow(
@@ -93,26 +57,15 @@ const getCountryIntelFlow = ai.defineFlow(
   },
   async ({ countryName }) => {
     
-    // Step 1: Perform web searches directly in the flow
-    const searchQueries = [
-      `travel advisory ${countryName}`,
-      `latest travel news ${countryName} tourists`,
-      `common tourist scams ${countryName}`,
-    ];
-    const searchPromises = searchQueries.map(searchWeb);
-    const searchResults = await Promise.all(searchPromises);
-    const uniqueUrls = [...new Set(searchResults.flat())];
-
-    // Step 2: Scrape the content from the found URLs
-    const scrapePromises = uniqueUrls.map(scrapeUrl);
-    const scrapedContents = await Promise.all(scrapePromises);
-    const combinedContext = scrapedContents.join('\n\n---\n\n');
+    // Step 1: Perform web searches & scraping directly in a dedicated server utility.
+    // This resolves the environment variable loading issue.
+    const combinedContext = await getTravelIntelFromGoogle(countryName);
 
     if (!combinedContext.trim()) {
         throw new Error("Could not retrieve any information from the web.");
     }
 
-    // Step 3: Call the AI for summarization
+    // Step 2: Call the AI for summarization
     const currentDate = format(new Date(), 'MMMM d, yyyy');
     const prompt = `
         You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
