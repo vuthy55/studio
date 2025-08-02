@@ -48,7 +48,6 @@ import Image from 'next/image';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
-import { scrapeUrlAction } from '@/actions/scraper';
 
 
 interface UserWithId extends UserProfile {
@@ -1830,87 +1829,6 @@ function FeedbackTabContent() {
     );
 }
 
-function ScraperTestTabContent() {
-    const [url, setUrl] = useState('https://edition.cnn.com');
-    const [isLoading, setIsLoading] = useState(false);
-    const [results, setResults] = useState<{ title: string; paragraphs: string[] } | null>(null);
-    const [error, setError] = useState('');
-    const { toast } = useToast();
-
-    const handleScrape = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError('');
-        setResults(null);
-        
-        try {
-            const response = await scrapeUrlAction(url);
-            if (response.success && response.data) {
-                setResults(response.data);
-                toast({ title: 'Scrape Successful', description: `Found title and ${response.data.paragraphs.length} paragraphs.` });
-            } else {
-                setError(response.error || 'An unknown error occurred.');
-                toast({ variant: 'destructive', title: 'Scrape Failed', description: response.error });
-            }
-        } catch (e: any) {
-            setError(e.message);
-             toast({ variant: 'destructive', title: 'Client Error', description: e.message });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Webhook/> Scraper Test</CardTitle>
-                <CardDescription>
-                    Enter a URL to test the server's web scraping capabilities. This tool uses `axios` and `cheerio` on the server.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <form onSubmit={handleScrape} className="flex items-center gap-2">
-                    <Input 
-                        type="url"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="https://example.com"
-                        required
-                    />
-                    <Button type="submit" disabled={isLoading}>
-                        {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        Scrape URL
-                    </Button>
-                </form>
-
-                {error && (
-                    <div className="mt-4 p-4 rounded-md bg-destructive/10 text-destructive">
-                        <h4 className="font-bold">Error</h4>
-                        <p className="text-sm">{error}</p>
-                    </div>
-                )}
-                
-                {results && (
-                     <div className="mt-4 space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Title: {results.title}</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                {results.paragraphs.map((p, index) => (
-                                    <p key={index} className="text-sm p-2 border-l-2 border-primary bg-muted/50 rounded-r-md">
-                                        {p.substring(0, 250)}{p.length > 250 ? '...' : ''}
-                                    </p>
-                                ))}
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    )
-}
-
 export default function AdminPageV2() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -1938,7 +1856,6 @@ export default function AdminPageV2() {
         { value: 'language-packs', label: 'Language Packs', icon: Music },
         { value: 'bulk-actions', label: 'Bulk Actions', icon: Trash2 },
         { value: 'messaging', label: 'Messaging', icon: MessageSquareQuote },
-        { value: 'scraper-test', label: 'Scraper', icon: Webhook },
     ];
     
     return (
@@ -1946,7 +1863,7 @@ export default function AdminPageV2() {
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-5 md:grid-cols-10 h-auto">
+                <TabsList className="grid w-full grid-cols-5 md:grid-cols-9 h-auto">
                     {adminTabs.map(tab => (
                         <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full">
                             <tab.icon className="h-5 w-5" />
@@ -1982,9 +1899,6 @@ export default function AdminPageV2() {
                     </TabsContent>
                     <TabsContent value="messaging">
                         <MessagingContent />
-                    </TabsContent>
-                    <TabsContent value="scraper-test">
-                        <ScraperTestTabContent />
                     </TabsContent>
                 </div>
             </Tabs>
