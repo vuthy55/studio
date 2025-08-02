@@ -16,13 +16,12 @@ interface SearchResult {
  * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
  */
 export async function searchWebAction(query: string): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
-    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
-    // Per user instruction, GOOGLE_SEARCH_ENGINE_ID is not required.
-    // The API call will rely solely on the provided API Key.
-    if (!apiKey) {
-        console.error("Google Search API key is not configured. The web search tool is disabled.");
-        return { success: false, error: "Google Search API key is not configured on the server." };
+    if (!apiKey || !searchEngineId) {
+        console.error("Google Search API credentials are not configured. The web search tool is disabled.");
+        return { success: false, error: "Google Search API key or Search Engine ID is not configured on the server." };
     }
     
     const url = `https://www.googleapis.com/customsearch/v1`;
@@ -31,6 +30,7 @@ export async function searchWebAction(query: string): Promise<{success: boolean,
         const response = await axios.get(url, {
             params: {
                 key: apiKey,
+                cx: searchEngineId,
                 q: query,
                 num: 5 // Limit to 5 results per category
             }
