@@ -45,13 +45,15 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
 
     const summaryWithClickableLink = () => {
         if (!summary) return null;
+        
         const match = summary.match(/This assessment is based on (\d+) unique articles/);
+        
         if (match && sourcesUsed && sourcesUsed.length > 0) {
             const count = match[1];
             const parts = summary.split(match[0]);
             return (
-                <>
-                    {parts[0]}
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <p>{parts[0]}</p>
                     <Popover>
                         <PopoverTrigger asChild>
                             <span className="text-primary font-bold cursor-pointer hover:underline">This assessment is based on {count} unique articles</span>
@@ -59,9 +61,9 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                         <PopoverContent className="w-80">
                             <div className="grid gap-4">
                                 <div className="space-y-1">
-                                    <h4 className="font-medium leading-none">Key Sources</h4>
+                                    <h4 className="font-medium leading-none">Key Sources Used in Summary</h4>
                                     <p className="text-sm text-muted-foreground">
-                                        These articles were most influential in the summary.
+                                        These articles were most influential.
                                     </p>
                                 </div>
                                 <ScrollArea className="h-48">
@@ -81,13 +83,11 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                             </div>
                         </PopoverContent>
                     </Popover>
-                    {parts[1]}
-                </>
+                    <p>{parts[1]}</p>
+                </div>
             );
         }
-        return summary.split('\n\n').map((paragraph, index) => (
-            <p key={index} className={index > 0 ? 'mt-4' : ''}>{paragraph}</p>
-        ));
+        return <div className="text-sm text-muted-foreground whitespace-pre-wrap">{summary}</div>
     };
 
     return (
@@ -134,7 +134,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
             
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
-                <div className="text-sm text-muted-foreground p-4 border rounded-md bg-background">
+                <div className="p-4 border rounded-md bg-background">
                     {summaryWithClickableLink()}
                 </div>
             </div>

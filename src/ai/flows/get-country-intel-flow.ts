@@ -85,7 +85,7 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
 // --- Main Exported Function ---
 
-export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ intel: Partial<CountryIntel>, debugLog: string[], fromCache: boolean }> {
+export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ intel: Partial<CountryIntel>, debugLog: string[] }> {
     const debugLog: string[] = [];
     const { countryName } = input;
 
@@ -93,7 +93,7 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
     const intel = await getCountryIntelFlow({ countryName, debugLog });
     
     debugLog.push("[Intel Flow] Process finished.");
-    return { intel, debugLog, fromCache: false };
+    return { intel, debugLog };
 }
 
 
@@ -152,6 +152,25 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
 
 
 const buildSiteSearchQuery = (sites: string[]): string => sites.map(s => `site:${s.trim()}`).join(' OR ');
+
+const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[]) => {
+    try {
+        return await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-flash',
+            output: { schema: outputSchema },
+            context,
+        });
+    } catch (error) {
+        debugLog.push(`[Intel Flow] Primary model failed: ${error}. Retrying with fallback (gemini-1.5-pro)...`);
+        return await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-pro',
+            output: { schema: outputSchema },
+            context,
+        });
+    }
+};
 
 // --- Genkit Flow Definition ---
 const getCountryIntelFlow = ai.defineFlow(
@@ -215,8 +234,8 @@ const getCountryIntelFlow = ai.defineFlow(
     
     debugLog.push(`[Intel Flow] Found sources. Calling AI for final analysis...`);
 
-    const { output } = await ai.generate({
-        prompt: `You are a travel intelligence analyst. Your audience is young backpackers. Analyze the provided raw text from various articles and generate a clear, concise, and actionable travel briefing for ${countryName}.
+    const { output } = await generateWithFallback(
+      `You are a travel intelligence analyst. Your audience is young backpackers. Analyze the provided raw text from various articles and generate a clear, concise, and actionable travel briefing for ${countryName}.
 
         Here is the information gathered from different categories:
 
@@ -241,10 +260,10 @@ const getCountryIntelFlow = ai.defineFlow(
             *   Paragraph 2: Detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
             *   Paragraph 3: Provide a concluding thought or recommendation for a backpacker. This final paragraph must also state the total number of unique articles that were used for this assessment.
         `,
-        model: 'googleai/gemini-1.5-pro', // Use the more powerful model for this complex task
-        output: { schema: OverallAssessmentSchema },
-        context: { categories: allSourcesByCategory },
-    });
+      { categories: allSourcesByCategory },
+      OverallAssessmentSchema,
+      debugLog
+    );
     
     const finalOutput = output!;
 
