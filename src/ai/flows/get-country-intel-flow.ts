@@ -31,7 +31,7 @@ const OverallAssessmentSchema = z.object({
         'Political Stability': z.number().min(0).max(10).describe("Severity score (0-10) for Political Stability."),
     }).describe("A key-value map where the key is the category name and the value is a severity score from 0 (low severity) to 10 (extreme severity)."),
     sourcesUsed: z.array(z.object({
-        url: z.string().url(),
+        url: z.string(),
         publishedDate: z.string().optional().nullable(),
     })).describe('A list of the specific source URLs and their publication dates that were most influential in writing the summary.')
 });
