@@ -95,30 +95,40 @@ function InfoHubContent() {
         }
 
         setIsGeneratingIntel(true);
+        setAiIntel(null); // Clear previous AI intel before fetching new
         try {
+            // --- The "Check" ---
+            // Step 1: Call the AI flow and get the data first.
             const intel = await getCountryIntel({ countryName: selectedCountryName, isAseanCountry });
-            
+
+            if (!intel || Object.keys(intel).length === 0) {
+                 throw new Error("The AI returned an empty response. Please try again.");
+            }
+
+            // --- The "Deduction" ---
+            // Step 2: Only if the check passes, spend the tokens.
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
 
             if (!spendSuccess) {
+                // This is a rare edge case where the user's balance changed mid-request.
                 throw new Error("Token spending failed post-generation. Your balance may have changed.");
             }
             
-            // For ASEAN countries, merge the new advisory with existing static data
-            if (isAseanCountry) {
-                setAiIntel(prev => ({
-                    ...prev,
-                    latestAdvisory: intel.latestAdvisory,
-                }));
-            } else {
-                setAiIntel(intel); // For other countries, replace all data
-            }
-
+             // --- Update UI ---
+            // Step 3: Only after successful deduction, update the UI.
+            setAiIntel(intel);
             setActiveTab('latest');
             toast({ title: 'Intel Generated', description: `Successfully generated the latest advisory for ${selectedCountryName}.` });
+
         } catch (error: any) {
             console.error("Error generating country intel:", error);
-            toast({ variant: 'destructive', title: 'AI Error', description: error.message || "Could not generate travel intel." });
+            // The "Catch" block: Inform the user of failure and confirm no tokens were charged.
+            toast({ 
+                variant: 'destructive', 
+                title: 'AI Generation Failed', 
+                description: `${error.message} No tokens were deducted.`,
+                duration: 7000
+            });
         } finally {
             setIsGeneratingIntel(false);
         }
@@ -140,7 +150,7 @@ function InfoHubContent() {
                 <CardHeader>
                     <CardTitle>Location Intel</CardTitle>
                     <CardDescription>
-                        Select a country to view standard information. For ASEAN countries, this is free. For the absolute latest, real-time intel on any country, use our AI-powered advisory service.
+                        Select a country to view standard information. For ASEAN countries, this info is free. For the absolute latest on any country, use our AI service.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
