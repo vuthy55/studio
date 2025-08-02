@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
- * This flow uses tools to perform web searches and scrape content.
+ * This flow uses tools to perform web searches and scrape content, then analyzes the results.
  */
 
 import { z } from 'zod';
@@ -56,16 +56,23 @@ const getCountryIntelFlow = ai.defineFlow(
     tools: [performWebSearch, scrapeUrl]
   },
   async ({ countryName }) => {
+    // Dynamically get the date for "one month ago"
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoISO = oneMonthAgo.toISOString().split('T')[0];
+
     const prompt = `
-        You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
-        
-        **Process:**
-        1.  First, use the 'performWebSearch' tool to find 3-4 recent articles about travel advisories, news, or scams for ${countryName}.
-        2.  Next, use the 'scrapeUrl' tool on each of the URLs you found to get their content.
-        3.  Finally, synthesize all the information you have gathered to generate the output in the required JSON format.
+        You are a diligent Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
+
+        **Mandatory Process:**
+        1.  **Search:** First, use the 'performWebSearch' tool to find 3-4 RECENT articles about travel advisories, news, or scams for ${countryName}.
+        2.  **Verify & Filter:** For each URL returned by the search, you MUST use the 'scrapeUrl' tool. Critically evaluate the result of the scrape:
+            - If the scrape `success` field is 'false' (e.g., it resulted in a 404 error), you MUST DISCARD this source completely.
+            - If the scrape is successful, you MUST check the 'publishedDate'. If the date is older than **${oneMonthAgoISO}**, you MUST DISCARD this source as it is outdated.
+        3.  **Synthesize:** Finally, generate the output in the required JSON format. Your response for the 'latestAdvisory' field MUST be based ONLY on the content from the sources that you successfully verified and that were recent enough.
 
         **Output Formatting Rules:**
-        -   **latestAdvisory:** Your response for this field MUST be based on the content from the scraped web pages. List only the most critical and recent travel advisories. For each advisory, you MUST cite the specific source URL where you found the information.
+        -   **latestAdvisory:** List only the most critical and recent travel advisories. For each advisory, you MUST cite the specific source URL where you found the information. If after filtering you have no valid sources, return an empty array for this field.
         -   **Other Fields (Holidays, Etiquette, etc.):** Fill these out using your own internal knowledge. You do not need to use tools for these fields.
     `;
     

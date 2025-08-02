@@ -33,18 +33,18 @@ export const performWebSearch = ai.defineTool(
 export const scrapeUrl = ai.defineTool(
     {
         name: 'scrapeUrl',
-        description: 'Fetches the textual content of a given webpage URL. Use this to read the content of the search results.',
+        description: 'Fetches the textual content and publication date of a given webpage URL. Use this to read the content of the search results.',
         input: z.object({
             url: z.string().describe('The full URL of the webpage to scrape.')
         }),
-        output: z.string().describe('The text content of the webpage, or an error message if scraping failed.'),
+        output: z.object({
+            success: z.boolean().describe("Indicates if the scrape was successful."),
+            content: z.string().optional().describe("The text content of the webpage, if successful."),
+            publishedDate: z.string().optional().describe("The estimated publication date in YYYY-MM-DD format, if found."),
+            error: z.string().optional().describe("An error message if the scrape failed."),
+        }),
     },
     async (input) => {
-        const scrapeResult = await scrapeUrlAction(input.url);
-        if (!scrapeResult.success) {
-            // Return a descriptive error string to the AI so it knows why it failed.
-            return `Scraping failed: ${scrapeResult.error}`;
-        }
-        return scrapeResult.content || 'No content found.';
+        return scrapeUrlAction(input.url);
     }
 );
