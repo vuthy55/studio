@@ -23,7 +23,7 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const IntelItemSchema = z.object({
     summary: z.string().describe('A concise, one-paragraph summary of the key information from the source article that is DIRECTLY relevant to the query and country. Do not summarize the website\'s general purpose.'),
-    source: z.string().url().describe('The URL of the source article.'),
+    source: z.string().describe('The URL of the source article.'),
 });
 
 const CountryIntelSchema = z.object({
@@ -189,4 +189,3 @@ const getCountryIntelFlow = ai.defineFlow(
     return finalOutput as CountryIntel;
   }
 );
-
