@@ -51,7 +51,7 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
-    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, stating the total number of unique articles that were used for the summary.'),
+    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers, which MUST include the total number of unique articles that were used for the summary.'),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
@@ -282,10 +282,9 @@ const getCountryIntelFlow = ai.defineFlow(
         finalScore,
         summary: aiOutput.summary,
         categoryAssessments: aiOutput.categoryAssessments,
-        sourcesUsed: aiOutput.sourcesUsed,
+        sourcesUsed: aiOutput.sourcesUsed.map(s => ({...s, publishedDate: s.publishedDate || null })),
         allReviewedSources: Array.from(allUniqueSources.values())
     };
   }
 );
     
-`
