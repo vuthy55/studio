@@ -2,20 +2,19 @@
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
- * This has been refactored into an AI Agent that uses tools to perform research.
+ * This has been refactored to a direct search-and-summarize flow to improve reliability.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { format } from 'date-fns';
-import { webSearch, scrapeWeb } from '@/ai/tools/web-search';
-import { getAppSettingsAction } from '@/actions/settings';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 // --- Zod Schemas for Input/Output ---
 
 const GetCountryIntelInputSchema = z.object({
   countryName: z.string().describe('The name of the country to get travel intel for.'),
-  isAseanCountry: z.boolean().describe('Whether the country is a member of ASEAN.'),
 });
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
@@ -26,13 +25,8 @@ const HolidaySchema = z.object({
   link: z.string().optional().describe('A URL to a Wikipedia or official page about the event, if available.'),
 });
 
-// Schema for the "advisory-only" AI call for ASEAN countries.
-const AseanIntelSchema = z.object({
+const CountryIntelSchema = z.object({
   latestAdvisory: z.array(z.string()).describe("A list of 2-3 of the most recent, urgent travel advisories, scams, or relevant news for this country, summarized from the provided text. The response must start with 'As of {current_date}:' and only include information from the last month."),
-});
-
-// Full schema for non-ASEAN countries, extending the ASEAN schema.
-const CountryIntelSchema = AseanIntelSchema.extend({
   majorHolidays: z.array(HolidaySchema).describe('A comprehensive list of all major public holidays and significant festivals for the entire year.'),
   culturalEtiquette: z.array(z.string()).describe('A detailed list of 5-7 crucial cultural etiquette tips for travelers (e.g., how to greet, dress code for temples, tipping customs, dining etiquette).'),
   visaInfo: z.string().describe("A comprehensive, general overview of the tourist visa policy for common nationalities (e.g., USA, UK, EU, Australia). Mention visa on arrival, e-visa options, and typical durations. Include a source link if possible."),
@@ -49,63 +43,102 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
 
 // --- Main Exported Function ---
-
-/**
- * Main exported function that wraps and calls the Genkit flow.
- * Returns a partial object for ASEAN countries (advisory only) or a full object for others.
- */
 export async function getCountryIntel(input: GetCountryIntelInput): Promise<Partial<CountryIntel>> {
   return getCountryIntelFlow(input);
 }
+
+
+// --- Helper Functions for Search and Scrape ---
+async function searchWeb(query: string): Promise<string[]> {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+    if (!apiKey || !searchEngineId) {
+        throw new Error("Google Search API credentials are not configured on the server.");
+    }
+    
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(query)}`;
+    
+    try {
+        const response = await axios.get(url);
+        const items = response.data.items || [];
+        return items.slice(0, 4).map((item: any) => item.link); // Return top 4 URLs
+    } catch (error: any) {
+        console.error("[Intel Search] Error performing Google search:", error.response?.data || error.message);
+        throw new Error("Failed to execute web search.");
+    }
+}
+
+async function scrapeUrl(url: string): Promise<string> {
+    try {
+        const { data } = await axios.get(url, { timeout: 4000 });
+        const $ = cheerio.load(data);
+        $('script, style, nav, footer, header, aside').remove();
+        const mainContent = $('body').text().replace(/\s+/g, ' ').trim();
+        return mainContent.substring(0, 4000); // Limit content per page
+    } catch (error: any) {
+        console.warn(`[Intel Scrape] Failed to scrape ${url}:`, error.message);
+        return `Scraping failed for ${url}.`; // Return error message instead of empty string
+    }
+}
+
+
+// --- Genkit Flow Definition ---
 
 const getCountryIntelFlow = ai.defineFlow(
   {
     name: 'getCountryIntelFlow',
     inputSchema: GetCountryIntelInputSchema,
-    outputSchema: z.union([CountryIntelSchema, AseanIntelSchema]),
+    outputSchema: CountryIntelSchema,
   },
-  async ({ countryName, isAseanCountry }) => {
+  async ({ countryName }) => {
     
-    // Choose the correct schema based on the country type.
-    const schema = isAseanCountry ? AseanIntelSchema : CountryIntelSchema;
-    const currentDate = format(new Date(), 'MMMM d, yyyy');
-    const settings = await getAppSettingsAction();
-    const globalSources = settings.infohubSources;
+    // Step 1: Perform web searches directly in the flow
+    const searchQueries = [
+      `travel advisory ${countryName}`,
+      `latest travel news ${countryName} tourists`,
+      `common tourist scams ${countryName}`,
+    ];
+    const searchPromises = searchQueries.map(searchWeb);
+    const searchResults = await Promise.all(searchPromises);
+    const uniqueUrls = [...new Set(searchResults.flat())];
 
-    // A unified prompt to handle both ASEAN and non-ASEAN countries.
-    // The model will intelligently skip sections if they are not part of the requested output schema.
+    // Step 2: Scrape the content from the found URLs
+    const scrapePromises = uniqueUrls.map(scrapeUrl);
+    const scrapedContents = await Promise.all(scrapePromises);
+    const combinedContext = scrapedContents.join('\n\n---\n\n');
+
+    if (!combinedContext.trim()) {
+        throw new Error("Could not retrieve any information from the web.");
+    }
+
+    // Step 3: Call the AI for summarization
+    const currentDate = format(new Date(), 'MMMM d, yyyy');
     const prompt = `
         You are a Travel Intelligence Analyst. Your task is to provide a critical, up-to-date travel briefing for ${countryName}.
-        For the 'latestAdvisory' section, you MUST perform live research using the provided tools.
-        For all other sections (if requested by the schema), use your general knowledge.
+        Base your 'latestAdvisory' section *only* on the provided text below. For all other sections (holidays, etiquette, etc.), use your general knowledge.
 
-        **Research Instructions for 'latestAdvisory':**
-        1.  **Search:** Use the webSearch tool with queries like "latest travel news and advisories for ${countryName}" and "travel scams ${countryName}" to find relevant, recent articles.
-        2.  **Scrape:** Use the scrapeWeb tool on the most promising search result URL AND the following global advisory URLs: ${globalSources}.
-        3.  **Summarize:** Based on ALL the text you have gathered, extract and list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on new scams, political instability affecting tourists, or significant health notices.
+        **Provided Context from Web Search:**
+        ---
+        ${combinedContext}
+        ---
 
         **Output Formatting Rules:**
-        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. If you find no relevant new information, return an empty array for this field.
-        -   **majorHolidays:** (If requested) Provide a comprehensive list of all major public holidays and significant festivals for the entire year. Include a source link for at least two major events.
-        -   **culturalEtiquette:** (If requested) Detail 5-7 crucial cultural etiquette tips.
-        -   **visaInfo:** (If requested) Give a detailed but non-legally-binding overview of tourist visa policies for USA, UK, EU, and Australian citizens. Provide a link to an official immigration or embassy page if possible.
-        -   **emergencyNumbers:** (If requested) List all key emergency contacts, including tourist police and any available public emails.
+        -   **latestAdvisory:** Your response for this field MUST begin with the exact phrase: 'As of ${currentDate}:'. From the provided context, extract and list only 2-3 of the most critical and recent (within the last month) travel advisories. Focus on scams, political instability, or health notices. If the context contains no relevant new information, return an empty array for this field.
+        -   **majorHolidays:** Provide a comprehensive list of major public holidays and significant festivals.
+        -   **culturalEtiquette:** Detail 5-7 crucial cultural etiquette tips.
+        -   **visaInfo:** Give a general overview of tourist visa policies for common nationalities.
+        -   **emergencyNumbers:** List key emergency contacts.
     `;
-
+    
     try {
         const { output } = await ai.generate({
             prompt,
-            // Using a more powerful model better suited for complex reasoning and tool use.
-            model: 'googleai/gemini-1.5-pro', 
-            tools: [webSearch, scrapeWeb],
-            output: { schema },
+            model: 'googleai/gemini-1.5-flash',
+            output: { schema: CountryIntelSchema },
             config: {
-                // Adjust safety settings to allow discussion of potentially sensitive travel advisory topics.
                 safetySettings: [
-                  {
-                    category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                    threshold: 'BLOCK_ONLY_HIGH',
-                  },
+                  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
                 ],
             }
         });
@@ -115,10 +148,8 @@ const getCountryIntelFlow = ai.defineFlow(
         }
         return output;
 
-    } catch (error: any) {
-        // Log the complete, original error from the AI service for better debugging.
+    } catch (error: any)
         console.error(`[AI Flow] CRITICAL: Model failed to generate intel for ${countryName}. Full error:`, error);
-        // Provide a more descriptive error to the user, including the actual reason if available.
         throw new Error(`The AI agent could not generate travel information for ${countryName}. Reason: ${error.message}`);
     }
   }
