@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -27,26 +27,26 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 
-function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<CountryIntel> | null, searchDate: Date | null, fromCache: boolean }) {
+function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
     if (!intel?.overallAssessment) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    const { score, summary, sourcesUsed, categoryAssessments } = intel.overallAssessment;
+    const { finalScore, summary, sourcesUsed, categoryAssessments, analystScore, quantitativeScore } = intel.overallAssessment;
     const allReviewedSources = intel.allReviewedSources || [];
 
     const getScoreAppearance = (currentScore: number) => {
-        if (currentScore <= 3) return { color: 'text-destructive' };
-        if (currentScore <= 7) return { color: 'text-amber-600' };
-        return { color: 'text-green-600' };
+        if (currentScore <= 3) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
+        if (currentScore <= 7) return { color: 'text-amber-600', icon: <Info className="h-full w-full" /> };
+        return { color: 'text-green-600', icon: <CheckCircle2 className="h-full w-full" /> };
     };
 
-    const mainScoreAppearance = getScoreAppearance(score);
+    const mainScoreAppearance = getScoreAppearance(finalScore);
 
     const summaryWithClickableLink = () => {
         if (!summary) return null;
         const match = summary.match(/This assessment is based on (\d+) unique articles/);
-        if (match) {
+        if (match && sourcesUsed && sourcesUsed.length > 0) {
             const count = match[1];
             const parts = summary.split(match[0]);
             return (
@@ -64,22 +64,20 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                                         These articles were most influential in the summary.
                                     </p>
                                 </div>
-                                <div className="grid gap-2">
-                                     <ScrollArea className="h-48">
-                                         <ul className="list-disc pl-5 text-sm space-y-1">
-                                            {sourcesUsed?.map((source, index) => (
-                                                <li key={`used-${index}`}>
-                                                    <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                                                        {source.url}
-                                                    </a>
-                                                    {source.publishedDate && (
-                                                        <span className="text-muted-foreground text-xs ml-2">({format(new Date(source.publishedDate), 'MMM d, yyyy')})</span>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                     </ScrollArea>
-                                </div>
+                                <ScrollArea className="h-48">
+                                     <ul className="list-disc pl-5 text-sm space-y-1">
+                                        {sourcesUsed?.map((source, index) => (
+                                            <li key={`used-${index}`}>
+                                                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                                    {source.url}
+                                                </a>
+                                                {source.publishedDate && (
+                                                    <span className="text-muted-foreground text-xs ml-2">({format(new Date(source.publishedDate), 'MMM d, yyyy')})</span>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                 </ScrollArea>
                             </div>
                         </PopoverContent>
                     </Popover>
@@ -87,14 +85,16 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                 </>
             );
         }
-        return summary;
+        return summary.split('\n\n').map((paragraph, index) => (
+            <p key={index} className={index > 0 ? 'mt-4' : ''}>{paragraph}</p>
+        ));
     };
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
                 <div className={cn("flex-shrink-0 w-20 h-20", mainScoreAppearance.color)}>
-                    {score <= 3 ? <AlertTriangle className="h-full w-full" /> : score <=7 ? <Info className="h-full w-full" /> : <CheckCircle2 className="h-full w-full" />}
+                    {mainScoreAppearance.icon}
                 </div>
                 <div className="flex-1">
                     <h3 className="text-2xl font-bold">Overall Assessment</h3>
@@ -105,36 +105,43 @@ function LatestIntelDisplay({ intel, searchDate, fromCache }: { intel: Partial<C
                     )}
                 </div>
                  <div className="text-center">
-                    <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
-                    <p className={cn("text-6xl font-bold", mainScoreAppearance.color)}>{score}</p>
+                    <p className="text-sm font-bold text-muted-foreground">FINAL RISK SCORE</p>
+                    <p className={cn("text-6xl font-bold", mainScoreAppearance.color)}>{finalScore}</p>
                 </div>
             </div>
 
-            {categoryAssessments && Object.keys(categoryAssessments).length > 0 && (
-                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {Object.entries(categoryAssessments).map(([category, catScore]) => (
-                        <Card key={category} className="text-center">
-                            <CardHeader className="p-3">
-                                <CardTitle className="text-sm">{category}</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-3 pt-0">
-                                <p className={cn("text-3xl font-bold", getScoreAppearance(catScore).color)}>{catScore}</p>
-                            </CardContent>
-                        </Card>
-                    ))}
-                 </div>
+            {categoryAssessments && (
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">Risk Breakdown</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                       {Object.entries(categoryAssessments).map(([category, catScore]) => (
+                            <div key={category} className="text-left p-2 rounded-lg bg-background">
+                                <p className="text-sm font-semibold">{category}</p>
+                                <p className="text-2xl font-bold">{catScore}/2</p>
+                            </div>
+                        ))}
+                         <div className="text-left p-2 rounded-lg bg-background font-semibold">
+                            <p className="text-sm">Quantitative Score</p>
+                            <p className="text-2xl font-bold">{quantitativeScore}/10</p>
+                         </div>
+                          <div className="text-left p-2 rounded-lg bg-background font-semibold">
+                            <p className="text-sm">AI Analyst Score</p>
+                            <p className="text-2xl font-bold">{analystScore}/10</p>
+                         </div>
+                    </CardContent>
+                 </Card>
             )}
             
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
-                <div className="whitespace-pre-wrap text-sm text-muted-foreground p-4 border rounded-md bg-background">
+                <div className="text-sm text-muted-foreground p-4 border rounded-md bg-background">
                     {summaryWithClickableLink()}
                 </div>
             </div>
 
             {allReviewedSources && allReviewedSources.length > 0 && (
                 <div className="space-y-2">
-                    <h4 className="text-lg font-semibold">Sources Reviewed</h4>
+                    <h4 className="text-lg font-semibold">Sources Reviewed ({allReviewedSources.length})</h4>
                     <ScrollArea className="h-48 border rounded-md p-4">
                     <ul className="list-disc pl-5 space-y-1 text-sm">
                         {allReviewedSources.map((source, index) => (
@@ -168,7 +175,6 @@ function InfoHubContent() {
     const [aiIntel, setAiIntel] = useState<Partial<CountryIntel> | null>(null);
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
     const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
-    const [resultFromCache, setResultFromCache] = useState(false);
     
     const countryOptions = useMemo(() => lightweightCountries, []);
 
@@ -176,7 +182,6 @@ function InfoHubContent() {
         return countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
     }, [selectedCountryCode, countryOptions]);
 
-    // Static data memoization
     const staticHolidays = useMemo(() => staticEvents.filter(e => e.countryCode === selectedCountryCode), [selectedCountryCode]);
     const staticEtiquette = useMemo(() => etiquetteData[selectedCountryCode] || [], [selectedCountryCode]);
     const staticVisa = useMemo(() => visaData[selectedCountryCode] || '', [selectedCountryCode]);
@@ -191,12 +196,6 @@ function InfoHubContent() {
         ];
     }, [selectedCountryCode]);
     
-    // Derived data sources for rendering
-    const holidays = useMemo(() => staticHolidays, [staticHolidays]);
-    const etiquette = useMemo(() => staticEtiquette, [staticEtiquette]);
-    const visa = useMemo(() => staticVisa, [staticVisa]);
-    const emergencyList = useMemo(() => staticEmergency, [staticEmergency]);
-
     const handleCountrySelection = (countryCode: string) => {
         setSelectedCountryCode(countryCode);
         setAiIntel(null);
@@ -223,16 +222,11 @@ function InfoHubContent() {
         setLastSearchDate(new Date());
 
         try {
-            // Always fetch new data now
-            const { intel, debugLog } = await getCountryIntel({ 
-                countryName: selectedCountryName,
-            });
-
+            const { intel, debugLog } = await getCountryIntel({ countryName: selectedCountryName });
             console.log("--- InfoHub Debug Log ---");
             debugLog.forEach(log => console.log(log));
             console.log("--- End Debug Log ---");
-
-            // Spend tokens on every successful fetch
+            
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
             if (!spendSuccess) {
                 throw new Error("Token spending failed. Your balance may have changed.");
@@ -243,7 +237,6 @@ function InfoHubContent() {
             }
             
             setAiIntel(intel);
-            setResultFromCache(false);
             setActiveTab('latest');
             toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName}.` });
 
@@ -260,17 +253,12 @@ function InfoHubContent() {
         }
     };
 
-    // Helper function to safely format dates
     const formatDateSafely = (dateString: string) => {
-        // Check for YYYY-MM-DD format specifically for static data
         if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
             try {
                 return format(new Date(dateString), 'MMMM d');
-            } catch (e) {
-                return dateString; // Fallback for invalid but matching formats
-            }
+            } catch (e) { return dateString; }
         }
-        // For other formats (like "Late January" from AI), just return the string
         return dateString;
     };
     
@@ -290,7 +278,7 @@ function InfoHubContent() {
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <CardTitle>Location Intel</CardTitle>
-                        <Dialog>
+                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
                                     <Info className="h-4 w-4"/>
@@ -377,7 +365,7 @@ function InfoHubContent() {
                                         <p className="ml-2 text-muted-foreground">Generating AI briefing...</p>
                                     </div>
                                 ) : (
-                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} fromCache={resultFromCache} />
+                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} />
                                 )}
                             </CardContent>
                         </Card>
@@ -392,7 +380,7 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                               {holidays.length > 0 ? (
+                               {staticHolidays.length > 0 ? (
                                    <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -402,7 +390,7 @@ function InfoHubContent() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {holidays.map((event: any, index: number) => (
+                                            {staticHolidays.map((event: any, index: number) => (
                                                 <TableRow key={index}>
                                                     <TableCell className="whitespace-nowrap">{formatDateSafely(event.date)}</TableCell>
                                                     <TableCell className="font-medium">
@@ -436,9 +424,9 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
-                                {etiquette.length > 0 ? (
+                                {staticEtiquette.length > 0 ? (
                                     <ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                        {staticEtiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
                                     </ul>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
@@ -456,7 +444,7 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                 <p className="text-sm">{visa || 'No standard data available for this country.'}</p>
+                                 <p className="text-sm">{staticVisa || 'No standard data available for this country.'}</p>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -470,10 +458,10 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
-                                {emergencyList.length > 0 ? (
+                                {staticEmergency.length > 0 ? (
                                  <Table>
                                     <TableBody>
-                                        {emergencyList.map((item, index) => (
+                                        {staticEmergency.map((item, index) => (
                                             <TableRow key={index}>
                                                 <TableCell className="font-medium capitalize">{item.label}</TableCell>
                                                 <TableCell className="font-mono">{item.number}</TableCell>
