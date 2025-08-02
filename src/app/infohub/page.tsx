@@ -24,7 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-function LatestIntelDisplay({ intel }: { intel: Partial<CountryIntel> | null }) {
+function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
     if (!intel?.overallAssessment) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
@@ -47,7 +47,10 @@ function LatestIntelDisplay({ intel }: { intel: Partial<CountryIntel> | null }) 
                 </div>
                 <div className="flex-1">
                     <h3 className="text-2xl font-bold">Overall Assessment</h3>
-                    <p className="text-sm text-muted-foreground">AI-generated analysis based on recent, verifiable sources.</p>
+                    <p className="text-sm text-muted-foreground">
+                        AI-generated analysis based on recent, verifiable sources.
+                        {searchDate && <span className="block font-semibold">As of {format(searchDate, 'PP')}</span>}
+                    </p>
                 </div>
                  <div className="text-center">
                     <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
@@ -92,6 +95,7 @@ function InfoHubContent() {
     
     const [aiIntel, setAiIntel] = useState<Partial<CountryIntel> | null>(null);
     const [isGeneratingIntel, setIsGeneratingIntel] = useState(false);
+    const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
     
     const countryOptions = useMemo(() => lightweightCountries, []);
 
@@ -123,6 +127,7 @@ function InfoHubContent() {
     const handleCountrySelection = (countryCode: string) => {
         setSelectedCountryCode(countryCode);
         setAiIntel(null);
+        setLastSearchDate(null);
         setActiveTab('latest');
     };
 
@@ -142,6 +147,8 @@ function InfoHubContent() {
 
         setIsGeneratingIntel(true);
         setAiIntel(null);
+        setLastSearchDate(new Date());
+
         try {
             const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName}`, cost);
             if (!spendSuccess) {
@@ -270,7 +277,7 @@ function InfoHubContent() {
                                         <p className="ml-2 text-muted-foreground">Generating AI briefing...</p>
                                     </div>
                                 ) : (
-                                    <LatestIntelDisplay intel={aiIntel} />
+                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} />
                                 )}
                             </CardContent>
                         </Card>
