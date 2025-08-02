@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2 } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, BookUser, ShieldAlert, Phone, Link as LinkIcon, Hand, Coins, Briefcase, Syringe, Building2, CheckCircle2, Info } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
@@ -22,64 +22,58 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 function LatestIntelDisplay({ intel }: { intel: Partial<CountryIntel> | null }) {
-    if (!intel) {
+    if (!intel?.overallAssessment) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
 
-    if (Object.values(intel).every(value => !value || (Array.isArray(value) && value.length === 0))) {
-        return <p className="text-sm text-center text-muted-foreground py-8">No specific advisories found by the AI. Exercise normal precautions.</p>;
-    }
+    const { score, summary, sources } = intel.overallAssessment;
 
-    const renderIntelList = (items: {summary: string; source: string}[]) => {
-        if (!items || items.length === 0) return <p className="text-sm text-muted-foreground">No specific information found for this category.</p>;
+    const getScoreAppearance = () => {
+        if (score < 0) return { color: 'text-destructive', icon: <AlertTriangle className="h-full w-full" /> };
+        if (score === 0) return { color: 'text-muted-foreground', icon: <Info className="h-full w-full" /> };
+        return { color: 'text-green-600', icon: <CheckCircle2 className="h-full w-full" /> };
+    };
 
-        return (
-            <ul className="space-y-4">
-                {items.map((item, index) => (
-                    <li key={index} className="space-y-1">
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.summary}</p>
-                        <a href={item.source} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                            <LinkIcon className="h-3 w-3" />
-                            Source
-                        </a>
-                    </li>
-                ))}
-            </ul>
-        )
-    }
+    const { color, icon } = getScoreAppearance();
 
     return (
         <div className="space-y-6">
-            {intel.latestAdvisory && intel.latestAdvisory.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-primary" /> Official Advisories</h3>
-                    {renderIntelList(intel.latestAdvisory)}
+            <div className="flex flex-col sm:flex-row items-center gap-6 p-4 border rounded-lg bg-muted/40">
+                <div className={cn("flex-shrink-0 w-20 h-20", color)}>
+                    {icon}
                 </div>
-            )}
-             {intel.scams && intel.scams.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold flex items-center gap-2"><Briefcase className="h-5 w-5 text-primary" /> Scams & Fraud</h3>
-                     {renderIntelList(intel.scams)}
+                <div className="flex-1">
+                    <h3 className="text-2xl font-bold">Overall Assessment</h3>
+                    <p className="text-sm text-muted-foreground">AI-generated analysis based on recent, verifiable sources.</p>
                 </div>
-            )}
-            {intel.theft && intel.theft.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold flex items-center gap-2"><BookUser className="h-5 w-5 text-primary" /> Theft & Safety</h3>
-                    {renderIntelList(intel.theft)}
+                 <div className="text-center">
+                    <p className="text-sm font-bold text-muted-foreground">RISK SCORE</p>
+                    <p className={cn("text-6xl font-bold", color)}>{score}</p>
                 </div>
-            )}
-             {intel.health && intel.health.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold flex items-center gap-2"><Syringe className="h-5 w-5 text-primary" /> Health & Disease</h3>
-                     {renderIntelList(intel.health)}
+            </div>
+            
+            <div className="space-y-4">
+                 <h4 className="text-lg font-semibold">Analyst Briefing</h4>
+                <div className="whitespace-pre-wrap text-muted-foreground text-sm p-4 border rounded-md bg-background">
+                    {summary}
                 </div>
-            )}
-            {intel.political && intel.political.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Political Situation</h3>
-                     {renderIntelList(intel.political)}
+            </div>
+
+            {sources && sources.length > 0 && (
+                <div className="space-y-2">
+                    <h4 className="text-lg font-semibold">Sources Used</h4>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                        {sources.map((source, index) => (
+                            <li key={index}>
+                                <a href={source} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                    {source}
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
         </div>
@@ -163,7 +157,7 @@ function InfoHubContent() {
             console.log("--- End Debug Log ---");
 
 
-            if (!intel || Object.keys(intel).length === 0) {
+            if (!intel || !intel.overallAssessment) {
                  throw new Error("The AI returned an empty response. Please check the debug logs in the console.");
             }
             
@@ -401,3 +395,5 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
+
+    

@@ -3,7 +3,7 @@
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
  * This flow orchestrates web searches and scraping to gather data,
- * then uses an AI to summarize the verified content.
+ * then uses an AI to summarize the verified content and provide a risk assessment.
  */
 
 import { z } from 'zod';
@@ -50,17 +50,18 @@ const GetCountryIntelInputSchema = z.object({
 });
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
-const IntelItemSchema = z.object({
-    summary: z.string().describe('A concise, one-paragraph summary of the key information from the source article that is DIRECTLY relevant to the query and country. Do not summarize the website\'s general purpose.'),
-    source: z.string().describe('The URL of the source article.'),
+const OverallAssessmentSchema = z.object({
+    score: z.number().min(-5).max(5).describe('An overall travel safety score from -5 (very dangerous) to +5 (very safe). 0 is neutral.'),
+    summary: z.string().describe('A 3-paragraph summary: 1. Overall situation. 2. Main issues (health, political, etc.) with specific locations if possible. 3. Conclusion/recommendation for travelers.'),
+    sources: z.array(z.string()).describe('A list of all source URLs used for the analysis.'),
 });
 
 const CountryIntelSchema = z.object({
-  latestAdvisory: z.array(IntelItemSchema).optional().describe('A list of summaries from official government travel advisories.'),
-  scams: z.array(IntelItemSchema).optional().describe('A list of summaries of common tourist scams.'),
-  theft: z.array(IntelItemSchema).optional().describe('A list of summaries of theft, robbery, or kidnapping risks.'),
-  health: z.array(IntelItemSchema).optional().describe('A list of summaries of health risks or disease outbreaks.'),
-  political: z.array(IntelItemSchema).optional().describe('A list of summaries of the political situation, protests, or unrest.'),
+  overallAssessment: OverallAssessmentSchema,
+  rawSummaries: z.record(z.array(z.object({
+    summary: z.string(),
+    source: z.string(),
+  }))).optional().describe("The raw, un-analyzed summaries for each category."),
 });
 export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
@@ -130,7 +131,7 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
     return verifiedSources;
 }
 
-const generateSummaryWithFallback = async (prompt: string, context: { sources: { content: string; url: string }[] }, outputSchema: any, debugLog: string[]) => {
+const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[]) => {
     try {
         debugLog.push("[Intel Flow] Calling primary model (gemini-1.5-flash)...");
         return await ai.generate({
@@ -166,7 +167,6 @@ const getCountryIntelFlow = ai.defineFlow(
     const regionalNewsQuery = buildSiteSearchQuery(REGIONAL_NEWS_SITES);
     const localNewsQuery = buildSiteSearchQuery(LOCAL_NEWS_SITES[countryName] || []);
 
-
     const categories = {
         latestAdvisory: `official government travel advisory ${countryName} ${governmentSitesQuery}`,
         scams: `(tourist scams OR fraud) ${countryName} ${regionalNewsQuery}`,
@@ -183,47 +183,62 @@ const getCountryIntelFlow = ai.defineFlow(
         return {};
     }
 
-    const allPromises = Object.entries(categories).map(async ([key, query]) => {
-        debugLog.push(`[Intel Flow] Starting process for category: "${key}"`);
-        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
+    const allSourcesByCategory: Record<string, {content: string, url: string}[]> = {};
+    const allUniqueSources = new Set<string>();
 
-        if (sources.length === 0) {
-            debugLog.push(`[Intel Flow] No verified sources found for category: "${key}". Skipping AI generation.`);
-            return { [key]: [] };
-        }
-        
-        debugLog.push(`[Intel Flow] Calling AI to summarize ${sources.length} sources for category: "${key}"`);
-        const { output } = await generateSummaryWithFallback(
-            `You are an expert travel intelligence analyst. Your task is to provide a concise, one-paragraph summary for each provided article.
-            
-            IMPORTANT:
-            1.  Your summary MUST be about the specific topic: "${query}".
-            2.  Your summary MUST be specifically about ${countryName}.
-            3.  DO NOT summarize the general purpose of the website. Focus only on the content relevant to the query.
-            4.  For each summary, you MUST cite the source URL provided with it.
-            
-            Here are the articles:
-            {{#each sources}}
-            Source URL: {{{url}}}
-            Article Content:
-            ---
-            {{{content}}}
-            ---
-            {{/each}}`,
-            { sources },
-            z.array(IntelItemSchema),
-            debugLog
-        );
-        
-        debugLog.push(`[Intel Flow] AI summarization complete for category: "${key}". Found ${output?.length || 0} items.`);
-        return { [key]: output || [] };
+    const searchPromises = Object.entries(categories).map(async ([key, query]) => {
+        debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
+        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
+        allSourcesByCategory[key] = sources;
+        sources.forEach(s => allUniqueSources.add(s.url));
     });
 
-    const results = await Promise.all(allPromises);
+    await Promise.all(searchPromises);
     
-    const finalOutput = results.reduce((acc, current) => ({ ...acc, ...current }), {});
+    if (Object.values(allSourcesByCategory).every(sources => sources.length === 0)) {
+        debugLog.push('[Intel Flow] No verifiable sources found across all categories. Returning empty assessment.');
+        return {
+            overallAssessment: {
+                score: 0,
+                summary: "No specific, recent, and verifiable information was found across all categories. This could indicate a lack of major reported issues. \n\nTravelers should exercise standard precautions. \n\nWithout specific data, it's recommended to consult your country's official travel advisory and stay aware of your surroundings.",
+                sources: []
+            }
+        };
+    }
     
-    debugLog.push('[Intel Flow] All categories processed. Final combined output sent to client.');
-    return finalOutput as CountryIntel;
+    debugLog.push(`[Intel Flow] Found sources. Calling AI for final analysis...`);
+
+    const { output } = await generateWithFallback(
+      `You are a senior travel intelligence analyst for an audience of young backpackers. Your task is to analyze the provided raw text from various articles and generate a clear, concise, and actionable travel briefing for ${countryName}.
+
+      Here is the information gathered from different categories:
+
+      {{#each categories}}
+      --- CATEGORY: {{@key}} ---
+      {{#each this}}
+      Source URL: {{{url}}}
+      Article Content:
+      {{{content}}}
+      
+      {{/each}}
+      {{/each}}
+
+      --- ANALYSIS INSTRUCTIONS ---
+      Based *only* on the information provided above, perform the following actions:
+
+      1.  **Overall Assessment Score:** Assign a single, holistic travel safety score for ${countryName} on a scale from -5 (Very High Risk) to +5 (Very Low Risk). A score of 0 is neutral. Consider all factors together.
+      2.  **Generate a 3-Paragraph Summary:**
+          *   **Paragraph 1 (Overall Summary):** Start with a direct statement about the current travel situation. Is it stable? Are there significant concerns?
+          *   **Paragraph 2 (Issue Focus):** Detail the *most important* issues affecting travelers. For each issue, specify the category (e.g., Health, Political, Scams) and, if the text mentions it, the specific city or province. If there are no major issues, state that the situation appears stable.
+          *   **Paragraph 3 (Conclusion):** Provide a concluding thought or recommendation for a backpacker. Should they be extra vigilant? Can they travel with standard precautions?
+      3.  **List of Sources:** Compile a simple list of all the unique source URLs you used for this analysis.`,
+      { categories: allSourcesByCategory },
+      OverallAssessmentSchema,
+      debugLog
+    );
+
+    return { overallAssessment: output! };
   }
 );
+
+    
