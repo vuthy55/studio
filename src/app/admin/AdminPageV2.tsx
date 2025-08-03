@@ -362,12 +362,6 @@ function SettingsTabContent() {
                             <Input id="summaryTranslationCost" type="number" value={settings.summaryTranslationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
                             <p className="text-sm text-muted-foreground">Token cost to translate a summary into one language.</p>
                         </div>
-                    </div>
-
-                    {/* Column 3: AI & Language */}
-                    <div className="space-y-6">
-                         <h3 className="text-lg font-semibold flex items-center gap-2"><Music className="text-primary"/> AI & Language</h3>
-                         <Separator />
                         <div className="space-y-2">
                             <Label htmlFor="languageUnlockCost">Language Unlock Cost</Label>
                             <Input id="languageUnlockCost" type="number" value={settings.languageUnlockCost ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
@@ -378,39 +372,52 @@ function SettingsTabContent() {
                             <Input id="infohubAiCost" type="number" value={settings.infohubAiCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
                             <p className="text-sm text-muted-foreground">Tokens to get latest AI travel intel for one country.</p>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="infohubGovernmentAdvisorySources" className="flex items-center gap-1.5"><LinkIcon/> Government Advisory Sources</Label>
-                            <Textarea 
-                                id="infohubGovernmentAdvisorySources" 
-                                value={settings.infohubGovernmentAdvisorySources ?? ''} 
-                                onChange={handleInputChange} 
-                                placeholder="travel.state.gov, etc."
-                                rows={3}
-                            />
-                            <p className="text-sm text-muted-foreground">Comma-separated list of official government travel advisory sites.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="infohubGlobalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Global News Sources</Label>
-                            <Textarea 
-                                id="infohubGlobalNewsSources" 
-                                value={settings.infohubGlobalNewsSources ?? ''} 
-                                onChange={handleInputChange} 
-                                placeholder="reuters.com, apnews.com, etc."
-                                rows={3}
-                            />
-                            <p className="text-sm text-muted-foreground">Comma-separated list of major global news outlets.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="infohubRegionalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Regional News Sources</Label>
-                            <Textarea 
-                                id="infohubRegionalNewsSources" 
-                                value={settings.infohubRegionalNewsSources ?? ''} 
-                                onChange={handleInputChange} 
-                                placeholder="aljazeera.com/asia, etc."
-                                rows={3}
-                            />
-                            <p className="text-sm text-muted-foreground">Comma-separated list of Asia-Pacific or other regional news outlets.</p>
-                        </div>
+                    </div>
+
+                    {/* Column 3: AI Sources */}
+                     <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Webhook className="text-primary"/> AI & External Sources</h3>
+                         <Separator />
+                         <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="infohub-sources">
+                                <AccordionTrigger>InfoHub AI Sources</AccordionTrigger>
+                                <AccordionContent className="space-y-4">
+                                     <div className="space-y-2">
+                                        <Label htmlFor="infohubGovernmentAdvisorySources" className="flex items-center gap-1.5"><LinkIcon/> Government Advisory Sources</Label>
+                                        <Textarea 
+                                            id="infohubGovernmentAdvisorySources" 
+                                            value={settings.infohubGovernmentAdvisorySources ?? ''} 
+                                            onChange={handleInputChange} 
+                                            placeholder="travel.state.gov, etc."
+                                            rows={3}
+                                        />
+                                        <p className="text-sm text-muted-foreground">Comma-separated list of official government travel advisory sites.</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="infohubGlobalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Global News Sources</Label>
+                                        <Textarea 
+                                            id="infohubGlobalNewsSources" 
+                                            value={settings.infohubGlobalNewsSources ?? ''} 
+                                            onChange={handleInputChange} 
+                                            placeholder="reuters.com, apnews.com, etc."
+                                            rows={3}
+                                        />
+                                        <p className="text-sm text-muted-foreground">Comma-separated list of major global news outlets.</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="infohubRegionalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Regional News Sources</Label>
+                                        <Textarea 
+                                            id="infohubRegionalNewsSources" 
+                                            value={settings.infohubRegionalNewsSources ?? ''} 
+                                            onChange={handleInputChange} 
+                                            placeholder="aljazeera.com/asia, etc."
+                                            rows={3}
+                                        />
+                                        <p className="text-sm text-muted-foreground">Comma-separated list of Asia-Pacific or other regional news outlets.</p>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
                     </div>
                  </div>
 
