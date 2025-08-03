@@ -144,6 +144,7 @@ const getCountryIntelFlow = ai.defineFlow(
   },
   async ({ countryName, debugLog }) => {
     
+    // --- Step 1: Fetch all required data first ---
     const settings = await getAppSettingsAction();
     const apiKey = process.env.GOOGLE_API_KEY;
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
@@ -165,7 +166,8 @@ const getCountryIntelFlow = ai.defineFlow(
     }
 
     const neighborData = await getNeighborIntelData(countryData.neighbours);
-
+    
+    // --- Step 2: Build search queries now that all data is available ---
     const governmentSitesQuery = buildSiteSearchQuery(settings.infohubGovernmentAdvisorySources.split(','));
     const globalNewsSitesQuery = buildSiteSearchQuery(settings.infohubGlobalNewsSources.split(','));
     const regionalNewsSitesQuery = buildSiteSearchQuery(countryData.regionalNews);
@@ -179,21 +181,20 @@ const getCountryIntelFlow = ai.defineFlow(
         'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
     };
     
+    // --- Step 3: Sequentially process each category ---
     const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
     
-    // Correctly loop through categories sequentially
     for (const [key, query] of Object.entries(categories)) {
-        if (/\(\s*\)/.test(query.replace(/\w+/g, ''))) {
-            debugLog.push(`[Intel Flow] Skipping empty category: "${key}"`);
-            continue;
-        }
         debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
+        debugLog.push(`[Intel Flow] DEBUG - Query: "${query}"`);
+        
         const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
         allSourcesByCategory[key] = sources;
+        
         debugLog.push(`[Intel Flow] Finished processing category: "${key}". Found ${sources.length} sources.`);
     }
-
     
+    // --- Step 4: Final Analysis ---
     const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
     Object.values(allSourcesByCategory).flat().forEach(s => allUniqueSources.set(s.url, { url: s.url, publishedDate: s.publishedDate }));
 
@@ -239,8 +240,8 @@ const getCountryIntelFlow = ai.defineFlow(
     const aiOutput = output!;
     
     const weights = {
-        'Official Advisory': 1.5,
         'Political Stability': 1.5,
+        'Official Advisory': 1.5,
         'Health': 1.0,
         'Scams & Theft': 1.0,
     };
@@ -268,5 +269,3 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
-
-    
