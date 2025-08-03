@@ -134,6 +134,28 @@ const generateWithFallback = async (prompt: string, context: any, outputSchema: 
     }
 };
 
+/**
+ * NEW HELPER FUNCTION
+ * Sequentially searches and verifies sources for each defined category.
+ * This is isolated to ensure correct asynchronous handling in a loop.
+ */
+async function searchAllCategories(categories: Record<string, string>, apiKey: string, searchEngineId: string, debugLog: string[]) {
+    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
+
+    for (const [key, query] of Object.entries(categories)) {
+        debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
+        debugLog.push(`[Intel Flow] DEBUG - Query: "${query}"`);
+        
+        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
+        allSourcesByCategory[key] = sources;
+
+        debugLog.push(`[Intel Flow] Finished search for category: "${key}". Found ${sources.length} sources.`);
+    }
+
+    return allSourcesByCategory;
+}
+
+
 // --- Genkit Flow Definition ---
 const getCountryIntelFlow = ai.defineFlow(
   {
@@ -183,18 +205,11 @@ const getCountryIntelFlow = ai.defineFlow(
         Object.entries(categories).filter(([_, query]) => !/\(\s*\)/.test(query.replace(/\w+/g, '')))
     );
 
-    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
-    const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
-
-    const searchPromises = Object.entries(validCategories).map(async ([key, query]) => {
-        debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
-        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
-        allSourcesByCategory[key] = sources;
-        sources.forEach(s => allUniqueSources.set(s.url, { url: s.url, publishedDate: s.publishedDate }));
-    });
-
-    await Promise.all(searchPromises);
+    const allSourcesByCategory = await searchAllCategories(validCategories, apiKey, searchEngineId, debugLog);
     
+    const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
+    Object.values(allSourcesByCategory).flat().forEach(s => allUniqueSources.set(s.url, { url: s.url, publishedDate: s.publishedDate }));
+
     if (allUniqueSources.size === 0) {
         debugLog.push('[Intel Flow] No verifiable sources found across all categories. Returning empty assessment.');
         return {
@@ -266,5 +281,3 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
-
-    

@@ -25,9 +25,10 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 
 
-function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
+function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<CountryIntel> | null, searchDate: Date | null, debugLog: string[] }) {
     if (!intel || intel.finalScore === undefined) {
         return <p className="text-sm text-center text-muted-foreground py-8">Use "Get Latest Intel" to search for real-time information.</p>;
     }
@@ -93,25 +94,51 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                 </Card>
             </div>
             
-            {allReviewedSources && allReviewedSources.length > 0 && (
-                <div className="space-y-2">
-                    <h4 className="text-lg font-semibold">Sources Reviewed by AI ({allReviewedSources.length})</h4>
-                    <ScrollArea className="h-48 border rounded-md p-4">
-                    <ul className="list-disc pl-5 space-y-1 text-sm">
-                        {allReviewedSources.map((source, index) => (
-                            <li key={`reviewed-${index}`}>
-                                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                                    {source.url}
-                                </a>
-                                {source.publishedDate && (
-                                    <span className="text-muted-foreground text-xs ml-2">({format(parseISO(source.publishedDate), 'MMM d, yyyy')})</span>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                    </ScrollArea>
-                </div>
-            )}
+            <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="sources">
+                    <AccordionTrigger>
+                        <h4 className="text-lg font-semibold">Sources Reviewed by AI ({allReviewedSources?.length || 0})</h4>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        {allReviewedSources && allReviewedSources.length > 0 ? (
+                             <ScrollArea className="h-48 border rounded-md p-4">
+                            <ul className="list-disc pl-5 space-y-1 text-sm">
+                                {allReviewedSources.map((source, index) => (
+                                    <li key={`reviewed-${index}`}>
+                                        <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                            {source.url}
+                                        </a>
+                                        {source.publishedDate && (
+                                            <span className="text-muted-foreground text-xs ml-2">({format(parseISO(source.publishedDate), 'MMM d, yyyy')})</span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                            </ScrollArea>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No sources were reviewed for this analysis.</p>
+                        )}
+                    </AccordionContent>
+                </AccordionItem>
+                 <AccordionItem value="debug">
+                    <AccordionTrigger>
+                        <h4 className="text-lg font-semibold">Debug Log</h4>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        {debugLog.length > 0 ? (
+                           <ScrollArea className="h-48 p-4 border rounded-md bg-muted font-mono text-xs">
+                            {debugLog.map((log, index) => (
+                                <p key={index} className={cn("whitespace-pre-wrap", log.includes('[FAIL]') || log.includes('[CRITICAL]') ? 'text-destructive' : '')}>
+                                    {log}
+                                </p>
+                            ))}
+                            </ScrollArea>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No debug information available.</p>
+                        )}
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </div>
     );
 }
@@ -185,9 +212,6 @@ function InfoHubContent() {
             
             const { intel, debugLog: log } = await getCountryIntel({ countryName: selectedCountryName });
             setDebugLog(log);
-            console.log("--- InfoHub Debug Log ---");
-            log.forEach(l => console.log(l));
-            console.log("--- End Debug Log ---");
             
             if (!intel || intel.finalScore === undefined) {
                  throw new Error("The AI returned an empty or invalid response. Please check the debug logs in the console.");
@@ -295,26 +319,6 @@ function InfoHubContent() {
                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base">
                                 <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
                             </Badge>
-                            {debugLog.length > 0 && (
-                                 <Dialog>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="sm">View Debug Log</Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-2xl">
-                                        <DialogHeader>
-                                            <DialogTitle>AI Debug Log</DialogTitle>
-                                            <DialogDescription>
-                                                A step-by-step log of the AI's actions.
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                        <ScrollArea className="h-[60vh] mt-4 p-4 border rounded-md bg-muted font-mono text-xs">
-                                            {debugLog.map((log, index) => (
-                                                <p key={index} className="whitespace-pre-wrap">{log}</p>
-                                            ))}
-                                        </ScrollArea>
-                                    </DialogContent>
-                                </Dialog>
-                            )}
                         </div>
                         {(userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10) && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
                     </CardContent>
@@ -342,7 +346,7 @@ function InfoHubContent() {
                                         <p className="ml-2 text-muted-foreground">Generating AI briefing...</p>
                                     </div>
                                 ) : (
-                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} />
+                                    <LatestIntelDisplay intel={aiIntel} searchDate={lastSearchDate} debugLog={debugLog} />
                                 )}
                             </CardContent>
                         </Card>
