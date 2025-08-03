@@ -295,6 +295,26 @@ function InfoHubContent() {
                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base">
                                 <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
                             </Badge>
+                            {debugLog.length > 0 && (
+                                 <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">View Debug Log</Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-2xl">
+                                        <DialogHeader>
+                                            <DialogTitle>AI Debug Log</DialogTitle>
+                                            <DialogDescription>
+                                                A step-by-step log of the AI's actions.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <ScrollArea className="h-[60vh] mt-4 p-4 border rounded-md bg-muted font-mono text-xs">
+                                            {debugLog.map((log, index) => (
+                                                <p key={index} className="whitespace-pre-wrap">{log}</p>
+                                            ))}
+                                        </ScrollArea>
+                                    </DialogContent>
+                                </Dialog>
+                            )}
                         </div>
                         {(userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10) && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
                     </CardContent>
@@ -447,5 +467,7 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
+
+    
 
     

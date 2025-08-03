@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -6,21 +7,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle, Wand2 } from 'lucide-react';
 import { testAdvancedSearch } from '@/ai/flows/test-advanced-search-flow';
+import { ScrollArea } from '../ui/scroll-area';
 
 export default function TestSearchPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState('');
     const [error, setError] = useState('');
+    const [debugLog, setDebugLog] = useState<string[]>([]);
 
     const handleRunTest = async () => {
         setIsLoading(true);
         setResult('');
         setError('');
+        setDebugLog([]);
+
         try {
             const response = await testAdvancedSearch();
-            setResult(response);
+            setResult(response.summary);
+            setDebugLog(response.debugLog);
         } catch (e: any) {
             setError(e.message || 'An unexpected error occurred.');
+            if (e.debugLog) {
+                setDebugLog(e.debugLog);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -48,6 +57,17 @@ export default function TestSearchPage() {
                             AI is working... This may take a moment.
                         </div>
                     )}
+                    
+                    {debugLog.length > 0 && (
+                        <div className="w-full space-y-2 pt-4">
+                            <h3 className="font-semibold text-lg">Debug Log:</h3>
+                            <ScrollArea className="h-64 p-4 border rounded-md bg-muted font-mono text-xs">
+                                {debugLog.map((log, index) => (
+                                    <p key={index} className="whitespace-pre-wrap">{log}</p>
+                                ))}
+                            </ScrollArea>
+                        </div>
+                    )}
 
                     {result && (
                         <div className="w-full space-y-2 pt-4">
@@ -70,3 +90,5 @@ export default function TestSearchPage() {
         </div>
     );
 }
+
+    
