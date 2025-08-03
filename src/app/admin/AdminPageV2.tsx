@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile, CountryIntelData } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -2000,8 +2000,8 @@ function IntelTabContent() {
                                         <div className="space-y-4 p-1">
                                             {Object.entries(countriesByRegion).map(([region, countries]) => (
                                                 <Accordion key={region} type="single" collapsible>
-                                                    <AccordionItem value={region} className="border-b-0">
-                                                        <div className="flex items-center gap-2 border rounded-md p-2">
+                                                    <AccordionItem value={region} className="border rounded-md px-2">
+                                                        <div className="flex items-center gap-2">
                                                             <Checkbox
                                                                 id={`region-checkbox-${region}`}
                                                                 className="ml-2"
@@ -2015,7 +2015,7 @@ function IntelTabContent() {
                                                                     }
                                                                 }}
                                                             />
-                                                            <AccordionTrigger className="hover:no-underline p-0">
+                                                            <AccordionTrigger className="hover:no-underline">
                                                                 <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full text-left">
                                                                     {region} ({countries.length})
                                                                 </Label>
@@ -2065,81 +2065,66 @@ function IntelTabContent() {
                             <Button type="submit">Search</Button>
                         </form>
                          <ScrollArea className="h-[60vh] mt-4">
-                            <Table className="w-full table-fixed">
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[15%]">Country</TableHead>
-                                        <TableHead className="w-[10%]">Region</TableHead>
-                                        <TableHead className="w-[15%]">Neighbors</TableHead>
-                                        <TableHead className="w-[25%]">Regional News</TableHead>
-                                        <TableHead className="w-[25%]">Local News</TableHead>
-                                        <TableHead className="w-[10%] text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isDbLoading ? (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="h-24 text-center">
-                                                <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : filteredData.length > 0 ? (
-                                        filteredData.map(country => {
-                                            const countryEdits = editState[country.id] || {};
-                                            const hasChanges = Object.keys(countryEdits).length > 0;
-                                            const isRowSaving = isSaving[country.id];
-                                            return (
-                                                <TableRow key={country.id} className="align-top">
-                                                    <TableCell className="font-medium py-2 align-top">{country.countryName} ({country.id})</TableCell>
-                                                    <TableCell className="py-2 align-top">
-                                                        <Input
-                                                            value={countryEdits.region ?? country.region ?? ''}
-                                                            onChange={(e) => handleCellChange(country.id, 'region', e.target.value)}
-                                                            className="text-xs h-8"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="py-2 align-top">
-                                                        <Textarea
-                                                            value={(countryEdits.neighbours ?? country.neighbours)?.join(', ') ?? ''}
-                                                            onChange={(e) => handleCellChange(country.id, 'neighbours', e.target.value)}
-                                                            className="text-xs min-h-[80px]"
-                                                            placeholder="Comma-separated country codes"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="py-2 align-top">
-                                                        <Textarea
-                                                            value={(countryEdits.regionalNews ?? country.regionalNews)?.join(', ') ?? ''}
-                                                            onChange={(e) => handleCellChange(country.id, 'regionalNews', e.target.value)}
-                                                            className="text-xs min-h-[80px]"
-                                                            placeholder="Comma-separated URLs"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="py-2 align-top">
-                                                        <Textarea
-                                                            value={(countryEdits.localNews ?? country.localNews)?.join(', ') ?? ''}
-                                                            onChange={(e) => handleCellChange(country.id, 'localNews', e.target.value)}
-                                                            className="text-xs min-h-[80px]"
-                                                            placeholder="Comma-separated URLs"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="text-right py-2 align-top">
-                                                        <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
+                            <Accordion type="multiple" className="w-full">
+                            {isDbLoading ? (
+                                <div className="flex justify-center items-center h-24">
+                                    <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
+                                </div>
+                            ) : filteredData.length > 0 ? (
+                                filteredData.map(country => {
+                                    const countryEdits = editState[country.id] || {};
+                                    const hasChanges = Object.keys(countryEdits).length > 0;
+                                    const isRowSaving = isSaving[country.id];
+                                    return (
+                                        <AccordionItem value={country.id} key={country.id} className="border-b">
+                                            <AccordionTrigger className="hover:no-underline p-4">
+                                                <div className="flex-1 grid grid-cols-3 items-center text-left">
+                                                    <span className="font-medium">{country.countryName} ({country.id})</span>
+                                                    <span className="text-muted-foreground">{country.region}</span>
+                                                    <span className="text-muted-foreground truncate">{country.neighbours?.join(', ')}</span>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                                <div className="px-4 pb-4 space-y-4">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor={`regional-${country.id}`}>Regional News</Label>
+                                                            <Textarea
+                                                                id={`regional-${country.id}`}
+                                                                value={(countryEdits.regionalNews ?? country.regionalNews)?.join(', ') ?? ''}
+                                                                onChange={(e) => handleCellChange(country.id, 'regionalNews', e.target.value)}
+                                                                className="text-xs min-h-[80px]"
+                                                                placeholder="Comma-separated URLs"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                             <Label htmlFor={`local-${country.id}`}>Local News</Label>
+                                                             <Textarea
+                                                                id={`local-${country.id}`}
+                                                                value={(countryEdits.localNews ?? country.localNews)?.join(', ') ?? ''}
+                                                                onChange={(e) => handleCellChange(country.id, 'localNews', e.target.value)}
+                                                                className="text-xs min-h-[80px]"
+                                                                placeholder="Comma-separated URLs"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-end">
+                                                         <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
                                                             {isRowSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                                            Save
+                                                            Save Changes
                                                         </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="h-24 text-center">
-                                                {hasSearched ? 'No results for your search.' : 'No country data found. Try building the database.'}
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                                    </div>
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    )
+                                })
+                            ) : (
+                                <div className="text-center text-muted-foreground py-10">
+                                    {hasSearched ? 'No results for your search.' : 'No country data found. Try building the database.'}
+                                </div>
+                            )}
+                            </Accordion>
                         </ScrollArea>
                     </TabsContent>
                 </Tabs>
