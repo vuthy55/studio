@@ -22,7 +22,6 @@ export async function testAdvancedSearch(): Promise<TestResult> {
     return { summary: result, debugLog };
   } catch (error: any) {
     debugLog.push(`[Test Flow] CRITICAL ERROR: ${error.message}`);
-    // Re-throw the error but attach the debug log to it
     const enhancedError = new Error(error.message);
     (enhancedError as any).debugLog = debugLog;
     throw enhancedError;
@@ -66,3 +65,4 @@ const testSearchFlow = ai.defineFlow(
     return output;
   }
 );
+
