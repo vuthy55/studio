@@ -1938,53 +1938,59 @@ function IntelSourcesTabContent() {
                                     <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
                                 </TableCell>
                             </TableRow>
-                        ) : filteredData.map(country => {
-                            const countryEdits = editState[country.id] || {};
-                            const hasChanges = Object.keys(countryEdits).length > 0;
-                            const isRowSaving = isSaving[country.id];
-                            return (
-                                <TableRow key={country.id}>
-                                    <TableCell className="font-medium">{country.countryName} ({country.id})</TableCell>
-                                    <TableCell>
-                                        <Input
-                                            value={countryEdits.region ?? country.region}
-                                            onChange={(e) => handleCellChange(country.id, 'region', e.target.value)}
-                                            className="text-xs h-8"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Textarea
-                                            value={(countryEdits.neighbours ?? country.neighbours)?.join(', ')}
-                                            onChange={(e) => handleCellChange(country.id, 'neighbours', e.target.value)}
-                                            className="text-xs min-h-[60px]"
-                                            placeholder="Comma-separated country codes"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                         <Textarea
-                                            value={(countryEdits.regionalNews ?? country.regionalNews)?.join(', ')}
-                                            onChange={(e) => handleCellChange(country.id, 'regionalNews', e.target.value)}
-                                            className="text-xs min-h-[60px]"
-                                            placeholder="Comma-separated URLs"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                         <Textarea
-                                            value={(countryEdits.localNews ?? country.localNews)?.join(', ')}
-                                            onChange={(e) => handleCellChange(country.id, 'localNews', e.target.value)}
-                                            className="text-xs min-h-[60px]"
-                                            placeholder="Comma-separated URLs"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
-                                            {isRowSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                            Save
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })}
+                        ) : filteredData.length > 0 ? (
+                            filteredData.map(country => {
+                                const countryEdits = editState[country.id] || {};
+                                const hasChanges = Object.keys(countryEdits).length > 0;
+                                const isRowSaving = isSaving[country.id];
+                                return (
+                                    <TableRow key={country.id}>
+                                        <TableCell className="font-medium">{country.countryName} ({country.id})</TableCell>
+                                        <TableCell>
+                                            <Input
+                                                value={countryEdits.region ?? country.region}
+                                                onChange={(e) => handleCellChange(country.id, 'region', e.target.value)}
+                                                className="text-xs h-8"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Textarea
+                                                value={(countryEdits.neighbours ?? country.neighbours)?.join(', ')}
+                                                onChange={(e) => handleCellChange(country.id, 'neighbours', e.target.value)}
+                                                className="text-xs min-h-[60px]"
+                                                placeholder="Comma-separated country codes"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                             <Textarea
+                                                value={(countryEdits.regionalNews ?? country.regionalNews)?.join(', ')}
+                                                onChange={(e) => handleCellChange(country.id, 'regionalNews', e.target.value)}
+                                                className="text-xs min-h-[60px]"
+                                                placeholder="Comma-separated URLs"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                             <Textarea
+                                                value={(countryEdits.localNews ?? country.localNews)?.join(', ')}
+                                                onChange={(e) => handleCellChange(country.id, 'localNews', e.target.value)}
+                                                className="text-xs min-h-[60px]"
+                                                placeholder="Comma-separated URLs"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
+                                                {isRowSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                                Save
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-24 text-center">No data found. Try building the database.</TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
                 </ScrollArea>

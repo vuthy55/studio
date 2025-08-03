@@ -127,10 +127,8 @@ const seedData: Omit<CountryIntelData, 'id'>[] = [
 export async function buildCountryIntelDatabase(): Promise<{ success: boolean; error?: string; totalCountries?: number; addedCount?: number }> {
     try {
         console.log('[Intel Builder] Starting database build process...');
-        const existingDocsSnapshot = await db.collection('countryIntel').get();
-        const existingCountryCodes = new Set(existingDocsSnapshot.docs.map(doc => doc.id));
-        
-        let countriesToProcess = lightweightCountries.filter(c => !existingCountryCodes.has(c.code));
+        const intelCollectionRef = db.collection('countryIntel');
+        const existingDocsSnapshot = await intelCollectionRef.get();
         
         // Auto-seed if the database is completely empty
         if (existingDocsSnapshot.empty) {
@@ -139,17 +137,18 @@ export async function buildCountryIntelDatabase(): Promise<{ success: boolean; e
             for (const country of seedData) {
                 const countryInfo = lightweightCountries.find(c => c.name === country.countryName);
                 if (countryInfo) {
-                    const docRef = db.collection('countryIntel').doc(countryInfo.code);
+                    const docRef = intelCollectionRef.doc(countryInfo.code);
                     batch.set(docRef, { ...country, id: countryInfo.code });
                 }
             }
             await batch.commit();
-            console.log('[Intel Builder] Core data seeded. Re-checking for remaining countries...');
-            // Re-fetch to update the state after seeding
-            const updatedSnapshot = await db.collection('countryIntel').get();
-            const updatedExistingCodes = new Set(updatedSnapshot.docs.map(doc => doc.id));
-            countriesToProcess = lightweightCountries.filter(c => !updatedExistingCodes.has(c.code));
+            console.log('[Intel Builder] Core data seeded. The rest of the world will be processed now.');
         }
+
+        // After potential seeding, get the updated list of existing countries
+        const updatedSnapshot = await intelCollectionRef.get();
+        const existingCountryCodes = new Set(updatedSnapshot.docs.map(doc => doc.id));
+        const countriesToProcess = lightweightCountries.filter(c => !existingCountryCodes.has(c.code));
         
         if (countriesToProcess.length === 0) {
             console.log('[Intel Builder] Database is already up to date.');
@@ -165,7 +164,7 @@ export async function buildCountryIntelDatabase(): Promise<{ success: boolean; e
                 const intelData = await discoverCountryData({ countryName: country.name });
                 
                 if (intelData && intelData.region && intelData.countryName) {
-                    const docRef = db.collection('countryIntel').doc(country.code);
+                    const docRef = intelCollectionRef.doc(country.code);
                     await docRef.set({
                         ...intelData,
                         id: country.code // Ensure the ID is the country code

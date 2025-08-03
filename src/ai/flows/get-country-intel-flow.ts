@@ -149,7 +149,7 @@ const getCountryIntelFlow = ai.defineFlow(
     
     if (!apiKey || !searchEngineId) {
         debugLog.push('[Intel Flow] CRITICAL: GOOGLE_API_KEY or GOOGLE_SEARCH_ENGINE_ID is missing from server environment.');
-        return {};
+        throw new Error('Google Search API credentials are not configured on the server.');
     }
 
     const countryData = await getCountryIntelData(countryName);
