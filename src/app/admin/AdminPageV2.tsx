@@ -1788,7 +1788,7 @@ function IntelSourcesTabContent() {
     const [intelData, setIntelData] = useState<CountryIntelData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const [filteredData, setFilteredData] = useState<CountryIntelData[]>([]);
     const [editState, setEditState] = useState<Record<string, Partial<CountryIntelData>>>({});
     const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
     const [isBuilding, setIsBuilding] = useState(false);
@@ -1798,6 +1798,7 @@ function IntelSourcesTabContent() {
         try {
             const data = await getCountryIntelAdmin();
             setIntelData(data);
+            setFilteredData(data); // Initialize filtered data
         } catch (e) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch country intel data.' });
         } finally {
@@ -1808,6 +1809,23 @@ function IntelSourcesTabContent() {
     useEffect(() => {
         fetchIntelData();
     }, [fetchIntelData]);
+
+    // Effect for filtering data based on search term
+    useEffect(() => {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        if (!lowercasedTerm) {
+            setFilteredData(intelData);
+        } else {
+            setFilteredData(
+                intelData.filter(country =>
+                    country.countryName.toLowerCase().includes(lowercasedTerm) ||
+                    country.region.toLowerCase().includes(lowercasedTerm) ||
+                    country.id.toLowerCase().includes(lowercasedTerm)
+                )
+            );
+        }
+    }, [searchTerm, intelData]);
+
 
     const handleBuildDatabase = async () => {
         setIsBuilding(true);
@@ -1868,16 +1886,6 @@ function IntelSourcesTabContent() {
             setIsSaving(prev => ({ ...prev, [countryCode]: false }));
         }
     };
-
-    const filteredData = useMemo(() => {
-        if (!debouncedSearchTerm) return intelData;
-        const lowercasedTerm = debouncedSearchTerm.toLowerCase();
-        return intelData.filter(country => 
-            country.countryName.toLowerCase().includes(lowercasedTerm) ||
-            country.region.toLowerCase().includes(lowercasedTerm) ||
-            country.id.toLowerCase().includes(lowercasedTerm)
-        );
-    }, [debouncedSearchTerm, intelData]);
     
     return (
         <Card>
