@@ -39,7 +39,7 @@ const generateWithFallback = async (promptTemplate: string, promptData: any, deb
     try {
         debugLog.push('[INFO] Attempting summarization with gemini-1.5-flash...');
         const result = await ai.generate({
-          prompt: { // Pass a single prompt object
+          prompt: {
             template: promptTemplate,
             input: promptData,
           },
@@ -51,7 +51,7 @@ const generateWithFallback = async (promptTemplate: string, promptData: any, deb
         if (!outputText) {
             debugLog.push("[WARN] gemini-1.5-flash returned null. Trying fallback with gemini-1.5-pro...");
              const fallbackResult = await ai.generate({
-              prompt: { // Pass a single prompt object to the fallback as well
+              prompt: {
                 template: promptTemplate,
                 input: promptData,
               },
