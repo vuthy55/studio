@@ -6,42 +6,32 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle, Wand2 } from 'lucide-react';
-import { scrapeUrlAction } from '@/actions/scraper';
-import { summarizeContent } from '@/ai/flows/test-summarize-flow';
+import { testAdvancedSearch } from '@/ai/flows/test-advanced-search-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TestSearchPage() {
     const [isLoading, setIsLoading] = useState(false);
-    const [rawContent, setRawContent] = useState('');
     const [summary, setSummary] = useState('');
+    const [debugLog, setDebugLog] = useState<string[]>([]);
     const [error, setError] = useState('');
 
     const handleRunTest = async () => {
         setIsLoading(true);
-        setRawContent('');
         setSummary('');
+        setDebugLog([]);
         setError('');
 
         try {
-            // Step 1: Scrape the URL
-            const urlToScrape = 'https://www.gov.uk/foreign-travel-advice/ukraine';
-            const scrapeResponse = await scrapeUrlAction(urlToScrape);
-            
-            if (!scrapeResponse.success || !scrapeResponse.content) {
-                throw new Error(scrapeResponse.error || 'Scraping failed with no specific error message.');
-            }
-            setRawContent(scrapeResponse.content);
-
-            // Step 2: Summarize the content with AI
-            const summaryResponse = await summarizeContent(scrapeResponse.content);
-            if (!summaryResponse) {
-                 throw new Error("AI failed to generate a summary. The model returned a null or empty response.");
-            }
-            setSummary(summaryResponse);
+            const result = await testAdvancedSearch();
+            setSummary(result.summary);
+            setDebugLog(result.debugLog);
 
         } catch (e: any) {
             const errorMessage = e.message || 'An unexpected client-side error occurred.';
             setError(errorMessage);
+            if (e.debugLog) {
+                setDebugLog(e.debugLog);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -49,24 +39,24 @@ export default function TestSearchPage() {
 
     return (
         <div className="space-y-8">
-            <MainHeader title="Web Scraper & AI Summary Test" description="A test page to verify scraping a URL and summarizing its content." />
+            <MainHeader title="AI Agent Tool Use Test" description="A test page to verify the AI can use tools to research and summarize information." />
             <Card>
                 <CardHeader>
                     <CardTitle>Test Scenario</CardTitle>
                     <CardDescription>
-                        This test will scrape the UK travel advisory for Ukraine, then use an AI to summarize the result.
+                        This test will instruct the AI agent to use its tools to find the UK travel advisory for Ukraine, scrape the content, and then summarize the result.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-start gap-4">
                     <Button onClick={handleRunTest} disabled={isLoading}>
                         {isLoading ? <LoaderCircle className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
-                        Run Scraper & Summary Test
+                        Run AI Agent Test
                     </Button>
 
                     {isLoading && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <LoaderCircle className="animate-spin" />
-                            {rawContent ? 'Summarizing content...' : 'Scraping URL...'}
+                            <p>AI agent is performing its research...</p>
                         </div>
                     )}
                     
@@ -88,13 +78,13 @@ export default function TestSearchPage() {
                         </div>
                     )}
 
-                    {rawContent && (
+                    {debugLog.length > 0 && (
                         <div className="w-full space-y-2 pt-4">
-                            <h3 className="font-semibold text-lg">Raw Scraped Content:</h3>
+                            <h3 className="font-semibold text-lg">Agent Debug Log:</h3>
                             <ScrollArea className="h-72 p-4 border rounded-md bg-muted font-mono text-xs">
-                                <pre className="whitespace-pre-wrap">
-                                    {rawContent}
-                                </pre>
+                                {debugLog.map((log, index) => (
+                                    <p key={index} className="whitespace-pre-wrap">{log}</p>
+                                ))}
                             </ScrollArea>
                         </div>
                     )}
