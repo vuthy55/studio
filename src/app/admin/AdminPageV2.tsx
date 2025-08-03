@@ -1848,14 +1848,17 @@ function IntelSourcesTabContent() {
             const result = await updateCountryIntelAdmin(countryCode, changes);
             if(result.success) {
                 toast({ title: 'Success', description: 'Country intel updated.' });
-                // Clear the edit state for this row
+                // Optimistically update the main data and clear edit state
+                setIntelData(prevData => {
+                    return prevData.map(d => 
+                        d.id === countryCode ? { ...d, ...changes } : d
+                    );
+                });
                 setEditState(prev => {
                     const newState = { ...prev };
                     delete newState[countryCode];
                     return newState;
                 });
-                // Optimistically update the main data
-                setIntelData(prev => prev.map(d => d.id === countryCode ? { ...d, ...changes } : d));
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
             }
