@@ -266,8 +266,8 @@ function SettingsTabContent() {
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { id, value } = e.target;
-        const isNumeric = !id.toLowerCase().includes('sources');
+        const { id, value, type } = e.target;
+        const isNumeric = type === 'number';
         setSettings(prev => ({...prev, [id]: isNumeric ? Number(value) : value }));
     };
 
@@ -279,6 +279,44 @@ function SettingsTabContent() {
         );
     }
     
+    // Separate settings into numeric, string, and dynamic for easier rendering
+    const knownNumericKeys: (keyof AppSettings)[] = [
+        'signupBonus', 'referralBonus', 'practiceReward', 'practiceThreshold', 'freeSyncLiveMinutes', 
+        'translationCost', 'costPerSyncLiveMinute', 'maxUsersPerRoom', 'freeSyncOnlineMinutes', 
+        'costPerSyncOnlineMinute', 'summaryTranslationCost', 'transcriptCost', 'languageUnlockCost', 
+        'roomReminderMinutes', 'infohubAiCost'
+    ];
+    
+    const knownStringKeys: (keyof AppSettings)[] = [
+        'infohubGovernmentAdvisorySources', 'infohubGlobalNewsSources'
+    ];
+    
+    const dynamicKeys = Object.keys(settings).filter(
+        key => !knownNumericKeys.includes(key as any) && !knownStringKeys.includes(key as any)
+    );
+
+    const renderInput = (key: string, label: string, description: string, isNumeric: boolean) => (
+        <div className="space-y-2" key={key}>
+            <Label htmlFor={key}>{label}</Label>
+            <Input id={key} type={isNumeric ? "number" : "text"} value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+    );
+    
+     const renderTextarea = (key: string, label: string, description: string) => (
+        <div className="space-y-2" key={key}>
+            <Label htmlFor={key} className="flex items-center gap-1.5"><LinkIcon/> {label}</Label>
+            <Textarea 
+                id={key} 
+                value={(settings as any)[key] ?? ''} 
+                onChange={handleInputChange}
+                rows={3}
+            />
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+    );
+
+
     return (
         <Card>
             <CardHeader>
@@ -291,87 +329,27 @@ function SettingsTabContent() {
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Freebies</h3>
                          <Separator />
-                        <div className="space-y-2">
-                            <Label htmlFor="signupBonus">Signup Bonus</Label>
-                            <Input id="signupBonus" type="number" value={settings.signupBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
-                            <p className="text-sm text-muted-foreground">Tokens a new user gets on signup.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="referralBonus">Referral Bonus</Label>
-                            <Input id="referralBonus" type="number" value={settings.referralBonus ?? ''} onChange={handleInputChange} placeholder="e.g., 150" />
-                            <p className="text-sm text-muted-foreground">Tokens a user gets for a successful referral.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="practiceReward">Practice Reward</Label>
-                            <Input id="practiceReward" type="number" value={settings.practiceReward ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens earned for mastering a phrase.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="practiceThreshold">Practice Threshold</Label>
-                            <Input id="practiceThreshold" type="number" value={settings.practiceThreshold ?? ''} onChange={handleInputChange} placeholder="e.g., 3" />
-                            <p className="text-sm text-muted-foreground">Successful practices to earn reward.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="freeSyncLiveMinutes">Free Sync Live Minutes</Label>
-                            <Input id="freeSyncLiveMinutes" type="number" value={settings.freeSyncLiveMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
-                            <p className="text-sm text-muted-foreground">Free monthly minutes for Sync Live.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="freeSyncOnlineMinutes">Free Sync Online Minutes</Label>
-                            <Input id="freeSyncOnlineMinutes" type="number" value={settings.freeSyncOnlineMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
-                            <p className="text-sm text-muted-foreground">Free monthly minutes for Sync Online.</p>
-                        </div>
+                        {renderInput('signupBonus', 'Signup Bonus', 'Tokens a new user gets on signup.', true)}
+                        {renderInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.', true)}
+                        {renderInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.', true)}
+                        {renderInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.', true)}
+                        {renderInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.', true)}
+                        {renderInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.', true)}
                     </div>
 
                     {/* Column 2: Costs & Limits */}
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Costs & Limits</h3>
                          <Separator />
-                        <div className="space-y-2">
-                            <Label htmlFor="translationCost">Translation / Save Cost</Label>
-                            <Input id="translationCost" type="number" value={settings.translationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens for one translation or saving one phrase offline.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="costPerSyncLiveMinute">Sync Live Cost (per minute)</Label>
-                            <Input id="costPerSyncLiveMinute" type="number" value={settings.costPerSyncLiveMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Tokens per minute for the 1-on-1 Sync Live feature.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="costPerSyncOnlineMinute">Sync Online Cost (per person, per minute)</Label>
-                            <Input id="costPerSyncOnlineMinute" type="number" value={settings.costPerSyncOnlineMinute ?? ''} onChange={handleInputChange} placeholder="e.g., 1" />
-                            <p className="text-sm text-muted-foreground">Token cost for each person in a room for each minute of usage.</p>
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="maxUsersPerRoom">Max Users per Sync Room</Label>
-                            <Input id="maxUsersPerRoom" type="number" value={settings.maxUsersPerRoom ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
-                            <p className="text-sm text-muted-foreground">Max users in a Sync Online room.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="roomReminderMinutes">Room Reminder (minutes)</Label>
-                            <Input id="roomReminderMinutes" type="number" value={settings.roomReminderMinutes ?? ''} onChange={handleInputChange} placeholder="e.g., 5" />
-                            <p className="text-sm text-muted-foreground">Remind users N minutes before a room's booked time ends.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="transcriptCost" className="flex items-center gap-1.5"><FileSignature/> Transcript Cost</Label>
-                            <Input id="transcriptCost" type="number" value={settings.transcriptCost ?? ''} onChange={handleInputChange} placeholder="e.g., 50" />
-                            <p className="text-sm text-muted-foreground">One-time token cost to generate a raw meeting transcript.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="summaryTranslationCost" className="flex items-center gap-1.5"><Languages/> Summary Translation Cost</Label>
-                            <Input id="summaryTranslationCost" type="number" value={settings.summaryTranslationCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
-                            <p className="text-sm text-muted-foreground">Token cost to translate a summary into one language.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="languageUnlockCost">Language Unlock Cost</Label>
-                            <Input id="languageUnlockCost" type="number" value={settings.languageUnlockCost ?? ''} onChange={handleInputChange} placeholder="e.g., 100" />
-                            <p className="text-sm text-muted-foreground">Tokens to permanently unlock a language.</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="infohubAiCost" className="flex items-center gap-1.5"><Info/> InfoHub AI Cost</Label>
-                            <Input id="infohubAiCost" type="number" value={settings.infohubAiCost ?? ''} onChange={handleInputChange} placeholder="e.g., 10" />
-                            <p className="text-sm text-muted-foreground">Tokens to get latest AI travel intel for one country.</p>
-                        </div>
+                        {renderInput('translationCost', 'Translation / Save Cost', 'Tokens for one translation or saving one phrase offline.', true)}
+                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.', true)}
+                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person, per minute)', 'Token cost for each person in a room for each minute of usage.', true)}
+                        {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.', true)}
+                        {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.', true)}
+                        {renderInput('transcriptCost', 'Transcript Cost', 'One-time token cost to generate a raw meeting transcript.', true)}
+                        {renderInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost to translate a summary into one language.', true)}
+                        {renderInput('languageUnlockCost', 'Language Unlock Cost', 'Tokens to permanently unlock a language.', true)}
+                        {renderInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.', true)}
                     </div>
 
                     {/* Column 3: AI Sources */}
@@ -382,39 +360,11 @@ function SettingsTabContent() {
                             <AccordionItem value="infohub-sources">
                                 <AccordionTrigger>InfoHub AI Sources</AccordionTrigger>
                                 <AccordionContent className="space-y-4">
-                                     <div className="space-y-2">
-                                        <Label htmlFor="infohubGovernmentAdvisorySources" className="flex items-center gap-1.5"><LinkIcon/> Government Advisory Sources</Label>
-                                        <Textarea 
-                                            id="infohubGovernmentAdvisorySources" 
-                                            value={settings.infohubGovernmentAdvisorySources ?? ''} 
-                                            onChange={handleInputChange} 
-                                            placeholder="travel.state.gov, etc."
-                                            rows={3}
-                                        />
-                                        <p className="text-sm text-muted-foreground">Comma-separated list of official government travel advisory sites.</p>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="infohubGlobalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Global News Sources</Label>
-                                        <Textarea 
-                                            id="infohubGlobalNewsSources" 
-                                            value={settings.infohubGlobalNewsSources ?? ''} 
-                                            onChange={handleInputChange} 
-                                            placeholder="reuters.com, apnews.com, etc."
-                                            rows={3}
-                                        />
-                                        <p className="text-sm text-muted-foreground">Comma-separated list of major global news outlets.</p>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="infohubRegionalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Regional News Sources</Label>
-                                        <Textarea 
-                                            id="infohubRegionalNewsSources" 
-                                            value={settings.infohubRegionalNewsSources ?? ''} 
-                                            onChange={handleInputChange} 
-                                            placeholder="aljazeera.com/asia, etc."
-                                            rows={3}
-                                        />
-                                        <p className="text-sm text-muted-foreground">Comma-separated list of Asia-Pacific or other regional news outlets.</p>
-                                    </div>
+                                    {renderTextarea('infohubGovernmentAdvisorySources', 'Government Advisory Sources', 'Comma-separated list of official government travel advisory sites.')}
+                                    {renderTextarea('infohubGlobalNewsSources', 'Global News Sources', 'Comma-separated list of major global news outlets.')}
+                                    {dynamicKeys.map(key => (
+                                        renderTextarea(key, key.replace('infohub', '').replace(/([A-Z])/g, ' $1').trim(), `Dynamically added sources for ${key.split('_')[1] || 'a region'}.`)
+                                    ))}
                                 </AccordionContent>
                             </AccordionItem>
                         </Accordion>
