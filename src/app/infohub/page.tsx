@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
-import { countryIntelData } from '@/lib/country-intel-data';
+import { lightweightCountries } from '@/lib/location-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { Button } from '@/components/ui/button';
@@ -131,7 +131,7 @@ function InfoHubContent() {
     const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
     
-    const countryOptions = useMemo(() => countryIntelData.map(c => ({ code: c.countryCode, name: c.countryName })), []);
+    const countryOptions = useMemo(() => lightweightCountries.map(c => ({ code: c.code, name: c.name })), []);
 
     const selectedCountryName = useMemo(() => {
         return countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
@@ -447,3 +447,5 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
+
+    
