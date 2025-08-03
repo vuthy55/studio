@@ -467,7 +467,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-
-    
-
-    
