@@ -12,7 +12,8 @@ import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
 import { getAppSettingsAction } from '@/actions/settings';
 import { subDays, parseISO } from 'date-fns';
-import { countryIntelData } from '@/lib/country-intel-data';
+import { getCountryIntelData, getNeighborIntelData } from '@/actions/intel-admin';
+import type { CountryIntelData } from '@/lib/types';
 
 
 // --- Zod Schemas for Input/Output ---
@@ -28,8 +29,7 @@ const OverallAssessmentSchema = z.object({
     paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers."),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
-        'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
-        'Theft': z.number().min(0).max(10).describe("Severity score (0-10) for Theft."),
+        'Scams & Theft': z.number().min(0).max(10).describe("Severity score (0-10) for Scams and Theft."),
         'Health': z.number().min(0).max(10).describe("Severity score (0-10) for Health."),
         'Political Stability': z.number().min(0).max(10).describe("Severity score (0-10) for Political Stability."),
     }).describe("A key-value map where the key is the category name and the value is a severity score from 0 (low severity) to 10 (extreme severity)."),
@@ -152,27 +152,41 @@ const getCountryIntelFlow = ai.defineFlow(
         return {};
     }
 
-    const countryData = countryIntelData.find(c => c.countryName.toLowerCase() === countryName.toLowerCase());
-    
+    const countryData = await getCountryIntelData(countryName);
+    if (!countryData) {
+        debugLog.push(`[Intel Flow] CRITICAL: No intelligence data found for ${countryName}. Cannot proceed.`);
+        return {
+             finalScore: 5,
+             summary: "No country intelligence data has been configured for this location yet. Please ask an administrator to build the database for this country.",
+             categoryAssessments: { 'Official Advisory': 0, 'Scams & Theft': 0, 'Health': 0, 'Political Stability': 0 },
+             allReviewedSources: []
+        };
+    }
+
+    const neighborData = await getNeighborIntelData(countryData.neighbours);
+
     const governmentSitesQuery = buildSiteSearchQuery(settings.infohubGovernmentAdvisorySources.split(','));
     const globalNewsSitesQuery = buildSiteSearchQuery(settings.infohubGlobalNewsSources.split(','));
-    const regionalNewsSitesQuery = countryData ? buildSiteSearchQuery(countryData.regionalNews) : '';
-    const localNewsSitesQuery = countryData ? buildSiteSearchQuery(countryData.localNews) : '';
-    
-    const neighborData = countryData?.neighbours.map(code => countryIntelData.find(c => c.countryCode === code)).filter(Boolean);
-    const neighborNewsSitesQuery = buildSiteSearchQuery(neighborData?.flatMap(n => n!.localNews));
+    const regionalNewsSitesQuery = buildSiteSearchQuery(countryData.regionalNews);
+    const localNewsSitesQuery = buildSiteSearchQuery(countryData.localNews);
+    const neighborNewsSitesQuery = buildSiteSearchQuery(neighborData.flatMap(n => n.localNews));
 
-    const categories = {
+    const categories: Record<string, string> = {
         'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
         'Political Stability': `(political situation OR protests OR civil unrest OR war) in ${countryName} ${globalNewsSitesQuery} ${regionalNewsSitesQuery}`,
         'Health': `(health risks OR disease outbreaks) in ${countryName} ${globalNewsSitesQuery}`,
         'Scams & Theft': `(tourist scams OR fraud OR theft OR robbery) in ${countryName} ${neighborNewsSitesQuery} ${localNewsSitesQuery}`,
     };
+    
+    // Filter out categories where the site search query part is empty
+    const validCategories = Object.fromEntries(
+        Object.entries(categories).filter(([_, query]) => !/\(\s*\)/.test(query.replace(/\w+/g, '')))
+    );
 
     const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
     const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
 
-    const searchPromises = Object.entries(categories).map(async ([key, query]) => {
+    const searchPromises = Object.entries(validCategories).map(async ([key, query]) => {
         debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
         const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
         allSourcesByCategory[key] = sources;
@@ -186,7 +200,7 @@ const getCountryIntelFlow = ai.defineFlow(
         return {
             finalScore: 5,
             summary: "No specific, recent, and verifiable information was found across all categories. This could indicate a lack of major reported issues. \n\nTravelers should exercise standard precautions. \n\nWithout specific data, it's recommended to consult your country's official travel advisory and stay aware of your surroundings.",
-            categoryAssessments: { 'Official Advisory': 0, 'Scams': 0, 'Theft': 0, 'Health': 0, 'Political Stability': 0 },
+            categoryAssessments: { 'Official Advisory': 0, 'Scams & Theft': 0, 'Health': 0, 'Political Stability': 0 },
             allReviewedSources: []
         };
     }
@@ -212,7 +226,7 @@ const getCountryIntelFlow = ai.defineFlow(
         --- INSTRUCTIONS ---
         Based *only* on the information provided above, perform the following actions:
 
-        1.  **Severity Score Assessment:** For each category (Official Advisory, Scams, Theft, Health, Political Stability), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel). If you see red flag terms like "war", "do not travel", "state of emergency", or "civil unrest", you MUST assign a 10 to the Political Stability category.
+        1.  **Severity Score Assessment:** For each category (Official Advisory, Scams & Theft, Health, Political Stability), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel). If you see red flag terms like "war", "do not travel", "state of emergency", or "civil unrest", you MUST assign a 10 to the Political Stability category.
         2.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.**
         `,
       { categories: allSourcesByCategory },
@@ -226,8 +240,7 @@ const getCountryIntelFlow = ai.defineFlow(
         'Official Advisory': 1.5,
         'Political Stability': 1.5,
         'Health': 1.0,
-        'Theft': 1.0,
-        'Scams': 1.0,
+        'Scams & Theft': 1.0,
     };
     
     let totalSeverity = 0;
@@ -253,5 +266,3 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
-
-    

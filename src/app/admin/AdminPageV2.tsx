@@ -11,9 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { UserProfile } from '@/lib/types';
+import type { UserProfile, CountryIntelData } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -48,8 +48,8 @@ import Image from 'next/image';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
-import { countryIntelData } from '@/lib/country-intel-data';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { getCountryIntelAdmin, updateCountryIntelAdmin, buildCountryIntelDatabase } from '@/actions/intel-admin';
 
 
 interface UserWithId extends UserProfile {
@@ -1784,12 +1784,136 @@ function FeedbackTabContent() {
 }
 
 function IntelSourcesTabContent() {
+    const { toast } = useToast();
+    const [intelData, setIntelData] = useState<CountryIntelData[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const [editState, setEditState] = useState<Record<string, Partial<CountryIntelData>>>({});
+    const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
+    const [isBuilding, setIsBuilding] = useState(false);
 
+    const fetchIntelData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await getCountryIntelAdmin();
+            setIntelData(data);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch country intel data.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchIntelData();
+    }, [fetchIntelData]);
+
+    const handleBuildDatabase = async () => {
+        setIsBuilding(true);
+        try {
+            const result = await buildCountryIntelDatabase();
+            if (result.success) {
+                toast({ title: 'Database Build Started', description: `Processing ${result.totalCountries} countries. This may take a while. Refresh to see progress.` });
+                await fetchIntelData();
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        } catch(e: any) {
+            toast({ variant: 'destructive', title: 'Error', description: e.message || 'Failed to start database build.' });
+        }
+        setIsBuilding(false);
+    }
+    
+    const handleCellChange = (countryCode: string, field: keyof CountryIntelData, value: string) => {
+        const valueAsArray = field === 'regionalNews' || field === 'localNews' || field === 'neighbours'
+            ? value.split(',').map(s => s.trim()).filter(Boolean)
+            : value;
+
+        setEditState(prev => ({
+            ...prev,
+            [countryCode]: {
+                ...prev[countryCode],
+                [field]: valueAsArray,
+            }
+        }));
+    };
+
+    const handleSave = async (countryCode: string) => {
+        const changes = editState[countryCode];
+        if (!changes) return;
+
+        setIsSaving(prev => ({ ...prev, [countryCode]: true }));
+        try {
+            const result = await updateCountryIntelAdmin(countryCode, changes);
+            if(result.success) {
+                toast({ title: 'Success', description: 'Country intel updated.' });
+                // Clear the edit state for this row
+                setEditState(prev => {
+                    const newState = { ...prev };
+                    delete newState[countryCode];
+                    return newState;
+                });
+                // Optimistically update the main data
+                setIntelData(prev => prev.map(d => d.id === countryCode ? { ...d, ...changes } : d));
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to save changes.' });
+        } finally {
+            setIsSaving(prev => ({ ...prev, [countryCode]: false }));
+        }
+    };
+
+    const filteredData = useMemo(() => {
+        if (!debouncedSearchTerm) return intelData;
+        const lowercasedTerm = debouncedSearchTerm.toLowerCase();
+        return intelData.filter(country => 
+            country.countryName.toLowerCase().includes(lowercasedTerm) ||
+            country.region.toLowerCase().includes(lowercasedTerm) ||
+            country.id.toLowerCase().includes(lowercasedTerm)
+        );
+    }, [debouncedSearchTerm, intelData]);
+    
     return (
         <Card>
             <CardHeader>
-                <CardTitle>InfoHub Country Database</CardTitle>
-                <CardDescription>This is the central database of curated news sources for the InfoHub feature. This data is currently read-only.</CardDescription>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle>InfoHub Country Database</CardTitle>
+                        <CardDescription>This is the central database of curated news sources for the InfoHub feature.</CardDescription>
+                    </div>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button disabled={isBuilding}>
+                                {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4" />}
+                                Build/Update Database
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Build Country Intel Database?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will trigger a server-side process to populate the database for all countries. This is a time-consuming and expensive operation. It will only add countries that do not already exist.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleBuildDatabase}>Confirm & Build</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+                 <div className="relative pt-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by country name, code, or region..."
+                        className="pl-10"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-[60vh]">
@@ -1801,26 +1925,63 @@ function IntelSourcesTabContent() {
                             <TableHead>Neighbors</TableHead>
                             <TableHead>Regional News</TableHead>
                             <TableHead>Local News</TableHead>
+                            <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {countryIntelData.map(country => (
-                            <TableRow key={country.countryCode}>
-                                <TableCell className="font-medium">{country.countryName}</TableCell>
-                                <TableCell>{country.region}</TableCell>
-                                <TableCell>{country.neighbours.join(', ')}</TableCell>
-                                <TableCell>
-                                    <ul className="list-disc list-inside text-xs">
-                                        {country.regionalNews.map(n => <li key={n}>{n}</li>)}
-                                    </ul>
-                                </TableCell>
-                                <TableCell>
-                                    <ul className="list-disc list-inside text-xs">
-                                        {country.localNews.map(n => <li key={n}>{n}</li>)}
-                                    </ul>
+                        {isLoading ? (
+                             <TableRow>
+                                <TableCell colSpan={6} className="h-24 text-center">
+                                    <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
                                 </TableCell>
                             </TableRow>
-                        ))}
+                        ) : filteredData.map(country => {
+                            const countryEdits = editState[country.id] || {};
+                            const hasChanges = Object.keys(countryEdits).length > 0;
+                            const isRowSaving = isSaving[country.id];
+                            return (
+                                <TableRow key={country.id}>
+                                    <TableCell className="font-medium">{country.countryName} ({country.id})</TableCell>
+                                    <TableCell>
+                                        <Input
+                                            value={countryEdits.region ?? country.region}
+                                            onChange={(e) => handleCellChange(country.id, 'region', e.target.value)}
+                                            className="text-xs h-8"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Textarea
+                                            value={(countryEdits.neighbours ?? country.neighbours)?.join(', ')}
+                                            onChange={(e) => handleCellChange(country.id, 'neighbours', e.target.value)}
+                                            className="text-xs min-h-[60px]"
+                                            placeholder="Comma-separated country codes"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                         <Textarea
+                                            value={(countryEdits.regionalNews ?? country.regionalNews)?.join(', ')}
+                                            onChange={(e) => handleCellChange(country.id, 'regionalNews', e.target.value)}
+                                            className="text-xs min-h-[60px]"
+                                            placeholder="Comma-separated URLs"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                         <Textarea
+                                            value={(countryEdits.localNews ?? country.localNews)?.join(', ')}
+                                            onChange={(e) => handleCellChange(country.id, 'localNews', e.target.value)}
+                                            className="text-xs min-h-[60px]"
+                                            placeholder="Comma-separated URLs"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
+                                            {isRowSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                                            Save
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })}
                     </TableBody>
                 </Table>
                 </ScrollArea>
@@ -1909,7 +2070,3 @@ export default function AdminPageV2() {
         </div>
     );
 }
-
-    
-
-    

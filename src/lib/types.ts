@@ -99,7 +99,7 @@ export type RoomMessage = {
 }
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
@@ -211,4 +211,13 @@ export interface Invitation {
     invitedEmail: string;
     createdAt: string; // ISO String for client
     status: 'pending' | 'accepted';
+}
+
+export interface CountryIntelData {
+    id: string; // country code, e.g. 'KH'
+    countryName: string;
+    region: string;
+    regionalNews: string[];
+    neighbours: string[]; // List of country codes
+    localNews: string[];
 }

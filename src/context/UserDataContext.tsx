@@ -20,7 +20,7 @@ import type { User } from 'firebase/auth';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -388,7 +388,19 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (!user || !settings) return false;
 
         const currentBalance = userProfile.tokenBalance || 0;
-        const transactionCost = cost !== undefined ? cost : (settings.translationCost || 1);
+        let transactionCost;
+        let actionType: TransactionLogType = 'translation_spend';
+        
+        if (cost !== undefined) {
+             transactionCost = cost;
+             if (description.includes("language pack")) {
+                actionType = 'language_pack_download';
+             } else if (description.includes("travel intel")) {
+                actionType = 'infohub_intel';
+             }
+        } else {
+            transactionCost = settings.translationCost || 1;
+        }
 
         if (currentBalance < transactionCost) {
             return false;
@@ -399,7 +411,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         
         pendingTokenSyncs.push({
             amount: transactionCost,
-            actionType: cost !== undefined ? 'language_pack_download' : 'translation_spend',
+            actionType: actionType,
             description
         });
         debouncedCommitToFirestore();
