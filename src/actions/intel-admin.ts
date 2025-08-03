@@ -104,10 +104,25 @@ export async function updateCountryIntelAdmin(countryCode: string, updates: Part
     }
 }
 
+const seedData: Omit<CountryIntelData, 'id'>[] = [
+    { countryName: 'Brunei', region: 'South East Asia', neighbours: ['MY'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['thebruneian.news', 'borneobulletin.com.bn'] },
+    { countryName: 'Cambodia', region: 'South East Asia', neighbours: ['TH', 'VN', 'LA'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'] },
+    { countryName: 'Indonesia', region: 'South East Asia', neighbours: ['MY', 'PG', 'TL'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['thejakartapost.com', 'en.tempo.co', 'antaranews.com'] },
+    { countryName: 'Laos', region: 'South East Asia', neighbours: ['TH', 'VN', 'KH', 'MM', 'CN'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['laotiantimes.com', 'vientianetimes.org.la'] },
+    { countryName: 'Malaysia', region: 'South East Asia', neighbours: ['TH', 'ID', 'BN', 'SG'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['thestar.com.my', 'malaysiakini.com', 'freemalaysiatoday.com'] },
+    { countryName: 'Myanmar', region: 'South East Asia', neighbours: ['TH', 'LA', 'CN', 'IN', 'BD'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['irrawaddy.com', 'frontiermyanmar.net', 'mmtimes.com'] },
+    { countryName: 'Philippines', region: 'South East Asia', neighbours: [], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['rappler.com', 'inquirer.net', 'philstar.com'] },
+    { countryName: 'Singapore', region: 'South East Asia', neighbours: ['MY', 'ID'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['straitstimes.com', 'todayonline.com', 'channelnewsasia.com'] },
+    { countryName: 'Thailand', region: 'South East Asia', neighbours: ['MY', 'KH', 'LA', 'MM'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['bangkokpost.com', 'nationthailand.com', 'thaipbsworld.com'] },
+    { countryName: 'Vietnam', region: 'South East Asia', neighbours: ['KH', 'LA', 'CN'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'] },
+    { countryName: 'Timor-Leste', region: 'South East Asia', neighbours: ['ID'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['tatoli.tl'] }
+];
+
 
 /**
  * The "Database Builder" function. Iterates through all countries,
  * discovers data for those not already in Firestore, and saves it.
+ * It will auto-seed with core ASEAN data if the collection is empty.
  */
 export async function buildCountryIntelDatabase(): Promise<{ success: boolean; error?: string; totalCountries?: number; addedCount?: number }> {
     try {
@@ -115,7 +130,26 @@ export async function buildCountryIntelDatabase(): Promise<{ success: boolean; e
         const existingDocsSnapshot = await db.collection('countryIntel').get();
         const existingCountryCodes = new Set(existingDocsSnapshot.docs.map(doc => doc.id));
         
-        const countriesToProcess = lightweightCountries.filter(c => !existingCountryCodes.has(c.code));
+        let countriesToProcess = lightweightCountries.filter(c => !existingCountryCodes.has(c.code));
+        
+        // Auto-seed if the database is completely empty
+        if (existingDocsSnapshot.empty) {
+            console.log('[Intel Builder] Database is empty. Seeding with core ASEAN data...');
+            const batch = db.batch();
+            for (const country of seedData) {
+                const countryInfo = lightweightCountries.find(c => c.name === country.countryName);
+                if (countryInfo) {
+                    const docRef = db.collection('countryIntel').doc(countryInfo.code);
+                    batch.set(docRef, { ...country, id: countryInfo.code });
+                }
+            }
+            await batch.commit();
+            console.log('[Intel Builder] Core data seeded. Re-checking for remaining countries...');
+            // Re-fetch to update the state after seeding
+            const updatedSnapshot = await db.collection('countryIntel').get();
+            const updatedExistingCodes = new Set(updatedSnapshot.docs.map(doc => doc.id));
+            countriesToProcess = lightweightCountries.filter(c => !updatedExistingCodes.has(c.code));
+        }
         
         if (countriesToProcess.length === 0) {
             console.log('[Intel Builder] Database is already up to date.');
@@ -155,4 +189,3 @@ export async function buildCountryIntelDatabase(): Promise<{ success: boolean; e
         return { success: false, error: 'A critical server error occurred.' };
     }
 }
-
