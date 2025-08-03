@@ -49,7 +49,8 @@ import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getCountryIntelAdmin, updateCountryIntelAdmin, buildCountryIntelDatabase } from '@/actions/intel-admin';
+import { getCountryIntelAdmin, updateCountryIntelAdmin, buildCountryIntelData } from '@/actions/intel-admin';
+import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 
 
 interface UserWithId extends UserProfile {
@@ -1792,13 +1793,15 @@ function IntelSourcesTabContent() {
     const [editState, setEditState] = useState<Record<string, Partial<CountryIntelData>>>({});
     const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
     const [isBuilding, setIsBuilding] = useState(false);
+    const [isBuildDialogOpen, setIsBuildDialogOpen] = useState(false);
+    const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
 
     const fetchIntelData = useCallback(async () => {
         setIsLoading(true);
         try {
             const data = await getCountryIntelAdmin();
             setIntelData(data);
-            setFilteredData(data); // Initialize filtered data
+            setFilteredData(data);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch country intel data.' });
         } finally {
@@ -1810,7 +1813,6 @@ function IntelSourcesTabContent() {
         fetchIntelData();
     }, [fetchIntelData]);
 
-    // Effect for filtering data based on search term
     useEffect(() => {
         const lowercasedTerm = searchTerm.toLowerCase();
         if (!lowercasedTerm) {
@@ -1825,15 +1827,50 @@ function IntelSourcesTabContent() {
             );
         }
     }, [searchTerm, intelData]);
+    
+    const countriesByRegion = useMemo(() => {
+        const regions: Record<string, LightweightCountry[]> = {};
+        const builtCountryCodes = new Set(intelData.map(c => c.id));
+        
+        lightweightCountries.forEach(country => {
+            if (builtCountryCodes.has(country.code)) return;
+            // A simple way to group by continent for the demo
+            const region = 'TBD'; 
+            if (!regions[region]) {
+                regions[region] = [];
+            }
+            regions[region].push(country);
+        });
 
+        // This is a rough grouping, a more sophisticated method could be used.
+        const regionOrder = ['South East Asia', 'East Asia', 'South Asia', 'Central Asia', 'Western Asia', 'Europe', 'North America', 'South America', 'Africa', 'Oceania', 'TBD'];
+        const sortedRegions: Record<string, LightweightCountry[]> = {};
+         Object.keys(regions).sort((a,b) => {
+             const indexA = regionOrder.indexOf(a);
+             const indexB = regionOrder.indexOf(b);
+             if (indexA === -1) return 1;
+             if (indexB === -1) return -1;
+             return indexA - indexB;
+         }).forEach(key => {
+            sortedRegions[key] = regions[key];
+         });
+
+        return sortedRegions;
+    }, [intelData]);
 
     const handleBuildDatabase = async () => {
+        if(selectedCountries.length === 0) {
+            toast({ variant: 'destructive', title: 'No Selection', description: 'Please select at least one country or region to build.' });
+            return;
+        }
         setIsBuilding(true);
+        setIsBuildDialogOpen(false);
         try {
-            const result = await buildCountryIntelDatabase();
+            const result = await buildCountryIntelData(selectedCountries);
             if (result.success) {
-                toast({ title: 'Database Build Started', description: `Processing ${result.totalCountries} countries. This may take a while. Refresh to see progress.` });
+                toast({ title: 'Database Build Started', description: `Processing ${result.totalToProcess} countries. Refresh to see progress.` });
                 await fetchIntelData();
+                setSelectedCountries([]);
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
             }
@@ -1895,26 +1932,72 @@ function IntelSourcesTabContent() {
                         <CardTitle>InfoHub Country Database</CardTitle>
                         <CardDescription>This is the central database of curated news sources for the InfoHub feature.</CardDescription>
                     </div>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
+                    <Dialog open={isBuildDialogOpen} onOpenChange={setIsBuildDialogOpen}>
+                        <DialogTrigger asChild>
                             <Button disabled={isBuilding}>
                                 {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4" />}
                                 Build/Update Database
                             </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Build Country Intel Database?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will trigger a server-side process to populate the database for all countries. This is a time-consuming and expensive operation. It will only add countries that do not already exist.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleBuildDatabase}>Confirm & Build</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl">
+                            <DialogHeader>
+                                <DialogTitle>Build Country Intel Database</DialogTitle>
+                                <DialogDescription>
+                                    Select regions or specific countries to research and add to the database. This is a time-consuming operation.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <ScrollArea className="h-[60vh]">
+                                 <div className="space-y-4 p-1">
+                                    {Object.entries(countriesByRegion).map(([region, countries]) => (
+                                         <Accordion key={region} type="single" collapsible>
+                                            <AccordionItem value={region}>
+                                                <AccordionTrigger>
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            checked={countries.every(c => selectedCountries.includes(c.code))}
+                                                            onCheckedChange={(checked) => {
+                                                                const regionCodes = countries.map(c => c.code);
+                                                                if(checked) {
+                                                                    setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
+                                                                } else {
+                                                                    setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
+                                                                }
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                        {region} ({countries.length})
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent>
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
+                                                        {countries.map(country => (
+                                                            <div key={country.code} className="flex items-center space-x-2">
+                                                                <Checkbox 
+                                                                    id={country.code} 
+                                                                    checked={selectedCountries.includes(country.code)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
+                                                                    }}
+                                                                />
+                                                                <Label htmlFor={country.code}>{country.name}</Label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        </Accordion>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                            <DialogFooter>
+                                <Button variant="ghost" onClick={() => setIsBuildDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleBuildDatabase} disabled={isBuilding || selectedCountries.length === 0}>
+                                    {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Build for {selectedCountries.length} Countries
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </div>
                  <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />

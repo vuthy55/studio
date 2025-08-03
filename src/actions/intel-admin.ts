@@ -120,18 +120,20 @@ const seedData: Omit<CountryIntelData, 'id'>[] = [
 
 
 /**
- * The "Database Builder" function. Iterates through all countries,
+ * The "Database Builder" function. Iterates through a given list of country codes (or all if none provided),
  * discovers data for those not already in Firestore, and saves it.
  * It will auto-seed with core ASEAN data if the collection is empty.
  */
-export async function buildCountryIntelDatabase(): Promise<{ success: boolean; error?: string; totalCountries?: number; addedCount?: number }> {
+export async function buildCountryIntelData(countryCodes?: string[]): Promise<{ success: boolean; error?: string; totalToProcess?: number; addedCount?: number }> {
     try {
         console.log('[Intel Builder] Starting database build process...');
         const intelCollectionRef = db.collection('countryIntelCache');
         const existingDocsSnapshot = await intelCollectionRef.get();
         
+        let shouldSeed = existingDocsSnapshot.empty;
+        
         // Auto-seed if the database is completely empty
-        if (existingDocsSnapshot.empty) {
+        if (shouldSeed) {
             console.log('[Intel Builder] Database is empty. Seeding with core ASEAN data...');
             const batch = db.batch();
             for (const country of seedData) {
@@ -142,17 +144,22 @@ export async function buildCountryIntelDatabase(): Promise<{ success: boolean; e
                 }
             }
             await batch.commit();
-            console.log('[Intel Builder] Core data seeded. The rest of the world will be processed now.');
+            console.log('[Intel Builder] Core data seeded.');
         }
 
-        // After potential seeding, get the updated list of existing countries
-        const updatedSnapshot = await intelCollectionRef.get();
+        // Determine which countries to process
+        const updatedSnapshot = shouldSeed ? await intelCollectionRef.get() : existingDocsSnapshot;
         const existingCountryCodes = new Set(updatedSnapshot.docs.map(doc => doc.id));
-        const countriesToProcess = lightweightCountries.filter(c => !existingCountryCodes.has(c.code));
+        
+        const allCountriesToConsider = countryCodes 
+            ? lightweightCountries.filter(c => countryCodes.includes(c.code))
+            : lightweightCountries;
+            
+        const countriesToProcess = allCountriesToConsider.filter(c => !existingCountryCodes.has(c.code));
         
         if (countriesToProcess.length === 0) {
-            console.log('[Intel Builder] Database is already up to date.');
-            return { success: true, totalCountries: lightweightCountries.length, addedCount: 0 };
+            console.log('[Intel Builder] No new countries to process from the provided list.');
+            return { success: true, totalToProcess: 0, addedCount: 0 };
         }
 
         console.log(`[Intel Builder] Found ${countriesToProcess.length} new countries to process.`);
@@ -181,7 +188,7 @@ export async function buildCountryIntelDatabase(): Promise<{ success: boolean; e
         }
         
         console.log(`[Intel Builder] Process finished. Added ${addedCount} new countries.`);
-        return { success: true, totalCountries: lightweightCountries.length, addedCount };
+        return { success: true, totalToProcess: countriesToProcess.length, addedCount };
 
     } catch (error: any) {
         console.error('[Intel Builder] Critical error during database build:', error);
