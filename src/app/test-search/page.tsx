@@ -20,7 +20,13 @@ export default function TestSearchPage() {
 
         try {
             const result = await testAdvancedSearch();
-            setSummary(result.summary);
+            if (result.summary) {
+                setSummary(result.summary);
+            } else if (result.error) {
+                setError(result.error);
+            } else {
+                 setError("The flow completed but returned neither a summary nor an error.");
+            }
 
         } catch (e: any) {
             const errorMessage = e.message || 'An unexpected client-side error occurred.';
