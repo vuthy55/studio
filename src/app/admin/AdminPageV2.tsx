@@ -49,7 +49,7 @@ import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
 import { countryIntelData } from '@/lib/country-intel-data';
-import { ScrollArea } from '../ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 interface UserWithId extends UserProfile {
