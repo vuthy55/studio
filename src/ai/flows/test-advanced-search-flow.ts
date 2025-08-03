@@ -114,12 +114,11 @@ const testSearchFlow = ai.defineFlow(
         You are a travel intelligence analyst. Your task is to analyze the provided article.
         
         --- CATEGORY: Official Advisory ---
-        Source URL: {{{url}}}
-        Article Content:
-        {{{content}}}
+        Source URL: This information is available in the context.
+        Article Content: This information is available in the context.
         
         --- INSTRUCTIONS ---
-        Based ONLY on the information provided above, provide a concise, one-paragraph summary of the travel advisory.
+        Based ONLY on the information provided in the context, provide a concise, one-paragraph summary of the travel advisory.
     `;
 
     const context = {
