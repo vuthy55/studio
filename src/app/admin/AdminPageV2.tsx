@@ -1821,39 +1821,33 @@ function IntelSourcesTabContent() {
             setFilteredData(
                 intelData.filter(country =>
                     country.countryName.toLowerCase().includes(lowercasedTerm) ||
-                    country.region.toLowerCase().includes(lowercasedTerm) ||
+                    (country.region && country.region.toLowerCase().includes(lowercasedTerm)) ||
                     country.id.toLowerCase().includes(lowercasedTerm)
                 )
             );
         }
     }, [searchTerm, intelData]);
     
-    const countriesByRegion = useMemo(() => {
+     const countriesByRegion = useMemo(() => {
         const regions: Record<string, LightweightCountry[]> = {};
         const builtCountryCodes = new Set(intelData.map(c => c.id));
-        
+
         lightweightCountries.forEach(country => {
             if (builtCountryCodes.has(country.code)) return;
-            // A simple way to group by continent for the demo
-            const region = 'TBD'; 
+            const region = country.region || 'Uncategorized';
             if (!regions[region]) {
                 regions[region] = [];
             }
             regions[region].push(country);
         });
-
-        // This is a rough grouping, a more sophisticated method could be used.
-        const regionOrder = ['South East Asia', 'East Asia', 'South Asia', 'Central Asia', 'Western Asia', 'Europe', 'North America', 'South America', 'Africa', 'Oceania', 'TBD'];
+        
+        // Sort regions alphabetically
         const sortedRegions: Record<string, LightweightCountry[]> = {};
-         Object.keys(regions).sort((a,b) => {
-             const indexA = regionOrder.indexOf(a);
-             const indexB = regionOrder.indexOf(b);
-             if (indexA === -1) return 1;
-             if (indexB === -1) return -1;
-             return indexA - indexB;
-         }).forEach(key => {
+        Object.keys(regions).sort().forEach(key => {
+            // Sort countries within each region alphabetically
+            regions[key].sort((a, b) => a.name.localeCompare(b.name));
             sortedRegions[key] = regions[key];
-         });
+        });
 
         return sortedRegions;
     }, [intelData]);
@@ -1951,9 +1945,10 @@ function IntelSourcesTabContent() {
                                     {Object.entries(countriesByRegion).map(([region, countries]) => (
                                         <Accordion key={region} type="single" collapsible>
                                             <AccordionItem value={region}>
-                                                <div className="flex items-center gap-2 p-4 border-b">
+                                                 <div className="flex items-center gap-2 border-b">
                                                     <Checkbox
                                                         id={`region-checkbox-${region}`}
+                                                        className="ml-4"
                                                         checked={countries.every(c => selectedCountries.includes(c.code))}
                                                         onCheckedChange={(checked) => {
                                                             const regionCodes = countries.map(c => c.code);
@@ -1964,8 +1959,8 @@ function IntelSourcesTabContent() {
                                                             }
                                                         }}
                                                     />
-                                                    <AccordionTrigger className="flex-1 p-0 hover:no-underline">
-                                                        <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full">
+                                                    <AccordionTrigger>
+                                                        <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full text-left">
                                                             {region} ({countries.length})
                                                         </Label>
                                                     </AccordionTrigger>
@@ -2172,4 +2167,3 @@ export default function AdminPageV2() {
         </div>
     );
 }
-
