@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle, Wand2 } from 'lucide-react';
-import { testAdvancedSearch } from '@/ai/flows/test-advanced-search-flow';
+import { scrapeUrlAction } from '@/actions/scraper';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TestSearchPage() {
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<{ summary?: string; debugLog?: string[]; } | null>(null);
+    const [result, setResult] = useState<{ content?: string; error?: string; } | null>(null);
     const [error, setError] = useState('');
 
     const handleRunTest = async () => {
@@ -20,19 +20,20 @@ export default function TestSearchPage() {
         setError('');
 
         try {
-            const response = await testAdvancedSearch();
-            setResult(response);
-        } catch (e: any) {
-            let errorMessage = e.message || 'An unexpected client-side error occurred.';
-            setError(errorMessage);
-
-            if (e.debugLog) {
-                // If a debug log exists from a partial failure, display it.
-                setResult({ debugLog: e.debugLog });
+            const urlToScrape = 'https://www.gov.uk/foreign-travel-advice/ukraine';
+            const response = await scrapeUrlAction(urlToScrape);
+            
+            if (response.success) {
+                setResult({ content: response.content });
             } else {
-                 // Create a minimal log for other client-side errors.
-                 setResult({ debugLog: ['[Test Flow] Client-side execution failed.', `[Test Flow] Error: ${errorMessage}`] });
+                setError(response.error || 'Scraping failed with no specific error message.');
+                setResult({ error: response.error || 'Scraping failed with no specific error message.' });
             }
+
+        } catch (e: any) {
+            const errorMessage = e.message || 'An unexpected client-side error occurred.';
+            setError(errorMessage);
+            setResult({ error: errorMessage });
         } finally {
             setIsLoading(false);
         }
@@ -45,19 +46,19 @@ export default function TestSearchPage() {
                 <CardHeader>
                     <CardTitle>Test Scenario</CardTitle>
                     <CardDescription>
-                        This test will run an AI agent instructed to find the UK travel advisory for Ukraine, scrape the page, and summarize it.
+                        This test will directly attempt to scrape the content from the UK government's travel advisory page for Ukraine.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-start gap-4">
                     <Button onClick={handleRunTest} disabled={isLoading}>
                         {isLoading ? <LoaderCircle className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
-                        Run AI Agent Test
+                        Run Scraper Test
                     </Button>
 
                     {isLoading && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <LoaderCircle className="animate-spin" />
-                            Running AI agent...
+                            Scraping URL...
                         </div>
                     )}
                     
@@ -70,21 +71,12 @@ export default function TestSearchPage() {
                         </div>
                     )}
                     
-                    {result?.summary && (
+                    {result?.content && (
                         <div className="w-full space-y-2 pt-4">
-                            <h3 className="font-semibold text-lg">AI Summary Result:</h3>
-                            <div className="p-4 border rounded-md bg-muted whitespace-pre-wrap">
-                                {result.summary}
-                            </div>
-                        </div>
-                    )}
-
-                    {result?.debugLog && (
-                        <div className="w-full space-y-2 pt-4">
-                            <h3 className="font-semibold text-lg">Debug Log:</h3>
-                            <ScrollArea className="h-48 p-4 border rounded-md bg-stone-900 text-stone-300 font-mono text-xs">
+                            <h3 className="font-semibold text-lg">Raw Scraped Content:</h3>
+                            <ScrollArea className="h-72 p-4 border rounded-md bg-muted font-mono text-xs">
                                 <pre className="whitespace-pre-wrap">
-                                    {result.debugLog.join('\n')}
+                                    {result.content}
                                 </pre>
                             </ScrollArea>
                         </div>
