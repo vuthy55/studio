@@ -196,11 +196,11 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
+                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname?.startsWith('/test-search')}>
                       <Link href="/test-search" onClick={closeSidebar}>
                         <FlaskConical />
-                        Search Test
+                        AI Agent Test
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

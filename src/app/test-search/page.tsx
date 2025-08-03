@@ -7,33 +7,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle, Wand2 } from 'lucide-react';
 import { scrapeUrlAction } from '@/actions/scraper';
+import { summarizeContent } from '@/ai/flows/test-summarize-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TestSearchPage() {
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<{ content?: string; error?: string; } | null>(null);
+    const [rawContent, setRawContent] = useState('');
+    const [summary, setSummary] = useState('');
     const [error, setError] = useState('');
 
     const handleRunTest = async () => {
         setIsLoading(true);
-        setResult(null);
+        setRawContent('');
+        setSummary('');
         setError('');
 
         try {
+            // Step 1: Scrape the URL
             const urlToScrape = 'https://www.gov.uk/foreign-travel-advice/ukraine';
-            const response = await scrapeUrlAction(urlToScrape);
+            const scrapeResponse = await scrapeUrlAction(urlToScrape);
             
-            if (response.success) {
-                setResult({ content: response.content });
-            } else {
-                setError(response.error || 'Scraping failed with no specific error message.');
-                setResult({ error: response.error || 'Scraping failed with no specific error message.' });
+            if (!scrapeResponse.success || !scrapeResponse.content) {
+                throw new Error(scrapeResponse.error || 'Scraping failed with no specific error message.');
             }
+            setRawContent(scrapeResponse.content);
+
+            // Step 2: Summarize the content with AI
+            const summaryResponse = await summarizeContent(scrapeResponse.content);
+            if (!summaryResponse) {
+                 throw new Error("AI failed to generate a summary.");
+            }
+            setSummary(summaryResponse);
 
         } catch (e: any) {
             const errorMessage = e.message || 'An unexpected client-side error occurred.';
             setError(errorMessage);
-            setResult({ error: errorMessage });
         } finally {
             setIsLoading(false);
         }
@@ -41,24 +49,24 @@ export default function TestSearchPage() {
 
     return (
         <div className="space-y-8">
-            <MainHeader title="Web Scraper Test" description="A test page to verify the app's ability to fetch and parse content from a specific URL." />
+            <MainHeader title="Web Scraper & AI Summary Test" description="A test page to verify scraping a URL and summarizing its content." />
             <Card>
                 <CardHeader>
                     <CardTitle>Test Scenario</CardTitle>
                     <CardDescription>
-                        This test will directly attempt to scrape the content from the UK government's travel advisory page for Ukraine.
+                        This test will scrape the UK travel advisory for Ukraine, then use an AI to summarize the result.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-start gap-4">
                     <Button onClick={handleRunTest} disabled={isLoading}>
                         {isLoading ? <LoaderCircle className="mr-2 animate-spin" /> : <Wand2 className="mr-2" />}
-                        Run Scraper Test
+                        Run Scraper & Summary Test
                     </Button>
 
                     {isLoading && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <LoaderCircle className="animate-spin" />
-                            Scraping URL...
+                            {rawContent ? 'Summarizing content...' : 'Scraping URL...'}
                         </div>
                     )}
                     
@@ -71,12 +79,21 @@ export default function TestSearchPage() {
                         </div>
                     )}
                     
-                    {result?.content && (
+                    {summary && (
+                         <div className="w-full space-y-2 pt-4">
+                            <h3 className="font-semibold text-lg text-primary">AI Generated Summary:</h3>
+                            <div className="p-4 border rounded-md bg-primary/10 whitespace-pre-wrap">
+                                {summary}
+                            </div>
+                        </div>
+                    )}
+
+                    {rawContent && (
                         <div className="w-full space-y-2 pt-4">
                             <h3 className="font-semibold text-lg">Raw Scraped Content:</h3>
                             <ScrollArea className="h-72 p-4 border rounded-md bg-muted font-mono text-xs">
                                 <pre className="whitespace-pre-wrap">
-                                    {result.content}
+                                    {rawContent}
                                 </pre>
                             </ScrollArea>
                         </div>
