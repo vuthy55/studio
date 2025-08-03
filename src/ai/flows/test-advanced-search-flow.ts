@@ -28,19 +28,20 @@ export async function testAdvancedSearch(): Promise<TestResult> {
         return { summary: result, debugLog };
     } catch (e: any) {
         console.error("[Test Flow] Top-level execution failed:", e);
-        debugLog.push(`[CRITICAL] Flow failed: ${e.stack || e.message}`);
-        return { error: e.stack || e.message || "An unknown error occurred in the flow.", debugLog };
+        const errorMessage = e.stack || e.message || "An unknown error occurred in the flow.";
+        debugLog.push(`[CRITICAL] Flow failed: ${errorMessage}`);
+        return { error: errorMessage, debugLog };
     }
 }
 
 
-const generateWithFallback = async (prompt: string, context: any, debugLog: string[]) => {
+const generateWithFallback = async (prompt: string, promptData: any, debugLog: string[]) => {
     try {
         debugLog.push('[INFO] Attempting summarization with gemini-1.5-flash...');
         const result = await ai.generate({
           prompt,
           model: 'googleai/gemini-1.5-flash',
-          context
+          input: promptData,
         });
         
         const outputText = result.text;
@@ -50,7 +51,7 @@ const generateWithFallback = async (prompt: string, context: any, debugLog: stri
              const fallbackResult = await ai.generate({
               prompt,
               model: 'googleai/gemini-1.5-pro',
-              context
+              input: promptData,
             });
 
             const fallbackOutputText = fallbackResult.text;
@@ -66,7 +67,8 @@ const generateWithFallback = async (prompt: string, context: any, debugLog: stri
         return outputText;
 
     } catch (error: any) {
-        debugLog.push(`[FAIL] AI summarization failed: ${error.stack || error.message}`);
+        const errorMessage = error.stack || error.message || "An unknown error occurred during AI generation.";
+        debugLog.push(`[FAIL] AI summarization failed: ${errorMessage}`);
         throw error;
     }
 };
@@ -83,8 +85,9 @@ const testSearchFlow = ai.defineFlow(
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
     if (!apiKey || !searchEngineId) {
-        debugLog.push('[FAIL] Google Search API credentials are not configured on the server.');
-        throw new Error('Google Search API credentials are not configured on the server.');
+        const msg = '[FAIL] Google Search API credentials are not configured on the server.';
+        debugLog.push(msg);
+        throw new Error(msg);
     }
 
     // 1. Search
@@ -92,8 +95,9 @@ const testSearchFlow = ai.defineFlow(
     debugLog.push(`[INFO] Performing search with query: "${searchQuery}"`);
     const searchResult = await searchWebAction({ query: searchQuery, apiKey, searchEngineId });
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
-        debugLog.push(`[FAIL] Web search failed. Reason: ${searchResult.error || 'No results found.'}`);
-        throw new Error(`Web search failed: ${searchResult.error || 'No results found.'}`);
+        const msg = `[FAIL] Web search failed. Reason: ${searchResult.error || 'No results found.'}`;
+        debugLog.push(msg);
+        throw new Error(msg);
     }
     const topUrl = searchResult.results[0].link;
     debugLog.push(`[SUCCESS] Found top URL: ${topUrl}`);
@@ -102,8 +106,9 @@ const testSearchFlow = ai.defineFlow(
     debugLog.push(`[INFO] Scraping URL: ${topUrl}`);
     const scrapeResult = await scrapeUrlAction(topUrl);
     if (!scrapeResult.success || !scrapeResult.content) {
-        debugLog.push(`[FAIL] Scraping failed. Reason: ${scrapeResult.error || 'No content found.'}`);
-        throw new Error(`Scraping failed: ${scrapeResult.error || 'No content found.'}`);
+        const msg = `[FAIL] Scraping failed. Reason: ${scrapeResult.error || 'No content found.'}`;
+        debugLog.push(msg);
+        throw new Error(msg);
     }
     debugLog.push(`[SUCCESS] Scraped ${scrapeResult.content.length} characters.`);
 
@@ -114,18 +119,19 @@ const testSearchFlow = ai.defineFlow(
         You are a travel intelligence analyst. Your task is to analyze the provided article.
         
         --- CATEGORY: Official Advisory ---
-        Source URL: This information is available in the context.
-        Article Content: This information is available in the context.
+        Source URL: {{{url}}}
+        Article Content:
+        {{{content}}}
         
         --- INSTRUCTIONS ---
-        Based ONLY on the information provided in the context, provide a concise, one-paragraph summary of the travel advisory.
+        Based ONLY on the information provided, provide a concise, one-paragraph summary of the travel advisory.
     `;
 
-    const context = {
+    const promptData = {
         url: topUrl,
         content: scrapeResult.content
     };
     
-    return await generateWithFallback(prompt, context, debugLog);
+    return await generateWithFallback(prompt, promptData, debugLog);
   }
 );
