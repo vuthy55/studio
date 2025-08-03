@@ -1949,27 +1949,29 @@ function IntelSourcesTabContent() {
                             <ScrollArea className="h-[60vh]">
                                  <div className="space-y-4 p-1">
                                     {Object.entries(countriesByRegion).map(([region, countries]) => (
-                                         <Accordion key={region} type="single" collapsible>
+                                        <Accordion key={region} type="single" collapsible>
                                             <AccordionItem value={region}>
-                                                <AccordionTrigger>
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            checked={countries.every(c => selectedCountries.includes(c.code))}
-                                                            onCheckedChange={(checked) => {
-                                                                const regionCodes = countries.map(c => c.code);
-                                                                if(checked) {
-                                                                    setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
-                                                                } else {
-                                                                    setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
-                                                                }
-                                                            }}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                        {region} ({countries.length})
-                                                    </div>
-                                                </AccordionTrigger>
+                                                <div className="flex items-center gap-2 p-4 border-b">
+                                                    <Checkbox
+                                                        id={`region-checkbox-${region}`}
+                                                        checked={countries.every(c => selectedCountries.includes(c.code))}
+                                                        onCheckedChange={(checked) => {
+                                                            const regionCodes = countries.map(c => c.code);
+                                                            if(checked) {
+                                                                setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
+                                                            } else {
+                                                                setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
+                                                            }
+                                                        }}
+                                                    />
+                                                    <AccordionTrigger className="flex-1 p-0 hover:no-underline">
+                                                        <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full">
+                                                            {region} ({countries.length})
+                                                        </Label>
+                                                    </AccordionTrigger>
+                                                </div>
                                                 <AccordionContent>
-                                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4">
                                                         {countries.map(country => (
                                                             <div key={country.code} className="flex items-center space-x-2">
                                                                 <Checkbox 
@@ -2170,3 +2172,4 @@ export default function AdminPageV2() {
         </div>
     );
 }
+
