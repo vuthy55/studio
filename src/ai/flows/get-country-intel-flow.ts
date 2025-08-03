@@ -135,21 +135,20 @@ const generateWithFallback = async (prompt: string, context: any, outputSchema: 
 };
 
 /**
- * NEW HELPER FUNCTION
  * Sequentially searches and verifies sources for each defined category.
  * This is isolated to ensure correct asynchronous handling in a loop.
  */
 async function searchAllCategories(categories: Record<string, string>, apiKey: string, searchEngineId: string, debugLog: string[]) {
     const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
-
+    
+    // Use a 'for...of' loop to correctly handle async/await.
     for (const [key, query] of Object.entries(categories)) {
-        debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
-        debugLog.push(`[Intel Flow] DEBUG - Query: "${query}"`);
+        debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
         
         const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
         allSourcesByCategory[key] = sources;
 
-        debugLog.push(`[Intel Flow] Finished search for category: "${key}". Found ${sources.length} sources.`);
+        debugLog.push(`[Intel Flow] Finished processing category: "${key}". Found ${sources.length} sources.`);
     }
 
     return allSourcesByCategory;
@@ -193,11 +192,12 @@ const getCountryIntelFlow = ai.defineFlow(
     const localNewsSitesQuery = buildSiteSearchQuery(countryData.localNews);
     const neighborNewsSitesQuery = buildSiteSearchQuery(neighborData.flatMap(n => n.localNews));
 
+    // Reordered as requested for debugging.
     const categories: Record<string, string> = {
-        'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
         'Political Stability': `(political situation OR protests OR civil unrest OR war) in ${countryName} ${globalNewsSitesQuery} ${regionalNewsSitesQuery}`,
         'Health': `(health risks OR disease outbreaks) in ${countryName} ${globalNewsSitesQuery}`,
         'Scams & Theft': `(tourist scams OR fraud OR theft OR robbery) in ${countryName} ${neighborNewsSitesQuery} ${localNewsSitesQuery}`,
+        'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
     };
     
     // Filter out categories where the site search query part is empty
@@ -281,3 +281,5 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
+
+    
