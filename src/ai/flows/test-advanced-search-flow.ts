@@ -34,6 +34,40 @@ export async function testAdvancedSearch(): Promise<TestResult> {
 }
 
 
+const generateWithFallback = async (prompt: string, context: any, debugLog: string[]) => {
+    try {
+        debugLog.push('[INFO] Attempting summarization with gemini-1.5-flash...');
+        const { output } = await ai.generate({
+          prompt,
+          model: 'googleai/gemini-1.5-flash',
+          context
+        });
+        
+        if (!output) {
+            debugLog.push("[WARN] gemini-1.5-flash returned null. Trying fallback with gemini-1.5-pro...");
+             const { output: fallbackOutput } = await ai.generate({
+              prompt,
+              model: 'googleai/gemini-1.5-pro',
+              context
+            });
+             if (!fallbackOutput) {
+                 debugLog.push("[FAIL] The fallback AI model (gemini-1.5-pro) also returned a null or empty response.");
+                 throw new Error("The AI model returned a null or empty response.");
+            }
+            debugLog.push("[SUCCESS] Fallback model succeeded.");
+            return fallbackOutput;
+        }
+        
+        debugLog.push("[SUCCESS] Primary model succeeded.");
+        return output;
+
+    } catch (error: any) {
+        debugLog.push(`[FAIL] AI summarization failed: ${error.stack || error.message}`);
+        throw error;
+    }
+};
+
+
 const testSearchFlow = ai.defineFlow(
   {
     name: 'testAdvancedSearchFlow',
@@ -71,24 +105,24 @@ const testSearchFlow = ai.defineFlow(
 
     // 3. Summarize
     debugLog.push('[INFO] Sending content to AI for summarization...');
-    try {
-        const { output } = await ai.generate({
-          prompt: `You are a travel intelligence analyst. Based ONLY on the following content, provide a concise, one-paragraph summary of the travel advisory.\n\nCONTENT:\n"""${scrapeResult.content}"""`,
-          model: 'googleai/gemini-1.5-flash'
-        });
+    
+    const prompt = `
+        You are a travel intelligence analyst. Your task is to analyze the provided article.
         
-        if (!output) {
-          debugLog.push("[FAIL] The AI model returned a null or empty response.");
-          throw new Error("The AI model returned a null or empty response.");
-        }
+        --- CATEGORY: Official Advisory ---
+        Source URL: {{{url}}}
+        Article Content:
+        {{{content}}}
         
-        debugLog.push("[SUCCESS] AI summary generated.");
-        return output;
+        --- INSTRUCTIONS ---
+        Based ONLY on the information provided above, provide a concise, one-paragraph summary of the travel advisory.
+    `;
 
-    } catch (error: any) {
-        debugLog.push(`[FAIL] AI summarization failed: ${error.stack || error.message}`);
-        throw error;
-    }
+    const context = {
+        url: topUrl,
+        content: scrapeResult.content
+    };
+    
+    return await generateWithFallback(prompt, context, debugLog);
   }
 );
-
