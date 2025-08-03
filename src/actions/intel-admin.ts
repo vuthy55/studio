@@ -14,7 +14,7 @@ import { lightweightCountries } from '@/lib/location-data';
  */
 export async function getCountryIntelData(countryName: string): Promise<CountryIntelData | null> {
     try {
-        const intelRef = db.collection('countryIntel');
+        const intelRef = db.collection('countryIntelCache');
         const q = intelRef.where('countryName', '==', countryName).limit(1);
         const snapshot = await q.get();
 
@@ -45,7 +45,7 @@ export async function getNeighborIntelData(neighbourCodes: string[]): Promise<Co
     }
     
     try {
-        const intelRef = db.collection('countryIntel');
+        const intelRef = db.collection('countryIntelCache');
         // Firestore 'in' queries are limited to 30 items per query.
         // We chunk the requests to handle any number of neighbors.
         const chunks: string[][] = [];
@@ -79,7 +79,7 @@ export async function getNeighborIntelData(neighbourCodes: string[]): Promise<Co
  */
 export async function getCountryIntelAdmin(): Promise<CountryIntelData[]> {
     try {
-        const snapshot = await db.collection('countryIntel').orderBy('countryName').get();
+        const snapshot = await db.collection('countryIntelCache').orderBy('countryName').get();
         if (snapshot.empty) return [];
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CountryIntelData));
     } catch (error) {
@@ -95,7 +95,7 @@ export async function updateCountryIntelAdmin(countryCode: string, updates: Part
     if (!countryCode) return { success: false, error: 'Country code is required.' };
     
     try {
-        const docRef = db.collection('countryIntel').doc(countryCode);
+        const docRef = db.collection('countryIntelCache').doc(countryCode);
         await docRef.update(updates);
         return { success: true };
     } catch (error: any) {
@@ -127,7 +127,7 @@ const seedData: Omit<CountryIntelData, 'id'>[] = [
 export async function buildCountryIntelDatabase(): Promise<{ success: boolean; error?: string; totalCountries?: number; addedCount?: number }> {
     try {
         console.log('[Intel Builder] Starting database build process...');
-        const intelCollectionRef = db.collection('countryIntel');
+        const intelCollectionRef = db.collection('countryIntelCache');
         const existingDocsSnapshot = await intelCollectionRef.get();
         
         // Auto-seed if the database is completely empty
