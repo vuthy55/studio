@@ -12,6 +12,7 @@ import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
 import { getAppSettingsAction } from '@/actions/settings';
 import { subDays, parseISO } from 'date-fns';
+import { countryIntelData } from '@/lib/country-intel-data';
 
 
 // --- Zod Schemas for Input/Output ---
@@ -24,7 +25,7 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 const OverallAssessmentSchema = z.object({
     paragraph1: z.string().describe("Paragraph 1: Start with a direct statement about the overall travel situation."),
     paragraph2: z.string().describe("Paragraph 2: Detail the *most important* issues affecting travelers, specifying the category."),
-    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers, including a sentence stating 'This assessment is based on a review of X unique articles.' where X is the number of sources used."),
+    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers."),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
@@ -53,7 +54,7 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
     debugLog.push(`[Intel Flow] Starting getCountryIntelFlow for: ${countryName}`);
     const intel = await getCountryIntelFlow({ countryName, debugLog });
     
-    debugLog.push("[Intel Flow] Process finished.");
+    debugLog.push(`[Intel Flow] Process finished. Reviewed ${intel.allReviewedSources?.length || 0} sources.`);
     return { intel, debugLog };
 }
 
@@ -63,11 +64,7 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
 async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string; publishedDate?: string | null}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     
-    const searchResult = await searchWebAction({
-        query,
-        apiKey,
-        searchEngineId,
-    });
+    const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
         let errorDetails = searchResult.error || 'No results';
@@ -82,7 +79,7 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
     const verifiedSources = [];
     const thirtyDaysAgo = subDays(new Date(), 30);
 
-    for (const item of searchResult.results.slice(0, 5)) { // Process top 5 results
+    for (const item of searchResult.results.slice(0, 3)) { // Process top 3 results per query
         debugLog.push(`[Intel Flow] (searchAndVerify) - Scraping URL: ${item.link}`);
         const scrapeResult = await scrapeUrlAction(item.link);
         
@@ -112,8 +109,10 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
     return verifiedSources;
 }
 
-
-const buildSiteSearchQuery = (sites: string[]): string => sites.map(s => `site:${s.trim()}`).join(' OR ');
+const buildSiteSearchQuery = (sites: string[] | undefined): string => {
+    if (!sites || sites.length === 0) return '';
+    return sites.map(s => `site:${s.trim()}`).join(' OR ');
+}
 
 const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[]) => {
     try {
@@ -145,33 +144,6 @@ const getCountryIntelFlow = ai.defineFlow(
   async ({ countryName, debugLog }) => {
     
     const settings = await getAppSettingsAction();
-    const governmentSitesQuery = settings.infohubGovernmentAdvisorySources ? buildSiteSearchQuery(settings.infohubGovernmentAdvisorySources.split(',')) : '';
-    const globalNewsSitesQuery = settings.infohubGlobalNewsSources ? buildSiteSearchQuery(settings.infohubGlobalNewsSources.split(',')) : '';
-    const regionalNewsSitesQuery = settings.infohubRegionalNewsSources ? buildSiteSearchQuery(settings.infohubRegionalNewsSources.split(',')) : '';
-
-    const localNewsSites: Record<string, string[]> = {
-        'Cambodia': ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'],
-        'Vietnam': ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'],
-        'Thailand': ['bangkokpost.com', 'nationthailand.com', 'thaipbsworld.com'],
-        'Malaysia': ['thestar.com.my', 'malaysiakini.com', 'freemalaysiatoday.com'],
-        'Indonesia': ['thejakartapost.com', 'en.tempo.co', 'antaranews.com'],
-        'Philippines': ['rappler.com', 'inquirer.net', 'philstar.com'],
-        'Singapore': ['straitstimes.com', 'todayonline.com', 'channelnewsasia.com'],
-        'Myanmar': ['irrawaddy.com', 'frontiermyanmar.net'],
-        'Laos': ['laotiantimes.com', 'vientianetimes.org.la'],
-        'Brunei': ['thebruneian.news', 'borneobulletin.com.bn']
-    };
-    
-    const localNewsQuery = buildSiteSearchQuery(localNewsSites[countryName] || []);
-
-    const categories = {
-        'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
-        'Scams': `(tourist scams OR fraud) ${countryName} ${localNewsQuery} ${globalNewsSitesQuery}`,
-        'Theft': `(theft OR robbery OR kidnapping) risk ${countryName} ${localNewsQuery} ${globalNewsSitesQuery}`,
-        'Health': `(health risks OR disease outbreaks) ${countryName} ${globalNewsSitesQuery}`,
-        'Political Stability': `(political situation OR protests OR civil unrest OR war) ${countryName} ${regionalNewsSitesQuery} ${globalNewsSitesQuery}`
-    };
-
     const apiKey = process.env.GOOGLE_API_KEY;
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
@@ -180,9 +152,25 @@ const getCountryIntelFlow = ai.defineFlow(
         return {};
     }
 
+    const countryData = countryIntelData.find(c => c.countryName.toLowerCase() === countryName.toLowerCase());
+    
+    const governmentSitesQuery = buildSiteSearchQuery(settings.infohubGovernmentAdvisorySources.split(','));
+    const globalNewsSitesQuery = buildSiteSearchQuery(settings.infohubGlobalNewsSources.split(','));
+    const regionalNewsSitesQuery = countryData ? buildSiteSearchQuery(countryData.regionalNews) : '';
+    const localNewsSitesQuery = countryData ? buildSiteSearchQuery(countryData.localNews) : '';
+    
+    const neighborData = countryData?.neighbours.map(code => countryIntelData.find(c => c.countryCode === code)).filter(Boolean);
+    const neighborNewsSitesQuery = buildSiteSearchQuery(neighborData?.flatMap(n => n!.localNews));
+
+    const categories = {
+        'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
+        'Political Stability': `(political situation OR protests OR civil unrest OR war) in ${countryName} ${globalNewsSitesQuery} ${regionalNewsSitesQuery}`,
+        'Health': `(health risks OR disease outbreaks) in ${countryName} ${globalNewsSitesQuery}`,
+        'Scams & Theft': `(tourist scams OR fraud OR theft OR robbery) in ${countryName} ${neighborNewsSitesQuery} ${localNewsSitesQuery}`,
+    };
+
     const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
     const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
-
 
     const searchPromises = Object.entries(categories).map(async ([key, query]) => {
         debugLog.push(`[Intel Flow] Starting search for category: "${key}"`);
@@ -193,7 +181,7 @@ const getCountryIntelFlow = ai.defineFlow(
 
     await Promise.all(searchPromises);
     
-    if (Object.values(allSourcesByCategory).every(sources => sources.length === 0)) {
+    if (allUniqueSources.size === 0) {
         debugLog.push('[Intel Flow] No verifiable sources found across all categories. Returning empty assessment.');
         return {
             finalScore: 5,
@@ -203,7 +191,7 @@ const getCountryIntelFlow = ai.defineFlow(
         };
     }
     
-    debugLog.push(`[Intel Flow] Found sources. Calling AI for final analysis...`);
+    debugLog.push(`[Intel Flow] Found ${allUniqueSources.size} unique sources. Calling AI for final analysis...`);
 
     const { output } = await generateWithFallback(
       `You are a travel intelligence analyst for young backpackers. Your task is to analyze the provided articles for ${countryName}.
@@ -251,7 +239,7 @@ const getCountryIntelFlow = ai.defineFlow(
         totalWeight += weight;
     }
     
-    const weightedAverageSeverity = totalSeverity / totalWeight;
+    const weightedAverageSeverity = totalSeverity > 0 ? totalSeverity / totalWeight : 0;
     const finalScore = Math.max(0, Math.round(10 - weightedAverageSeverity));
 
     debugLog.push(`[Intel Flow] Weighted Average Severity: ${weightedAverageSeverity.toFixed(2)}`);
@@ -265,3 +253,5 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
+
+    

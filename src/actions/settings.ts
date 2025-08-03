@@ -22,7 +22,7 @@ const AppSettingsSchema = z.object({
   infohubAiCost: z.number().default(10),
   infohubGovernmentAdvisorySources: z.string().default('travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au'),
   infohubGlobalNewsSources: z.string().default('www.reuters.com, apnews.com, www.bbc.com/news'),
-}).catchall(z.string()); // Allows for dynamic keys like infohubRegionalSources_SouthAmerica
+});
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
@@ -88,23 +88,15 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
             return { success: false, error: 'No settings provided to update.' };
         }
         
-        // This validation is simplified. With dynamic keys, we mostly trust the input,
-        // but ensure numeric values for known numeric fields.
-        for (const key in newSettings) {
-            const knownNumericKeys = [
-                'signupBonus', 'referralBonus', 'practiceReward', 'practiceThreshold', 
-                'freeSyncLiveMinutes', 'translationCost', 'costPerSyncLiveMinute', 
-                'maxUsersPerRoom', 'freeSyncOnlineMinutes', 'costPerSyncOnlineMinute', 
-                'summaryTranslationCost', 'transcriptCost', 'languageUnlockCost', 
-                'roomReminderMinutes', 'infohubAiCost'
-            ];
-            
-            if (knownNumericKeys.includes(key) && typeof (newSettings as any)[key] !== 'number') {
-                 return { success: false, error: `Invalid value for ${key}. It must be a number.`};
-            }
+        // Use Zod to parse and validate, ensuring that only defined fields are processed.
+        // The `.partial()` makes all fields optional for the update.
+        const parsedSettings = AppSettingsSchema.partial().safeParse(newSettings);
+
+        if (!parsedSettings.success) {
+            return { success: false, error: parsedSettings.error.flatten().fieldErrors.toString() };
         }
 
-        await settingsDocRef.set(newSettings, { merge: true });
+        await settingsDocRef.set(parsedSettings.data, { merge: true });
         return { success: true };
 
     } catch (error: any) {
@@ -113,16 +105,4 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
     }
 }
 
-/**
- * Adds a new source list to the app settings. Used by the InfoHub agent.
- */
-export async function addSourceListToAction(key: string, sources: string[]): Promise<{success: boolean, error?: string}> {
-     try {
-        const sourceString = sources.join(', ');
-        await settingsDocRef.set({ [key]: sourceString }, { merge: true });
-        return { success: true };
-    } catch (error: any) {
-         console.error(`Admin SDK: Error adding source list for key ${key}:`, error);
-        return { success: false, error: `Failed to add source list for ${key}.` };
-    }
-}
+    

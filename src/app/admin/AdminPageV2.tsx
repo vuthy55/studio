@@ -279,26 +279,10 @@ function SettingsTabContent() {
         );
     }
     
-    // Separate settings into numeric, string, and dynamic for easier rendering
-    const knownNumericKeys: (keyof AppSettings)[] = [
-        'signupBonus', 'referralBonus', 'practiceReward', 'practiceThreshold', 'freeSyncLiveMinutes', 
-        'translationCost', 'costPerSyncLiveMinute', 'maxUsersPerRoom', 'freeSyncOnlineMinutes', 
-        'costPerSyncOnlineMinute', 'summaryTranslationCost', 'transcriptCost', 'languageUnlockCost', 
-        'roomReminderMinutes', 'infohubAiCost'
-    ];
-    
-    const knownStringKeys: (keyof AppSettings)[] = [
-        'infohubGovernmentAdvisorySources', 'infohubGlobalNewsSources'
-    ];
-    
-    const dynamicKeys = Object.keys(settings).filter(
-        key => !knownNumericKeys.includes(key as any) && !knownStringKeys.includes(key as any)
-    );
-
-    const renderInput = (key: string, label: string, description: string, isNumeric: boolean) => (
+    const renderInput = (key: string, label: string, description: string) => (
         <div className="space-y-2" key={key}>
             <Label htmlFor={key}>{label}</Label>
-            <Input id={key} type={isNumeric ? "number" : "text"} value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
+            <Input id={key as keyof AppSettings} type="number" value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
             <p className="text-sm text-muted-foreground">{description}</p>
         </div>
     );
@@ -307,7 +291,7 @@ function SettingsTabContent() {
         <div className="space-y-2" key={key}>
             <Label htmlFor={key} className="flex items-center gap-1.5"><LinkIcon/> {label}</Label>
             <Textarea 
-                id={key} 
+                id={key as keyof AppSettings}
                 value={(settings as any)[key] ?? ''} 
                 onChange={handleInputChange}
                 rows={3}
@@ -324,52 +308,41 @@ function SettingsTabContent() {
                 <CardDescription>Manage the token economy and other application-wide settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
-                    {/* Column 1: Rewards & Freebies */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {/* Column 1: Rewards & Costs */}
                     <div className="space-y-6">
-                         <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Freebies</h3>
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Costs</h3>
                          <Separator />
-                        {renderInput('signupBonus', 'Signup Bonus', 'Tokens a new user gets on signup.', true)}
-                        {renderInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.', true)}
-                        {renderInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.', true)}
-                        {renderInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.', true)}
-                        {renderInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.', true)}
-                        {renderInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.', true)}
+                        {renderInput('signupBonus', 'Signup Bonus', 'Tokens a new user gets on signup.')}
+                        {renderInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.')}
+                        {renderInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
+                        {renderInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
+                        {renderInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
                     </div>
 
-                    {/* Column 2: Costs & Limits */}
+                    {/* Column 2: Limits & Timers */}
                     <div className="space-y-6">
-                         <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Costs & Limits</h3>
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Limits & Timers</h3>
                          <Separator />
-                        {renderInput('translationCost', 'Translation / Save Cost', 'Tokens for one translation or saving one phrase offline.', true)}
-                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.', true)}
-                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person, per minute)', 'Token cost for each person in a room for each minute of usage.', true)}
-                        {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.', true)}
-                        {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.', true)}
-                        {renderInput('transcriptCost', 'Transcript Cost', 'One-time token cost to generate a raw meeting transcript.', true)}
-                        {renderInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost to translate a summary into one language.', true)}
-                        {renderInput('languageUnlockCost', 'Language Unlock Cost', 'Tokens to permanently unlock a language.', true)}
-                        {renderInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.', true)}
-                    </div>
-
-                    {/* Column 3: AI Sources */}
-                     <div className="space-y-6">
-                         <h3 className="text-lg font-semibold flex items-center gap-2"><Webhook className="text-primary"/> AI & External Sources</h3>
-                         <Separator />
-                         <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="infohub-sources">
-                                <AccordionTrigger>InfoHub AI Sources</AccordionTrigger>
-                                <AccordionContent className="space-y-4">
-                                    {renderTextarea('infohubGovernmentAdvisorySources', 'Government Advisory Sources', 'Comma-separated list of official government travel advisory sites.')}
-                                    {renderTextarea('infohubGlobalNewsSources', 'Global News Sources', 'Comma-separated list of major global news outlets.')}
-                                    {dynamicKeys.map(key => (
-                                        renderTextarea(key, key.replace('infohub', '').replace(/([A-Z])/g, ' $1').trim(), `Dynamically added sources for ${key.split('_')[1] || 'a region'}.`)
-                                    ))}
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
+                        {renderInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.')}
+                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
+                        {renderInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.')}
+                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person, per minute)', 'Token cost for each person in a room for each minute of usage.')}
+                        {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.')}
+                        {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
                     </div>
                  </div>
+                 
+                 <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="infohub-sources">
+                        <AccordionTrigger className="text-lg font-semibold"><Webhook className="mr-2 text-primary"/> InfoHub AI Sources</AccordionTrigger>
+                        <AccordionContent className="pt-4 space-y-6">
+                            {renderTextarea('infohubGovernmentAdvisorySources', 'Government Advisory Sources', 'Comma-separated list of official government travel advisory sites.')}
+                            {renderTextarea('infohubGlobalNewsSources', 'Global News Sources', 'Comma-separated list of major global news outlets.')}
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+
 
                  <div className="flex justify-end pt-4">
                     <Button onClick={handleSave} disabled={isSaving}>
@@ -1884,3 +1857,5 @@ export default function AdminPageV2() {
         </div>
     );
 }
+
+    

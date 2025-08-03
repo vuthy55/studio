@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
-import { lightweightCountries } from '@/lib/location-data';
+import { countryIntelData } from '@/lib/country-intel-data';
 import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { Button } from '@/components/ui/button';
@@ -131,22 +131,21 @@ function InfoHubContent() {
     const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
     
-    const countryOptions = useMemo(() => lightweightCountries, []);
+    const countryOptions = useMemo(() => countryIntelData.map(c => ({ code: c.countryCode, name: c.countryName })), []);
 
     const selectedCountryName = useMemo(() => {
         return countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
     }, [selectedCountryCode, countryOptions]);
 
     const staticHolidays = useMemo(() => staticEvents.filter(e => e.countryCode === selectedCountryCode), [selectedCountryCode]);
-    const staticEtiquette = useMemo(() => etiquetteData[selectedCountryCode] || [], [selectedCountryCode]);
-    const staticVisa = useMemo(() => visaData[selectedCountryCode] || '', [selectedCountryCode]);
+    const staticEtiquette = useMemo(() => etiquetteData[selectedCountryCode as keyof typeof etiquetteData] || [], [selectedCountryCode]);
+    const staticVisa = useMemo(() => visaData[selectedCountryCode as keyof typeof visaData] || '', [selectedCountryCode]);
     const staticEmergency = useMemo(() => {
-        const emergency = emergencyData[selectedCountryCode];
+        const emergency = emergencyData[selectedCountryCode as keyof typeof emergencyData];
         if (!emergency) return [];
         return [
             { label: 'Police', number: emergency.police },
             { label: 'Ambulance', number: emergency.ambulance },
-            { label: 'Fire', number: emergency.fire },
             ...(emergency.touristPolice ? [{ label: 'Tourist Police', number: emergency.touristPolice }] : [])
         ];
     }, [selectedCountryCode]);
@@ -430,7 +429,7 @@ function InfoHubContent() {
                                  ) : (
                                      <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                  )}
-                             </CardContent>
+                             CardContent>
                         </Card>
                     </TabsContent>
 
@@ -445,6 +444,8 @@ export default function InfoHubPage() {
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
             <InfoHubContent />
-        </Suspense>
+        Suspense>
     );
 }
+
+    
