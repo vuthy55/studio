@@ -2008,15 +2008,15 @@ function IntelSourcesTabContent() {
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-[60vh]">
-                <Table>
+                <Table className="table-fixed w-full">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Country</TableHead>
-                            <TableHead>Region</TableHead>
-                            <TableHead>Neighbors</TableHead>
-                            <TableHead>Regional News</TableHead>
-                            <TableHead>Local News</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead className="w-[15%]">Country</TableHead>
+                            <TableHead className="w-[15%]">Region</TableHead>
+                            <TableHead className="w-[15%]">Neighbors</TableHead>
+                            <TableHead className="w-[20%]">Regional News</TableHead>
+                            <TableHead className="w-[20%]">Local News</TableHead>
+                            <TableHead className="w-[15%] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2032,40 +2032,40 @@ function IntelSourcesTabContent() {
                                 const hasChanges = Object.keys(countryEdits).length > 0;
                                 const isRowSaving = isSaving[country.id];
                                 return (
-                                    <TableRow key={country.id}>
-                                        <TableCell className="font-medium">{country.countryName} ({country.id})</TableCell>
-                                        <TableCell>
+                                    <TableRow key={country.id} className="align-top">
+                                        <TableCell className="font-medium py-2">{country.countryName} ({country.id})</TableCell>
+                                        <TableCell className="py-2">
                                             <Input
                                                 value={countryEdits.region ?? country.region}
                                                 onChange={(e) => handleCellChange(country.id, 'region', e.target.value)}
                                                 className="text-xs h-8"
                                             />
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="py-2">
                                             <Textarea
                                                 value={(countryEdits.neighbours ?? country.neighbours)?.join(', ')}
                                                 onChange={(e) => handleCellChange(country.id, 'neighbours', e.target.value)}
-                                                className="text-xs min-h-[60px]"
+                                                className="text-xs min-h-[80px]"
                                                 placeholder="Comma-separated country codes"
                                             />
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="py-2">
                                              <Textarea
                                                 value={(countryEdits.regionalNews ?? country.regionalNews)?.join(', ')}
                                                 onChange={(e) => handleCellChange(country.id, 'regionalNews', e.target.value)}
-                                                className="text-xs min-h-[60px]"
+                                                className="text-xs min-h-[80px]"
                                                 placeholder="Comma-separated URLs"
                                             />
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="py-2">
                                              <Textarea
                                                 value={(countryEdits.localNews ?? country.localNews)?.join(', ')}
                                                 onChange={(e) => handleCellChange(country.id, 'localNews', e.target.value)}
-                                                className="text-xs min-h-[60px]"
+                                                className="text-xs min-h-[80px]"
                                                 placeholder="Comma-separated URLs"
                                             />
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="text-right py-2">
                                             <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
                                                 {isRowSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
                                                 Save
