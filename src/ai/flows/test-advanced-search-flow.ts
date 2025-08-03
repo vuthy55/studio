@@ -37,29 +37,33 @@ export async function testAdvancedSearch(): Promise<TestResult> {
 const generateWithFallback = async (prompt: string, context: any, debugLog: string[]) => {
     try {
         debugLog.push('[INFO] Attempting summarization with gemini-1.5-flash...');
-        const { output } = await ai.generate({
+        const result = await ai.generate({
           prompt,
           model: 'googleai/gemini-1.5-flash',
           context
         });
         
-        if (!output) {
+        const outputText = result.text;
+
+        if (!outputText) {
             debugLog.push("[WARN] gemini-1.5-flash returned null. Trying fallback with gemini-1.5-pro...");
-             const { output: fallbackOutput } = await ai.generate({
+             const fallbackResult = await ai.generate({
               prompt,
               model: 'googleai/gemini-1.5-pro',
               context
             });
-             if (!fallbackOutput) {
+
+            const fallbackOutputText = fallbackResult.text;
+             if (!fallbackOutputText) {
                  debugLog.push("[FAIL] The fallback AI model (gemini-1.5-pro) also returned a null or empty response.");
                  throw new Error("The AI model returned a null or empty response.");
             }
             debugLog.push("[SUCCESS] Fallback model succeeded.");
-            return fallbackOutput;
+            return fallbackOutputText;
         }
         
         debugLog.push("[SUCCESS] Primary model succeeded.");
-        return output;
+        return outputText;
 
     } catch (error: any) {
         debugLog.push(`[FAIL] AI summarization failed: ${error.stack || error.message}`);
