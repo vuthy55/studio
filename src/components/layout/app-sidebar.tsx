@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -187,14 +187,24 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {userProfile?.role === 'admin' && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
-                    <Link href="/admin" onClick={closeSidebar}>
-                      <Shield />
-                      Admin
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
+                      <Link href="/admin" onClick={closeSidebar}>
+                        <Shield />
+                        Admin
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/test-search')}>
+                      <Link href="/test-search" onClick={closeSidebar}>
+                        <FlaskConical />
+                        Search Test
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
               )}
                <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/stats'}>
