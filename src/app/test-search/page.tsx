@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle, Wand2 } from 'lucide-react';
 import { testAdvancedSearch } from '@/ai/flows/test-advanced-search-flow';
-import { ScrollArea } from '../ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TestSearchPage() {
     const [isLoading, setIsLoading] = useState(false);
@@ -90,5 +90,3 @@ export default function TestSearchPage() {
         </div>
     );
 }
-
-    
