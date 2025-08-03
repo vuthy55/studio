@@ -179,14 +179,14 @@ const getCountryIntelFlow = ai.defineFlow(
         'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
     };
     
-    const validCategories = Object.fromEntries(
-        Object.entries(categories).filter(([_, query]) => !/\(\s*\)/.test(query.replace(/\w+/g, '')))
-    );
-
     const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
     
     // Correctly loop through categories sequentially
-    for (const [key, query] of Object.entries(validCategories)) {
+    for (const [key, query] of Object.entries(categories)) {
+        if (/\(\s*\)/.test(query.replace(/\w+/g, ''))) {
+            debugLog.push(`[Intel Flow] Skipping empty category: "${key}"`);
+            continue;
+        }
         debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
         const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
         allSourcesByCategory[key] = sources;
@@ -268,3 +268,5 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
+
+    
