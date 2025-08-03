@@ -60,6 +60,9 @@ const testSearchFlow = ai.defineFlow(
     });
     
     debugLog.push(`[Test Flow] AI summary generated.`);
-    return output!;
+    if (!output) {
+      throw new Error("The AI model returned a null or empty response. This may be due to a tool failure or an issue with the model's output generation.");
+    }
+    return output;
   }
 );
