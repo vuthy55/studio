@@ -42,7 +42,7 @@ export default function TestSearchPage() {
                 <CardHeader>
                     <CardTitle>Test Scenario</CardTitle>
                     <CardDescription>
-                        This test will instruct the AI to find the UK government's travel advisory specifically for "Ukraine" and then summarize the findings.
+                        This test will instruct the AI to use its tools to find the UK government's travel advisory for "Ukraine" and then summarize the findings.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-start gap-4">
