@@ -35,7 +35,7 @@ export default function TestSearchPage() {
             // Step 2: Summarize the content with AI
             const summaryResponse = await summarizeContent(scrapeResponse.content);
             if (!summaryResponse) {
-                 throw new Error("AI failed to generate a summary.");
+                 throw new Error("AI failed to generate a summary. The model returned a null or empty response.");
             }
             setSummary(summaryResponse);
 

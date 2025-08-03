@@ -14,6 +14,7 @@ const summarizeContentFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (content) => {
+    // This prompt mirrors the robust prompt style used in the working InfoHub feature.
     const { output } = await ai.generate({
       prompt: `You are a travel intelligence analyst. Based ONLY on the following text content from a government travel advisory page, provide a concise, one-paragraph summary of the key warnings and advice for travelers.
         
