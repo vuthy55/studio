@@ -23,9 +23,15 @@ export default function TestSearchPage() {
             const response = await testAdvancedSearch();
             setResult(response);
         } catch (e: any) {
-            setError(e.message || 'An unexpected client-side error occurred.');
+            let errorMessage = e.message || 'An unexpected client-side error occurred.';
+            setError(errorMessage);
+
             if (e.debugLog) {
+                // If a debug log exists from a partial failure, display it.
                 setResult({ debugLog: e.debugLog });
+            } else {
+                 // Create a minimal log for other client-side errors.
+                 setResult({ debugLog: ['[Test Flow] Client-side execution failed.', `[Test Flow] Error: ${errorMessage}`] });
             }
         } finally {
             setIsLoading(false);

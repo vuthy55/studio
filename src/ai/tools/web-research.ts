@@ -21,13 +21,29 @@ export const performWebSearch = ai.defineTool(
         })),
     },
     async (input) => {
-        const searchResult = await searchWebAction(input.query);
-        if (!searchResult.success) {
-            // Instead of throwing, we return an empty array, as the AI should handle cases with no results.
-            console.warn(`Web search failed with error: ${searchResult.error}. Returning empty array.`);
-            return [];
+        const apiKey = process.env.GOOGLE_API_KEY;
+        const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+        if (!apiKey || !searchEngineId) {
+            throw new Error('Google Search API credentials are not configured on the server.');
         }
-        return searchResult.results || [];
+
+        const searchResult = await searchWebAction({ 
+            query: input.query,
+            apiKey,
+            searchEngineId 
+        });
+
+        if (!searchResult.success) {
+            // Throw a clear error instead of returning an empty array.
+            throw new Error(`Web search failed: ${searchResult.error || 'Unknown error'}`);
+        }
+        
+        if (!searchResult.results || searchResult.results.length === 0) {
+            throw new Error('The web search tool failed to find any relevant URLs.');
+        }
+
+        return searchResult.results;
     }
 );
 
