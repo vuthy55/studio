@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,8 @@ import Image from 'next/image';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findUserByEmailAdmin } from '@/lib/firebase-utils';
+import { countryIntelData } from '@/lib/country-intel-data';
+import { ScrollArea } from '../ui/scroll-area';
 
 
 interface UserWithId extends UserProfile {
@@ -1781,6 +1783,52 @@ function FeedbackTabContent() {
     );
 }
 
+function IntelSourcesTabContent() {
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>InfoHub Country Database</CardTitle>
+                <CardDescription>This is the central database of curated news sources for the InfoHub feature. This data is currently read-only.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="h-[60vh]">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Country</TableHead>
+                            <TableHead>Region</TableHead>
+                            <TableHead>Neighbors</TableHead>
+                            <TableHead>Regional News</TableHead>
+                            <TableHead>Local News</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {countryIntelData.map(country => (
+                            <TableRow key={country.countryCode}>
+                                <TableCell className="font-medium">{country.countryName}</TableCell>
+                                <TableCell>{country.region}</TableCell>
+                                <TableCell>{country.neighbours.join(', ')}</TableCell>
+                                <TableCell>
+                                    <ul className="list-disc list-inside text-xs">
+                                        {country.regionalNews.map(n => <li key={n}>{n}</li>)}
+                                    </ul>
+                                </TableCell>
+                                <TableCell>
+                                    <ul className="list-disc list-inside text-xs">
+                                        {country.localNews.map(n => <li key={n}>{n}</li>)}
+                                    </ul>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                </ScrollArea>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AdminPageV2() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -1803,6 +1851,7 @@ export default function AdminPageV2() {
         { value: 'users', label: 'Users', icon: Users },
         { value: 'feedback', label: 'Feedback', icon: LifeBuoy },
         { value: 'settings', label: 'App Settings', icon: Settings },
+        { value: 'intel-sources', label: 'Intel Sources', icon: Globe },
         { value: 'financial', label: 'Financial', icon: LineChart },
         { value: 'tokens', label: 'Tokens', icon: Coins },
         { value: 'language-packs', label: 'Language Packs', icon: Music },
@@ -1815,7 +1864,7 @@ export default function AdminPageV2() {
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-5 md:grid-cols-9 h-auto">
+                <TabsList className="grid w-full grid-cols-5 md:grid-cols-10 h-auto">
                     {adminTabs.map(tab => (
                         <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full">
                             <tab.icon className="h-5 w-5" />
@@ -1837,6 +1886,9 @@ export default function AdminPageV2() {
                     <TabsContent value="settings">
                         <SettingsTabContent />
                     </TabsContent>
+                     <TabsContent value="intel-sources">
+                        <IntelSourcesTabContent />
+                    </TabsContent>
                     <TabsContent value="financial">
                         <FinancialTabContent />
                     </TabsContent>
@@ -1857,5 +1909,7 @@ export default function AdminPageV2() {
         </div>
     );
 }
+
+    
 
     
