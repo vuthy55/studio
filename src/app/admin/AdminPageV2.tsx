@@ -267,7 +267,7 @@ function SettingsTabContent() {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
-        const isNumeric = !['infohubSources'].includes(id);
+        const isNumeric = !id.toLowerCase().includes('sources');
         setSettings(prev => ({...prev, [id]: isNumeric ? Number(value) : value }));
     };
 
@@ -379,15 +379,37 @@ function SettingsTabContent() {
                             <p className="text-sm text-muted-foreground">Tokens to get latest AI travel intel for one country.</p>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="infohubSources" className="flex items-center gap-1.5"><LinkIcon/> InfoHub Sources</Label>
+                            <Label htmlFor="infohubGovernmentAdvisorySources" className="flex items-center gap-1.5"><LinkIcon/> Government Advisory Sources</Label>
                             <Textarea 
-                                id="infohubSources" 
-                                value={settings.infohubSources ?? ''} 
+                                id="infohubGovernmentAdvisorySources" 
+                                value={settings.infohubGovernmentAdvisorySources ?? ''} 
                                 onChange={handleInputChange} 
-                                placeholder="https://..."
-                                rows={4}
+                                placeholder="travel.state.gov, etc."
+                                rows={3}
                             />
-                            <p className="text-sm text-muted-foreground">Comma-separated list of URLs for the AI to scrape for InfoHub data.</p>
+                            <p className="text-sm text-muted-foreground">Comma-separated list of official government travel advisory sites.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="infohubGlobalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Global News Sources</Label>
+                            <Textarea 
+                                id="infohubGlobalNewsSources" 
+                                value={settings.infohubGlobalNewsSources ?? ''} 
+                                onChange={handleInputChange} 
+                                placeholder="reuters.com, apnews.com, etc."
+                                rows={3}
+                            />
+                            <p className="text-sm text-muted-foreground">Comma-separated list of major global news outlets.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="infohubRegionalNewsSources" className="flex items-center gap-1.5"><LinkIcon/> Regional News Sources</Label>
+                            <Textarea 
+                                id="infohubRegionalNewsSources" 
+                                value={settings.infohubRegionalNewsSources ?? ''} 
+                                onChange={handleInputChange} 
+                                placeholder="aljazeera.com/asia, etc."
+                                rows={3}
+                            />
+                            <p className="text-sm text-muted-foreground">Comma-separated list of Asia-Pacific or other regional news outlets.</p>
                         </div>
                     </div>
                  </div>

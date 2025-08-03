@@ -24,7 +24,7 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 const OverallAssessmentSchema = z.object({
     paragraph1: z.string().describe("Paragraph 1: Start with a direct statement about the overall travel situation."),
     paragraph2: z.string().describe("Paragraph 2: Detail the *most important* issues affecting travelers, specifying the category."),
-    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers."),
+    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers, including a sentence stating 'This assessment is based on a review of X unique articles.' where X is the number of sources used."),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams': z.number().min(0).max(10).describe("Severity score (0-10) for Scams."),
@@ -145,7 +145,10 @@ const getCountryIntelFlow = ai.defineFlow(
   async ({ countryName, debugLog }) => {
     
     const settings = await getAppSettingsAction();
-    const governmentSitesQuery = settings.infohubSources ? buildSiteSearchQuery(settings.infohubSources.split(',')) : '';
+    const governmentSitesQuery = settings.infohubGovernmentAdvisorySources ? buildSiteSearchQuery(settings.infohubGovernmentAdvisorySources.split(',')) : '';
+    const globalNewsSitesQuery = settings.infohubGlobalNewsSources ? buildSiteSearchQuery(settings.infohubGlobalNewsSources.split(',')) : '';
+    const regionalNewsSitesQuery = settings.infohubRegionalNewsSources ? buildSiteSearchQuery(settings.infohubRegionalNewsSources.split(',')) : '';
+
     const localNewsSites: Record<string, string[]> = {
         'Cambodia': ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'],
         'Vietnam': ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'],
@@ -158,17 +161,15 @@ const getCountryIntelFlow = ai.defineFlow(
         'Laos': ['laotiantimes.com', 'vientianetimes.org.la'],
         'Brunei': ['thebruneian.news', 'borneobulletin.com.bn']
     };
-    const regionalNewsSites = ['aljazeera.com/news/asia', 'bbc.com/news/world/asia'];
-
+    
     const localNewsQuery = buildSiteSearchQuery(localNewsSites[countryName] || []);
-    const regionalNewsQuery = buildSiteSearchQuery(regionalNewsSites);
 
     const categories = {
         'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
-        'Scams': `(tourist scams OR fraud) ${countryName} ${localNewsQuery}`,
-        'Theft': `(theft OR robbery OR kidnapping) risk ${countryName} ${localNewsQuery}`,
-        'Health': `(health risks OR disease outbreaks) ${countryName} ${localNewsQuery}`,
-        'Political Stability': `(political situation OR protests OR civil unrest OR war) ${countryName} ${regionalNewsQuery}`
+        'Scams': `(tourist scams OR fraud) ${countryName} ${localNewsQuery} ${globalNewsSitesQuery}`,
+        'Theft': `(theft OR robbery OR kidnapping) risk ${countryName} ${localNewsQuery} ${globalNewsSitesQuery}`,
+        'Health': `(health risks OR disease outbreaks) ${countryName} ${globalNewsSitesQuery}`,
+        'Political Stability': `(political situation OR protests OR civil unrest OR war) ${countryName} ${regionalNewsSitesQuery} ${globalNewsSitesQuery}`
     };
 
     const apiKey = process.env.GOOGLE_API_KEY;
@@ -206,6 +207,7 @@ const getCountryIntelFlow = ai.defineFlow(
 
     const { output } = await generateWithFallback(
       `You are a travel intelligence analyst for young backpackers. Your task is to analyze the provided articles for ${countryName}.
+        The number of unique articles is ${allUniqueSources.size}.
 
         Here is the information gathered from different categories:
         {{#each categories}}

@@ -19,7 +19,9 @@ export interface AppSettings {
   languageUnlockCost: number;
   roomReminderMinutes: number;
   infohubAiCost: number;
-  infohubSources?: string; // New field for sources
+  infohubGovernmentAdvisorySources?: string;
+  infohubGlobalNewsSources?: string;
+  infohubRegionalNewsSources?: string;
 }
 
 const settingsDocRef = db.collection('settings').doc('appConfig');
@@ -45,7 +47,9 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
         languageUnlockCost: 100,
         roomReminderMinutes: 5,
         infohubAiCost: 10,
-        infohubSources: 'https://www.state.gov/traveladvisories.html, https://www.gov.uk/foreign-travel-advice, https://www.smartraveller.gov.au/destinations, https://www.reuters.com/world/asia-pacific, https://www.bbc.com/news/world/asia',
+        infohubGovernmentAdvisorySources: 'travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au',
+        infohubGlobalNewsSources: 'www.reuters.com, apnews.com, www.bbc.com/news',
+        infohubRegionalNewsSources: 'www.aljazeera.com/asia, www.scmp.com, asiatimes.com',
     };
     
     try {
@@ -77,7 +81,7 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
         
         // Basic validation: ensure all non-string values are numbers
         for (const key in newSettings) {
-            if (key !== 'infohubSources' && typeof (newSettings as any)[key] !== 'number') {
+            if (!key.toLowerCase().includes('sources') && typeof (newSettings as any)[key] !== 'number') {
                  return { success: false, error: `Invalid value for ${key}. All settings except sources must be numbers.`};
             }
         }
