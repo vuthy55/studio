@@ -134,26 +134,6 @@ const generateWithFallback = async (prompt: string, context: any, outputSchema: 
     }
 };
 
-/**
- * Sequentially searches and verifies sources for each defined category.
- * This is isolated to ensure correct asynchronous handling in a loop.
- */
-async function searchAllCategories(categories: Record<string, string>, apiKey: string, searchEngineId: string, debugLog: string[]) {
-    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
-    
-    // Use a 'for...of' loop to correctly handle async/await.
-    for (const [key, query] of Object.entries(categories)) {
-        debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
-        
-        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
-        allSourcesByCategory[key] = sources;
-
-        debugLog.push(`[Intel Flow] Finished processing category: "${key}". Found ${sources.length} sources.`);
-    }
-
-    return allSourcesByCategory;
-}
-
 
 // --- Genkit Flow Definition ---
 const getCountryIntelFlow = ai.defineFlow(
@@ -192,7 +172,6 @@ const getCountryIntelFlow = ai.defineFlow(
     const localNewsSitesQuery = buildSiteSearchQuery(countryData.localNews);
     const neighborNewsSitesQuery = buildSiteSearchQuery(neighborData.flatMap(n => n.localNews));
 
-    // Reordered as requested for debugging.
     const categories: Record<string, string> = {
         'Political Stability': `(political situation OR protests OR civil unrest OR war) in ${countryName} ${globalNewsSitesQuery} ${regionalNewsSitesQuery}`,
         'Health': `(health risks OR disease outbreaks) in ${countryName} ${globalNewsSitesQuery}`,
@@ -200,12 +179,20 @@ const getCountryIntelFlow = ai.defineFlow(
         'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
     };
     
-    // Filter out categories where the site search query part is empty
     const validCategories = Object.fromEntries(
         Object.entries(categories).filter(([_, query]) => !/\(\s*\)/.test(query.replace(/\w+/g, '')))
     );
 
-    const allSourcesByCategory = await searchAllCategories(validCategories, apiKey, searchEngineId, debugLog);
+    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
+    
+    // Correctly loop through categories sequentially
+    for (const [key, query] of Object.entries(validCategories)) {
+        debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
+        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
+        allSourcesByCategory[key] = sources;
+        debugLog.push(`[Intel Flow] Finished processing category: "${key}". Found ${sources.length} sources.`);
+    }
+
     
     const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
     Object.values(allSourcesByCategory).flat().forEach(s => allUniqueSources.set(s.url, { url: s.url, publishedDate: s.publishedDate }));
@@ -281,5 +268,3 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
-
-    
