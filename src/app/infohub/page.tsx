@@ -429,7 +429,7 @@ function InfoHubContent() {
                                  ) : (
                                      <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                  )}
-                             CardContent>
+                             </CardContent>
                         </Card>
                     </TabsContent>
 
@@ -444,8 +444,6 @@ export default function InfoHubPage() {
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
             <InfoHubContent />
-        Suspense>
+        </Suspense>
     );
 }
-
-    
