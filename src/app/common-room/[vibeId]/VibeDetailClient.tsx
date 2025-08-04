@@ -384,7 +384,23 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
         }
     };
-
+    
+    // --- START DEBUG LOGS ---
+    useEffect(() => {
+        console.log('[DEBUG] VibeDetailClient state update:', {
+            vibeId,
+            userLoading,
+            vibeLoading,
+            vibeError: vibeError?.message,
+            vibeDataExists: !!vibeData,
+            vibeCreatorId: vibeData?.creatorId,
+            activeMeetupId: vibeData?.activeMeetupId,
+            activeMeetupLoading,
+            activeMeetupExists: !!activeMeetup,
+        });
+    }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupLoading, activeMeetup]);
+    // --- END DEBUG LOGS ---
+    
 
     if (userLoading || vibeLoading) {
         return (
@@ -403,7 +419,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     }
     
     const isUserRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
-    const hasActiveMeetup = !!vibeData.activeMeetupId && !!activeMeetup;
+    const hasActiveMeetup = !!vibeData.activeMeetupId;
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -419,16 +435,21 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {activeMeetupLoading ? (
-                        <LoaderCircle className="h-5 w-5 animate-spin" />
-                    ) : hasActiveMeetup ? (
-                        <div className="text-right">
-                            <p className="font-semibold">{activeMeetup.title}</p>
-                            <p className="text-sm text-muted-foreground">{format(new Date((activeMeetup.startTime as Timestamp).toDate()), 'MMM d, h:mm a')}</p>
-                            <Button size="sm" variant={isUserRsvpd ? "secondary" : "default"} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
-                                {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
-                            </Button>
-                        </div>
+                    {hasActiveMeetup ? (
+                        activeMeetupLoading ? (
+                             <div className="flex items-center gap-2 text-muted-foreground">
+                                <LoaderCircle className="h-5 w-5 animate-spin" />
+                                <span>Meetup details loading...</span>
+                             </div>
+                        ) : activeMeetup ? (
+                            <div className="text-right">
+                                <p className="font-semibold">{activeMeetup.title}</p>
+                                <p className="text-sm text-muted-foreground">{format(new Date((activeMeetup.startTime as Timestamp).toDate()), 'MMM d, h:mm a')}</p>
+                                <Button size="sm" variant={isUserRsvpd ? "secondary" : "default"} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
+                                    {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
+                                </Button>
+                            </div>
+                        ) : null
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => {}} />
                     )}
