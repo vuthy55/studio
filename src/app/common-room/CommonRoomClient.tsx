@@ -1,8 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,14 +18,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, MessageSquare } from 'lucide-react';
-import { Vibe } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { LoaderCircle, PlusCircle, MessageSquare } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe, inviteToVibe, ClientVibe } from '@/actions/common-room';
+import { getVibes, startVibe, ClientVibe } from '@/actions/common-room';
 import { formatDistanceToNow } from 'date-fns';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -102,12 +101,57 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
+function VibeList({ vibes }: { vibes: ClientVibe[] }) {
+    if (vibes.length === 0) {
+        return (
+            <p className="text-muted-foreground text-sm text-center py-8">
+                No vibes in this category yet.
+            </p>
+        );
+    }
+    
+    return (
+        <div className="space-y-4">
+            {vibes.map(vibe => (
+                <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
+                    <Card className="hover:border-primary transition-colors">
+                        <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="font-semibold text-lg">{vibe.topic}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        Started by {vibe.creatorName}
+                                    </p>
+                                </div>
+                                <Badge variant={vibe.isPublic ? 'secondary' : 'default'}>
+                                    {vibe.isPublic ? 'Public' : 'Private'}
+                                </Badge>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mt-4">
+                                <div className="flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" />
+                                    <span>{vibe.postsCount || 0} posts</span>
+                                </div>
+                                <span>
+                                    {vibe.lastPostAt ? `Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}` : `Created ${formatDistanceToNow(new Date(vibe.createdAt), { addSuffix: true })}`}
+                                </span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
+            ))}
+        </div>
+    );
+}
+
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
     const [vibes, setVibes] = useState<ClientVibe[]>([]);
     const [isFetching, setIsFetching] = useState(true);
+    const [activeTab, setActiveTab] = useState('latest-buzz');
+
 
     const fetchVibes = useCallback(async () => {
         if (!user || !user.email) {
@@ -118,9 +162,9 @@ export default function CommonRoomClient() {
         try {
             const fetchedVibes = await getVibes(user.email);
             setVibes(fetchedVibes);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error fetching vibes:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch common rooms.' });
+            toast({ variant: 'destructive', title: 'Error fetching vibes', description: error.message || 'An unknown error occurred' });
         } finally {
             setIsFetching(false);
         }
@@ -133,6 +177,14 @@ export default function CommonRoomClient() {
             setIsFetching(false);
         }
     }, [loading, user, fetchVibes]);
+    
+    const { publicVibes, privateVibes } = useMemo(() => {
+        return {
+            publicVibes: vibes.filter(v => v.isPublic),
+            privateVibes: vibes.filter(v => !v.isPublic)
+        };
+    }, [vibes]);
+
 
     return (
         <div className="space-y-6">
@@ -152,41 +204,23 @@ export default function CommonRoomClient() {
                         <div className="flex justify-center items-center py-8">
                             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                         </div>
-                    ) : vibes.length > 0 ? (
-                        <div className="space-y-4">
-                            {vibes.map(vibe => (
-                                <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
-                                    <Card className="hover:border-primary transition-colors">
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h3 className="font-semibold text-lg">{vibe.topic}</h3>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        Started by {vibe.creatorName}
-                                                    </p>
-                                                </div>
-                                                <Badge variant={vibe.isPublic ? 'secondary' : 'default'}>
-                                                    {vibe.isPublic ? 'Public' : 'Private'}
-                                                </Badge>
-                                            </div>
-                                            <div className="flex items-center justify-between text-xs text-muted-foreground mt-4">
-                                                <div className="flex items-center gap-1">
-                                                    <MessageSquare className="h-3 w-3" />
-                                                    <span>{vibe.postsCount} posts</span>
-                                                </div>
-                                                <span>
-                                                    {vibe.lastPostAt ? `Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}` : `Created ${formatDistanceToNow(new Date(vibe.createdAt), { addSuffix: true })}`}
-                                                </span>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Link>
-                            ))}
-                        </div>
                     ) : (
-                         <p className="text-muted-foreground text-sm text-center py-8">
-                            No vibes found. Why not start one?
-                        </p>
+                        <Tabs value={activeTab} onValueChange={setActiveTab}>
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="latest-buzz">Latest Buzz</TabsTrigger>
+                                <TabsTrigger value="public-vibes">Public Vibes</TabsTrigger>
+                                <TabsTrigger value="my-invites">My Invites</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="latest-buzz" className="mt-4">
+                                <VibeList vibes={vibes} />
+                            </TabsContent>
+                            <TabsContent value="public-vibes" className="mt-4">
+                                <VibeList vibes={publicVibes} />
+                            </TabsContent>
+                            <TabsContent value="my-invites" className="mt-4">
+                                <VibeList vibes={privateVibes} />
+                            </TabsContent>
+                        </Tabs>
                     )}
                 </CardContent>
             </Card>
