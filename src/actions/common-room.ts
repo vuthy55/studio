@@ -307,39 +307,46 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 
 export async function getUpcomingParties(): Promise<ClientParty[]> {
     try {
-        const now = Timestamp.now();
-        const partiesSnapshot = await db.collectionGroup('parties').where('startTime', '>', now).orderBy('startTime', 'asc').get();
-
+        const partiesSnapshot = await db.collectionGroup('parties').get();
         if (partiesSnapshot.empty) {
             return [];
         }
 
+        const now = new Date();
         const publicParties: ClientParty[] = [];
 
         for (const doc of partiesSnapshot.docs) {
+            const data = doc.data();
+            const startTime = (data.startTime as Timestamp)?.toDate();
+            
+            // Filter out past parties first
+            if (!startTime || startTime < now) {
+                continue;
+            }
+
+            // Check if parent vibe is public
             const vibeRef = doc.ref.parent.parent!;
             const vibeDoc = await vibeRef.get();
             
-            // Only include parties from public vibes
             if (vibeDoc.exists && vibeDoc.data()?.isPublic) {
-                const data = doc.data() as Omit<Party, 'id'>;
                 publicParties.push({
                     id: doc.id,
                     vibeId: vibeDoc.id,
                     vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
                     ...data,
-                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    startTime: startTime.toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                });
+                } as ClientParty);
             }
         }
+        
+        // Sort remaining parties by start time
+        publicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
         return publicParties;
 
     } catch (error: any) {
         console.error("Error fetching upcoming parties:", error);
-        // On error, return an empty array to prevent client crashes.
-        // This can happen if the required composite index is missing.
         return [];
     }
 }
@@ -384,3 +391,5 @@ export async function editMeetup(vibeId: string, partyId: string, updates: Parti
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
+
+    
