@@ -143,32 +143,3 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
-
-export async function postReply(vibeId: string, content: string, user: { uid: string, name: string }) {
-    try {
-        const vibeRef = db.collection('vibes').doc(vibeId);
-        const postRef = vibeRef.collection('posts').doc();
-
-        const batch = db.batch();
-        
-        batch.set(postRef, {
-            content,
-            authorId: user.uid,
-            authorName: user.name,
-            createdAt: FieldValue.serverTimestamp(),
-        });
-
-        batch.update(vibeRef, {
-            postsCount: FieldValue.increment(1),
-            lastPostAt: FieldValue.serverTimestamp(),
-            lastPostBy: user.name,
-        });
-
-        await batch.commit();
-
-        return { success: true };
-    } catch (error) {
-        console.error("Error posting reply:", error);
-        return { success: false, error: "Failed to post reply." };
-    }
-}
