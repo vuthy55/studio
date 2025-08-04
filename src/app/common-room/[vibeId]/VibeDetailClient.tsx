@@ -236,7 +236,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     
-    // Replace useDocumentData for the meetup with a real-time listener effect
     const [activeMeetup, setActiveMeetup] = useState<Party | undefined>(undefined);
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
     
@@ -249,7 +248,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
         setActiveMeetupLoading(true);
         const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
-        
         const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
             if (doc.exists()) {
                 setActiveMeetup({ id: doc.id, ...doc.data() } as Party);
@@ -405,7 +403,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     }
     
     const isUserRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
-    const hasActiveMeetup = !!vibeData.activeMeetupId;
+    const hasActiveMeetup = !!vibeData.activeMeetupId && !!activeMeetup;
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -421,18 +419,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {hasActiveMeetup ? (
-                        activeMeetupLoading ? (
-                            <LoaderCircle className="h-5 w-5 animate-spin" />
-                        ) : activeMeetup ? (
-                            <div className="text-right">
-                                <p className="font-semibold">{activeMeetup.title}</p>
-                                <p className="text-sm text-muted-foreground">{format(new Date((activeMeetup.startTime as Timestamp).toDate()), 'MMM d, h:mm a')}</p>
-                                <Button size="sm" variant={isUserRsvpd ? "secondary" : "default"} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
-                                    {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
-                                </Button>
-                            </div>
-                        ) : <p className="text-xs text-muted-foreground">Meetup details loading...</p>
+                    {activeMeetupLoading ? (
+                        <LoaderCircle className="h-5 w-5 animate-spin" />
+                    ) : hasActiveMeetup ? (
+                        <div className="text-right">
+                            <p className="font-semibold">{activeMeetup.title}</p>
+                            <p className="text-sm text-muted-foreground">{format(new Date((activeMeetup.startTime as Timestamp).toDate()), 'MMM d, h:mm a')}</p>
+                            <Button size="sm" variant={isUserRsvpd ? "secondary" : "default"} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
+                                {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
+                            </Button>
+                        </div>
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => {}} />
                     )}

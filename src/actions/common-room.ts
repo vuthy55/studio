@@ -142,21 +142,12 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
 export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string, inviterId: string, sendEmail: boolean): Promise<{ success: boolean; error?: string }> {
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
-        const partiesRef = vibeRef.collection('parties');
         
         const batch = db.batch();
 
-        // Atomically add new emails to the invited list on the Vibe
+        // Atomically add new emails to the invited list
         batch.update(vibeRef, {
             invitedEmails: FieldValue.arrayUnion(...emails)
-        });
-
-        // Also add them to all existing parties in this Vibe to ensure permissions
-        const partiesSnapshot = await partiesRef.get();
-        partiesSnapshot.forEach(partyDoc => {
-            batch.update(partyDoc.ref, {
-                invitedEmails: FieldValue.arrayUnion(...emails)
-            });
         });
         
         // Find existing users to send in-app notifications
@@ -253,19 +244,12 @@ export async function planParty(payload: PlanPartyPayload): Promise<{ success: b
         const partyRef = vibeRef.collection('parties').doc();
         const announcementRef = vibeRef.collection('posts').doc();
         
-        const vibeDoc = await vibeRef.get();
-        if(!vibeDoc.exists) {
-            return { success: false, error: 'Parent Vibe not found.'};
-        }
-        const vibeData = vibeDoc.data();
-
         const batch = db.batch();
 
         // 1. Create the new party document
         batch.set(partyRef, {
             ...partyData,
             rsvps: [partyData.creatorId], // Creator auto-RSVPs
-            invitedEmails: vibeData?.invitedEmails || [], // Inherit invited list
             startTime: Timestamp.fromDate(new Date(partyData.startTime)),
             endTime: Timestamp.fromDate(new Date(partyData.endTime)),
         });
@@ -347,4 +331,3 @@ export async function getUpcomingParties(): Promise<ClientParty[]> {
         return [];
     }
 }
-
