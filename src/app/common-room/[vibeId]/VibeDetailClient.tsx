@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { useCollectionData } from 'react-firebase-hooks/firestore';
 
 
-function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCreated: () => void }) {
+function PlanPartyDialog({ vibeId }: { vibeId: string }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -76,7 +76,7 @@ function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCr
                 setIsOpen(false);
                 setTitle('');
                 setLocation('');
-                onPartyCreated();
+                // No need for onPartyCreated callback, component will react to Firestore changes.
             } else {
                 throw new Error(result.error);
             }
@@ -246,13 +246,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [replyContent, setReplyContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    // This is the fix: explicitly re-fetch vibe data when a party is created.
-    const handlePartyCreated = async () => {
-        if(vibeData?.ref) {
-            await vibeData.ref.get();
-        }
-    };
-    
     const handleRsvp = async (partyId: string, isRsvping: boolean) => {
         if (!user) return;
         const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
@@ -390,7 +383,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         return <p>Vibe not found.</p>
     }
     
-    const hasActiveMeetup = !!vibeData.activeMeetupId && activeMeetup;
     const isUserRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
 
 
@@ -408,7 +400,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {hasActiveMeetup ? (
+                    {activeMeetupLoading ? (
+                        <LoaderCircle className="h-5 w-5 animate-spin" />
+                    ) : vibeData.activeMeetupId && activeMeetup ? (
                         <div className="text-right">
                             <p className="font-semibold">{activeMeetup.title}</p>
                             <p className="text-sm text-muted-foreground">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
@@ -418,7 +412,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             </Button>
                         </div>
                     ) : canPlanParty && (
-                        <PlanPartyDialog vibeId={vibeId} onPartyCreated={handlePartyCreated} />
+                        <PlanPartyDialog vibeId={vibeId} />
                     )}
 
                     <Sheet>
