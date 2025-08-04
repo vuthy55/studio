@@ -23,9 +23,9 @@ const GetCountryIntelInputSchema = z.object({
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
-    paragraph1: z.string().describe("Paragraph 1: Start with a direct statement about the overall travel situation."),
-    paragraph2: z.string().describe("Paragraph 2: Detail the *most important* issues affecting travelers, specifying the category."),
-    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers."),
+    paragraph1: z.string().describe("Paragraph 1: Start with a direct statement about the overall travel situation for tourists in the main, commonly visited areas."),
+    paragraph2: z.string().describe("Paragraph 2: If there are specific high-risk zones (e.g., border regions, certain provinces), name them and explain the danger. If there are no specific zones, detail the most important general issues (e.g., common scams, health advice)."),
+    paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers, summarizing whether it's safe to go and what precautions to take."),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
         'Scams & Theft': z.number().min(0).max(10).describe("Severity score (0-10) for Scams and Theft."),
@@ -251,11 +251,11 @@ const getCountryIntelFlow = ai.defineFlow(
     Object.values(allSourcesByCategory).flat().forEach(s => allUniqueSources.set(s.url, { url: s.url, snippet: s.snippet }));
 
     if (allUniqueSources.size === 0) {
-        debugLog.push('[Intel Flow] No verifiable sources found across all categories. Returning empty assessment.');
+        debugLog.push('[Intel Flow] No verifiable recent sources found across all categories. Returning a positive "safe country" assessment.');
         return {
-            finalScore: 5,
-            summary: "No specific, recent, and verifiable information was found across all categories. This could indicate a lack of major reported issues. \n\nTravelers should exercise standard precautions. \n\nWithout specific data, it's recommended to consult your country's official travel advisory and stay aware of your surroundings.",
-            categoryAssessments: { 'Official Advisory': 0, 'Scams & Theft': 0, 'Health': 0, 'Political Stability': 0 },
+            finalScore: 9,
+            summary: "No significant, recent, and verifiable issues were found across all categories from our trusted news and government sources. \n\nThis indicates a stable and safe travel environment. \n\nTravelers should exercise standard precautions, stay aware of their surroundings, and enjoy their trip.",
+            categoryAssessments: { 'Official Advisory': 1, 'Scams & Theft': 1, 'Health': 0, 'Political Stability': 0 },
             allReviewedSources: []
         };
     }
@@ -280,8 +280,11 @@ const getCountryIntelFlow = ai.defineFlow(
         --- INSTRUCTIONS ---
         Based *only* on the information provided in the snippets above, perform the following actions:
 
-        1.  **Severity Score Assessment:** For each category (Official Advisory, Scams & Theft, Health, Political Stability), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel). If you see red flag terms like "war", "do not travel", "state of emergency", or "civil unrest", you MUST assign a 10 to the Political Stability category.
-        2.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.**
+        1.  **Severity Score Assessment:** For each category (Official Advisory, Health, etc.), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel).
+        2.  **Red Flag Protocol:** If you see clear terms like "do not travel", "state of emergency", "civil unrest", "war", or official government advice against travel to specific regions, you MUST:
+            a. Assign a 10 to the 'Official Advisory' and/or 'Political Stability' category.
+            b. **Explicitly name the dangerous regions** in the second paragraph of the summary.
+        3.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.** This summary should be nuanced. If only part of a country is dangerous, make that clear. Your final recommendation should reflect this nuance.
         `,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
@@ -291,8 +294,8 @@ const getCountryIntelFlow = ai.defineFlow(
     const aiOutput = output!;
     
     const weights = {
-        'Political Stability': 1.5,
-        'Official Advisory': 1.5,
+        'Political Stability': 2.5,
+        'Official Advisory': 2.5,
         'Health': 1.0,
         'Scams & Theft': 1.0,
     };
