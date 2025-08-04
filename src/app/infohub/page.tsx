@@ -251,12 +251,18 @@ function InfoHubContent() {
             
             <Card>
                 <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <CardTitle>Location Intel</CardTitle>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <CardTitle>Location Intel</CardTitle>
+                            <CardDescription>
+                                Select a country to view standard information. For the absolute latest on any country, use our AI service.
+                            </CardDescription>
+                        </div>
                          <Dialog>
                             <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
-                                    <Info className="h-4 w-4"/>
+                                <Button variant="outline" size="sm">
+                                    <Info className="h-4 w-4 mr-2"/>
+                                    How "Latest Intel" Works
                                 </Button>
                             </DialogTrigger>
                             <DialogContent>
@@ -264,11 +270,10 @@ function InfoHubContent() {
                                     <DialogTitle>How "Latest Intel" Works</DialogTitle>
                                      <DialogDescription>
                                         Our AI analyst provides a real-time risk assessment for travelers. Here's our robust research process.
-                                        <br/><br/>
-                                        <strong className="text-destructive">Disclaimer:</strong> While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 text-sm py-4">
+                                     <p className="text-destructive font-semibold">Disclaimer: While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.</p>
                                     <p><strong>1. Dual-Tiered Data Gathering:</strong> The agent first performs targeted Google searches against official government sites and reputable news outlets. If a critical web search (like for a travel advisory) fails to return recent, relevant results, the agent initiates a fallback: it directly scrapes the content from the primary government source. This ensures we always have the most critical data.</p>
                                     <p><strong>2. Source Verification:</strong> The system prioritizes the most current information. For breaking news, it discards articles older than 30 days. For official advisories, which can be long-standing, it focuses on the latest available data from government sources, regardless of its publication date.</p>
                                     <p><strong>3. Scoring and Analysis:</strong> The AI analyzes the verified content to assign a 0-10 severity score to each category (e.g., Political Stability, Health). "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score for maximum caution.</p>
@@ -277,9 +282,6 @@ function InfoHubContent() {
                             </DialogContent>
                         </Dialog>
                     </div>
-                    <CardDescription>
-                        Select a country to view standard information. For the absolute latest on any country, use our AI service.
-                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Select onValueChange={handleCountrySelection} value={selectedCountryCode}>
