@@ -125,6 +125,7 @@ export type Party = {
     vibeId: string;
     vibeTopic: string;
     rsvps?: string[]; // Array of user UIDs
+    invitedEmails?: string[]; // New: For private party access
 };
 
 export interface ClientParty extends Omit<Party, 'startTime' | 'endTime'> {

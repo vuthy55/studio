@@ -24,6 +24,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             isPublic,
             creatorId,
             creatorName,
+            creatorEmail: creatorEmail,
             createdAt: FieldValue.serverTimestamp(),
             invitedEmails: isPublic ? [] : [creatorEmail], // Only add creator to private vibes
             hostEmails: [creatorEmail],
@@ -141,22 +142,32 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
 export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string, inviterId: string, sendEmail: boolean): Promise<{ success: boolean; error?: string }> {
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
+        const partiesRef = vibeRef.collection('parties');
         
-        // Atomically add new emails to the invited list
-        await vibeRef.update({
+        const batch = db.batch();
+
+        // Atomically add new emails to the invited list on the Vibe
+        batch.update(vibeRef, {
             invitedEmails: FieldValue.arrayUnion(...emails)
         });
 
+        // Also add them to all existing parties in this Vibe to ensure permissions
+        const partiesSnapshot = await partiesRef.get();
+        partiesSnapshot.forEach(partyDoc => {
+            batch.update(partyDoc.ref, {
+                invitedEmails: FieldValue.arrayUnion(...emails)
+            });
+        });
+        
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
         const existingUsersSnapshot = await existingUsersQuery.get();
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
-        // Create notifications for existing users in a batch
-        const notificationBatch = db.batch();
+        // Create notifications for existing users
         existingUsersSnapshot.forEach(doc => {
             const notificationRef = db.collection('notifications').doc();
-            notificationBatch.set(notificationRef, {
+            batch.set(notificationRef, {
                 userId: doc.id,
                 type: 'vibe_invite',
                 message: `${creatorName} has invited you to join the Vibe: "${vibeTopic}"`,
@@ -165,7 +176,8 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
                 read: false,
             });
         });
-        await notificationBatch.commit();
+        
+        await batch.commit();
         
         // Handle sending emails to non-users if requested
         if (sendEmail) {
@@ -240,6 +252,12 @@ export async function planParty(payload: PlanPartyPayload): Promise<{ success: b
         const vibeRef = db.collection('vibes').doc(vibeId);
         const partyRef = vibeRef.collection('parties').doc();
         const announcementRef = vibeRef.collection('posts').doc();
+        
+        const vibeDoc = await vibeRef.get();
+        if(!vibeDoc.exists) {
+            return { success: false, error: 'Parent Vibe not found.'};
+        }
+        const vibeData = vibeDoc.data();
 
         const batch = db.batch();
 
@@ -247,6 +265,7 @@ export async function planParty(payload: PlanPartyPayload): Promise<{ success: b
         batch.set(partyRef, {
             ...partyData,
             rsvps: [partyData.creatorId], // Creator auto-RSVPs
+            invitedEmails: vibeData?.invitedEmails || [], // Inherit invited list
             startTime: Timestamp.fromDate(new Date(partyData.startTime)),
             endTime: Timestamp.fromDate(new Date(partyData.endTime)),
         });
@@ -328,3 +347,4 @@ export async function getUpcomingParties(): Promise<ClientParty[]> {
         return [];
     }
 }
+
