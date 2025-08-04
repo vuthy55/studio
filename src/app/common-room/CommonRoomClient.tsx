@@ -267,20 +267,16 @@ export default function CommonRoomClient() {
     }, []);
     
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371; // Radius of the Earth in kilometers
         const toRad = (deg: number) => deg * (Math.PI / 180);
-    
+        const R = 6371; // Radius of the Earth in kilometers
         const dLat = toRad(lat2 - lat1);
         const dLon = toRad(lon2 - lon1);
-    
-        const a = 
+        const a =
             Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        
-        return R * c;
+        return R * c; // Distance in km
     };
 
     const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
@@ -292,6 +288,8 @@ export default function CommonRoomClient() {
                 const result = await resolveUrlAction(url);
                 if (result.success && result.finalUrl) {
                     finalUrl = result.finalUrl;
+                } else {
+                     return null;
                 }
             }
         
