@@ -267,40 +267,43 @@ export default function CommonRoomClient() {
     }, []);
     
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371; // Radius of the Earth in km
         const toRad = (deg: number) => deg * (Math.PI / 180);
+        const R = 6371; // Radius of the Earth in km
 
-        const x = toRad(lon2 - lon1) * Math.cos(toRad((lat1 + lat2) / 2));
-        const y = toRad(lat2 - lat1);
-        const distance = Math.sqrt(x * x + y * y) * R;
-        return distance;
-    }
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const radLat1 = toRad(lat1);
+        const radLat2 = toRad(lat2);
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(radLat1) * Math.cos(radLat2) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c;
+        return d; // Distance in km
+    };
 
     const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
         if (!url) return null;
         
         let finalUrl = url;
         
-        // This is a simple regex that works for most standard Google Maps URLs.
-        // It looks for patterns like /@lat,lng,zoom/ or ?ll=lat,lng
         const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
         let match = finalUrl.match(regex);
         
-        // If no match, it might be a shortened URL. Use the server action to resolve it.
         if (!match && (url.includes('goo.gl') || url.includes('maps.app.goo.gl'))) {
             try {
                 const result = await resolveUrlAction(url);
                 if (result.success && result.finalUrl) {
                     finalUrl = result.finalUrl;
-                    match = finalUrl.match(regex); // Try matching again on the resolved URL
+                    match = finalUrl.match(regex);
                 }
             } catch (error) {
-                console.error("Error resolving URL:", url, error);
+                console.error("[Debug] Error resolving URL:", url, error);
             }
         }
     
         if (match) {
-            // Determine which capturing group has the values
             const lat = parseFloat(match[1] || match[3]);
             const lon = parseFloat(match[2] || match[4]);
             if (!isNaN(lat) && !isNaN(lon)) {
@@ -471,3 +474,5 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
+    
