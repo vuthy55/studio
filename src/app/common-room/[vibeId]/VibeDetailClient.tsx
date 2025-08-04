@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -25,10 +24,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { useCollectionData } from 'react-firebase-hooks/firestore';
+import { Card, CardContent } from '@/components/ui/card';
 
 
-function PlanPartyDialog({ vibeId }: { vibeId: string }) {
+function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCreated: () => void }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -76,7 +75,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                 setIsOpen(false);
                 setTitle('');
                 setLocation('');
-                // No need for onPartyCreated callback, component will react to Firestore changes.
+                onPartyCreated();
             } else {
                 throw new Error(result.error);
             }
@@ -384,7 +383,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     }
     
     const isUserRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
-
+    const hasActiveMeetup = !!vibeData.activeMeetupId;
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -400,20 +399,22 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {activeMeetupLoading ? (
-                        <LoaderCircle className="h-5 w-5 animate-spin" />
-                    ) : vibeData.activeMeetupId && activeMeetup ? (
-                        <div className="text-right">
-                            <p className="font-semibold">{activeMeetup.title}</p>
-                            <p className="text-sm text-muted-foreground">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
-                            {/* RSVP BUTTON LOGIC */}
-                            <Button size="sm" variant={isUserRsvpd ? 'secondary' : 'default'} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
-                                {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
-                            </Button>
-                        </div>
-                    ) : canPlanParty && (
-                        <PlanPartyDialog vibeId={vibeId} />
+                    {hasActiveMeetup ? (
+                        activeMeetupLoading ? (
+                            <LoaderCircle className="h-5 w-5 animate-spin" />
+                        ) : activeMeetup ? (
+                            <div className="text-right">
+                                <p className="font-semibold">{activeMeetup.title}</p>
+                                <p className="text-sm text-muted-foreground">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
+                                <Button size="sm" variant={isUserRsvpd ? "secondary" : "default"} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
+                                    {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
+                                </Button>
+                            </div>
+                        ) : null 
+                    ) : (
+                        canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => {}} />
                     )}
+
 
                     <Sheet>
                         <SheetTrigger asChild>
@@ -494,17 +495,23 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <LoaderCircle className="animate-spin mx-auto"/>
                 ) : (
                     posts.map(post => {
-                        if (post.type === 'meetup_announcement') {
+                        if (post.type === 'meetup_announcement' && post.meetupDetails) {
+                             const isRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
                             return (
-                                <div key={post.id} className="p-4 rounded-lg border-2 border-primary/50 bg-primary/10 my-4 text-center">
-                                    <h4 className="font-bold text-lg">{post.meetupDetails?.title}</h4>
-                                    <p className="text-sm text-muted-foreground">{post.content}</p>
-                                    <div className="mt-2 flex items-center justify-center gap-4">
-                                        <Button size="sm" onClick={() => handleRsvp(vibeData.activeMeetupId!, !isUserRsvpd)}>
-                                            {isUserRsvpd ? "Can't Make It" : "I'm In!"}
-                                        </Button>
-                                    </div>
-                                </div>
+                                <Card key={post.id} className="my-4 border-primary/50 bg-primary/10">
+                                    <CardContent className="p-4 text-center space-y-2">
+                                        <p className="text-sm text-primary/80">{post.content}</p>
+                                        <h4 className="font-bold text-lg text-primary">{post.meetupDetails.title}</h4>
+                                        <p className="text-sm">
+                                            {format(new Date(post.meetupDetails.startTime), 'MMM d, h:mm a')}
+                                        </p>
+                                        <div className="mt-2 flex items-center justify-center gap-4">
+                                            <Button size="sm" variant={isRsvpd ? 'secondary' : 'default'} onClick={() => handleRsvp(vibeData.activeMeetupId!, !isRsvpd)}>
+                                                {isRsvpd ? "I'm Out" : "I'm In!"}
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             )
                         }
                         return (
