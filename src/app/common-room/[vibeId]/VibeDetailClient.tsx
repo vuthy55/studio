@@ -7,7 +7,7 @@ import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Participant, Party, ClientParty } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -30,7 +30,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 function MeetupDetailsDialog({ vibeId, meetup, onRsvp, onMeetupUpdated }: { vibeId: string, meetup: Party, onRsvp: (partyId: string, isRsvping: boolean) => void; onMeetupUpdated: () => void }) {
-    const { user, userProfile } = useUserData();
+    const { user, userProfile, loading: userProfileLoading } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -39,16 +39,16 @@ function MeetupDetailsDialog({ vibeId, meetup, onRsvp, onMeetupUpdated }: { vibe
 
     const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>(meetup);
      
+    const [vibeData] = useDocumentData(doc(db, 'vibes', vibeId));
+
     useEffect(() => {
         setEditableMeetup(meetup);
     }, [meetup]);
 
     const isCurrentUserHost = useMemo(() => {
-        if (!user || !userProfile || !meetup) return false;
-        // Logic to determine if user is a host of the vibe
-        // This will require fetching vibeData or passing it down
-        return true; // Placeholder
-    }, [user, userProfile, meetup]);
+        if (!user || !userProfile || !vibeData) return false;
+        return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
+    }, [user, userProfile, vibeData]);
 
     const handleEdit = async () => {
         if (!user || !user.displayName) return;
@@ -325,63 +325,35 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { user, loading: userLoading } = useUserData();
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const vibeDocRef = useMemo(() => doc(db, 'vibes', vibeId), [vibeId]);
+    
+    // Use onSnapshot for Vibe data to ensure it's always up-to-date
+    const [vibeData, setVibeData] = useState<Vibe | undefined>(undefined);
+    const [vibeLoading, setVibeLoading] = useState(true);
+    const [vibeError, setVibeError] = useState<any>(null);
 
-    const [vibeData, vibeLoading, vibeError] = useDocumentData(vibeDocRef) as [Vibe | undefined, boolean, any];
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     
     const [activeMeetup, setActiveMeetup] = useState<Party | undefined>(undefined);
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
-    
-    useEffect(() => {
-        if (!vibeData?.activeMeetupId) {
-            setActiveMeetup(undefined);
-            setActiveMeetupLoading(false);
-            return;
-        }
+    const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
 
-        setActiveMeetupLoading(true);
-        const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
-        const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
-            if (doc.exists()) {
-                setActiveMeetup({ id: doc.id, ...doc.data() } as Party);
-            } else {
-                setActiveMeetup(undefined);
-            }
-            setActiveMeetupLoading(false);
+    // --- Data fetching with real-time listeners ---
+    useEffect(() => {
+        const vibeDocRef = doc(db, 'vibes', vibeId);
+        const unsubscribeVibe = onSnapshot(vibeDocRef, (doc) => {
+            setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : undefined);
+            setVibeLoading(false);
         }, (error) => {
-            console.error("Error fetching active meetup:", error);
-            setActiveMeetupLoading(false);
+            setVibeError(error);
+            setVibeLoading(false);
         });
-
-        return () => unsubscribe();
-    }, [vibeId, vibeData?.activeMeetupId]);
-
-
-    const [replyContent, setReplyContent] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    
-    const handleRsvp = async (partyId: string, isRsvping: boolean) => {
-        if (!user) return;
-        const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
-        if(!result.success) {
-            toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
-        }
-    }
-
-
-    useEffect(() => {
-        if (!vibeId) return;
 
         const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
         const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
-            const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost));
-            setPosts(postsData);
+            setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost)));
             setPostsLoading(false);
         }, (error) => {
-            console.error("Error fetching posts:", error);
             if (error.code === 'permission-denied') {
                 toast({
                     variant: 'destructive',
@@ -392,9 +364,45 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             setPostsLoading(false);
         });
 
-        return () => unsubscribePosts();
+        return () => {
+            unsubscribeVibe();
+            unsubscribePosts();
+        };
     }, [vibeId, toast]);
 
+    // Real-time listener for the active meetup
+    useEffect(() => {
+        if (!vibeData?.activeMeetupId) {
+            setActiveMeetup(undefined);
+            setActiveMeetupLoading(false);
+            return;
+        }
+
+        setActiveMeetupLoading(true);
+        const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
+        const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
+            setActiveMeetup(doc.exists() ? { id: doc.id, ...(doc.data() as Omit<Party, 'id'>) } : undefined);
+            setActiveMeetupLoading(false);
+        }, (error) => {
+            console.error("Error fetching active meetup:", error);
+            setActiveMeetupError(error);
+            setActiveMeetupLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [vibeId, vibeData?.activeMeetupId]);
+    // --- End data fetching ---
+
+    const [replyContent, setReplyContent] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const handleRsvp = async (partyId: string, isRsvping: boolean) => {
+        if (!user) return;
+        const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
+        if(!result.success) {
+            toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
+        }
+    }
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -480,21 +488,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-    useEffect(() => {
-        console.log('[DEBUG] VibeDetailClient state update:', {
-            vibeId,
-            userLoading,
-            vibeLoading,
-            vibeError: vibeError?.message,
-            vibeDataExists: !!vibeData,
-            vibeCreatorId: vibeData?.creatorId,
-            activeMeetupId: vibeData?.activeMeetupId,
-            activeMeetupLoading,
-            activeMeetupExists: !!activeMeetup,
-        });
-    }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupLoading, activeMeetup]);
-    
-
     if (userLoading || vibeLoading) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -528,19 +521,21 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {activeMeetupLoading ? (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <LoaderCircle className="h-5 w-5 animate-spin" />
-                        </div>
-                    ) : activeMeetup ? (
-                         <MeetupDetailsDialog 
-                             vibeId={vibeId} 
-                             meetup={activeMeetup} 
-                             onRsvp={handleRsvp}
-                             onMeetupUpdated={() => { /* This can trigger a refetch if needed */ }}
-                         />
+                    {hasActiveMeetup ? (
+                        activeMeetupLoading ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                                <LoaderCircle className="h-5 w-5 animate-spin" />
+                            </div>
+                        ) : activeMeetup ? (
+                             <MeetupDetailsDialog 
+                                 vibeId={vibeId} 
+                                 meetup={activeMeetup} 
+                                 onRsvp={handleRsvp}
+                                 onMeetupUpdated={() => { /* Real-time listener handles this */ }}
+                             />
+                        ) : null
                     ) : (
-                        canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => {}} />
+                        canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => { /* Real-time listener handles this */ }} />
                     )}
 
 
@@ -591,8 +586,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                             </Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
-                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p>
-                                                        </TooltipContent>
+                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
                                             )}
@@ -623,7 +617,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <LoaderCircle className="animate-spin mx-auto"/>
                 ) : (
                     posts.map(post => {
-                        if (post.type === 'meetup_announcement' && post.meetupDetails) {
+                        if (post.type === 'meetup_announcement' && post.meetupDetails && activeMeetup) {
                              const isPostRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
                             return (
                                 <Card key={post.id} className="my-4 border-primary/50 bg-primary/10">
@@ -702,3 +696,5 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
+
+    
