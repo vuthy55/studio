@@ -135,7 +135,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
     }
 }
 
-export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string, inviterId: string): Promise<{ success: boolean; error?: string }> {
+export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string, inviterId: string, sendEmail: boolean): Promise<{ success: boolean; error?: string }> {
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
         
@@ -164,16 +164,18 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         });
         await notificationBatch.commit();
         
-        // Handle sending emails to non-users
-        const externalEmails = emails.filter(email => !existingEmails.has(email));
-        if (externalEmails.length > 0) {
-            const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/join-vibe/${vibeId}?ref=${inviterId}`;
-            await sendVibeInviteEmail({
-                to: externalEmails,
-                vibeTopic: vibeTopic,
-                creatorName: creatorName,
-                joinUrl: joinUrl
-            });
+        // Handle sending emails to non-users if requested
+        if (sendEmail) {
+            const externalEmails = emails.filter(email => !existingEmails.has(email));
+            if (externalEmails.length > 0) {
+                const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/join-vibe/${vibeId}?ref=${inviterId}`;
+                await sendVibeInviteEmail({
+                    to: externalEmails,
+                    vibeTopic: vibeTopic,
+                    creatorName: creatorName,
+                    joinUrl: joinUrl
+                });
+            }
         }
 
         return { success: true };

@@ -30,7 +30,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [emails, setEmails] = useState('');
 
-    const handleInvite = async () => {
+    const handleInvite = async (sendEmail: boolean) => {
         const emailList = emails.split(',').map(e => e.trim()).filter(e => e);
         if (emailList.length === 0) {
             toast({ variant: 'destructive', title: 'No emails entered' });
@@ -43,9 +43,15 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
 
         setIsSubmitting(true);
         try {
-            const result = await inviteToVibe(vibeId, emailList, vibeTopic, creatorName, user.uid);
+            const result = await inviteToVibe(vibeId, emailList, vibeTopic, creatorName, user.uid, sendEmail);
             if (result.success) {
-                toast({ title: 'Invites Sent!', description: 'The users have been invited to this Vibe.' });
+                if (sendEmail) {
+                    toast({ title: 'Invites Sent!', description: 'The users have been invited to this Vibe via email.' });
+                } else {
+                    const joinUrl = `${window.location.origin}/join-vibe/${vibeId}?ref=${user.uid}`;
+                    navigator.clipboard.writeText(joinUrl);
+                    toast({ title: 'Link Copied & Invites Added!', description: 'The invite link is on your clipboard. Users have been added to the invite list.' });
+                }
                 setIsOpen(false);
                 setEmails('');
             } else {
@@ -79,9 +85,13 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                    <Button onClick={handleInvite} disabled={isSubmitting}>
+                    <Button onClick={() => handleInvite(false)} variant="secondary" disabled={isSubmitting}>
                         {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        Send Invites
+                        Copy Link & Invite
+                    </Button>
+                    <Button onClick={() => handleInvite(true)} disabled={isSubmitting}>
+                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Send Email Invites
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -121,13 +131,14 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             }
             setPostsLoading(false);
         });
-
-        // Also fetch all participants from the main user collection to resolve names/emails
+        
+        // This is a simplified approach. A more robust solution for a large app
+        // might involve a dedicated 'participants' sub-collection or fetching only needed users.
         const fetchAllUsers = async () => {
              try {
-                // To keep reads efficient, we are not fetching all users.
-                // Instead, we derive participants from hosts and post authors.
-                // This logic is now handled in the useMemo hook below.
+                const usersSnapshot = await getDocs(collection(db, 'users'));
+                const users = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Participant));
+                setAllParticipants(users);
             } catch (e) {
                 console.error("Could not fetch all user data for participants list", e);
             }
@@ -156,56 +167,34 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     };
     
     const { presentParticipants, invitedButNotPresent } = React.useMemo(() => {
-        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [] };
+        if (!vibeData || allParticipants.length === 0) return { presentParticipants: [], invitedButNotPresent: [] };
         
-        // Map all post authors to get their UID and most recent name
-        const authorsMap = new Map<string, {name: string, email?: string}>();
-        posts.forEach(post => {
-            authorsMap.set(post.authorId, { name: post.authorName });
+        const hostEmails: string[] = vibeData.hostEmails || [];
+        const authorUids = new Set(posts.map(p => p.authorId));
+
+        const emailToNameMap = new Map<string, string>();
+        allParticipants.forEach(p => {
+            if (p.email) emailToNameMap.set(p.email, p.name);
+        });
+
+        const presentEmails = new Set<string>();
+        hostEmails.forEach(email => presentEmails.add(email));
+        authorUids.forEach(uid => {
+            const participant = allParticipants.find(p => p.uid === uid);
+            if (participant?.email) {
+                presentEmails.add(participant.email);
+            }
         });
         
-        // Create a definitive set of emails for all "present" users
-        const presentEmails = new Set<string>();
-        
-        // Add all hosts to the "present" set
-        const hostEmails: string[] = vibeData.hostEmails || [];
-        hostEmails.forEach(email => presentEmails.add(email));
-        
-        // Add all post authors to the "present" set
-        const postAuthorUids = posts.map(p => p.authorId);
-        if (allParticipants.length > 0) {
-            postAuthorUids.forEach(uid => {
-                const participant = allParticipants.find(p => p.uid === uid);
-                if (participant?.email) {
-                    presentEmails.add(participant.email);
-                }
-            });
-        }
-        
-        const presentList = Array.from(presentEmails).map(email => {
-            const isHost = hostEmails.includes(email);
-            // Try to find the most accurate name from post authors first
-            let name = email; // Fallback to email
-            for (const [uid, author] of authorsMap.entries()) {
-                const participant = allParticipants.find(p => p.uid === uid);
-                if (participant?.email === email) {
-                    name = author.name;
-                    break;
-                }
-            }
-            if (name === email && isHost) {
-                // If we only have the email, but they are a host, use the vibe creator name as a better fallback
-                if(vibeData.creatorEmail === email) {
-                    name = vibeData.creatorName;
-                }
-            }
-
-            return { email, name, isHost };
-        }).sort((a, b) => {
+        const presentList = Array.from(presentEmails).map(email => ({
+            email,
+            name: emailToNameMap.get(email) || email.split('@')[0],
+            isHost: hostEmails.includes(email)
+        })).sort((a, b) => {
             if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
             return a.name.localeCompare(b.name);
         });
-
+        
         const invitedList = (vibeData.invitedEmails || []).filter((email: string) => !presentEmails.has(email));
 
         return { presentParticipants: presentList, invitedButNotPresent: invitedList };
