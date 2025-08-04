@@ -422,16 +422,22 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
-                                {(staticIntel && staticIntel.emergencyNumbers) ? (
-                                 <Table>
-                                    <TableBody>
-                                        {staticIntel.emergencyNumbers.map((item, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell className="font-mono">{item}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                 </Table>
+                                {(staticIntel && staticIntel.emergencyNumbers && staticIntel.emergencyNumbers.length > 0) ? (
+                                    <Table>
+                                        <TableBody>
+                                            {staticIntel.emergencyNumbers.map((item, index) => {
+                                                const parts = item.split(':');
+                                                const service = parts.length > 1 ? parts[0] : 'Number';
+                                                const number = parts.length > 1 ? parts.slice(1).join(':').trim() : item;
+                                                return (
+                                                    <TableRow key={index}>
+                                                        <TableCell className="font-medium">{service}</TableCell>
+                                                        <TableCell className="font-mono text-right">{number}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
                                  ) : (
                                      <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                  )}
@@ -453,5 +459,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-
-    
