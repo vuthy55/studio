@@ -26,6 +26,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
@@ -100,8 +101,8 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
             // Convert dates to ISO strings before sending to the server action
             const payload = {
                 ...editableMeetup,
-                startTime: (editableMeetup.startTime as Date)?.toISOString(),
-                endTime: (editableMeetup.endTime as Date)?.toISOString(),
+                startTime: editableMeetup.startTime ? new Date(editableMeetup.startTime).toISOString() : undefined,
+                endTime: editableMeetup.endTime ? new Date(editableMeetup.endTime).toISOString() : undefined,
             };
 
             const result = await editMeetup(vibeId, meetup.id, payload, user.displayName);
@@ -290,7 +291,48 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                                         {startTime ? format(startTime, 'PPp') : 'Select start time'}
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startTime} onSelect={setStartTime} /></PopoverContent>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={startTime} onSelect={setStartTime} />
+                                     <div className="p-3 border-t border-border">
+                                        <div className="flex items-center gap-2">
+                                            <Select
+                                                value={startTime ? String(startTime.getHours()).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setStartTime(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setHours(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            :
+                                            <Select
+                                                value={startTime ? String(Math.floor(startTime.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setStartTime(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setMinutes(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {['00', '15', '30', '45'].map(minute => (
+                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
                             </Popover>
                         </div>
                         <div className="space-y-2">
@@ -302,7 +344,48 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                                         {endTime ? format(endTime, 'PPp') : 'Select end time'}
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={endTime} onSelect={setEndTime} /></PopoverContent>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={endTime} onSelect={setEndTime} />
+                                     <div className="p-3 border-t border-border">
+                                        <div className="flex items-center gap-2">
+                                            <Select
+                                                value={endTime ? String(endTime.getHours()).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setEndTime(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setHours(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            :
+                                            <Select
+                                                value={endTime ? String(Math.floor(endTime.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setEndTime(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setMinutes(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {['00', '15', '30', '45'].map(minute => (
+                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
                             </Popover>
                         </div>
                     </div>
@@ -773,6 +856,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
+    
+
     
 
     
