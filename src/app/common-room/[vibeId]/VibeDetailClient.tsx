@@ -7,7 +7,7 @@ import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -86,15 +86,27 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
-            <header className="p-4 border-b">
-                <Button variant="ghost" asChild>
-                    <Link href="/common-room">
-                        <ArrowLeft className="mr-2 h-4 w-4"/>
-                        Back to Common Room
-                    </Link>
-                </Button>
-                <h1 className="text-2xl font-bold mt-2">{vibeData.topic}</h1>
-                <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
+            <header className="p-4 border-b flex justify-between items-start">
+                <div>
+                    <Button variant="ghost" asChild>
+                        <Link href="/common-room">
+                            <ArrowLeft className="mr-2 h-4 w-4"/>
+                            Back to Common Room
+                        </Link>
+                    </Button>
+                    <h1 className="text-2xl font-bold mt-2">{vibeData.topic}</h1>
+                    <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline">
+                        <CalendarPlus className="mr-2 h-4 w-4" />
+                        Plan a Party
+                    </Button>
+                    <Button variant="outline">
+                        <Users className="mr-2 h-4 w-4" />
+                        Participants
+                    </Button>
+                </div>
             </header>
 
             <div className="flex-grow overflow-y-auto p-4 space-y-6">
