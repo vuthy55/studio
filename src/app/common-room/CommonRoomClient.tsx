@@ -267,31 +267,48 @@ export default function CommonRoomClient() {
     }, []);
     
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        if (lat1 === lat2 && lon1 === lon2) return 0;
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const R = 6371; // Radius of the Earth in kilometers
+        const toRad = (deg: number) => deg * (Math.PI / 180);
+    
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+    
+        const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        
         return R * c;
     };
 
     const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
         if (!url) return null;
         let finalUrl = url;
-        if (url.includes('goo.gl')) {
-            const result = await resolveUrlAction(url);
-            if (result.success && result.finalUrl) {
-                finalUrl = result.finalUrl;
+        
+        try {
+            if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
+                const result = await resolveUrlAction(url);
+                if (result.success && result.finalUrl) {
+                    finalUrl = result.finalUrl;
+                }
             }
+        
+            const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)|!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/;
+            const match = finalUrl.match(regex);
+        
+            if (match) {
+                const lat = parseFloat(match[1] || match[3] || match[5]);
+                const lon = parseFloat(match[2] || match[4] || match[6]);
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    return { lat, lon };
+                }
+            }
+        } catch (error) {
+            console.error("Error resolving or parsing URL:", url, error);
         }
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)|z=.*&q=(-?\d+\.\d+),(-?\d+\.\d+)/;
-        const match = finalUrl.match(regex);
-        if (match) {
-            const lat = parseFloat(match[1] || match[3] || match[5]);
-            const lon = parseFloat(match[2] || match[4] || match[6]);
-            if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
-        }
+
         return null;
     };
 
