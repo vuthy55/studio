@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -229,8 +230,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { user, loading: userLoading } = useUserData();
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const vibeDocRef = useMemo(() => doc(db, 'vibes', vibeId), [vibeId]);
 
-    const [vibeData, vibeLoading, vibeError] = useDocumentData(doc(db, 'vibes', vibeId)) as [Vibe | undefined, boolean, any];
+    const [vibeData, vibeLoading, vibeError] = useDocumentData(vibeDocRef) as [Vibe | undefined, boolean, any];
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     
@@ -240,16 +242,36 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         return doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
     }, [vibeId, vibeData?.activeMeetupId]);
 
-    const [activeMeetup, activeMeetupLoading] = useDocumentData(activeMeetupQuery as any) as [Party | undefined, boolean];
+    const [activeMeetup, activeMeetupLoading, activeMeetupError] = useDocumentData(activeMeetupQuery as any) as [Party | undefined, boolean, any];
 
     const [replyContent, setReplyContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     
+    // --- DEBUG LOGS ---
+    useEffect(() => {
+        console.log('[VibeDetail Debug] Data received:', {
+            vibeId,
+            userLoading,
+            vibeLoading,
+            vibeError,
+            vibeDataExists: !!vibeData,
+            activeMeetupId: vibeData?.activeMeetupId,
+            activeMeetupLoading,
+            activeMeetupError,
+            activeMeetupExists: !!activeMeetup,
+        });
+    }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupId, activeMeetupLoading, activeMeetupError, activeMeetup]);
+    // --- END DEBUG LOGS ---
+    
     const handleRsvp = async (partyId: string, isRsvping: boolean) => {
         if (!user) return;
+        console.log(`[VibeDetail Debug] handleRsvp called. partyId: ${partyId}, isRsvping: ${isRsvping}`);
         const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
         if(!result.success) {
             toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
+             console.error('[VibeDetail Debug] rsvpToMeetup failed:', result.error);
+        } else {
+             console.log('[VibeDetail Debug] rsvpToMeetup succeeded.');
         }
     }
 
@@ -301,20 +323,18 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const emailToDetails = new Map<string, { name: string; isHost: boolean }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
 
-        // Add hosts first to ensure they are listed, even if they haven't posted
         hostEmails.forEach(email => {
             emailToDetails.set(email.toLowerCase(), {
-                name: email.split('@')[0], // Default name
+                name: email.split('@')[0],
                 isHost: true
             });
         });
 
-        // Go through posts to get accurate names and identify all present users
         posts.forEach(post => {
             if (post.authorEmail) {
                 const lowerEmail = post.authorEmail.toLowerCase();
                  emailToDetails.set(lowerEmail, {
-                    name: post.authorName, // This is the most accurate name
+                    name: post.authorName,
                     isHost: hostEmails.has(lowerEmail)
                 });
             }
@@ -341,8 +361,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
 
     const isCurrentUserHost = useMemo(() => {
-        if (!user || !user.email || !vibeData) return false;
-        return (vibeData.hostEmails || []).includes(user.email);
+        const result = !!user?.email && !!vibeData?.hostEmails?.includes(user.email);
+        console.log(`[VibeDetail Debug] isCurrentUserHost check. Email: ${user?.email}, Hosts: ${vibeData?.hostEmails}, Result: ${result}`);
+        return result;
     }, [user, vibeData]);
     
     const canPlanParty = useMemo(() => {
@@ -410,7 +431,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                     {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
                                 </Button>
                             </div>
-                        ) : null 
+                        ) : <p className="text-xs text-muted-foreground">Meetup details loading...</p>
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => {}} />
                     )}
