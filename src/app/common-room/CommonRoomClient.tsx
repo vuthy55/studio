@@ -103,170 +103,35 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function InviteDialog({ vibe }: { vibe: Vibe }) {
-    const { toast } = useToast();
-    const { user } = useUserData();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [emails, setEmails] = useState('');
-
-    const handleInvite = async () => {
-        if (!emails.trim()) {
-            toast({ variant: 'destructive', title: 'Emails are required' });
-            return;
-        }
-        if (!user || !user.displayName) return;
-
-        setIsSubmitting(true);
-        try {
-            await inviteToVibe(vibe.id, emails.split(/[ ,]+/).map(e => e.trim()).filter(Boolean), vibe.topic, user.displayName);
-            toast({ title: 'Invites Sent!', description: 'Your friends have been invited to the Vibe.' });
-            setIsOpen(false);
-            setEmails('');
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-        } finally {
-            setIsSubmitting(false);
-        }
-    }
-
-    const copyInviteLink = () => {
-        const link = `${window.location.origin}/join/${vibe.id}`;
-        navigator.clipboard.writeText(link);
-        toast({ title: 'Invite Link Copied!', description: 'Share this link to invite others.' });
-    };
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" size="sm">Invite</Button>
-            </DialogTrigger>
-            <DialogContent>
-                 <DialogHeader>
-                    <DialogTitle>Invite to "{vibe.topic}"</DialogTitle>
-                    <DialogDescription>Enter emails separated by commas. They will receive an email and in-app notification. Or, copy the invite link.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                    <Textarea value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com"/>
-                    <Button variant="secondary" onClick={copyInviteLink} className="w-full">
-                        <Copy className="mr-2 h-4 w-4" /> Copy Invite Link
-                    </Button>
-                </div>
-                <DialogFooter>
-                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                    <Button onClick={handleInvite} disabled={isSubmitting}>
-                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                        Send Invites
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
-    const { toast } = useToast();
-    const [vibes, setVibes] = useState<Vibe[]>([]);
-    const [isFetching, setIsFetching] = useState(true);
-
-    const fetchVibes = useCallback(async () => {
-        console.log('[DEBUG] CommonRoomClient: fetchVibes called.');
-        if (!user || !user.email) {
-            console.log('[DEBUG] CommonRoomClient: No user or user email, returning.');
-            setIsFetching(false);
-            return;
-        }
-        setIsFetching(true);
-        console.log(`[DEBUG] CommonRoomClient: Fetching vibes for user: ${user.email}`);
-        try {
-            const fetchedVibes = await getVibes(user.email);
-            console.log(`[DEBUG] CommonRoomClient: Successfully fetched ${fetchedVibes.length} vibes.`);
-            
-            const sortedVibes = fetchedVibes.sort((a, b) => {
-                const timeA = a.lastPostAt ? new Date(a.lastPostAt).getTime() : new Date(a.createdAt).getTime();
-                const timeB = b.lastPostAt ? new Date(b.lastPostAt).getTime() : new Date(b.createdAt).getTime();
-                return timeB - timeA;
-            });
-
-            setVibes(sortedVibes);
-        } catch (error: any) {
-            console.error('[DEBUG] CommonRoomClient: Error calling getVibes action.', error);
-            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not fetch Common Rooms.' });
-        } finally {
-            console.log('[DEBUG] CommonRoomClient: Finished fetching, setting isFetching to false.');
-            setIsFetching(false);
-        }
-    }, [user, toast]);
-
-    useEffect(() => {
-        console.log(`[DEBUG] CommonRoomClient: useEffect triggered. Loading: ${loading}, User: ${!!user}`);
-        if (!loading && user) {
-            fetchVibes();
-        } else if (!loading && !user) {
-            setIsFetching(false); // Ensure loading stops if there's no user
-        }
-    }, [loading, user, fetchVibes]);
-
-    const renderVibeList = (vibeList: Vibe[], title: string, description: string) => {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>{title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isFetching ? <LoaderCircle className="animate-spin" /> : (
-                        vibeList.length === 0 ? (
-                             <p className="text-muted-foreground text-sm">No vibes here yet.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {vibeList.map(vibe => (
-                                    <Card key={vibe.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                                        <div className="flex-grow">
-                                            <p className="font-semibold">{vibe.topic}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                                Started by {vibe.creatorId === user?.uid ? 'you' : vibe.creatorName} • {vibe.postsCount || 0} posts
-                                                {vibe.lastPostAt && ` • Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })} by ${vibe.lastPostBy}`}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-2 self-end sm:self-center">
-                                            {!vibe.isPublic && vibe.creatorId === user?.uid && <InviteDialog vibe={vibe} />}
-                                            <Button asChild><Link href={`/common-room/${vibe.id}`}>Enter Vibe</Link></Button>
-                                        </div>
-                                    </Card>
-                                ))}
-                            </div>
-                        )
-                    )}
-                </CardContent>
-            </Card>
-        );
+    
+    // For now, we are just creating vibes, not listing them.
+    // The onVibeCreated function can be used later to trigger a refetch.
+    const handleVibeCreated = () => {
+        console.log("A new vibe was created. We can refetch the list here in the future.");
     };
-
-    const { publicVibes, myVibes } = useMemo(() => {
-        return vibes.reduce((acc, vibe) => {
-            if (vibe.isPublic) {
-                acc.publicVibes.push(vibe);
-            } else {
-                // A vibe is "mine" if I created it or was invited to it.
-                // The server already pre-filters this, so we can just add it here.
-                acc.myVibes.push(vibe);
-            }
-            return acc;
-        }, { publicVibes: [] as Vibe[], myVibes: [] as Vibe[] });
-    }, [vibes]);
-
 
     return (
         <div className="space-y-6">
             <div className="flex justify-end">
-                <CreateVibeDialog onVibeCreated={fetchVibes} />
+                <CreateVibeDialog onVibeCreated={handleVibeCreated} />
             </div>
 
-            {renderVibeList(myVibes, "My Private Vibes & Invites", "Rooms you've created or been personally invited to.")}
-            {renderVibeList(publicVibes, "Public Vibes", "Open discussions for everyone in the community.")}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Welcome to the Common Room</CardTitle>
+                    <CardDescription>
+                        This is a place to connect with other travelers. Start a vibe to begin a new discussion.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-sm text-center py-8">
+                        The vibe list will be displayed here soon.
+                    </p>
+                </CardContent>
+            </Card>
         </div>
     )
 }

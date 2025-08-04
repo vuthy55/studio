@@ -104,11 +104,11 @@ export type Vibe = {
     isPublic: boolean;
     creatorId: string;
     creatorName: string;
-    createdAt: string; // Changed to string for client-side safety
+    createdAt: any;
     invitedEmails: string[];
     hostEmails: string[];
     postsCount: number;
-    lastPostAt?: string; // Changed to string for client-side safety
+    lastPostAt?: any;
     lastPostBy?: string;
 };
 

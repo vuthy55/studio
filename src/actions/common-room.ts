@@ -18,7 +18,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
     const { topic, isPublic, creatorId, creatorName, creatorEmail } = payload;
     try {
         const newVibeRef = db.collection('vibes').doc();
-        const vibeData: Omit<Vibe, 'id'> = {
+        const vibeData: Omit<Vibe, 'id' | 'createdAt' | 'lastPostAt'> = {
             topic,
             isPublic,
             creatorId,
@@ -37,50 +37,10 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
 }
 
 export async function getVibes(userEmail: string): Promise<Vibe[]> {
-    console.log(`[DEBUG] Server Action getVibes: Called for user ${userEmail}`);
-    try {
-        // Step 1: Fetch all documents from the 'vibes' collection using the Admin SDK.
-        const allVibesSnapshot = await db.collection('vibes').get();
-        console.log(`[DEBUG] Server Action getVibes: Found ${allVibesSnapshot.docs.length} total vibe documents.`);
-
-        if (allVibesSnapshot.empty) {
-            return [];
-        }
-
-        // Helper to safely convert any timestamp format to a serializable ISO string.
-        const toISO = (ts: any): string | undefined => {
-            if (!ts) return undefined;
-            if (ts instanceof Timestamp) return ts.toDate().toISOString();
-            if (ts._seconds) return new Timestamp(ts._seconds, ts._nanoseconds).toDate().toISOString();
-            if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) return new Date(ts).toISOString();
-            return undefined; // Return undefined for unknown formats.
-        };
-
-        // Step 2: Filter and sanitize the documents on the server.
-        const accessibleVibes = allVibesSnapshot.docs
-            .map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    // Sanitize all potential timestamp fields before sending to the client.
-                    createdAt: toISO(data.createdAt) || new Date(0).toISOString(),
-                    lastPostAt: toISO(data.lastPostAt),
-                } as Vibe;
-            })
-            .filter(vibe => {
-                // Keep the vibe if it's public OR if the user is explicitly invited.
-                const isInvited = Array.isArray(vibe.invitedEmails) && vibe.invitedEmails.includes(userEmail);
-                return vibe.isPublic || isInvited;
-            });
-        
-        console.log(`[DEBUG] Server Action getVibes: Returning ${accessibleVibes.length} accessible vibes.`);
-        return accessibleVibes;
-
-    } catch (error) {
-        console.error("[DEBUG] Server Action getVibes: CRITICAL ERROR fetching vibes:", error);
-        throw new Error("An unexpected server error occurred while fetching vibes.");
-    }
+    // This function is temporarily disabled to resolve a critical error.
+    // It will be re-implemented correctly in a future step.
+    console.log(`[getVibes] This function is temporarily disabled. Called for ${userEmail}`);
+    return [];
 }
 
 
