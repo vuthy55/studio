@@ -65,37 +65,27 @@ export async function getVibes(userEmail: string): Promise<Vibe[]> {
         processSnapshot(publicSnapshot);
         processSnapshot(privateSnapshot);
 
-        return Array.from(allVibes.values()).sort((a, b) => {
-            const timeA = a.lastPostAt ? new Date(a.lastPostAt).getTime() : new Date(a.createdAt).getTime();
-            const timeB = b.lastPostAt ? new Date(b.lastPostAt).getTime() : new Date(b.createdAt).getTime();
-            return timeB - timeA;
-        });
+        // Sorting is now handled on the client side to simplify the query
+        return Array.from(allVibes.values());
 
     } catch (error) {
         console.error("Error fetching vibes:", error);
-        return [];
+        // Re-throw the error to be caught by the client
+        throw new Error("An unexpected server error occurred while fetching vibes.");
     }
 }
 
-export async function inviteToVibe(vibeId: string, emails: string[]): Promise<{ success: boolean; error?: string }> {
+export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string): Promise<{ success: boolean; error?: string }> {
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
-        const vibeDoc = await vibeRef.get();
-
-        if (!vibeDoc.exists) {
-            return { success: false, error: 'Vibe not found.' };
-        }
-        const vibeData = vibeDoc.data() as Vibe;
-
+        
         // Add emails to the invite list
         await vibeRef.update({
             invitedEmails: FieldValue.arrayUnion(...emails)
         });
 
-        // Send notifications
-        const creatorName = vibeData.creatorName;
-        const topic = vibeData.topic;
-        const inviteLink = `https://your-app-url/join/${vibeId}`; // Replace with your actual URL
+        // The joinUrl should be constructed on the server to ensure consistency.
+        const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/join/${vibeId}`;
 
         // Send in-app notifications to existing users
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
@@ -108,7 +98,7 @@ export async function inviteToVibe(vibeId: string, emails: string[]): Promise<{ 
             batch.set(notificationRef, {
                 userId: doc.id,
                 type: 'vibe_invite',
-                message: `${creatorName} has invited you to join the Vibe: "${topic}"`,
+                message: `${creatorName} has invited you to join the Vibe: "${vibeTopic}"`,
                 vibeId: vibeId,
                 createdAt: FieldValue.serverTimestamp(),
                 read: false,
@@ -121,9 +111,9 @@ export async function inviteToVibe(vibeId: string, emails: string[]): Promise<{ 
         if (externalEmails.length > 0) {
             await sendVibeInviteEmail({
                 to: externalEmails,
-                vibeTopic: topic,
+                vibeTopic: vibeTopic,
                 creatorName,
-                joinUrl: inviteLink
+                joinUrl: joinUrl
             });
         }
 
