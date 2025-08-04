@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -269,9 +270,17 @@ export default function CommonRoomClient() {
     };
 
     const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
-        const match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/daddr=(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (match && match[1] && match[2]) {
-            return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+        if (!url) return null;
+        // Regex to find patterns like @-34.603, -58.381 or ll=-34.603,-58.381
+        const regex = /@(-?\d+\.?\d*),(-?\d+\.?\d*)|ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/;
+        const match = url.match(regex);
+        if (match) {
+            // It will match either the first pair (group 1 & 2) or the second pair (group 3 & 4)
+            const lat = parseFloat(match[1] || match[3]);
+            const lon = parseFloat(match[2] || match[4]);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                return { lat, lon };
+            }
         }
         return null;
     };
@@ -306,7 +315,7 @@ export default function CommonRoomClient() {
     useEffect(() => {
         if (publicParties.length > 0) {
             const partiesWithDistance = publicParties.map(party => {
-                const coords = userLocation ? extractCoordsFromUrl(party.location) : null;
+                const coords = extractCoordsFromUrl(party.location);
                 let distance: number | undefined;
                 if (coords && userLocation) {
                     distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
@@ -314,15 +323,14 @@ export default function CommonRoomClient() {
                 return { ...party, distance };
             });
 
-            if(userLocation) {
+            if (userLocation) {
                 partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
             }
-
             setSortedPublicParties(partiesWithDistance);
         } else {
             setSortedPublicParties([]);
         }
-    }, [userLocation, publicParties]);
+    }, [publicParties, userLocation]);
 
 
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
@@ -363,15 +371,47 @@ export default function CommonRoomClient() {
                                 <TabsTrigger value="my-space"><UserCircle className="mr-2"/> My Space</TabsTrigger>
                             </TabsList>
                             <TabsContent value="discover" className="mt-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <PartyList parties={sortedPublicParties} title="Public Meetups" locationStatus={locationStatus} />
-                                    <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" />
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Button 
+                                            variant={activeDiscoverTab === 'meetups' ? 'default' : 'outline'}
+                                            onClick={() => setActiveDiscoverTab('meetups')}
+                                        >
+                                            <Calendar className="mr-2"/> Public Meetups
+                                        </Button>
+                                         <Button 
+                                            variant={activeDiscoverTab === 'vibes' ? 'default' : 'outline'}
+                                            onClick={() => setActiveDiscoverTab('vibes')}
+                                        >
+                                            <MessageSquare className="mr-2"/> Public Vibes
+                                        </Button>
+                                    </div>
+                                    <div className="pt-4">
+                                        {activeDiscoverTab === 'meetups' && <PartyList parties={sortedPublicParties} title="Public Meetups" locationStatus={locationStatus} />}
+                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" />}
+                                    </div>
                                 </div>
                             </TabsContent>
                             <TabsContent value="my-space" className="mt-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <PartyList parties={myMeetups} title="My Upcoming Meetups" locationStatus={'unavailable'} />
-                                    <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" />
+                               <div className="space-y-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Button 
+                                            variant={activeMySpaceTab === 'meetups' ? 'default' : 'outline'}
+                                            onClick={() => setActiveMySpaceTab('meetups')}
+                                        >
+                                            <Calendar className="mr-2"/> My Meetups
+                                        </Button>
+                                         <Button 
+                                            variant={activeMySpaceTab === 'vibes' ? 'default' : 'outline'}
+                                            onClick={() => setActiveMySpaceTab('vibes')}
+                                        >
+                                            <MessageSquare className="mr-2"/> My Vibes
+                                        </Button>
+                                    </div>
+                                    <div className="pt-4">
+                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" locationStatus={'unavailable'} />}
+                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" />}
+                                    </div>
                                 </div>
                             </TabsContent>
                         </Tabs>
@@ -381,3 +421,5 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
+    
