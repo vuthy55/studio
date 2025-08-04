@@ -227,5 +227,5 @@ export interface CountryIntelData {
     // New fields for build status
     lastBuildStatus?: 'success' | 'failed';
     lastBuildError?: string | null;
-    lastBuildAt?: FieldValue;
+    lastBuildAt?: string; // Changed from FieldValue to string for serialization
 }

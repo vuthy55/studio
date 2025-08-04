@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase-admin';
 import type { CountryIntelData } from '@/lib/types';
 import { discoverCountryData } from '@/ai/flows/discover-country-data-flow';
 import { lightweightCountries } from '@/lib/location-data';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 
 /**
@@ -23,10 +23,17 @@ export async function getCountryIntelData(countryCode: string): Promise<CountryI
         if (!doc.exists) {
             return null;
         }
+        
+        const data = doc.data();
+        if (!data) return null;
+        
+        // Convert timestamp to serializable format
+        const lastBuildAt = (data.lastBuildAt as Timestamp)?.toDate().toISOString();
 
         return {
             id: doc.id,
-            ...doc.data()
+            ...data,
+            lastBuildAt,
         } as CountryIntelData;
 
     } catch (error) {
@@ -60,9 +67,12 @@ export async function getNeighborIntelData(neighbourCodes: string[]): Promise<Co
         const neighbors: CountryIntelData[] = [];
         snapshots.forEach(snapshot => {
             snapshot.forEach(doc => {
+                 const data = doc.data();
+                 const lastBuildAt = (data.lastBuildAt as Timestamp)?.toDate().toISOString();
                 neighbors.push({
                     id: doc.id,
-                    ...doc.data()
+                    ...data,
+                    lastBuildAt
                 } as CountryIntelData);
             });
         });
@@ -82,7 +92,15 @@ export async function getCountryIntelAdmin(): Promise<CountryIntelData[]> {
     try {
         const snapshot = await db.collection('countryIntelCache').orderBy('countryName').get();
         if (snapshot.empty) return [];
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CountryIntelData));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const lastBuildAt = (data.lastBuildAt as Timestamp)?.toDate().toISOString();
+            return { 
+                id: doc.id, 
+                ...data,
+                lastBuildAt
+            } as CountryIntelData
+        });
     } catch (error) {
         console.error("Error fetching all country intel data:", error);
         return [];
@@ -124,6 +142,13 @@ export async function buildCountryIntelData(countryCodesToBuild: string[]): Prom
 
     const intelCollectionRef = db.collection('countryIntelCache');
     const countriesToProcess = lightweightCountries.filter(c => countryCodesToBuild.includes(c.code));
+    
+    // Clear existing data for selected countries before building
+    const deleteBatch = db.batch();
+    countriesToProcess.forEach(country => {
+        deleteBatch.delete(intelCollectionRef.doc(country.code));
+    });
+    await deleteBatch.commit();
     
     const buildPromises = countriesToProcess.map(async (country): Promise<BuildResult> => {
         const docRef = intelCollectionRef.doc(country.code);
