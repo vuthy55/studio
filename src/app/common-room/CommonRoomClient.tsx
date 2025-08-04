@@ -175,6 +175,7 @@ export default function CommonRoomClient() {
         console.log('[DEBUG] CommonRoomClient: fetchVibes called.');
         if (!user || !user.email) {
             console.log('[DEBUG] CommonRoomClient: No user or user email, returning.');
+            setIsFetching(false);
             return;
         }
         setIsFetching(true);
@@ -182,12 +183,13 @@ export default function CommonRoomClient() {
         try {
             const fetchedVibes = await getVibes(user.email);
             console.log(`[DEBUG] CommonRoomClient: Successfully fetched ${fetchedVibes.length} vibes.`);
-            // Sort on the client side
+            
             const sortedVibes = fetchedVibes.sort((a, b) => {
                 const timeA = a.lastPostAt ? new Date(a.lastPostAt).getTime() : new Date(a.createdAt).getTime();
                 const timeB = b.lastPostAt ? new Date(b.lastPostAt).getTime() : new Date(b.createdAt).getTime();
                 return timeB - timeA;
             });
+
             setVibes(sortedVibes);
         } catch (error: any) {
             console.error('[DEBUG] CommonRoomClient: Error calling getVibes action.', error);
@@ -202,49 +204,60 @@ export default function CommonRoomClient() {
         console.log(`[DEBUG] CommonRoomClient: useEffect triggered. Loading: ${loading}, User: ${!!user}`);
         if (!loading && user) {
             fetchVibes();
+        } else if (!loading && !user) {
+            setIsFetching(false); // Ensure loading stops if there's no user
         }
     }, [loading, user, fetchVibes]);
 
-    const renderVibeList = (vibeList: Vibe[]) => {
-        if (vibeList.length === 0) {
-            return <p className="text-muted-foreground text-sm">No vibes here yet.</p>;
-        }
-
+    const renderVibeList = (vibeList: Vibe[], title: string, description: string) => {
         return (
-            <div className="space-y-3">
-                {vibeList.map(vibe => (
-                    <Card key={vibe.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                        <div className="flex-grow">
-                            <p className="font-semibold">{vibe.topic}</p>
-                            <p className="text-xs text-muted-foreground">
-                                Started by {vibe.creatorId === user?.uid ? 'you' : vibe.creatorName} • {vibe.postsCount || 0} posts
-                                {vibe.lastPostAt && ` • Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })} by ${vibe.lastPostBy}`}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2 self-end sm:self-center">
-                            {vibe.creatorId === user?.uid && <InviteDialog vibe={vibe} />}
-                            <Button asChild><Link href={`/common-room/${vibe.id}`}>Enter Vibe</Link></Button>
-                        </div>
-                    </Card>
-                ))}
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>{title}</CardTitle>
+                    <CardDescription>{description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isFetching ? <LoaderCircle className="animate-spin" /> : (
+                        vibeList.length === 0 ? (
+                             <p className="text-muted-foreground text-sm">No vibes here yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {vibeList.map(vibe => (
+                                    <Card key={vibe.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                        <div className="flex-grow">
+                                            <p className="font-semibold">{vibe.topic}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Started by {vibe.creatorId === user?.uid ? 'you' : vibe.creatorName} • {vibe.postsCount || 0} posts
+                                                {vibe.lastPostAt && ` • Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })} by ${vibe.lastPostBy}`}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 self-end sm:self-center">
+                                            {!vibe.isPublic && vibe.creatorId === user?.uid && <InviteDialog vibe={vibe} />}
+                                            <Button asChild><Link href={`/common-room/${vibe.id}`}>Enter Vibe</Link></Button>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                        )
+                    )}
+                </CardContent>
+            </Card>
         );
     };
 
     const { publicVibes, myVibes } = useMemo(() => {
-        const publicVibesList: Vibe[] = [];
-        const myVibesList: Vibe[] = [];
-
-        vibes.forEach(vibe => {
+        return vibes.reduce((acc, vibe) => {
             if (vibe.isPublic) {
-                publicVibesList.push(vibe);
+                acc.publicVibes.push(vibe);
+            } else {
+                // A vibe is "mine" if I created it or was invited to it.
+                // The server already pre-filters this, so we can just add it here.
+                acc.myVibes.push(vibe);
             }
-            if (!vibe.isPublic && (vibe.creatorId === user?.uid || vibe.invitedEmails.includes(user?.email || ''))) {
-                 myVibesList.push(vibe);
-            }
-        });
-        return { publicVibes: publicVibesList, myVibes: myVibesList };
-    }, [vibes, user?.uid, user?.email]);
+            return acc;
+        }, { publicVibes: [] as Vibe[], myVibes: [] as Vibe[] });
+    }, [vibes]);
+
 
     return (
         <div className="space-y-6">
@@ -252,25 +265,8 @@ export default function CommonRoomClient() {
                 <CreateVibeDialog onVibeCreated={fetchVibes} />
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>My Private Vibes & Invites</CardTitle>
-                    <CardDescription>Rooms you've created or been personally invited to.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isFetching ? <LoaderCircle className="animate-spin" /> : renderVibeList(myVibes)}
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Public Vibes</CardTitle>
-                    <CardDescription>Open discussions for everyone in the community.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isFetching ? <LoaderCircle className="animate-spin" /> : renderVibeList(publicVibes)}
-                </CardContent>
-            </Card>
+            {renderVibeList(myVibes, "My Private Vibes & Invites", "Rooms you've created or been personally invited to.")}
+            {renderVibeList(publicVibes, "Public Vibes", "Open discussions for everyone in the community.")}
         </div>
     )
 }
