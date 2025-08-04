@@ -96,25 +96,63 @@ export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
     }
 }
 
+/**
+ * Adds a new post to a Vibe and updates the Vibe's metadata.
+ */
+export async function postReply(vibeId: string, content: string, author: { uid: string, name: string }): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId || !content.trim() || !author) {
+        return { success: false, error: 'Missing required information.' };
+    }
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const postRef = vibeRef.collection('posts').doc();
+
+        const batch = db.batch();
+
+        // 1. Create the new post document
+        batch.set(postRef, {
+            content: content,
+            authorId: author.uid,
+            authorName: author.name,
+            createdAt: FieldValue.serverTimestamp(),
+        });
+
+        // 2. Update the parent Vibe metadata
+        batch.update(vibeRef, {
+            postsCount: FieldValue.increment(1),
+            lastPostAt: FieldValue.serverTimestamp(),
+            lastPostBy: author.name,
+        });
+
+        await batch.commit();
+        
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error posting reply:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
 
 export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string): Promise<{ success: boolean; error?: string }> {
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
         
+        // Atomically add new emails to the invited list
         await vibeRef.update({
             invitedEmails: FieldValue.arrayUnion(...emails)
         });
 
-        const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/common-room/${vibeId}`;
-        
+        // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
         const existingUsersSnapshot = await existingUsersQuery.get();
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
-        const batch = db.batch();
+        // Create notifications for existing users in a batch
+        const notificationBatch = db.batch();
         existingUsersSnapshot.forEach(doc => {
             const notificationRef = db.collection('notifications').doc();
-            batch.set(notificationRef, {
+            notificationBatch.set(notificationRef, {
                 userId: doc.id,
                 type: 'vibe_invite',
                 message: `${creatorName} has invited you to join the Vibe: "${vibeTopic}"`,
@@ -123,18 +161,13 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
                 read: false,
             });
         });
-        await batch.commit();
-
+        await notificationBatch.commit();
+        
+        // Handle sending emails to non-users (placeholder for now)
         const externalEmails = emails.filter(email => !existingEmails.has(email));
         if (externalEmails.length > 0) {
-            // Note: In a real app, you'd call an email service here.
-            // await sendVibeInviteEmail({
-            //     to: externalEmails,
-            //     vibeTopic: vibeTopic,
-            //     creatorName,
-            //     joinUrl: joinUrl
-            // });
-            console.log("Would send email invites to:", externalEmails);
+            console.log("Would send email invites to external users:", externalEmails);
+            // In a real app, you would integrate an email service here.
         }
 
         return { success: true };
