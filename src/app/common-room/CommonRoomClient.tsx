@@ -223,18 +223,18 @@ export default function CommonRoomClient() {
     };
 
     const { publicVibes, myVibes } = useMemo(() => {
-        const publicVibes: Vibe[] = [];
-        const myVibes: Vibe[] = [];
+        const publicVibesList: Vibe[] = [];
+        const myVibesList: Vibe[] = [];
 
         vibes.forEach(vibe => {
             if (vibe.isPublic) {
-                publicVibes.push(vibe);
+                publicVibesList.push(vibe);
             }
             if (!vibe.isPublic && (vibe.creatorId === user?.uid || vibe.invitedEmails.includes(user?.email || ''))) {
-                 myVibes.push(vibe);
+                 myVibesList.push(vibe);
             }
         });
-        return { publicVibes, myVibes };
+        return { publicVibes: publicVibesList, myVibes: myVibesList };
     }, [vibes, user?.uid, user?.email]);
 
     return (

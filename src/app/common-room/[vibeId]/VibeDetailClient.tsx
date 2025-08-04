@@ -28,6 +28,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
+        if (!user) return; // Wait for user to be loaded
+
         const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
         const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
             const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost));
@@ -35,11 +37,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             setPostsLoading(false);
         }, (error) => {
             console.error("Error fetching posts:", error);
+            if (error.code === 'permission-denied') {
+                toast({
+                    variant: 'destructive',
+                    title: 'Permission Denied',
+                    description: 'You do not have access to view posts in this private Vibe.',
+                });
+            }
             setPostsLoading(false);
         });
 
         return () => unsubscribe();
-    }, [vibeId]);
+    }, [vibeId, user, toast]);
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
