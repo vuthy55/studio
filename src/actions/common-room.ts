@@ -331,3 +331,44 @@ export async function getUpcomingParties(): Promise<ClientParty[]> {
         return [];
     }
 }
+
+
+export async function editMeetup(vibeId: string, partyId: string, updates: Partial<Party>, editorName: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const partyRef = db.collection('vibes').doc(vibeId).collection('parties').doc(partyId);
+        const announcementRef = db.collection('vibes').doc(vibeId).collection('posts').doc();
+
+        const batch = db.batch();
+
+        const updatePayload: Record<string, any> = { ...updates };
+        if (updates.startTime) {
+            updatePayload.startTime = Timestamp.fromDate(new Date(updates.startTime));
+        }
+        if (updates.endTime) {
+            updatePayload.endTime = Timestamp.fromDate(new Date(updates.endTime));
+        }
+
+        batch.update(partyRef, updatePayload);
+        
+        const changeDescriptions = Object.keys(updates).map(key => {
+            if (key === 'startTime' || key === 'endTime') return `the ${key.replace('Time', ' time')}`;
+            return `the ${key}`;
+        }).join(', ');
+
+        batch.set(announcementRef, {
+            type: 'system_message',
+            content: `${editorName} updated the meetup: ${changeDescriptions} changed for "${updates.title}".`,
+            authorId: 'system',
+            authorName: 'VibeSync Bot',
+            authorEmail: 'system@vibesync.com',
+            createdAt: FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error editing meetup:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}

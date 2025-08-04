@@ -1,4 +1,5 @@
 
+
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 import type { LanguageCode } from './data';
@@ -125,7 +126,6 @@ export type Party = {
     vibeId: string;
     vibeTopic: string;
     rsvps?: string[]; // Array of user UIDs
-    invitedEmails?: string[]; // New: For private party access
 };
 
 export interface ClientParty extends Omit<Party, 'startTime' | 'endTime'> {
@@ -142,7 +142,7 @@ export type VibePost = {
     authorName: string;
     authorEmail: string;
     createdAt: Timestamp;
-    type?: 'user_post' | 'meetup_announcement';
+    type?: 'user_post' | 'meetup_announcement' | 'system_message';
     meetupDetails?: {
         title: string;
         location: string;

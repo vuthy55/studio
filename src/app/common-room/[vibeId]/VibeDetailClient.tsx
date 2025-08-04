@@ -6,15 +6,15 @@ import { useUserData } from '@/context/UserDataContext';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Participant, Party } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit } from 'lucide-react';
+import { Vibe, VibePost, Participant, Party, ClientParty } from '@/lib/types';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -26,6 +26,101 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+
+function MeetupDetailsDialog({ vibeId, meetup, onRsvp, onMeetupUpdated }: { vibeId: string, meetup: Party, onRsvp: (partyId: string, isRsvping: boolean) => void; onMeetupUpdated: () => void }) {
+    const { user, userProfile } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [attendees, setAttendees] = useState<any[]>([]);
+
+    const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>(meetup);
+     
+    useEffect(() => {
+        setEditableMeetup(meetup);
+    }, [meetup]);
+
+    const isCurrentUserHost = useMemo(() => {
+        if (!user || !userProfile || !meetup) return false;
+        // Logic to determine if user is a host of the vibe
+        // This will require fetching vibeData or passing it down
+        return true; // Placeholder
+    }, [user, userProfile, meetup]);
+
+    const handleEdit = async () => {
+        if (!user || !user.displayName) return;
+        setIsSubmitting(true);
+        try {
+            const result = await editMeetup(vibeId, meetup.id, editableMeetup, user.displayName);
+            if (result.success) {
+                toast({ title: 'Meetup Updated', description: 'Changes have been saved and announced in the chat.' });
+                setIsEditing(false);
+                onMeetupUpdated();
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update meetup.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const isUserRsvpd = user && meetup.rsvps?.includes(user.uid);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left truncate">
+                    <CalendarPlus className="mr-2 h-4 w-4 shrink-0" />
+                    Meetup: {meetup.title}
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    {isEditing ? (
+                        <Input value={editableMeetup.title} onChange={(e) => setEditableMeetup(p => ({...p, title: e.target.value}))} className="text-lg font-semibold" />
+                    ) : (
+                        <DialogTitle>{meetup.title}</DialogTitle>
+                    )}
+                    <DialogDescription>
+                         {isEditing ? (
+                            <Input value={editableMeetup.location} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
+                         ) : (
+                            <a href={meetup.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                <MapPin className="h-4 w-4" /> Location
+                            </a>
+                         )}
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="my-4">
+                    <h4 className="font-semibold mb-2">Attendees ({meetup.rsvps?.length || 0})</h4>
+                    {/* Attendee list would go here */}
+                </div>
+                <DialogFooter>
+                    {isEditing ? (
+                         <>
+                            <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                            <Button onClick={handleEdit} disabled={isSubmitting}>
+                                {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null} Save Changes
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                             {isCurrentUserHost && <Button variant="secondary" onClick={() => setIsEditing(true)}>Edit</Button>}
+                             <Button onClick={() => onRsvp(meetup.id, !isUserRsvpd)} variant={isUserRsvpd ? 'secondary' : 'default'}>
+                                {isUserRsvpd ? "I'm Out" : "I'm In!"}
+                             </Button>
+                        </>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 
 function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCreated: () => void }) {
@@ -90,7 +185,7 @@ function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCr
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" className="w-full">
                     <CalendarPlus className="mr-2 h-4 w-4" />
                     Start a Meetup
                 </Button>
@@ -385,7 +480,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-    // --- START DEBUG LOGS ---
     useEffect(() => {
         console.log('[DEBUG] VibeDetailClient state update:', {
             vibeId,
@@ -399,7 +493,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             activeMeetupExists: !!activeMeetup,
         });
     }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupLoading, activeMeetup]);
-    // --- END DEBUG LOGS ---
     
 
     if (userLoading || vibeLoading) {
@@ -435,21 +528,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {hasActiveMeetup ? (
-                        activeMeetupLoading ? (
-                             <div className="flex items-center gap-2 text-muted-foreground">
-                                <LoaderCircle className="h-5 w-5 animate-spin" />
-                                <span>Meetup details loading...</span>
-                             </div>
-                        ) : activeMeetup ? (
-                            <div className="text-right">
-                                <p className="font-semibold">{activeMeetup.title}</p>
-                                <p className="text-sm text-muted-foreground">{format(new Date((activeMeetup.startTime as Timestamp).toDate()), 'MMM d, h:mm a')}</p>
-                                <Button size="sm" variant={isUserRsvpd ? "secondary" : "default"} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
-                                    {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
-                                </Button>
-                            </div>
-                        ) : null
+                    {activeMeetupLoading ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                            <LoaderCircle className="h-5 w-5 animate-spin" />
+                        </div>
+                    ) : activeMeetup ? (
+                         <MeetupDetailsDialog 
+                             vibeId={vibeId} 
+                             meetup={activeMeetup} 
+                             onRsvp={handleRsvp}
+                             onMeetupUpdated={() => { /* This can trigger a refetch if needed */ }}
+                         />
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => {}} />
                     )}
@@ -551,6 +640,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         </div>
                                     </CardContent>
                                 </Card>
+                            )
+                        }
+                         if (post.type === 'system_message') {
+                            return (
+                                <div key={post.id} className="text-center text-xs text-muted-foreground italic py-2">
+                                    {post.content} - {post.createdAt ? formatDistanceToNow((post.createdAt as Timestamp).toDate(), { addSuffix: true }) : ''}
+                                </div>
                             )
                         }
                         return (
