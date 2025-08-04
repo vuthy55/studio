@@ -163,6 +163,8 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
 
 function PartyList({ parties, title, locationStatus }: { parties: ClientParty[], title: string, locationStatus: 'loading' | 'denied' | 'success' | 'unavailable' }) {
     
+    console.log("[Debug] Rendering PartyList with parties:", parties);
+
     return (
         <div className="space-y-4">
             <h3 className="font-bold text-xl">{title}</h3>
@@ -244,6 +246,7 @@ export default function CommonRoomClient() {
                 getVibes(user.email),
                 getUpcomingParties(),
             ]);
+            console.log("[Debug] Fetched parties:", fetchedParties);
             setAllVibes(fetchedVibes);
             setPublicParties(fetchedParties);
         } catch (error: any) {
@@ -266,22 +269,26 @@ export default function CommonRoomClient() {
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
+        const d = R * c;
+        console.log(`[Debug] getDistance: (${lat1}, ${lon1}) to (${lat2}, ${lon2}) = ${d} km`);
+        return d;
     };
 
     const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
+        console.log("[Debug] extractCoordsFromUrl - URL:", url);
         if (!url) return null;
-        // Regex to find patterns like @-34.603, -58.381 or ll=-34.603,-58.381
-        const regex = /@(-?\d+\.?\d*),(-?\d+\.?\d*)|ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/;
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
         const match = url.match(regex);
+        console.log("[Debug] extractCoordsFromUrl - Regex match:", match);
         if (match) {
-            // It will match either the first pair (group 1 & 2) or the second pair (group 3 & 4)
             const lat = parseFloat(match[1] || match[3]);
             const lon = parseFloat(match[2] || match[4]);
             if (!isNaN(lat) && !isNaN(lon)) {
+                console.log("[Debug] extractCoordsFromUrl - Coords found:", { lat, lon });
                 return { lat, lon };
             }
         }
+        console.log("[Debug] extractCoordsFromUrl - No coords found.");
         return null;
     };
 
@@ -297,14 +304,16 @@ export default function CommonRoomClient() {
             setLocationStatus('loading');
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    setUserLocation({
+                    const loc = {
                         lat: position.coords.latitude,
                         lon: position.coords.longitude
-                    });
+                    };
+                    console.log("[Debug] User location found:", loc);
+                    setUserLocation(loc);
                     setLocationStatus('success');
                 },
                 (error) => {
-                    console.warn("Could not get user location:", error.message);
+                    console.warn("[Debug] Could not get user location:", error.message);
                     setUserLocation(null); 
                     setLocationStatus('denied');
                 }
@@ -313,6 +322,7 @@ export default function CommonRoomClient() {
     }, [activeTab]);
     
     useEffect(() => {
+        console.log("[Debug] Recalculating sorted parties. User location:", userLocation, "Public parties:", publicParties.length);
         if (publicParties.length > 0) {
             const partiesWithDistance = publicParties.map(party => {
                 const coords = extractCoordsFromUrl(party.location);
@@ -326,6 +336,7 @@ export default function CommonRoomClient() {
             if (userLocation) {
                 partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
             }
+            console.log("[Debug] Final sorted parties with distance:", partiesWithDistance);
             setSortedPublicParties(partiesWithDistance);
         } else {
             setSortedPublicParties([]);
@@ -421,5 +432,3 @@ export default function CommonRoomClient() {
         </div>
     )
 }
-
-    
