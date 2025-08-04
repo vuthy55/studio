@@ -62,10 +62,10 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
     
-    // Referrals Log: Only admins can read the central referrals log.
+    // Referrals Log: Admins can read the central referrals log. Server actions create.
     match /referrals/{referralId} {
       allow read: if isAdmin();
-      allow create, update, delete: if false; // Only created by server action.
+      allow create, update, delete: if false;
     }
     
     // --- END ADMIN RULES ---
@@ -142,15 +142,67 @@ service cloud.firestore {
       }
     }
     
+    // --- RULES FOR COMMON ROOMS (VIBES) ---
+    match /vibes/{vibeId} {
+      function isVibeCreator() {
+        // Use resource.data for read/get/list, request.resource.data for write
+        return request.auth != null && resource.data.creatorId == request.auth.uid;
+      }
+      function isVibeHost() {
+        return request.auth != null && resource.data.hostEmails.hasAny([request.auth.token.email]);
+      }
+      
+      function getVibeData() {
+          return get(/databases/$(database)/documents/vibes/$(vibeId)).data;
+      }
+      
+      function isVibeMember() {
+          return request.auth != null && getVibeData().invitedEmails.hasAny([request.auth.token.email]);
+      }
+
+      // Allow anyone to read the top-level Vibe doc. This is required for the join page to work
+      // for new users. The sensitive content is in the subcollections.
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if isVibeCreator() || isVibeHost();
+      allow delete: if isVibeCreator();
+
+      // Secure the 'posts' subcollection
+      match /posts/{postId} {
+        // Allow read if the vibe is public OR if the user is an invited member.
+        allow read: if getVibeData().isPublic == true || isVibeMember();
+        // Allow create only if the user is an invited member.
+        allow create: if isVibeMember();
+        // Allow update/delete only by the creator or a host.
+        allow update, delete: if isVibeCreator() || isVibeHost();
+      }
+      
+      // Secure the 'parties' (meetups) subcollection
+      match /parties/{partyId} {
+        // Allow read if the vibe is public OR if the user is an invited member.
+        allow read: if getVibeData().isPublic == true || isVibeMember();
+        // Allow write access only to hosts
+        allow write: if isVibeHost();
+      }
+    }
+    
     // PayPal temporary orders: Only allow creation from server-side action
     match /paypalOrders/{orderId} {
         allow read, write: if false; // Client should not access this at all
     }
 
-    // Notifications: Users can read their own notifications.
+    // Notifications: Users can read and update (mark as read) their own notifications.
     match /notifications/{notificationId} {
-      allow read, update: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create, delete: if false; // Created by server, immutable for client
+      allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Server creates notifications, client can request deletion via server action.
+      allow create, delete: if false; 
+    }
+    
+    // Invitations: Users can read invitations they have sent.
+    match /invitations/{invitationId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.inviterId;
+      // Server creates invitations, client-side reads only.
+      allow create, update, delete: if false;
     }
   }
 }
