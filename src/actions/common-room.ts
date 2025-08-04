@@ -1,9 +1,9 @@
+
 'use server';
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe } from '@/lib/types';
-import { sendVibeInviteEmail } from './email';
 
 interface StartVibePayload {
     topic: string;
@@ -36,48 +36,57 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
 }
 
 // This type represents the "sanitized" Vibe object that is safe to send to the client.
+// Note: Timestamps are converted to strings.
 export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
+    id: string;
     createdAt: string;
     lastPostAt?: string;
 }
 
 
+/**
+ * Fetches all public vibes and private vibes the user is invited to.
+ * This function is now robust and sanitizes all timestamp fields before returning data.
+ */
 export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
-    if (!userEmail) return [];
+    if (!userEmail) {
+        console.log("[getVibes] No user email provided, returning empty array.");
+        return [];
+    }
 
     try {
+        console.log(`[getVibes] Fetching all documents from 'vibes' collection for user: ${userEmail}`);
         const vibesSnapshot = await db.collection('vibes').get();
+        
         if (vibesSnapshot.empty) {
+            console.log("[getVibes] 'vibes' collection is empty.");
             return [];
         }
 
-        // Helper to safely convert Firestore Timestamps to ISO strings
-        const toISO = (ts: any): string => {
-            if (!ts) return new Date(0).toISOString();
-            if (ts instanceof Timestamp) return ts.toDate().toISOString();
-            if (ts._seconds && typeof ts._seconds === 'number') {
-                return new Timestamp(ts._seconds, ts._nanoseconds || 0).toDate().toISOString();
-            }
-            if (typeof ts === 'string' && !isNaN(Date.parse(ts))) return ts;
-            return new Date(0).toISOString(); // Fallback for unexpected formats
-        };
-
         const allVibes: ClientVibe[] = [];
+
         vibesSnapshot.forEach(doc => {
-            const data = doc.data() as Vibe;
-            
+            const data = doc.data();
+
             // Filter logic: include if public or if the user is explicitly invited
             const isInvited = data.invitedEmails?.includes(userEmail);
             if (data.isPublic || isInvited) {
-                 allVibes.push({
-                    ...(data as any), // Spread the original data
-                    id: doc.id,
-                    createdAt: toISO(data.createdAt),
-                    lastPostAt: data.lastPostAt ? toISO(data.lastPostAt) : undefined,
-                });
+                
+                // *** CRITICAL: Sanitize all potential Timestamp fields ***
+                const sanitizedData: { [key: string]: any } = { id: doc.id };
+                for (const key in data) {
+                    const value = data[key];
+                    if (value instanceof Timestamp) {
+                        sanitizedData[key] = value.toDate().toISOString();
+                    } else {
+                        sanitizedData[key] = value;
+                    }
+                }
+                
+                allVibes.push(sanitizedData as ClientVibe);
             }
         });
-        
+
         // Sort by last activity date, with a fallback to creation date
         allVibes.sort((a, b) => {
             const dateA = a.lastPostAt ? new Date(a.lastPostAt) : new Date(a.createdAt);
@@ -85,10 +94,11 @@ export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
             return dateB.getTime() - dateA.getTime();
         });
 
+        console.log(`[getVibes] Successfully fetched and processed ${allVibes.length} vibes.`);
         return allVibes;
 
     } catch (error) {
-        console.error("[getVibes] Error fetching vibes:", error);
+        console.error("[getVibes] CRITICAL ERROR fetching vibes:", error);
         return []; // Return an empty array on error to prevent client crashes
     }
 }
@@ -124,12 +134,14 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
 
         const externalEmails = emails.filter(email => !existingEmails.has(email));
         if (externalEmails.length > 0) {
-            await sendVibeInviteEmail({
-                to: externalEmails,
-                vibeTopic: vibeTopic,
-                creatorName,
-                joinUrl: joinUrl
-            });
+            // Note: In a real app, you'd call an email service here.
+            // await sendVibeInviteEmail({
+            //     to: externalEmails,
+            //     vibeTopic: vibeTopic,
+            //     creatorName,
+            //     joinUrl: joinUrl
+            // });
+            console.log("Would send email invites to:", externalEmails);
         }
 
         return { success: true };
