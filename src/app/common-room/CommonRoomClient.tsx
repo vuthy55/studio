@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
@@ -102,11 +102,11 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function VibeList({ vibes }: { vibes: ClientVibe[] }) {
+function VibeList({ vibes, title }: { vibes: ClientVibe[], title: string }) {
     if (vibes.length === 0) {
         return (
             <p className="text-muted-foreground text-sm text-center py-8">
-                No vibes in this category yet.
+                No vibes in the "{title}" category yet.
             </p>
         );
     }
@@ -196,70 +196,67 @@ function PartyList({ parties }: { parties: ClientParty[] }) {
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
-    const [vibes, setVibes] = useState<ClientVibe[]>([]);
-    const [parties, setParties] = useState<ClientParty[]>([]);
+    const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
+    const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [isFetching, setIsFetching] = useState(true);
-    const [activeTab, setActiveTab] = useState('parties');
+    const [activeTab, setActiveTab] = useState('discover');
 
 
-    const fetchVibes = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!user || !user.email) {
-            setVibes([]);
+            setAllVibes([]);
+            setPublicParties([]);
+            setIsFetching(false);
             return;
         }
         setIsFetching(true);
         try {
-            const fetchedVibes = await getVibes(user.email);
-            setVibes(fetchedVibes);
+            const [fetchedVibes, fetchedParties] = await Promise.all([
+                getVibes(user.email),
+                getUpcomingParties(),
+            ]);
+            setAllVibes(fetchedVibes);
+            setPublicParties(fetchedParties);
         } catch (error: any) {
-            console.error("Error fetching vibes:", error);
-            toast({ variant: 'destructive', title: 'Error fetching vibes', description: error.message || 'An unknown error occurred' });
+            console.error("Error fetching common room data:", error);
+            toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
         } finally {
             setIsFetching(false);
         }
     }, [user, toast]);
 
-    const fetchParties = useCallback(async () => {
-         setIsFetching(true);
-        try {
-            const fetchedParties = await getUpcomingParties();
-            setParties(fetchedParties);
-        } catch (error: any) {
-             console.error("Error fetching parties:", error);
-            toast({ variant: 'destructive', title: 'Error fetching parties' });
-        } finally {
-             setIsFetching(false);
-        }
-    }, [toast]);
-
     useEffect(() => {
-        if (!loading && user) {
-            fetchVibes();
-            fetchParties();
-        } else if (!loading && !user) {
-            setIsFetching(false);
+        if (!loading) {
+            fetchData();
         }
-    }, [loading, user, fetchVibes, fetchParties]);
+    }, [loading, user, fetchData]);
     
-    const { publicVibes, privateVibes } = useMemo(() => {
+    const { publicVibes, myVibes, myMeetups } = useMemo(() => {
+        const publicV = allVibes.filter(v => v.isPublic);
+        const privateV = allVibes.filter(v => !v.isPublic);
+        
+        const myVibeIds = new Set(allVibes.map(v => v.id));
+        const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
+
         return {
-            publicVibes: vibes.filter(v => v.isPublic),
-            privateVibes: vibes.filter(v => !v.isPublic)
+            publicVibes: publicV,
+            myVibes: [...publicV, ...privateV], // For now, "My Vibes" is just all vibes they can see
+            myMeetups: myM,
         };
-    }, [vibes]);
+    }, [allVibes, publicParties]);
 
 
     return (
         <div className="space-y-6">
             <div className="flex justify-end">
-                <CreateVibeDialog onVibeCreated={fetchVibes} />
+                <CreateVibeDialog onVibeCreated={fetchData} />
             </div>
 
             <Card>
                 <CardHeader>
                     <CardTitle>Welcome to the Common Room</CardTitle>
                     <CardDescription>
-                        This is a place to connect with other travelers. Start a vibe or join an existing discussion.
+                        A place to connect with other travelers. Discover public discussions or check your private invites.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -269,19 +266,21 @@ export default function CommonRoomClient() {
                         </div>
                     ) : (
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <TabsList className="grid w-full grid-cols-3">
-                                <TabsTrigger value="parties">Parties</TabsTrigger>
-                                <TabsTrigger value="public-vibes">Public Vibes</TabsTrigger>
-                                <TabsTrigger value="my-invites">My Invites</TabsTrigger>
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="discover"><Compass className="mr-2"/> Discover</TabsTrigger>
+                                <TabsTrigger value="my-vibes"><UserCircle className="mr-2"/> My Space</TabsTrigger>
                             </TabsList>
-                             <TabsContent value="parties" className="mt-4">
-                                <PartyList parties={parties} />
+                            <TabsContent value="discover" className="mt-4">
+                                <h3 className="text-xl font-bold mb-4">Public Meetups</h3>
+                                <PartyList parties={publicParties} />
+                                <h3 className="text-xl font-bold my-4 pt-4 border-t">Public Vibes</h3>
+                                <VibeList vibes={publicVibes} title="Public" />
                             </TabsContent>
-                            <TabsContent value="public-vibes" className="mt-4">
-                                <VibeList vibes={publicVibes} />
-                            </TabsContent>
-                            <TabsContent value="my-invites" className="mt-4">
-                                <VibeList vibes={privateVibes} />
+                            <TabsContent value="my-vibes" className="mt-4">
+                                <h3 className="text-xl font-bold mb-4">My Upcoming Meetups</h3>
+                                <PartyList parties={myMeetups} />
+                                <h3 className="text-xl font-bold my-4 pt-4 border-t">My Vibes & Invites</h3>
+                                <VibeList vibes={myVibes} title="My Vibes" />
                             </TabsContent>
                         </Tabs>
                     )}
