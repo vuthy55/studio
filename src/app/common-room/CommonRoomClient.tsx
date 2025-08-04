@@ -267,55 +267,47 @@ export default function CommonRoomClient() {
     }, []);
     
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        if ((lat1 === lat2) && (lon1 === lon2)) {
-            return 0;
-        }
-        else {
-            const radlat1 = Math.PI * lat1/180;
-            const radlat2 = Math.PI * lat2/180;
-            const theta = lon1-lon2;
-            const radtheta = Math.PI * theta/180;
-            let dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
-            if (dist > 1) {
-                dist = 1;
-            }
-            dist = Math.acos(dist);
-            dist = dist * 180/Math.PI;
-            dist = dist * 60 * 1.1515;
-            // convert to kilometers
-            dist = dist * 1.609344 
-            return dist;
-        }
+        const R = 6371; // Radius of the Earth in km
+        const toRad = (deg: number) => deg * (Math.PI / 180);
+
+        const x = toRad(lon2 - lon1) * Math.cos(toRad((lat1 + lat2) / 2));
+        const y = toRad(lat2 - lat1);
+        const distance = Math.sqrt(x * x + y * y) * R;
+        return distance;
     }
 
     const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
         if (!url) return null;
+        
         let finalUrl = url;
         
-        try {
-            if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
+        // This is a simple regex that works for most standard Google Maps URLs.
+        // It looks for patterns like /@lat,lng,zoom/ or ?ll=lat,lng
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
+        let match = finalUrl.match(regex);
+        
+        // If no match, it might be a shortened URL. Use the server action to resolve it.
+        if (!match && (url.includes('goo.gl') || url.includes('maps.app.goo.gl'))) {
+            try {
                 const result = await resolveUrlAction(url);
                 if (result.success && result.finalUrl) {
                     finalUrl = result.finalUrl;
-                } else {
-                     return null;
+                    match = finalUrl.match(regex); // Try matching again on the resolved URL
                 }
+            } catch (error) {
+                console.error("Error resolving URL:", url, error);
             }
-        
-            const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)|!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/;
-            const match = finalUrl.match(regex);
-        
-            if (match) {
-                const lat = parseFloat(match[1] || match[3] || match[5]);
-                const lon = parseFloat(match[2] || match[4] || match[6]);
-                if (!isNaN(lat) && !isNaN(lon)) {
-                    return { lat, lon };
-                }
-            }
-        } catch (error) {
-            console.error("Error resolving or parsing URL:", url, error);
         }
-
+    
+        if (match) {
+            // Determine which capturing group has the values
+            const lat = parseFloat(match[1] || match[3]);
+            const lon = parseFloat(match[2] || match[4]);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                return { lat, lon };
+            }
+        }
+        
         return null;
     };
 
@@ -479,5 +471,3 @@ export default function CommonRoomClient() {
         </div>
     )
 }
-
-    
