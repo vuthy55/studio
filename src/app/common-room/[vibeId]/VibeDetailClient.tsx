@@ -11,17 +11,141 @@ import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
+
+function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCreated: () => void }) {
+    const { user } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const [title, setTitle] = useState('');
+    const [location, setLocation] = useState('');
+    const [startTime, setStartTime] = useState<Date | undefined>(() => {
+        const d = new Date();
+        d.setHours(d.getHours() + 1);
+        d.setMinutes(0);
+        return d;
+    });
+    const [endTime, setEndTime] = useState<Date | undefined>(() => {
+        const d = new Date();
+        d.setHours(d.getHours() + 3);
+        d.setMinutes(0);
+        return d;
+    });
+
+    const handlePlanParty = async () => {
+        if (!title.trim() || !location.trim() || !startTime || !endTime) {
+            toast({ variant: 'destructive', title: 'All fields are required' });
+            return;
+        }
+        if (!user || !user.displayName) {
+            toast({ variant: 'destructive', title: 'Authentication Error' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const result = await planParty({
+                vibeId,
+                title,
+                location,
+                startTime: startTime.toISOString(),
+                endTime: endTime.toISOString(),
+                creatorId: user.uid,
+                creatorName: user.displayName,
+            });
+            
+            if(result.success) {
+                toast({ title: 'Meetup Planned!', description: 'Your new event is scheduled.' });
+                setIsOpen(false);
+                setTitle('');
+                setLocation('');
+                onPartyCreated();
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline">
+                    <CalendarPlus className="mr-2 h-4 w-4" />
+                    Start a Meetup
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Start a New Meetup</DialogTitle>
+                    <DialogDescription>Organize a real-world event for this Vibe's participants.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="party-title">Title</Label>
+                        <Input id="party-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Sunset drinks at the beach bar" />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="party-location">Location (Google Maps or Waze Link)</Label>
+                        <Input id="party-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="https://maps.app.goo.gl/..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Start Time</Label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !startTime && "text-muted-foreground")}>
+                                        <CalendarPlus className="mr-2 h-4 w-4" />
+                                        {startTime ? format(startTime, 'PPp') : 'Select start time'}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={startTime} onSelect={setStartTime} /></PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>End Time</Label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !endTime && "text-muted-foreground")}>
+                                        <CalendarPlus className="mr-2 h-4 w-4" />
+                                        {endTime ? format(endTime, 'PPp') : 'Select end time'}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={endTime} onSelect={setEndTime} /></PopoverContent>
+                            </Popover>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <Button onClick={handlePlanParty} disabled={isSubmitting}>
+                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                        Plan Meetup
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibeTopic: string, creatorName: string }) {
     const { user } = useUserData();
@@ -156,28 +280,33 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const { presentParticipants, invitedButNotPresent } = useMemo(() => {
         if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [] };
-        
-        const hostEmails = new Set(vibeData.hostEmails || []);
-        
-        const emailToDetails = new Map<string, { name: string; isHost: boolean }>();
 
-        // Add hosts first to ensure they are listed as present
+        const emailToDetails = new Map<string, { name: string; isHost: boolean }>();
+        const hostEmails = new Set(vibeData.hostEmails || []);
+
+        // Add hosts first to ensure they are listed, even if they haven't posted
         hostEmails.forEach(email => {
-            emailToDetails.set(email, { name: email.split('@')[0], isHost: true });
+            emailToDetails.set(email.toLowerCase(), {
+                name: email.split('@')[0], // Default name
+                isHost: true
+            });
         });
-        
-        // Add post authors, updating their name if available
+
+        // Go through posts to get accurate names and identify all present users
         posts.forEach(post => {
             if (post.authorEmail) {
-                const existing = emailToDetails.get(post.authorEmail) || { name: '', isHost: false };
-                emailToDetails.set(post.authorEmail, { ...existing, name: post.authorName, isHost: hostEmails.has(post.authorEmail) });
+                const lowerEmail = post.authorEmail.toLowerCase();
+                 emailToDetails.set(lowerEmail, {
+                    name: post.authorName, // This is the most accurate name
+                    isHost: hostEmails.has(lowerEmail)
+                });
             }
         });
-
-        const presentEmails = new Set(emailToDetails.keys());
         
+        const presentEmails = new Set(Array.from(emailToDetails.keys()));
+
         const presentList = Array.from(presentEmails).map(email => ({
-            email,
+            email: email,
             name: emailToDetails.get(email)!.name,
             isHost: emailToDetails.get(email)!.isHost
         })).sort((a, b) => {
@@ -185,7 +314,10 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             return a.name.localeCompare(b.name);
         });
         
-        const invitedList = (vibeData.invitedEmails || []).filter((email: string) => !presentEmails.has(email));
+        const invitedList = (vibeData.invitedEmails || [])
+            .map((e: string) => e.toLowerCase())
+            .filter((email: string) => !presentEmails.has(email));
+        
 
         return { presentParticipants: presentList, invitedButNotPresent: invitedList };
     }, [vibeData, posts]);
@@ -195,6 +327,12 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         if (!user || !user.email || !vibeData) return false;
         return (vibeData.hostEmails || []).includes(user.email);
     }, [user, vibeData]);
+    
+    const canPlanParty = useMemo(() => {
+        if (!vibeData || !user) return false;
+        if(vibeData.isPublic) return true;
+        return isCurrentUserHost;
+    }, [vibeData, user, isCurrentUserHost]);
 
     const handleHostToggle = async (targetEmail: string, shouldBeHost: boolean) => {
         if (!isCurrentUserHost) {
@@ -241,12 +379,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isCurrentUserHost && (
-                        <Button variant="outline">
-                            <CalendarPlus className="mr-2 h-4 w-4" />
-                            Plan a Party
-                        </Button>
-                    )}
+                    {canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => { /* future refresh logic */ }} />}
                     <Sheet>
                         <SheetTrigger asChild>
                              <Button variant="outline">
