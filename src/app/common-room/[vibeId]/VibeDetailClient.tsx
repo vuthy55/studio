@@ -3,9 +3,9 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { onSnapshot, doc, collection, query, orderBy, Timestamp } from 'firebase/firestore';
+import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party } from '@/lib/types';
+import { Vibe, VibePost, Party, UserProfile } from '@/lib/types';
 import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -29,33 +29,63 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
-    const { user, userProfile } = useUserData();
+    const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    // This state now correctly reflects the structure of the Party, especially the dates.
     const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>({});
-
     const [vibeData, setVibeData] = useState<Vibe | null>(null);
 
-    // This effect ensures the dialog's state is reset when the meetup prop changes (e.g., after an edit)
+    const [attendees, setAttendees] = useState<UserProfile[]>([]);
+    const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
+
     useEffect(() => {
-        setEditableMeetup({
-            ...meetup,
-            startTime: meetup.startTime ? new Date(meetup.startTime) : new Date(),
-            endTime: meetup.endTime ? new Date(meetup.endTime) : new Date(),
-        });
+        setEditableMeetup(meetup);
     }, [meetup]);
     
-     useEffect(() => {
+    useEffect(() => {
+        if (!isOpen) return;
+        
         const vibeDocRef = doc(db, 'vibes', vibeId);
         const unsubscribe = onSnapshot(vibeDocRef, (doc) => {
             setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : null);
         });
+        
+        const fetchAttendees = async () => {
+            if (!meetup.rsvps || meetup.rsvps.length === 0) {
+                setAttendees([]);
+                return;
+            }
+            setIsLoadingAttendees(true);
+            try {
+                const userIds = meetup.rsvps;
+                const usersRef = collection(db, 'users');
+                // Firestore 'in' queries are limited to 30 items. Chunk if necessary.
+                const chunks = [];
+                for (let i = 0; i < userIds.length; i += 30) {
+                    chunks.push(userIds.slice(i, i + 30));
+                }
+                const attendeesData: UserProfile[] = [];
+                for (const chunk of chunks) {
+                    const q = query(usersRef, where('__name__', 'in', chunk));
+                    const snapshot = await getDocs(q);
+                    snapshot.forEach(doc => attendeesData.push({ id: doc.id, ...doc.data() } as UserProfile));
+                }
+                setAttendees(attendeesData);
+            } catch (error) {
+                console.error("Error fetching attendees:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load attendee list.' });
+            } finally {
+                setIsLoadingAttendees(false);
+            }
+        };
+
+        fetchAttendees();
+        
         return () => unsubscribe();
-    }, [vibeId]);
+    }, [vibeId, isOpen, meetup.rsvps, toast]);
 
     const isCurrentUserHost = useMemo(() => {
         if (!user || !vibeData) return false;
@@ -124,10 +154,29 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                          )}
                     </DialogDescription>
                 </DialogHeader>
-                 <div className="my-4">
-                    <h4 className="font-semibold mb-2">Attendees ({meetup.rsvps?.length || 0})</h4>
-                    <p className="text-sm text-muted-foreground">List of attendees will go here.</p>
-                </div>
+                <ScrollArea className="h-48 my-4">
+                    <div className="pr-4">
+                        <h4 className="font-semibold mb-2">Attendees ({meetup.rsvps?.length || 0})</h4>
+                        {isLoadingAttendees ? (
+                            <div className="flex justify-center items-center">
+                                <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+                            </div>
+                        ) : attendees.length > 0 ? (
+                            <div className="space-y-2">
+                                {attendees.map(attendee => (
+                                    <div key={attendee.id} className="flex items-center gap-2">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarFallback>{attendee.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-sm font-medium">{attendee.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No one has RSVP'd yet.</p>
+                        )}
+                    </div>
+                </ScrollArea>
                 <DialogFooter className="sm:justify-between gap-2">
                     {isEditing ? (
                          <>
@@ -364,22 +413,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
     const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
 
-    // --- START DEBUG LOGS ---
-    useEffect(() => {
-        console.log('[DEBUG] VibeDetailClient state update:', {
-            vibeId,
-            userLoading,
-            vibeLoading,
-            vibeError: vibeError?.message,
-            vibeDataExists: !!vibeData,
-            activeMeetupId: vibeData?.activeMeetupId,
-            activeMeetupLoading,
-            activeMeetupError: activeMeetupError?.message,
-            activeMeetupExists: !!activeMeetup,
-        });
-    }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupLoading, activeMeetupError, activeMeetup]);
-    // --- END DEBUG LOGS ---
-
 
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
@@ -536,7 +569,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const handleRsvp = async (partyId: string, isRsvping: boolean) => {
         if (!user) return;
-        console.log(`[RSVP] User: ${user.uid}, Party: ${partyId}, Action: ${isRsvping ? 'RSVPing' : 'Canceling'}`);
         const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
         if(!result.success) {
             toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
@@ -577,7 +609,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         activeMeetupLoading ? (
                             <div className="flex items-center gap-2 text-muted-foreground">
                                 <LoaderCircle className="h-5 w-5 animate-spin" />
-                                <span>Meetup details loading...</span>
                             </div>
                         ) : activeMeetup ? (
                             <MeetupDetailsDialog vibeId={vibeId} meetup={activeMeetup} />
@@ -742,5 +773,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
+    
 
     
