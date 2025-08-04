@@ -131,7 +131,7 @@ export type Party = {
 export interface ClientParty extends Omit<Party, 'startTime' | 'endTime'> {
     startTime: string; // ISO String
     endTime: string; // ISO String
-    distance?: number; // in kilometers
+    distance?: number;
 }
 
 

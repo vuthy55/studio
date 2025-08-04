@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
@@ -26,7 +26,6 @@ import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -114,15 +113,23 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
     
     return (
         <div className="space-y-4">
+            <h3 className="font-bold text-xl">{title}</h3>
             {vibes.map(vibe => {
-                const activeMeetup = vibe.activeMeetupId ? parties.find(p => p.id === vibe.activeMeetupId) : null;
+                 const activeMeetup = vibe.activeMeetupId ? parties.find(p => p.id === vibe.activeMeetupId) : null;
                 return (
                     <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
                         <Card className="hover:border-primary transition-colors">
                             <CardContent className="p-4 space-y-2">
+                                {activeMeetup && (
+                                    <div className="p-2 bg-primary/10 rounded-md border-l-4 border-primary">
+                                        <p className="font-bold text-sm text-primary flex items-center gap-1.5"><Calendar className="h-4 w-4"/> Upcoming Meetup</p>
+                                        <p className="text-sm text-primary/90 font-medium truncate">{activeMeetup.title}</p>
+                                        <p className="text-xs text-primary/80">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
+                                    </div>
+                                )}
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <h3 className="font-semibold text-lg">{vibe.topic}</h3>
+                                        <h4 className="font-semibold">{vibe.topic}</h4>
                                         <p className="text-sm text-muted-foreground">
                                             Started by {vibe.creatorName}
                                         </p>
@@ -131,13 +138,7 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
                                         {vibe.isPublic ? 'Public' : 'Private'}
                                     </Badge>
                                 </div>
-                                {activeMeetup && (
-                                    <div className="p-2 bg-primary/10 rounded-md border-l-4 border-primary">
-                                        <p className="font-bold text-sm text-primary flex items-center gap-1.5"><Calendar className="h-4 w-4"/> Upcoming Meetup</p>
-                                        <p className="text-sm text-primary/90 font-medium truncate">{activeMeetup.title}</p>
-                                        <p className="text-xs text-primary/80">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
-                                    </div>
-                                )}
+                                
                                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                                     <div className="flex items-center gap-1">
                                         <MessageSquare className="h-3 w-3" />
@@ -157,33 +158,45 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
 }
 
 
-function PartyList({ parties }: { parties: ClientParty[] }) {
+function PartyList({ parties, title, locationStatus }: { parties: ClientParty[], title: string, locationStatus: 'loading' | 'denied' | 'success' | 'unavailable' }) {
     if (parties.length === 0) {
         return (
-            <div className="text-muted-foreground text-sm text-center py-8 space-y-2">
-                <p className="font-semibold">No upcoming meetups found.</p>
-                <p>To plan one, start a Vibe and use the "Start a Meetup" button inside it.</p>
+             <div className="space-y-4">
+                <h3 className="font-bold text-xl">{title}</h3>
+                <div className="text-muted-foreground text-sm text-center py-8 space-y-2">
+                    <p className="font-semibold">No upcoming meetups found.</p>
+                    <p>To plan one, start a Vibe and use the "Start a Meetup" button inside it.</p>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="space-y-4">
+            <h3 className="font-bold text-xl">{title}</h3>
+             {locationStatus === 'loading' && (
+                <div className="text-sm text-muted-foreground flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" /> Getting your location to sort meetups...</div>
+            )}
+            {locationStatus === 'denied' && (
+                <div className="text-sm text-destructive flex items-center gap-2"><LocateOff className="h-4 w-4" /> Location access denied. Showing all meetups.</div>
+            )}
+             {locationStatus === 'unavailable' && (
+                <div className="text-sm text-muted-foreground flex items-center gap-2"><LocateFixed className="h-4 w-4" /> Sorting by location...</div>
+            )}
+
             {parties.map(party => (
                 <Card key={party.id} className="hover:border-primary/50 transition-colors">
-                    <CardContent className="p-4">
-                        <div className="flex justify-between items-start">
-                             <div className="flex-1">
-                                <h3 className="font-semibold text-lg">{party.title}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                   From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline">{party.vibeTopic}</Link>
-                                </p>
-                             </div>
-                             {party.distance && (
-                                <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
-                             )}
+                    <CardContent className="p-4 space-y-2">
+                        {party.distance && (
+                           <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                         )}
+                        <div className="flex-1">
+                            <h4 className="font-semibold">{party.title}</h4>
+                            <p className="text-sm text-muted-foreground">
+                               From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline">{party.vibeTopic}</Link>
+                            </p>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-4 space-y-2">
+                        <div className="text-sm text-muted-foreground mt-2 space-y-1">
                              <div className="flex items-center gap-2">
                                 <MapPin className="h-4 w-4" />
                                 <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
@@ -212,6 +225,7 @@ export default function CommonRoomClient() {
     const [isFetching, setIsFetching] = useState(true);
     const [activeTab, setActiveTab] = useState('discover');
     const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
+    const [locationStatus, setLocationStatus] = useState<'loading' | 'denied' | 'success' | 'unavailable'>('unavailable');
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
@@ -267,17 +281,19 @@ export default function CommonRoomClient() {
     
     useEffect(() => {
         if (activeTab === 'discover') {
+            setLocationStatus('loading');
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     setUserLocation({
                         lat: position.coords.latitude,
                         lon: position.coords.longitude
                     });
+                    setLocationStatus('success');
                 },
                 (error) => {
                     console.warn("Could not get user location:", error.message);
-                    // Handle case where user denies location access
                     setUserLocation(null); 
+                    setLocationStatus('denied');
                 }
             );
         }
@@ -290,22 +306,29 @@ export default function CommonRoomClient() {
         const myVibeIds = new Set(allVibes.map(v => v.id));
         const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
         
-        const partiesWithDistance = publicParties.map(party => {
-            const coords = extractCoordsFromUrl(party.location);
-            let distance: number | undefined;
-            if (userLocation && coords) {
-                distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
-            }
-            return { ...party, distance };
-        });
-
-        partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+        if (userLocation) {
+            const partiesWithDistance = publicParties.map(party => {
+                const coords = extractCoordsFromUrl(party.location);
+                let distance: number | undefined;
+                if (coords) {
+                    distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
+                }
+                return { ...party, distance };
+            });
+            partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+             return {
+                publicVibes: publicV,
+                myVibes: [...publicV, ...privateV],
+                myMeetups: myM,
+                sortedPublicParties: partiesWithDistance,
+            };
+        }
 
         return {
             publicVibes: publicV,
-            myVibes: [...publicV, ...privateV], // For now, "My Vibes" is just all vibes they can see
+            myVibes: [...publicV, ...privateV],
             myMeetups: myM,
-            sortedPublicParties: partiesWithDistance,
+            sortedPublicParties: publicParties,
         };
     }, [allVibes, publicParties, userLocation]);
 
@@ -335,36 +358,16 @@ export default function CommonRoomClient() {
                                 <TabsTrigger value="my-space"><UserCircle className="mr-2"/> My Space</TabsTrigger>
                             </TabsList>
                             <TabsContent value="discover" className="mt-4">
-                               <Accordion type="single" collapsible defaultValue="meetups" className="w-full space-y-4">
-                                    <AccordionItem value="meetups">
-                                        <AccordionTrigger className="text-xl font-bold hover:no-underline">Public Meetups</AccordionTrigger>
-                                        <AccordionContent>
-                                            <PartyList parties={sortedPublicParties} />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                     <AccordionItem value="vibes">
-                                        <AccordionTrigger className="text-xl font-bold hover:no-underline">Public Vibes</AccordionTrigger>
-                                        <AccordionContent>
-                                            <VibeList vibes={publicVibes} parties={sortedPublicParties} title="Public" />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                               </Accordion>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <PartyList parties={sortedPublicParties} title="Public Meetups" locationStatus={locationStatus} />
+                                    <VibeList vibes={publicVibes} parties={sortedPublicParties} title="Public Vibes" />
+                                </div>
                             </TabsContent>
                             <TabsContent value="my-space" className="mt-4">
-                               <Accordion type="single" collapsible defaultValue="my-meetups" className="w-full space-y-4">
-                                    <AccordionItem value="my-meetups">
-                                        <AccordionTrigger className="text-xl font-bold hover:no-underline">My Upcoming Meetups</AccordionTrigger>
-                                        <AccordionContent>
-                                            <PartyList parties={myMeetups} />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                     <AccordionItem value="my-vibes">
-                                        <AccordionTrigger className="text-xl font-bold hover:no-underline">My Vibes & Invites</AccordionTrigger>
-                                        <AccordionContent>
-                                           <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes" />
-                                        </AccordionContent>
-                                    </AccordionItem>
-                               </Accordion>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <PartyList parties={myMeetups} title="My Upcoming Meetups" locationStatus={'unavailable'} />
+                                    <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes & Invites" />
+                                </div>
                             </TabsContent>
                         </Tabs>
                     )}
