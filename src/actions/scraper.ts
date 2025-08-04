@@ -65,3 +65,28 @@ export async function scrapeUrlAction(url: string): Promise<{success: boolean, c
     return { success: false, error: `An unexpected error occurred during scraping: ${error.message}` };
   }
 }
+
+/**
+ * Resolves a shortened URL to its final destination URL.
+ * @param {string} url - The shortened URL to resolve.
+ * @returns {Promise<{success: boolean, finalUrl?: string, error?: string}>}
+ */
+export async function resolveUrlAction(url: string): Promise<{success: boolean, finalUrl?: string, error?: string}> {
+    if (!url) {
+        return { success: false, error: 'No URL provided.' };
+    }
+
+    try {
+        // Using HEAD request to be more efficient as we only need the final URL, not the content
+        const response = await axios.head(url, {
+            maxRedirects: 5, // Follow up to 5 redirects
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+        });
+        return { success: true, finalUrl: response.request.res.responseUrl };
+    } catch (error: any) {
+        console.error(`[URL Resolver] Error resolving URL ${url}:`, error.message);
+        return { success: false, error: `Could not resolve URL. Reason: ${error.message}` };
+    }
+}

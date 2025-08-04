@@ -26,6 +26,7 @@ import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { resolveUrlAction } from '@/actions/scraper';
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -277,12 +278,14 @@ export default function CommonRoomClient() {
     const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
         console.log("[Debug] extractCoordsFromUrl - URL:", url);
         if (!url) return null;
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
+        // Updated regex to handle more general coordinate formats in URLs
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)|z=.*&q=(-?\d+\.\d+),(-?\d+\.\d+)/;
         const match = url.match(regex);
         console.log("[Debug] extractCoordsFromUrl - Regex match:", match);
         if (match) {
-            const lat = parseFloat(match[1] || match[3]);
-            const lon = parseFloat(match[2] || match[4]);
+            // Check all possible capture groups
+            const lat = parseFloat(match[1] || match[3] || match[5]);
+            const lon = parseFloat(match[2] || match[4] || match[6]);
             if (!isNaN(lat) && !isNaN(lon)) {
                 console.log("[Debug] extractCoordsFromUrl - Coords found:", { lat, lon });
                 return { lat, lon };
@@ -323,23 +326,31 @@ export default function CommonRoomClient() {
     
     useEffect(() => {
         console.log("[Debug] Recalculating sorted parties. User location:", userLocation, "Public parties:", publicParties.length);
-        if (publicParties.length > 0) {
-            const partiesWithDistance = publicParties.map(party => {
-                const coords = extractCoordsFromUrl(party.location);
-                let distance: number | undefined;
-                if (coords && userLocation) {
-                    distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
-                }
-                return { ...party, distance };
-            });
+        if (publicParties.length > 0 && userLocation) {
+            const processParties = async () => {
+                const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
+                    let finalUrl = party.location;
+                    if (party.location.includes('goo.gl')) {
+                        const result = await resolveUrlAction(party.location);
+                        if (result.success && result.finalUrl) {
+                            finalUrl = result.finalUrl;
+                        }
+                    }
+                    const coords = extractCoordsFromUrl(finalUrl);
+                    let distance: number | undefined;
+                    if (coords) {
+                        distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
+                    }
+                    return { ...party, distance };
+                }));
 
-            if (userLocation) {
                 partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-            }
-            console.log("[Debug] Final sorted parties with distance:", partiesWithDistance);
-            setSortedPublicParties(partiesWithDistance);
+                console.log("[Debug] Final sorted parties with distance:", partiesWithDistance);
+                setSortedPublicParties(partiesWithDistance);
+            };
+            processParties();
         } else {
-            setSortedPublicParties([]);
+            setSortedPublicParties(publicParties); // Show unsorted if no location
         }
     }, [publicParties, userLocation]);
 
