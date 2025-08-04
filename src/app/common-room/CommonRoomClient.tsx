@@ -149,9 +149,10 @@ function VibeList({ vibes }: { vibes: ClientVibe[] }) {
 function PartyList({ parties }: { parties: ClientParty[] }) {
     if (parties.length === 0) {
         return (
-            <p className="text-muted-foreground text-sm text-center py-8">
-                No upcoming parties. Why not plan one?
-            </p>
+            <div className="text-muted-foreground text-sm text-center py-8 space-y-2">
+                <p className="font-semibold">No upcoming meetups found.</p>
+                <p>To plan a meetup, start a Vibe and use the "Start a Meetup" button inside it.</p>
+            </div>
         );
     }
 
