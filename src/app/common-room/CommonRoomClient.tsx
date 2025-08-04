@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -218,7 +217,7 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
-    const { toast } } = useToast();
+    const { toast } = useToast();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [sortedPublicParties, setSortedPublicParties] = useState<ClientParty[]>([]);
@@ -382,5 +381,3 @@ export default function CommonRoomClient() {
         </div>
     )
 }
-
-    
