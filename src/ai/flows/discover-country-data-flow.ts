@@ -63,7 +63,7 @@ const discoverCountryDataFlow = ai.defineFlow(
         5.  **localNews**: A list of 2-3 of the most reputable, English-language local news outlets based in that specific country. Provide only the root domain (e.g., "bangkokpost.com").
         6.  **visaInformation**: A comprehensive, multi-sentence summary of the tourist visa policy. Include details on visa-free entry, visa on arrival, e-visas, and typical lengths of stay for common nationalities (e.g., US, UK, EU, Australia). Mention if policies vary by entry point.
         7.  **etiquette**: A detailed list of 5-7 of the most important cultural etiquette rules for travelers. Explain the 'why' behind the rule if possible (e.g., "Always show respect for the King as he is a revered figure in the culture."). Cover topics like greetings, dining, dress code, and social interactions.
-        8.  **publicHolidays**: A comprehensive list of at least 8-10 of the most significant national public holidays and major festivals for the entire year, with their approximate dates or date ranges (e.g., "Songkran (Thai New Year) - April 13-15").
+        8.  **publicHolidays**: A comprehensive list of at least 8-10 of the most significant national public holidays and major festivals for the entire year, **sorted chronologically by date**. Provide the date range and the name for each holiday.
         9.  **emergencyNumbers**: A detailed list containing the national numbers for Police, Ambulance, and Fire. If available, also include a dedicated Tourist Police number and any other relevant emergency contacts.
       `,
       model: 'googleai/gemini-1.5-pro',

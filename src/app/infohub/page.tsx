@@ -355,10 +355,23 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                               {(staticIntel && staticIntel.publicHolidays) ? (
-                                    <ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {staticIntel.publicHolidays.map((event, index) => <li key={`holiday-${index}`}>{event}</li>)}
-                                    </ul>
+                               {(staticIntel && staticIntel.publicHolidays && staticIntel.publicHolidays.length > 0) ? (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="w-[200px]">Date</TableHead>
+                                                <TableHead>Holiday</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {staticIntel.publicHolidays.map((event, index) => (
+                                                <TableRow key={`holiday-${index}`}>
+                                                    <TableCell className="font-medium">{event.date}</TableCell>
+                                                    <TableCell>{event.name}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
                                ) : (
                                    <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                )}

@@ -25,10 +25,17 @@ export const DiscoverCountryDataOutputSchema = z.object({
   neighbours: z.array(z.string()).describe("A list of country codes (ISO 3166-1 alpha-2) for all countries sharing a land border."),
   regionalNews: z.array(z.string()).describe("A list of 3-4 reputable, English-language news source root URLs covering the broader geopolitical region."),
   localNews: z.array(z.string()).describe("A list of 2-3 reputable, English-language news source root URLs based in the target country itself."),
-  visaInformation: z.string().describe("A brief, one-sentence summary of the general tourist visa policy."),
-  etiquette: z.array(z.string()).describe("A list of 3-4 bullet points of essential cultural etiquette for travelers."),
-  publicHolidays: z.array(z.string()).describe("A list of 3-5 major national public holidays or festivals, including their approximate dates."),
-  emergencyNumbers: z.array(z.string()).describe("A list of the national emergency numbers for Police, Ambulance, and Fire."),
+  visaInformation: z.string().describe("A comprehensive, multi-sentence summary of the tourist visa policy for major nationalities (US, UK, EU, AUS)."),
+  etiquette: z.array(z.string()).describe("A detailed list of 5-7 essential cultural etiquette rules for travelers."),
+  publicHolidays: z
+    .array(
+        z.object({
+            date: z.string().describe("The date or date range of the holiday (e.g., 'January 1', 'April 13-15')."),
+            name: z.string().describe("The name of the holiday."),
+        })
+    )
+    .describe("A comprehensive list of at least 8-10 of the most significant national public holidays and major festivals for the entire year, sorted chronologically."),
+  emergencyNumbers: z.array(z.string()).describe("A detailed list of national emergency numbers for Police, Ambulance, and Fire, plus any Tourist Police numbers."),
 });
 export type DiscoverCountryDataOutput = z.infer<typeof DiscoverCountryDataOutputSchema>;
 

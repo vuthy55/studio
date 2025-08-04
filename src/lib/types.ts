@@ -222,7 +222,7 @@ export interface CountryIntelData {
     localNews: string[];
     visaInformation: string;
     etiquette: string[];
-    publicHolidays: string[];
+    publicHolidays: { date: string; name: string }[];
     emergencyNumbers: string[];
     // New fields for build status
     lastBuildStatus?: 'success' | 'failed';
