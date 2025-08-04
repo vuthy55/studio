@@ -41,7 +41,7 @@ export async function searchWebAction(payload: SearchWebActionPayload): Promise<
     };
 
     if (dateRestrict) {
-        params.dateRestrict = dateRestrict;
+        params.sort = `date:r:${dateRestrict}`;
     }
 
     try {

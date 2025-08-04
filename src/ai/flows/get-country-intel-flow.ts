@@ -24,7 +24,7 @@ type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
 const OverallAssessmentSchema = z.object({
     paragraph1: z.string().describe("Paragraph 1: Start with a direct statement about the overall travel situation for tourists in the main, commonly visited areas."),
-    paragraph2: z.string().describe("Paragraph 2: If there are specific high-risk zones (e.g., border regions, certain provinces), name them and explain the danger. If there are no specific zones, detail the most important general issues (e.g., common scams, health advice)."),
+    paragraph2: z.string().describe("Paragraph 2: If there are specific high-risk zones (e.g., border regions, certain provinces), you MUST name them and explain the danger. If there are no specific zones, detail the most important general issues (e.g., common scams, health advice)."),
     paragraph3: z.string().describe("Paragraph 3: Provide a concluding recommendation for backpackers, summarizing whether it's safe to go and what precautions to take."),
     categoryAssessments: z.object({
         'Official Advisory': z.number().min(0).max(10).describe("Severity score (0-10) for Official Advisory."),
@@ -104,10 +104,11 @@ function parseDate(dateString: string): Date | null {
  * @param apiKey The Google API key.
  * @param searchEngineId The Google Custom Search Engine ID.
  * @param debugLog An array to log debug messages.
+ * @param strictDateCheck If true, enforces a 30-day freshness check. If false, allows any date.
  * @returns A promise that resolves to an array of verified sources.
  */
-async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{snippet: string; url: string}[]> {
-    debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
+async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[], strictDateCheck: boolean): Promise<{snippet: string; url: string}[]> {
+    debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search. Query: "${query}", Strict Date Check: ${strictDateCheck}`);
     
     const searchResult = await searchWebAction({ 
         query, 
@@ -124,7 +125,7 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
         return [];
     }
     
-    debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources. Starting strict date verification...`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources. Starting date verification...`);
     const verifiedSources = [];
     const thirtyDaysAgo = subDays(new Date(), 30);
 
@@ -134,8 +135,13 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
             continue;
         }
 
+        if (!strictDateCheck) {
+            debugLog.push(`[Intel Flow] (searchAndVerify) - PASSED (date check ignored): ${item.link}`);
+            verifiedSources.push({ snippet: item.snippet, url: item.link });
+            continue;
+        }
+
         // Try to find a date within the snippet text.
-        // Google often prepends snippets with "YYYY-MM-DD — " or "Month Day, YYYY ...".
         const dateMatch = item.snippet.match(/^([A-Za-z]+\s\d{1,2},\s\d{4}|\d{4}-\d{2}-\d{2}|\d+\s\w+\sago)/);
         let publicationDate: Date | null = null;
         
@@ -156,7 +162,7 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
         }
     }
     
-    debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} recent sources for query: "${query}"`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} sources for query: "${query}"`);
     return verifiedSources;
 }
 
@@ -225,22 +231,24 @@ const getCountryIntelFlow = ai.defineFlow(
     const regionalNewsSitesQuery = buildSiteSearchQuery(countryData.regionalNews);
     const localNewsSitesQuery = buildSiteSearchQuery(countryData.localNews);
     const neighborNewsSitesQuery = buildSiteSearchQuery(neighborData.flatMap(n => n.localNews));
+    
+    // Handle special case for Myanmar/Burma
+    const advisoryCountryName = countryName === 'Myanmar' ? '(Myanmar OR Burma)' : countryName;
 
-    const categories: Record<string, string> = {
-        'Political Stability': `(political situation OR protests OR civil unrest OR war) in ${countryName} ${globalNewsSitesQuery} ${regionalNewsSitesQuery}`,
-        'Health': `(health risks OR disease outbreaks) in ${countryName} ${globalNewsSitesQuery}`,
-        'Scams & Theft': `(tourist scams OR fraud OR theft OR robbery) in ${countryName} ${neighborNewsSitesQuery} ${localNewsSitesQuery}`,
-        'Official Advisory': `official government travel advisory ${countryName} ${governmentSitesQuery}`,
+    const categories: Record<string, { query: string; strictDate: boolean }> = {
+        'Political Stability': { query: `(political situation OR protests OR civil unrest OR war) in ${countryName} ${globalNewsSitesQuery} ${regionalNewsSitesQuery}`, strictDate: true },
+        'Health': { query: `(health risks OR disease outbreaks) in ${countryName} ${globalNewsSitesQuery}`, strictDate: true },
+        'Scams & Theft': { query: `(tourist scams OR fraud OR theft OR robbery) in ${countryName} ${neighborNewsSitesQuery} ${localNewsSitesQuery}`, strictDate: true },
+        'Official Advisory': { query: `official government travel advisory ${advisoryCountryName} ${governmentSitesQuery}`, strictDate: false },
     };
     
     // --- Step 3: Sequentially process each category ---
     const allSourcesByCategory: Record<string, {snippet: string, url: string}[]> = {};
     
-    for (const [key, query] of Object.entries(categories)) {
+    for (const [key, { query, strictDate }] of Object.entries(categories)) {
         debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
-        debugLog.push(`[Intel Flow] DEBUG - Query: "${query}"`);
         
-        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog);
+        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog, strictDate);
         allSourcesByCategory[key] = sources;
         
         debugLog.push(`[Intel Flow] Finished processing category: "${key}". Found ${sources.length} sources.`);
@@ -281,10 +289,10 @@ const getCountryIntelFlow = ai.defineFlow(
         Based *only* on the information provided in the snippets above, perform the following actions:
 
         1.  **Severity Score Assessment:** For each category (Official Advisory, Health, etc.), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel).
-        2.  **Red Flag Protocol:** If you see clear terms like "do not travel", "state of emergency", "civil unrest", "war", or official government advice against travel to specific regions, you MUST:
-            a. Assign a 10 to the 'Official Advisory' and/or 'Political Stability' category.
-            b. **Explicitly name the dangerous regions** in the second paragraph of the summary.
-        3.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.** This summary should be nuanced. If only part of a country is dangerous, make that clear. Your final recommendation should reflect this nuance.
+        2.  **Red Flag Protocol:** This is the most important rule. If you see clear terms like "do not travel", "reconsider travel", "state of emergency", "civil unrest", "war", or official government advice against travel to specific regions, you MUST:
+            a. Assign a 10 to the 'Official Advisory' and/or 'Political Stability' category. This is mandatory.
+            b. In the second paragraph of the summary, you MUST **explicitly name the dangerous regions** mentioned.
+        3.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.** Your summary MUST be nuanced. Acknowledge if the danger is localized. Your final recommendation should reflect this nuance, advising travelers to avoid specific areas while acknowledging that other parts of the country may be safe.
         `,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
