@@ -1,4 +1,3 @@
-
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -36,11 +35,62 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
     }
 }
 
-export async function getVibes(userEmail: string): Promise<Vibe[]> {
-    // This function is temporarily disabled to resolve a critical error.
-    // It will be re-implemented correctly in a future step.
-    console.log(`[getVibes] This function is temporarily disabled. Called for ${userEmail}`);
-    return [];
+// This type represents the "sanitized" Vibe object that is safe to send to the client.
+export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
+    createdAt: string;
+    lastPostAt?: string;
+}
+
+
+export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
+    if (!userEmail) return [];
+
+    try {
+        const vibesSnapshot = await db.collection('vibes').get();
+        if (vibesSnapshot.empty) {
+            return [];
+        }
+
+        // Helper to safely convert Firestore Timestamps to ISO strings
+        const toISO = (ts: any): string => {
+            if (!ts) return new Date(0).toISOString();
+            if (ts instanceof Timestamp) return ts.toDate().toISOString();
+            if (ts._seconds && typeof ts._seconds === 'number') {
+                return new Timestamp(ts._seconds, ts._nanoseconds || 0).toDate().toISOString();
+            }
+            if (typeof ts === 'string' && !isNaN(Date.parse(ts))) return ts;
+            return new Date(0).toISOString(); // Fallback for unexpected formats
+        };
+
+        const allVibes: ClientVibe[] = [];
+        vibesSnapshot.forEach(doc => {
+            const data = doc.data() as Vibe;
+            
+            // Filter logic: include if public or if the user is explicitly invited
+            const isInvited = data.invitedEmails?.includes(userEmail);
+            if (data.isPublic || isInvited) {
+                 allVibes.push({
+                    ...(data as any), // Spread the original data
+                    id: doc.id,
+                    createdAt: toISO(data.createdAt),
+                    lastPostAt: data.lastPostAt ? toISO(data.lastPostAt) : undefined,
+                });
+            }
+        });
+        
+        // Sort by last activity date, with a fallback to creation date
+        allVibes.sort((a, b) => {
+            const dateA = a.lastPostAt ? new Date(a.lastPostAt) : new Date(a.createdAt);
+            const dateB = b.lastPostAt ? new Date(b.lastPostAt) : new Date(b.createdAt);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        return allVibes;
+
+    } catch (error) {
+        console.error("[getVibes] Error fetching vibes:", error);
+        return []; // Return an empty array on error to prevent client crashes
+    }
 }
 
 

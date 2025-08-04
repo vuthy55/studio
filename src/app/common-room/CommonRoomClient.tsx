@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -19,11 +18,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle } from 'lucide-react';
-import type { Vibe } from '@/lib/types';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, MessageSquare } from 'lucide-react';
+import { Vibe } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe, inviteToVibe } from '@/actions/common-room';
+import { getVibes, startVibe, inviteToVibe, ClientVibe } from '@/actions/common-room';
 import { formatDistanceToNow } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -106,30 +105,89 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
-    
-    // For now, we are just creating vibes, not listing them.
-    // The onVibeCreated function can be used later to trigger a refetch.
-    const handleVibeCreated = () => {
-        console.log("A new vibe was created. We can refetch the list here in the future.");
-    };
+    const { toast } = useToast();
+    const [vibes, setVibes] = useState<ClientVibe[]>([]);
+    const [isFetching, setIsFetching] = useState(true);
+
+    const fetchVibes = useCallback(async () => {
+        if (!user || !user.email) {
+            setVibes([]);
+            return;
+        }
+        setIsFetching(true);
+        try {
+            const fetchedVibes = await getVibes(user.email);
+            setVibes(fetchedVibes);
+        } catch (error) {
+            console.error("Error fetching vibes:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch common rooms.' });
+        } finally {
+            setIsFetching(false);
+        }
+    }, [user, toast]);
+
+    useEffect(() => {
+        if (!loading && user) {
+            fetchVibes();
+        } else if (!loading && !user) {
+            setIsFetching(false);
+        }
+    }, [loading, user, fetchVibes]);
 
     return (
         <div className="space-y-6">
             <div className="flex justify-end">
-                <CreateVibeDialog onVibeCreated={handleVibeCreated} />
+                <CreateVibeDialog onVibeCreated={fetchVibes} />
             </div>
 
             <Card>
                 <CardHeader>
                     <CardTitle>Welcome to the Common Room</CardTitle>
                     <CardDescription>
-                        This is a place to connect with other travelers. Start a vibe to begin a new discussion.
+                        This is a place to connect with other travelers. Start a vibe or join an existing discussion.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-muted-foreground text-sm text-center py-8">
-                        The vibe list will be displayed here soon.
-                    </p>
+                    {isFetching ? (
+                        <div className="flex justify-center items-center py-8">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : vibes.length > 0 ? (
+                        <div className="space-y-4">
+                            {vibes.map(vibe => (
+                                <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
+                                    <Card className="hover:border-primary transition-colors">
+                                        <CardContent className="p-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-semibold text-lg">{vibe.topic}</h3>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Started by {vibe.creatorName}
+                                                    </p>
+                                                </div>
+                                                <Badge variant={vibe.isPublic ? 'secondary' : 'default'}>
+                                                    {vibe.isPublic ? 'Public' : 'Private'}
+                                                </Badge>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground mt-4">
+                                                <div className="flex items-center gap-1">
+                                                    <MessageSquare className="h-3 w-3" />
+                                                    <span>{vibe.postsCount} posts</span>
+                                                </div>
+                                                <span>
+                                                    {vibe.lastPostAt ? `Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}` : `Created ${formatDistanceToNow(new Date(vibe.createdAt), { addSuffix: true })}`}
+                                                </span>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                            ))}
+                        </div>
+                    ) : (
+                         <p className="text-muted-foreground text-sm text-center py-8">
+                            No vibes found. Why not start one?
+                        </p>
+                    )}
                 </CardContent>
             </Card>
         </div>
