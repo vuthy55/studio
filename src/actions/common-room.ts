@@ -4,6 +4,7 @@
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe } from '@/lib/types';
+import { sendVibeInviteEmail } from './email';
 
 
 interface StartVibePayload {
@@ -134,7 +135,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
     }
 }
 
-export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string): Promise<{ success: boolean; error?: string }> {
+export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string, inviterId: string): Promise<{ success: boolean; error?: string }> {
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
         
@@ -163,11 +164,16 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         });
         await notificationBatch.commit();
         
-        // Handle sending emails to non-users (placeholder for now)
+        // Handle sending emails to non-users
         const externalEmails = emails.filter(email => !existingEmails.has(email));
         if (externalEmails.length > 0) {
-            console.log("Would send email invites to external users:", externalEmails);
-            // In a real app, you would integrate an email service here.
+            const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/join-vibe/${vibeId}?ref=${inviterId}`;
+            await sendVibeInviteEmail({
+                to: externalEmails,
+                vibeTopic: vibeTopic,
+                creatorName: creatorName,
+                joinUrl: joinUrl
+            });
         }
 
         return { success: true };

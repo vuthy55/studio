@@ -5,7 +5,7 @@ import { auth, db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
 import { getFreeLanguagePacks } from './audiopack-admin';
-import type { SyncRoom } from '@/lib/types';
+import type { SyncRoom, Vibe } from '@/lib/types';
 
 interface SignUpPayload {
   name: string;
@@ -20,19 +20,23 @@ interface SignUpPayload {
 /**
  * Creates a new user in Firebase Authentication and Firestore,
  * and handles referral bonuses if applicable.
- * If a roomId is provided, it returns the room's status.
+ * If a roomId or vibeId is provided, it returns the relevant status.
  * This is a secure server-side action.
  */
 export async function signUpUser(
   payload: SignUpPayload,
   referralId: string | null,
-  roomId?: string | null
+  roomId?: string | null,
+  vibeId?: string | null
 ): Promise<{
   success: boolean;
   error?: string;
   userId?: string;
+  // Room specific
   roomStatus?: 'active' | 'scheduled' | 'closed';
   scheduledAt?: string;
+  // Vibe specific
+  vibeExists?: boolean;
 }> {
   const { name, email, password, country, mobile, defaultLanguage, photoURL } = payload;
   const lowerCaseEmail = email.toLowerCase();
@@ -167,13 +171,22 @@ export async function signUpUser(
         console.log(`[signUpUser] Deleting pending invitation document ${invitationDoc.id}`);
         batch.delete(invitationDoc.ref);
     }
+    
+    // 3e. If joining a Vibe, add user to the invited list to ensure permissions
+    if (vibeId) {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        batch.update(vibeRef, {
+            invitedEmails: FieldValue.arrayUnion(lowerCaseEmail)
+        });
+        console.log(`[signUpUser] Added ${lowerCaseEmail} to invited list for Vibe ${vibeId}`);
+    }
 
     // --- Step 4: Commit the entire batch ---
     console.log('[signUpUser] Step 4: Committing batch to Firestore...');
     await batch.commit();
     console.log('[signUpUser] Batch committed successfully.');
     
-    // --- Step 5: Handle Room Logic (if applicable) ---
+    // --- Step 5: Handle Post-Signup Logic (Room or Vibe) ---
     if (roomId) {
         console.log('[signUpUser] Step 5: Room ID provided. Checking room status...');
         const roomRef = db.collection('syncRooms').doc(roomId);
@@ -193,6 +206,14 @@ export async function signUpUser(
              console.log('[signUpUser] Room with ID', roomId, 'not found.');
         }
     }
+    
+    if (vibeId) {
+        console.log('[signUpUser] Step 5: Vibe ID provided. Checking vibe status...');
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const vibeDoc = await vibeRef.get();
+        return { success: true, userId: uid, vibeExists: vibeDoc.exists() };
+    }
+
 
     console.log('[signUpUser] Process completed successfully.');
     return { success: true, userId: uid };

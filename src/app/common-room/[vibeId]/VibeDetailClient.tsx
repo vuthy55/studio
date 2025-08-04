@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 
 
 function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId: string, vibeTopic: string, creatorName: string, onInviteSent: () => void }) {
+    const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,10 +36,14 @@ function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId
             toast({ variant: 'destructive', title: 'No emails entered' });
             return;
         }
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Authentication Error' });
+            return;
+        }
 
         setIsSubmitting(true);
         try {
-            const result = await inviteToVibe(vibeId, emailList, vibeTopic, creatorName);
+            const result = await inviteToVibe(vibeId, emailList, vibeTopic, creatorName, user.uid);
             if (result.success) {
                 toast({ title: 'Invites Sent!', description: 'The users have been invited to this Vibe.' });
                 setIsOpen(false);
