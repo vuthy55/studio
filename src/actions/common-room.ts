@@ -37,8 +37,14 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
 }
 
 export async function getVibes(userEmail: string): Promise<Vibe[]> {
+    console.log(`[DEBUG] Server Action getVibes: Called for user ${userEmail}`);
     try {
-        const allVibesSnapshot = await db.collection('vibes').get();
+        const vibesRef = db.collection('vibes');
+        
+        console.log('[DEBUG] Server Action getVibes: Fetching all vibe documents.');
+        const allVibesSnapshot = await vibesRef.get();
+        console.log(`[DEBUG] Server Action getVibes: Found ${allVibesSnapshot.docs.length} total vibes in the collection.`);
+
         if (allVibesSnapshot.empty) {
             return [];
         }
@@ -56,13 +62,12 @@ export async function getVibes(userEmail: string): Promise<Vibe[]> {
         const accessibleVibes = allVibes.filter(vibe => {
             return vibe.isPublic || (vibe.invitedEmails && vibe.invitedEmails.includes(userEmail));
         });
-
-        // Sorting is now handled on the client side to simplify the query
+        
+        console.log(`[DEBUG] Server Action getVibes: Returning ${accessibleVibes.length} accessible vibes.`);
         return accessibleVibes;
 
     } catch (error) {
-        console.error("Error fetching vibes with Admin SDK:", error);
-        // Re-throw the error to be caught by the client
+        console.error("[DEBUG] Server Action getVibes: CRITICAL ERROR fetching vibes:", error);
         throw new Error("An unexpected server error occurred while fetching vibes.");
     }
 }
@@ -72,17 +77,14 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
         
-        // Add emails to the invite list
         await vibeRef.update({
             invitedEmails: FieldValue.arrayUnion(...emails)
         });
 
-        // The joinUrl should be constructed on the server to ensure consistency.
         const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/join/${vibeId}`;
-
-        // Send in-app notifications to existing users
+        
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await getDocs(existingUsersQuery);
+        const existingUsersSnapshot = await existingUsersQuery.get();
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         const batch = db.batch();
@@ -99,7 +101,6 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         });
         await batch.commit();
 
-        // Send email invites to non-users
         const externalEmails = emails.filter(email => !existingEmails.has(email));
         if (externalEmails.length > 0) {
             await sendVibeInviteEmail({

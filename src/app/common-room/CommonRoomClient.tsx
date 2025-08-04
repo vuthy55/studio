@@ -172,10 +172,16 @@ export default function CommonRoomClient() {
     const [isFetching, setIsFetching] = useState(true);
 
     const fetchVibes = useCallback(async () => {
-        if (!user || !user.email) return;
+        console.log('[DEBUG] CommonRoomClient: fetchVibes called.');
+        if (!user || !user.email) {
+            console.log('[DEBUG] CommonRoomClient: No user or user email, returning.');
+            return;
+        }
         setIsFetching(true);
+        console.log(`[DEBUG] CommonRoomClient: Fetching vibes for user: ${user.email}`);
         try {
             const fetchedVibes = await getVibes(user.email);
+            console.log(`[DEBUG] CommonRoomClient: Successfully fetched ${fetchedVibes.length} vibes.`);
             // Sort on the client side
             const sortedVibes = fetchedVibes.sort((a, b) => {
                 const timeA = a.lastPostAt ? new Date(a.lastPostAt).getTime() : new Date(a.createdAt).getTime();
@@ -184,13 +190,16 @@ export default function CommonRoomClient() {
             });
             setVibes(sortedVibes);
         } catch (error: any) {
+            console.error('[DEBUG] CommonRoomClient: Error calling getVibes action.', error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch Common Rooms.' });
         } finally {
+            console.log('[DEBUG] CommonRoomClient: Finished fetching, setting isFetching to false.');
             setIsFetching(false);
         }
     }, [user, toast]);
 
     useEffect(() => {
+        console.log(`[DEBUG] CommonRoomClient: useEffect triggered. Loading: ${loading}, User: ${!!user}`);
         if (!loading && user) {
             fetchVibes();
         }
