@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile, CountryIntelData } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -1863,10 +1863,7 @@ function IntelTabContent() {
     
     const countriesByRegion = useMemo(() => {
         const regions: Record<string, LightweightCountry[]> = {};
-        const builtCountryCodes = new Set(intelData.map(c => c.id));
-
         lightweightCountries.forEach(country => {
-            if (builtCountryCodes.has(country.code)) return;
             const region = country.region || 'Uncategorized';
             if (!regions[region]) {
                 regions[region] = [];
@@ -1880,7 +1877,9 @@ function IntelTabContent() {
             sortedRegions[key] = regions[key];
         });
         return sortedRegions;
-    }, [intelData]);
+    }, []);
+
+    const builtCountryCodes = useMemo(() => new Set(intelData.map(c => c.id)), [intelData]);
 
     const handleBuildDatabase = async () => {
         if(selectedCountries.length === 0) {
@@ -1993,7 +1992,7 @@ function IntelTabContent() {
                                     <DialogHeader>
                                         <DialogTitle>Build Country Intel Database</DialogTitle>
                                         <DialogDescription>
-                                            Select regions or specific countries to research and add to the database. This is a time-consuming operation.
+                                            Select regions or countries to research. Re-selecting a country will overwrite its existing data with fresh information.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <ScrollArea className="h-[60vh]">
@@ -2032,7 +2031,21 @@ function IntelTabContent() {
                                                                                 setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
                                                                             }}
                                                                         />
-                                                                        <Label htmlFor={country.code}>{country.name}</Label>
+                                                                        <Label htmlFor={country.code} className="flex items-center gap-1.5">
+                                                                            {country.name}
+                                                                            {builtCountryCodes.has(country.code) && (
+                                                                                <TooltipProvider>
+                                                                                    <Tooltip>
+                                                                                        <TooltipTrigger>
+                                                                                            <Database className="h-3 w-3 text-muted-foreground" />
+                                                                                        </TooltipTrigger>
+                                                                                        <TooltipContent>
+                                                                                            <p>Data exists. Re-selecting will overwrite.</p>
+                                                                                        </TooltipContent>
+                                                                                    </Tooltip>
+                                                                                </TooltipProvider>
+                                                                            )}
+                                                                        </Label>
                                                                     </div>
                                                                 ))}
                                                             </div>
