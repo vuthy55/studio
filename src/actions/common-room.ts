@@ -38,42 +38,35 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
 
 export async function getVibes(userEmail: string): Promise<Vibe[]> {
     try {
-        const publicVibesQuery = db.collection('vibes').where('isPublic', '==', true);
-        const privateVibesQuery = db.collection('vibes').where('invitedEmails', 'array-contains', userEmail);
+        const allVibesSnapshot = await db.collection('vibes').get();
+        if (allVibesSnapshot.empty) {
+            return [];
+        }
+
+        const allVibes = allVibesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: (data.createdAt as Timestamp)?.toDate().toISOString(),
+                lastPostAt: (data.lastPostAt as Timestamp)?.toDate().toISOString(),
+            } as Vibe;
+        });
         
-        const [publicSnapshot, privateSnapshot] = await Promise.all([
-            publicVibesQuery.get(),
-            privateVibesQuery.get()
-        ]);
-
-        const allVibes = new Map<string, Vibe>();
-
-        const processSnapshot = (snapshot: FirebaseFirestore.QuerySnapshot) => {
-            snapshot.forEach(doc => {
-                if (!allVibes.has(doc.id)) {
-                    const data = doc.data();
-                    allVibes.set(doc.id, {
-                        id: doc.id,
-                        ...data,
-                        createdAt: (data.createdAt as Timestamp)?.toDate().toISOString(),
-                        lastPostAt: (data.lastPostAt as Timestamp)?.toDate().toISOString(),
-                    } as Vibe);
-                }
-            });
-        };
-
-        processSnapshot(publicSnapshot);
-        processSnapshot(privateSnapshot);
+        const accessibleVibes = allVibes.filter(vibe => {
+            return vibe.isPublic || (vibe.invitedEmails && vibe.invitedEmails.includes(userEmail));
+        });
 
         // Sorting is now handled on the client side to simplify the query
-        return Array.from(allVibes.values());
+        return accessibleVibes;
 
     } catch (error) {
-        console.error("Error fetching vibes:", error);
+        console.error("Error fetching vibes with Admin SDK:", error);
         // Re-throw the error to be caught by the client
         throw new Error("An unexpected server error occurred while fetching vibes.");
     }
 }
+
 
 export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: string, creatorName: string): Promise<{ success: boolean; error?: string }> {
     try {
