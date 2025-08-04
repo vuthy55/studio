@@ -104,11 +104,11 @@ export type Vibe = {
     isPublic: boolean;
     creatorId: string;
     creatorName: string;
-    createdAt: string; // ISO String
+    createdAt: any; // Allow for server, client, and serialized forms
     invitedEmails: string[];
     hostEmails: string[];
     postsCount: number;
-    lastPostAt?: string; // ISO String
+    lastPostAt?: any; // Allow for server, client, and serialized forms
     lastPostBy?: string;
 }
 

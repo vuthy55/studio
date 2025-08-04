@@ -49,23 +49,29 @@ export async function getVibes(userEmail: string): Promise<Vibe[]> {
             return [];
         }
 
-        const allVibes = allVibesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            // Convert Timestamps to ISO strings for serialization
-            const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString();
-            const lastPostAt = (data.lastPostAt as Timestamp)?.toDate()?.toISOString() || undefined;
+        const accessibleVibes = allVibesSnapshot.docs
+            .map(doc => {
+                const data = doc.data();
+                return { id: doc.id, ...data } as Vibe;
+            })
+            .filter(vibe => {
+                return vibe.isPublic || (vibe.invitedEmails && vibe.invitedEmails.includes(userEmail));
+            })
+            .map(vibe => {
+                // Safely convert Timestamps to ISO strings for serialization
+                const toISO = (ts: any): string | undefined => {
+                    if (!ts) return undefined;
+                    if (ts instanceof Timestamp) return ts.toDate().toISOString();
+                    if (ts._seconds) return new Timestamp(ts._seconds, ts._nanoseconds).toDate().toISOString();
+                    return new Date(0).toISOString();
+                };
 
-            return {
-                id: doc.id,
-                ...data,
-                createdAt,
-                lastPostAt,
-            } as Vibe;
-        });
-        
-        const accessibleVibes = allVibes.filter(vibe => {
-            return vibe.isPublic || (vibe.invitedEmails && vibe.invitedEmails.includes(userEmail));
-        });
+                return {
+                    ...vibe,
+                    createdAt: toISO(vibe.createdAt) || new Date(0).toISOString(),
+                    lastPostAt: toISO(vibe.lastPostAt),
+                };
+            });
         
         console.log(`[DEBUG] Server Action getVibes: Returning ${accessibleVibes.length} accessible vibes.`);
         return accessibleVibes;

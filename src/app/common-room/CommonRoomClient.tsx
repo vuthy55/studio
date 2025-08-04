@@ -191,7 +191,7 @@ export default function CommonRoomClient() {
             setVibes(sortedVibes);
         } catch (error: any) {
             console.error('[DEBUG] CommonRoomClient: Error calling getVibes action.', error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch Common Rooms.' });
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not fetch Common Rooms.' });
         } finally {
             console.log('[DEBUG] CommonRoomClient: Finished fetching, setting isFetching to false.');
             setIsFetching(false);
