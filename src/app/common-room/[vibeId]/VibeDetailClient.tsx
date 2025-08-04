@@ -145,29 +145,35 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { presentParticipants, invitedButNotPresent } = React.useMemo(() => {
         if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [] };
         
-        const present = new Map<string, {name: string, isHost: boolean}>();
+        // Create a map to store the most up-to-date name for each participant's email.
+        const emailToNameMap = new Map<string, string>();
+        
+        // A set of emails for users who are considered "present" (hosts who have posted or any author).
+        const presentEmails = new Set<string>();
 
-        // Add creator/hosts who have posted
-        if (vibeData.hostEmails) {
-            vibeData.hostEmails.forEach((email: string) => {
-                if (posts.some(p => p.authorName === email)) {
-                     present.set(email, { name: email, isHost: true });
-                }
-            });
-        }
-        
-        // Add post authors
-        posts.forEach(post => {
-            if (!present.has(post.authorName)) {
-                present.set(post.authorName, { name: post.authorName, isHost: vibeData.hostEmails?.includes(post.authorName) });
-            }
+        // Populate map and set from hosts
+        (vibeData.hostEmails || []).forEach((email: string) => {
+            emailToNameMap.set(email, email); // Default name is email
+            presentEmails.add(email);
         });
-        
-         // Find invited people who haven't posted
-        const invited = (vibeData.invitedEmails || []).filter((email: string) => !present.has(email));
-        
-        const presentList = Array.from(present.values()).sort((a, b) => b.isHost.toString().localeCompare(a.isHost.toString()));
-        return { presentParticipants: presentList, invitedButNotPresent: invited };
+
+        // Update map and set from post authors, ensuring the most recent name is used.
+        posts.forEach(post => {
+            const authorEmail = vibeData.hostEmails?.find((e: string) => e.split('@')[0] === post.authorName.split('@')[0]) || post.authorId;
+            emailToNameMap.set(authorEmail, post.authorName);
+            presentEmails.add(authorEmail);
+        });
+
+        const presentList = Array.from(presentEmails).map(email => ({
+            email,
+            name: emailToNameMap.get(email) || email,
+            isHost: vibeData.hostEmails?.includes(email)
+        })).sort((a, b) => b.isHost.toString().localeCompare(a.isHost.toString()));
+
+        // Invited but not present are those in invitedEmails but not in presentEmails.
+        const invitedList = (vibeData.invitedEmails || []).filter((email: string) => !presentEmails.has(email));
+
+        return { presentParticipants: presentList, invitedButNotPresent: invitedList };
 
     }, [vibeData, posts]);
 
@@ -233,8 +239,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <Separator />
                                 <div className="space-y-2">
                                     <h4 className="font-semibold text-sm flex items-center gap-2"><UserCheck /> Present ({presentParticipants.length})</h4>
-                                    {presentParticipants.map(({ name, isHost: isVibeHost }) => (
-                                        <div key={name} className="flex items-center gap-2 p-2 rounded-md bg-muted">
+                                    {presentParticipants.map(({ name, email, isHost: isVibeHost }) => (
+                                        <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted">
                                              <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
