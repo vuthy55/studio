@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
@@ -218,13 +218,16 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
-    const { toast } = useToast();
+    const { toast } } = useToast();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [sortedPublicParties, setSortedPublicParties] = useState<ClientParty[]>([]);
     
     const [isFetching, setIsFetching] = useState(true);
     const [activeTab, setActiveTab] = useState('discover');
+    const [activeDiscoverTab, setActiveDiscoverTab] = useState('meetups');
+    const [activeMySpaceTab, setActiveMySpaceTab] = useState('meetups');
+
     const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
     const [locationStatus, setLocationStatus] = useState<'loading' | 'denied' | 'success' | 'unavailable'>('unavailable');
 
@@ -251,7 +254,6 @@ export default function CommonRoomClient() {
         }
     }, [user, toast]);
     
-    // Function to calculate distance (Haversine formula)
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
         if (lat1 === lat2 && lon1 === lon2) {
             return 0;
@@ -267,9 +269,7 @@ export default function CommonRoomClient() {
         return R * c;
     };
 
-    // Extract lat/lon from Google Maps URL
     const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
-        // Updated regex to handle different Google Maps URL formats
         const match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/daddr=(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (match && match[1] && match[2]) {
             return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
@@ -328,12 +328,7 @@ export default function CommonRoomClient() {
 
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
-        const privateV = allVibes.filter(v => !v.isPublic);
-        
-        // This includes all vibes the user is part of (public and private)
         const myVibeIds = new Set(allVibes.map(v => v.id));
-
-        // Filter all parties to find ones associated with the user's vibes
         const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
         
         return {
@@ -387,3 +382,5 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
+    
