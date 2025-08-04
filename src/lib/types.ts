@@ -104,13 +104,14 @@ export type Vibe = {
     isPublic: boolean;
     creatorId: string;
     creatorName: string;
-    createdAt: any; // Allow for server, client, and serialized forms
+    createdAt: string; // Changed to string for client-side safety
     invitedEmails: string[];
     hostEmails: string[];
     postsCount: number;
-    lastPostAt?: any; // Allow for server, client, and serialized forms
+    lastPostAt?: string; // Changed to string for client-side safety
     lastPostBy?: string;
-}
+};
+
 
 export type VibePost = {
     id: string;

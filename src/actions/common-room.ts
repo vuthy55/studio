@@ -39,10 +39,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
 export async function getVibes(userEmail: string): Promise<Vibe[]> {
     console.log(`[DEBUG] Server Action getVibes: Called for user ${userEmail}`);
     try {
-        const vibesRef = db.collection('vibes');
-        
-        console.log('[DEBUG] Server Action getVibes: Fetching all vibe documents.');
-        const allVibesSnapshot = await vibesRef.get();
+        const allVibesSnapshot = await db.collection('vibes').get();
         console.log(`[DEBUG] Server Action getVibes: Found ${allVibesSnapshot.docs.length} total vibes in the collection.`);
 
         if (allVibesSnapshot.empty) {
@@ -52,25 +49,27 @@ export async function getVibes(userEmail: string): Promise<Vibe[]> {
         const accessibleVibes = allVibesSnapshot.docs
             .map(doc => {
                 const data = doc.data();
-                return { id: doc.id, ...data } as Vibe;
-            })
-            .filter(vibe => {
-                return vibe.isPublic || (vibe.invitedEmails && vibe.invitedEmails.includes(userEmail));
-            })
-            .map(vibe => {
                 // Safely convert Timestamps to ISO strings for serialization
                 const toISO = (ts: any): string | undefined => {
                     if (!ts) return undefined;
                     if (ts instanceof Timestamp) return ts.toDate().toISOString();
                     if (ts._seconds) return new Timestamp(ts._seconds, ts._nanoseconds).toDate().toISOString();
-                    return new Date(0).toISOString();
+                    if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) return new Date(ts).toISOString();
+                    console.warn(`[getVibes] Could not convert timestamp for doc ${doc.id}:`, ts);
+                    return undefined;
                 };
 
-                return {
-                    ...vibe,
-                    createdAt: toISO(vibe.createdAt) || new Date(0).toISOString(),
-                    lastPostAt: toISO(vibe.lastPostAt),
-                };
+                return { 
+                    id: doc.id, 
+                    ...data,
+                    createdAt: toISO(data.createdAt) || new Date(0).toISOString(),
+                    lastPostAt: toISO(data.lastPostAt),
+                } as Vibe;
+            })
+            .filter(vibe => {
+                // Ensure invitedEmails is an array before calling includes
+                const invited = Array.isArray(vibe.invitedEmails) ? vibe.invitedEmails : [];
+                return vibe.isPublic || invited.includes(userEmail);
             });
         
         console.log(`[DEBUG] Server Action getVibes: Returning ${accessibleVibes.length} accessible vibes.`);
