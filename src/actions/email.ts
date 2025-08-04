@@ -166,3 +166,59 @@ export async function sendRoomEndingSoonEmail({
     return { success: false, error: e.message || 'An unexpected server error occurred.' };
   }
 }
+
+interface SendVibeInviteEmailProps {
+  to: string[];
+  vibeTopic: string;
+  creatorName: string;
+  joinUrl: string;
+}
+
+export async function sendVibeInviteEmail({
+  to,
+  vibeTopic,
+  creatorName,
+  joinUrl,
+}: SendVibeInviteEmailProps): Promise<{ success: boolean; error?: string }> {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.error('Email Error: RESEND_API_KEY is not set.');
+      return { success: false, error: 'The RESEND_API_KEY is not configured on the server.' };
+    }
+
+    const resend = new Resend(apiKey);
+    
+    if (!to || to.length === 0) {
+      return { success: true };
+    }
+
+    const { data, error } = await resend.emails.send({
+      from: 'VibeSync <onboarding@resend.dev>',
+      to: to,
+      subject: `You're invited to a Vibe: ${vibeTopic}`,
+      html: `
+        <div>
+          <h2>Hey!</h2>
+          <p>You've been invited by <strong>${creatorName}</strong> to join a discussion in the Common Room.</p>
+          <p><strong>Topic:</strong> ${vibeTopic}</p>
+          <br/>
+          <a href="${joinUrl}" style="background-color: #D4A373; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Join the Vibe</a>
+          <br/>
+          <p>See you there!</p>
+          <p>- The VibeSync Team</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error('Resend API Error (Vibe Invite):', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('Unexpected Error in sendVibeInviteEmail:', e);
+    return { success: false, error: e.message || 'An unexpected server error occurred.' };
+  }
+}

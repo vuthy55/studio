@@ -1,4 +1,5 @@
 
+
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 import type { LanguageCode } from './data';
@@ -98,6 +99,29 @@ export type RoomMessage = {
     actions?: ('extendMeeting')[];
 }
 
+export type Vibe = {
+    id: string;
+    topic: string;
+    isPublic: boolean;
+    creatorId: string;
+    creatorName: string;
+    createdAt: string; // ISO String
+    invitedEmails: string[];
+    hostEmails: string[];
+    postsCount: number;
+    lastPostAt?: string; // ISO String
+    lastPostBy?: string;
+}
+
+export type VibePost = {
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    createdAt: Timestamp;
+};
+
+
 export type TransactionLog = {
     actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel';
     tokenChange: number;
@@ -151,7 +175,7 @@ export interface UserProfile {
   immediateBuddyAlert?: boolean;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite';
 
 export type Notification = {
     id: string;
@@ -161,6 +185,7 @@ export type Notification = {
     fromUserName?: string;
     amount?: number;
     roomId?: string;
+    vibeId?: string;
     createdAt: Timestamp;
     read: boolean;
 };

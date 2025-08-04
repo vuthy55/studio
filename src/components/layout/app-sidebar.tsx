@@ -178,6 +178,14 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
+                  <Link href="/common-room" onClick={closeSidebar}>
+                    <MessagesSquare />
+                    Common Room
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
                   <Link href="/infohub" onClick={closeSidebar}>
@@ -253,6 +261,14 @@ export function AppSidebar() {
                             <Share2 />
                             SyncHub
                         </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                 <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
+                    <Link href="/common-room" onClick={closeSidebar}>
+                        <MessagesSquare />
+                        Common Room
+                    </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
