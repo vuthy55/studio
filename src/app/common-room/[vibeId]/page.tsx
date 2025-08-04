@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter, useParams } from 'next/navigation';
 import { LoaderCircle } from 'lucide-react';
