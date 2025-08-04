@@ -1,115 +1,226 @@
+import type { FieldValue, Timestamp } from 'firebase/firestore';
+import type { AzureLanguageCode } from './azure-languages';
+import type { LanguageCode } from './data';
 
-export interface StaticEvent {
-  countryCode: string;
-  date: string; // YYYY-MM-DD format
-  name: string;
-  description: string;
-  link?: string;
+export interface BlockedUser {
+    uid: string;
+    email: string;
 }
 
-// All dates are in YYYY-MM-DD format for a generic year (e.g., 2024, but the year can be ignored for annual events)
-export const staticEvents: StaticEvent[] = [
-  // --- Brunei (BN) ---
-  { countryCode: 'BN', date: '2024-01-01', name: 'New Year\'s Day', description: 'Public holiday.' },
-  { countryCode: 'BN', date: '2024-02-08', name: 'Isra and Mi\'raj', description: 'Islamic holiday commemorating the Prophet\'s night journey.' },
-  { countryCode: 'BN', date: '2024-02-23', name: 'National Day', description: 'Celebrates Brunei\'s independence.' },
-  { countryCode: 'BN', date: '2024-04-10', name: 'Hari Raya Aidilfitri (Eid al-Fitr)', description: 'Marks the end of Ramadan. Dates vary by lunar calendar.' },
-  { countryCode: 'BN', date: '2024-05-31', name: 'Royal Brunei Armed Forces Day', description: 'Celebrates the armed forces.' },
-  { countryCode: 'BN', date: '2024-07-15', name: 'Sultan\'s Birthday', description: 'Public holiday for the Sultan of Brunei\'s birthday.' },
-  
-  // --- Cambodia (KH) ---
-  { countryCode: 'KH', date: '2024-01-01', name: 'International New Year\'s Day', description: 'Public holiday celebrating the start of the Gregorian new year.' },
-  { countryCode: 'KH', date: '2024-01-07', name: 'Victory Over Genocide Day', description: 'Commemorates the end of the Khmer Rouge regime in 1979.' },
-  { countryCode: 'KH', date: '2024-03-08', name: 'International Women\'s Day', description: 'Public holiday celebrating women\'s rights and achievements.' },
-  { countryCode: 'KH', date: '2024-04-13', name: 'Khmer New Year (Choul Chnam Thmey)', description: 'The first day of the traditional Cambodian New Year, a major national festival.', link: 'https://en.wikipedia.org/wiki/Cambodian_New_Year' },
-  { countryCode: 'KH', date: '2024-04-14', name: 'Khmer New Year (Day 2)', description: 'The second day of Khmer New Year celebrations.' },
-  { countryCode: 'KH', date: '2024-04-15', name: 'Khmer New Year (Day 3)', description: 'The final day of Khmer New Year celebrations.' },
-  { countryCode: 'KH', date: '2024-05-01', name: 'International Labour Day', description: 'Public holiday celebrating workers.' },
-  { countryCode: 'KH', date: '2024-05-14', name: 'King Norodom Sihamoni\'s Birthday', description: 'Public holiday celebrating the birthday of the current King of Cambodia.' },
-  { countryCode: 'KH', date: '2024-05-22', name: 'Visak Bochea Day', description: 'Commemorates the birth, enlightenment, and death of the Buddha.' },
-  { countryCode: 'KH', date: '2024-05-26', name: 'Royal Ploughing Ceremony', description: 'An ancient royal ceremony to mark the beginning of the rice-growing season.' },
-  { countryCode: 'KH', date: '2024-06-18', name: 'Queen Mother Norodom Monineath\'s Birthday', description: 'Public holiday celebrating the birthday of the Queen Mother.' },
-  { countryCode: 'KH', date: '2024-09-24', name: 'Constitution Day', description: 'Celebrates the signing of the Cambodian Constitution in 1993.' },
-  { countryCode: 'KH', date: '2024-10-15', name: 'Commemoration Day of King\'s Father', description: 'A day to honor the late King Norodom Sihanouk.' },
-  { countryCode: 'KH', date: '2024-10-29', name: 'King Norodom Sihamoni\'s Coronation Day', description: 'Celebrates the anniversary of the King\'s coronation.' },
-  { countryCode: 'KH', date: '2024-11-09', name: 'Independence Day', description: 'Celebrates Cambodia\'s independence from France in 1953.' },
-  { countryCode: 'KH', date: '2024-11-26', name: 'Water Festival (Bon Om Touk)', description: 'Major festival celebrating the reversal of the Tonle Sap river flow with boat races.', link: 'https://en.wikipedia.org/wiki/Bon_Om_Touk' },
+export type SummaryParticipant = {
+    name: string;
+    email: string;
+    language: string;
+}
 
-  // --- Indonesia (ID) ---
-  { countryCode: 'ID', date: '2024-01-01', name: 'New Year\'s Day', description: 'Public holiday.' },
-  { countryCode: 'ID', date: '2024-02-08', name: 'Isra Mi\'raj', description: 'Commemorates the Prophet Muhammad\'s night journey.' },
-  { countryCode: 'ID', date: '2024-03-11', name: 'Nyepi (Balinese Day of Silence)', description: 'A Hindu celebration mainly observed in Bali, a day of silence, fasting, and meditation.', link: 'https://en.wikipedia.org/wiki/Nyepi' },
-  { countryCode: 'ID', date: '2024-03-29', name: 'Good Friday', description: 'Christian holiday commemorating the crucifixion of Jesus.' },
-  { countryCode: 'ID', date: '2024-04-10', name: 'Idul Fitri (Eid al-Fitr)', description: 'Marks the end of Ramadan. A major Islamic holiday spanning two days.' },
-  { countryCode: 'ID', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
-  { countryCode: 'ID', date: '2024-05-09', name: 'Ascension Day of Jesus Christ', description: 'Christian public holiday.' },
-  { countryCode: 'ID', date: '2024-05-23', name: 'Waisak Day (Buddha\'s Birthday)', description: 'Buddhist holiday commemorating the birth, enlightenment, and death of Buddha.' },
-  { countryCode: 'ID', date: '2024-06-01', name: 'Pancasila Day', description: 'Commemorates the state philosophy.' },
-  { countryCode: 'ID', date: '2024-06-17', name: 'Idul Adha (Feast of the Sacrifice)', description: 'Major Islamic holiday.' },
-  { countryCode: 'ID', date: '2024-07-07', name: 'Islamic New Year', description: 'Public holiday marking the start of the Islamic calendar.' },
-  { countryCode: 'ID', date: '2024-08-17', name: 'Independence Day', description: 'Celebrates independence from Dutch rule.' },
-  { countryCode: 'ID', date: '2024-09-16', name: 'Prophet Muhammad\'s Birthday', description: 'Public holiday celebrating the birth of the Prophet Muhammad.' },
-  { countryCode: 'ID', date: '2024-12-25', name: 'Christmas Day', description: 'Public holiday.' },
+export type TranslatedContent = {
+    original: string;
+    translations: Record<string, string>; // key: language code, value: translated text
+}
 
-  // --- Laos (LA) ---
-  { countryCode: 'LA', date: '2024-01-01', name: 'International New Year\'s Day', description: 'Public holiday.' },
-  { countryCode: 'LA', date: '2024-03-08', name: 'International Women\'s Day', description: 'Public holiday.' },
-  { countryCode: 'LA', date: '2024-04-14', name: 'Lao New Year (Pi Mai)', description: 'Major traditional festival, similar to Songkran and Khmer New Year.', link: 'https://en.wikipedia.org/wiki/Lao_New_Year' },
-  { countryCode: 'LA', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
-  { countryCode: 'LA', date: '2024-12-02', name: 'Lao National Day', description: 'Commemorates the establishment of the Lao People\'s Democratic Republic in 1975.' },
+export type SummaryEdit = {
+    editorUid: string;
+    editorName: string;
+    editorEmail: string;
+    editedAt: FieldValue;
+};
 
-  // --- Malaysia (MY) ---
-  { countryCode: 'MY', date: '2024-01-25', name: 'Thaipusam', description: 'Hindu festival, a public holiday in several states.' },
-  { countryCode: 'MY', date: '2024-02-10', name: 'Chinese New Year', description: 'Major festival celebrated by the Chinese community.' },
-  { countryCode: 'MY', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
-  { countryCode: 'MY', date: '2024-05-22', name: 'Wesak Day', description: 'Buddhist holiday commemorating the birth, enlightenment, and death of Buddha.' },
-  { countryCode: 'MY', date: '2024-08-31', name: 'National Day (Hari Merdeka)', description: 'Celebrates Malaysia\'s independence.' },
-  { countryCode: 'MY', date: '2024-10-31', name: 'Deepavali (Diwali)', description: 'Hindu festival of lights. Dates vary.' },
-  { countryCode: 'MY', date: '2024-12-25', name: 'Christmas Day', description: 'Public holiday.' },
-  
-  // --- Myanmar (MM) ---
-  { countryCode: 'MM', date: '2024-01-04', name: 'Independence Day', description: 'Celebrates independence from the British.' },
-  { countryCode: 'MM', date: '2024-02-12', name: 'Union Day', description: 'Commemorates the Panglong Agreement.' },
-  { countryCode: 'MM', date: '2024-04-13', name: 'Thingyan (Water Festival)', description: 'Myanmar\'s New Year water festival, lasting several days.', link: 'https://en.wikipedia.org/wiki/Thingyan' },
-  { countryCode: 'MM', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
-  { countryCode: 'MM', date: '2024-07-19', name: 'Martyrs\' Day', description: 'Commemorates the assassination of General Aung San and other leaders.' },
+export type RoomSummary = {
+    title: string;
+    date: string;
+    presentParticipants: SummaryParticipant[];
+    absentParticipants: SummaryParticipant[];
+    summary: TranslatedContent;
+    actionItems: { 
+        task: TranslatedContent;
+        personInCharge?: string;
+        dueDate?: string 
+    }[];
+    editHistory?: SummaryEdit[];
+    allowMoreEdits?: boolean;
+};
 
-  // --- Philippines (PH) ---
-  { countryCode: 'PH', date: '2024-01-01', name: 'New Year\'s Day', description: 'Public holiday.' },
-  { countryCode: 'PH', date: '2024-04-09', name: 'Day of Valor (Araw ng Kagitingan)', description: 'Commemorates the fall of Bataan during World War II.' },
-  { countryCode: 'PH', date: '2024-03-29', name: 'Good Friday', description: 'Major Christian holiday.' },
-  { countryCode: 'PH', date: '2024-05-01', name: 'Labor Day', description: 'Public holiday.' },
-  { countryCode: 'PH', date: '2024-06-12', name: 'Independence Day', description: 'Celebrates independence from Spain.' },
-  { countryCode: 'PH', date: '2024-08-26', name: 'National Heroes Day', description: 'Public holiday to honor national heroes.' },
-  { countryCode: 'PH', date: '2024-12-25', name: 'Christmas Day', description: 'Major holiday celebration.' },
-  { countryCode: 'PH', date: '2024-12-30', name: 'Rizal Day', description: 'Commemorates the execution of national hero José Rizal.' },
+export type Transcript = {
+    title: string;
+    date: string;
+    presentParticipants: SummaryParticipant[];
+    absentParticipants: SummaryParticipant[];
+    log: {
+        speakerName: string;
+        text: string;
+        timestamp: string; // ISO string for client-side display
+    }[];
+};
 
-  // --- Singapore (SG) ---
-  { countryCode: 'SG', date: '2024-01-01', name: 'New Year\'s Day', description: 'Public holiday.' },
-  { countryCode: 'SG', date: '2024-02-10', name: 'Chinese New Year', description: 'Major two-day festival.' },
-  { countryCode: 'SG', date: '2024-03-29', name: 'Good Friday', description: 'Public holiday.' },
-  { countryCode: 'SG', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
-  { countryCode: 'SG', date: '2024-05-22', name: 'Vesak Day', description: 'Buddhist holiday.' },
-  { countryCode: 'SG', date: '2024-08-09', name: 'National Day', description: 'Celebrates Singapore\'s independence.' },
-  { countryCode: 'SG', date: '2024-10-31', name: 'Deepavali', description: 'Hindu festival of lights.' },
-  { countryCode: 'SG', date: '2024-12-25', name: 'Christmas Day', description: 'Public holiday.' },
+export type SyncRoom = {
+    id: string;
+    topic: string;
+    creatorUid: string;
+    creatorName: string;
+    createdAt: any; // Allow for server, client, and serialized forms
+    status: 'active' | 'closed' | 'scheduled';
+    invitedEmails: string[];
+    emceeEmails: string[];
+    lastActivityAt?: any;
+    blockedUsers?: BlockedUser[];
+    summary?: RoomSummary;
+    transcript?: Transcript;
+    scheduledAt?: any;
+    durationMinutes?: number;
+    initialCost?: number;
+    paymentLogId?: string; // ID of the transaction log for the current cost
+    hasStarted?: boolean;
+    reminderMinutes?: number;
+    firstMessageAt?: any; // Timestamp of the first message
+    endingReminderSent?: boolean; // Flag to prevent duplicate end-of-meeting reminders
+    effectiveEndTime?: any; // Timestamp when the room will close based on current funding
+}
 
-  // --- Thailand (TH) ---
-  { countryCode: 'TH', date: '2024-02-24', name: 'Makha Bucha Day', description: 'Important Buddhist holiday.' },
-  { countryCode: 'TH', date: '2024-04-06', name: 'Chakri Memorial Day', description: 'Commemorates the founding of the Chakri Dynasty.' },
-  { countryCode: 'TH', date: '2024-04-13', name: 'Songkran Festival', description: 'The famous Thai New Year water festival.', link: 'https://en.wikipedia.org/wiki/Songkran_(Thailand)' },
-  { countryCode: 'TH', date: '2024-05-01', name: 'Labour Day', description: 'Public holiday.' },
-  { countryCode: 'TH', date: '2024-07-28', name: 'King Vajiralongkorn\'s Birthday', description: 'Celebrates the current king\'s birthday.' },
-  { countryCode: 'TH', date: '2024-08-12', name: 'The Queen Mother\'s Birthday (Mother\'s Day)', description: 'Public holiday.' },
-  { countryCode: 'TH', date: '2024-10-13', name: 'Anniversary of the Passing of King Bhumibol', description: 'Commemoration day.' },
-  { countryCode: 'TH', date: '2024-12-05', name: 'King Bhumibol\'s Birthday (Father\'s Day)', description: 'Public holiday.' },
-  { countryCode: 'TH', date: '2024-12-10', name: 'Constitution Day', description: 'Public holiday.' },
+export type Participant = {
+    uid: string;
+    name: string;
+    email: string;
+    selectedLanguage: AzureLanguageCode | '';
+    isMuted?: boolean;
+    joinedAt?: Timestamp;
+}
 
-  // --- Vietnam (VN) ---
-  { countryCode: 'VN', date: '2024-01-01', name: 'New Year\'s Day', description: 'Gregorian New Year.' },
-  { countryCode: 'VN', date: '2024-02-10', name: 'Tết Nguyên Đán (Lunar New Year)', description: 'The most important festival in Vietnam, lasting several days.', link: 'https://en.wikipedia.org/wiki/T%E1%BA%BFt' },
-  { countryCode: 'VN', date: '2024-04-18', name: 'Hung Kings\' Commemoration Day', description: 'Commemorates the ancient Hung Kings.' },
-  { countryCode: 'VN', date: '2024-04-30', name: 'Reunification Day', description: 'Marks the end of the Vietnam War.' },
-  { countryCode: 'VN', date: '2024-05-01', name: 'International Labour Day', description: 'Public holiday.' },
-  { countryCode: 'VN', date: '2024-09-02', name: 'National Day', description: 'Commemorates the declaration of independence from France.' },
-];
+export type RoomMessage = {
+    id:string;
+    text: string;
+    speakerName: string;
+    speakerUid: string;
+    speakerLanguage?: AzureLanguageCode | '';
+    createdAt: Timestamp;
+    // New fields for special system messages
+    type?: 'reminder' | 'system';
+    actions?: ('extendMeeting')[];
+}
+
+export type TransactionLog = {
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel';
+    tokenChange: number;
+    timestamp: FieldValue;
+    description: string;
+    reason?: string; // Optional: for admin-issued tokens
+    duration?: number; // Optional: duration in milliseconds for usage-based transactions
+    fromUserId?: string;
+    fromUserEmail?: string;
+    toUserId?: string;
+    toUserEmail?: string;
+    refundsTransactionId?: string; // Links a refund to the original transaction
+}
+
+export type PaymentLog = {
+    orderId: string;
+    amount: number;
+    currency: string;
+    status: string;
+    tokensPurchased: number;
+    createdAt: FieldValue;
+}
+
+export type FriendRequest = {
+    fromUid: string;
+    fromName: string;
+    fromEmail: string;
+};
+
+export interface UserProfile {
+  id?: string;
+  name: string;
+  email: string;
+  photoURL?: string;
+  country?: string;
+  mobile?: string;
+  role?: 'admin' | 'user';
+  tokenBalance?: number;
+  searchableName?: string;
+  searchableEmail?: string;
+  practiceStats?: any;
+  syncLiveUsage?: number;
+  syncOnlineUsage?: number;
+  syncOnlineUsageLastReset?: Timestamp;
+  defaultLanguage?: AzureLanguageCode;
+  friends?: string[]; // New: For all social connections
+  buddies?: string[]; // Existing: For high-trust safety alerts
+  friendRequests?: FriendRequest[];
+  referredBy?: string;
+  unlockedLanguages?: LanguageCode[];
+  immediateBuddyAlert?: boolean;
+}
+
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite';
+
+export type Notification = {
+    id: string;
+    userId: string;
+    type: NotificationType;
+    message: string;
+    fromUserName?: string;
+    amount?: number;
+    roomId?: string;
+    createdAt: Timestamp;
+    read: boolean;
+};
+    
+export type PracticeHistoryDoc = {
+    passCountPerLang?: Record<string, number>;
+    failCountPerLang?: Record<string, number>;
+    lastAttemptPerLang?: Record<string, any>;
+    lastAccuracyPerLang?: Record<string, number>;
+};
+
+export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
+
+export interface DetailedHistory {
+    id: string;
+    phraseText: string;
+    passCount: number;
+    failCount: number;
+    lastAccuracy: number;
+}
+
+export type SavedPhrase = {
+    id: string;
+    fromLang: LanguageCode;
+    toLang: LanguageCode;
+    fromText: string;
+    toText: string;
+}
+
+export type AudioPack = {
+  [phraseId: string]: string; // phraseId: base64 audio data URI
+};
+
+export interface FeedbackSubmission {
+    id: string;
+    category: string;
+    comment: string;
+    userEmail: string;
+    userName: string;
+    userId: string;
+    createdAt: Timestamp;
+    screenshotUrl?: string;
+}
+
+export interface Invitation {
+    id: string;
+    inviterId: string;
+    invitedEmail: string;
+    createdAt: string; // ISO String for client
+    status: 'pending' | 'accepted';
+}
+
+export interface CountryIntelData {
+    id: string; // country code, e.g. 'KH'
+    countryName: string;
+    region: string;
+    regionalNews: string[];
+    neighbours: string[]; // List of country codes
+    localNews: string[];
+    visaInformation: string;
+    etiquette: string[];
+    publicHolidays: string[];
+    emergencyNumbers: string[];
+}

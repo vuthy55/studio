@@ -8,16 +8,14 @@ import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
-import { staticEvents } from '@/lib/events-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
+import { getCountryIntelData } from '@/actions/intel-admin';
+import type { CountryIntelData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, parseISO } from 'date-fns';
-import { etiquetteData } from '@/lib/etiquette-data';
-import { visaData } from '@/lib/visa-data';
-import { emergencyData } from '@/lib/emergency-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -156,31 +154,29 @@ function InfoHubContent() {
     const [lastSearchDate, setLastSearchDate] = useState<Date | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
     
+    const [staticIntel, setStaticIntel] = useState<CountryIntelData | null>(null);
+
     const countryOptions = useMemo(() => lightweightCountries.map(c => ({ code: c.code, name: c.name })), []);
 
     const selectedCountryName = useMemo(() => {
-        return countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
-    }, [selectedCountryCode, countryOptions]);
+        return staticIntel?.countryName || countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
+    }, [selectedCountryCode, countryOptions, staticIntel]);
 
-    const staticHolidays = useMemo(() => staticEvents.filter(e => e.countryCode === selectedCountryCode), [selectedCountryCode]);
-    const staticEtiquette = useMemo(() => etiquetteData[selectedCountryCode as keyof typeof etiquetteData] || [], [selectedCountryCode]);
-    const staticVisa = useMemo(() => visaData[selectedCountryCode as keyof typeof visaData] || '', [selectedCountryCode]);
-    const staticEmergency = useMemo(() => {
-        const emergency = emergencyData[selectedCountryCode as keyof typeof emergencyData];
-        if (!emergency) return [];
-        return [
-            { label: 'Police', number: emergency.police },
-            { label: 'Ambulance', number: emergency.ambulance },
-            ...(emergency.touristPolice ? [{ label: 'Tourist Police', number: emergency.touristPolice }] : [])
-        ];
-    }, [selectedCountryCode]);
     
-    const handleCountrySelection = (countryCode: string) => {
+    const handleCountrySelection = async (countryCode: string) => {
         setSelectedCountryCode(countryCode);
         setAiIntel(null);
         setLastSearchDate(null);
         setActiveTab('latest');
         setDebugLog([]);
+        setStaticIntel(null);
+        
+        const staticData = await getCountryIntelData(countryCode);
+        if (staticData) {
+            setStaticIntel(staticData);
+        } else {
+             toast({ variant: 'destructive', title: 'Data Missing', description: `Static intelligence data for this country has not been built in the admin panel.`});
+        }
     };
 
     const handleGenerateIntel = async () => {
@@ -212,7 +208,7 @@ function InfoHubContent() {
             setDebugLog(log);
             
             if (!intel || intel.finalScore === undefined) {
-                 throw new Error("The AI returned an empty or invalid response. Please check the debug logs in the console.");
+                 throw new Error("The AI returned an empty or invalid response. Please check the debug logs for more details.");
             }
             
             setAiIntel(intel);
@@ -359,34 +355,10 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                               {staticHolidays.length > 0 ? (
-                                   <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Date</TableHead>
-                                                <TableHead>Event</TableHead>
-                                                <TableHead>Description</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {staticHolidays.map((event: any, index: number) => (
-                                                <TableRow key={index}>
-                                                    <TableCell className="whitespace-nowrap">{formatDateSafely(event.date)}</TableCell>
-                                                    <TableCell className="font-medium">
-                                                        {event.link ? (
-                                                            <a href={event.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
-                                                                {event.name}
-                                                                <LinkIcon className="h-3 w-3"/>
-                                                            </a>
-                                                        ) : (
-                                                            event.name
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>{event.description}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                               {(staticIntel && staticIntel.publicHolidays) ? (
+                                    <ul className="list-disc pl-5 space-y-2 text-sm">
+                                        {staticIntel.publicHolidays.map((event, index) => <li key={`holiday-${index}`}>{event}</li>)}
+                                    </ul>
                                ) : (
                                    <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
                                )}
@@ -403,9 +375,9 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
-                                {staticEtiquette.length > 0 ? (
+                                {(staticIntel && staticIntel.etiquette) ? (
                                     <ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {staticEtiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                        {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
                                     </ul>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
@@ -423,7 +395,7 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                 <p className="text-sm">{staticVisa || 'No standard data available for this country.'}</p>
+                                 <p className="text-sm">{staticIntel?.visaInformation || 'No standard data available for this country.'}</p>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -437,13 +409,12 @@ function InfoHubContent() {
                                 </CardDescription>
                             </CardHeader>
                              <CardContent>
-                                {staticEmergency.length > 0 ? (
+                                {(staticIntel && staticIntel.emergencyNumbers) ? (
                                  <Table>
                                     <TableBody>
-                                        {staticEmergency.map((item, index) => (
+                                        {staticIntel.emergencyNumbers.map((item, index) => (
                                             <TableRow key={index}>
-                                                <TableCell className="font-medium capitalize">{item.label}</TableCell>
-                                                <TableCell className="font-mono">{item.number}</TableCell>
+                                                <TableCell className="font-mono">{item}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -469,3 +440,5 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
+
+    

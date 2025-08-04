@@ -1,12 +1,226 @@
-export const visaData: Record<string, string> = {
-  TH: "Many nationalities get a 30-day visa exemption on arrival by air, and 15-30 days by land. Check your country's specific requirements.",
-  VN: "Most nationalities require a visa in advance. E-visas are available for many countries and are the most common method for tourists.",
-  KH: "Visa on arrival is available for most nationalities at major airports and land borders. E-visas can also be obtained online in advance.",
-  MY: "Many nationalities receive a 90-day visa-free entry. Check specific rules for your passport.",
-  ID: "Visa on arrival (VOA) for 30 days is available to many nationalities. This can often be extended once. Some countries are visa-exempt.",
-  PH: "Most Western countries get a 30-day visa-free entry. This can be extended at an immigration office within the country.",
-  SG: "Many nationalities do not require a visa for stays up to 90 days. Check the Immigration & Checkpoints Authority (ICA) website for details.",
-  LA: "Visa on arrival is available for many nationalities at major entry points. An e-visa system is also in place.",
-  MM: "A visa is required for most travelers. It is strongly recommended to apply for an e-visa online before your trip.",
-  BN: "Visa requirements vary greatly. Many Western nationalities get 90 days visa-free, but it's essential to check with a Bruneian embassy before travel.",
+import type { FieldValue, Timestamp } from 'firebase/firestore';
+import type { AzureLanguageCode } from './azure-languages';
+import type { LanguageCode } from './data';
+
+export interface BlockedUser {
+    uid: string;
+    email: string;
+}
+
+export type SummaryParticipant = {
+    name: string;
+    email: string;
+    language: string;
+}
+
+export type TranslatedContent = {
+    original: string;
+    translations: Record<string, string>; // key: language code, value: translated text
+}
+
+export type SummaryEdit = {
+    editorUid: string;
+    editorName: string;
+    editorEmail: string;
+    editedAt: FieldValue;
 };
+
+export type RoomSummary = {
+    title: string;
+    date: string;
+    presentParticipants: SummaryParticipant[];
+    absentParticipants: SummaryParticipant[];
+    summary: TranslatedContent;
+    actionItems: { 
+        task: TranslatedContent;
+        personInCharge?: string;
+        dueDate?: string 
+    }[];
+    editHistory?: SummaryEdit[];
+    allowMoreEdits?: boolean;
+};
+
+export type Transcript = {
+    title: string;
+    date: string;
+    presentParticipants: SummaryParticipant[];
+    absentParticipants: SummaryParticipant[];
+    log: {
+        speakerName: string;
+        text: string;
+        timestamp: string; // ISO string for client-side display
+    }[];
+};
+
+export type SyncRoom = {
+    id: string;
+    topic: string;
+    creatorUid: string;
+    creatorName: string;
+    createdAt: any; // Allow for server, client, and serialized forms
+    status: 'active' | 'closed' | 'scheduled';
+    invitedEmails: string[];
+    emceeEmails: string[];
+    lastActivityAt?: any;
+    blockedUsers?: BlockedUser[];
+    summary?: RoomSummary;
+    transcript?: Transcript;
+    scheduledAt?: any;
+    durationMinutes?: number;
+    initialCost?: number;
+    paymentLogId?: string; // ID of the transaction log for the current cost
+    hasStarted?: boolean;
+    reminderMinutes?: number;
+    firstMessageAt?: any; // Timestamp of the first message
+    endingReminderSent?: boolean; // Flag to prevent duplicate end-of-meeting reminders
+    effectiveEndTime?: any; // Timestamp when the room will close based on current funding
+}
+
+export type Participant = {
+    uid: string;
+    name: string;
+    email: string;
+    selectedLanguage: AzureLanguageCode | '';
+    isMuted?: boolean;
+    joinedAt?: Timestamp;
+}
+
+export type RoomMessage = {
+    id:string;
+    text: string;
+    speakerName: string;
+    speakerUid: string;
+    speakerLanguage?: AzureLanguageCode | '';
+    createdAt: Timestamp;
+    // New fields for special system messages
+    type?: 'reminder' | 'system';
+    actions?: ('extendMeeting')[];
+}
+
+export type TransactionLog = {
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel';
+    tokenChange: number;
+    timestamp: FieldValue;
+    description: string;
+    reason?: string; // Optional: for admin-issued tokens
+    duration?: number; // Optional: duration in milliseconds for usage-based transactions
+    fromUserId?: string;
+    fromUserEmail?: string;
+    toUserId?: string;
+    toUserEmail?: string;
+    refundsTransactionId?: string; // Links a refund to the original transaction
+}
+
+export type PaymentLog = {
+    orderId: string;
+    amount: number;
+    currency: string;
+    status: string;
+    tokensPurchased: number;
+    createdAt: FieldValue;
+}
+
+export type FriendRequest = {
+    fromUid: string;
+    fromName: string;
+    fromEmail: string;
+};
+
+export interface UserProfile {
+  id?: string;
+  name: string;
+  email: string;
+  photoURL?: string;
+  country?: string;
+  mobile?: string;
+  role?: 'admin' | 'user';
+  tokenBalance?: number;
+  searchableName?: string;
+  searchableEmail?: string;
+  practiceStats?: any;
+  syncLiveUsage?: number;
+  syncOnlineUsage?: number;
+  syncOnlineUsageLastReset?: Timestamp;
+  defaultLanguage?: AzureLanguageCode;
+  friends?: string[]; // New: For all social connections
+  buddies?: string[]; // Existing: For high-trust safety alerts
+  friendRequests?: FriendRequest[];
+  referredBy?: string;
+  unlockedLanguages?: LanguageCode[];
+  immediateBuddyAlert?: boolean;
+}
+
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite';
+
+export type Notification = {
+    id: string;
+    userId: string;
+    type: NotificationType;
+    message: string;
+    fromUserName?: string;
+    amount?: number;
+    roomId?: string;
+    createdAt: Timestamp;
+    read: boolean;
+};
+    
+export type PracticeHistoryDoc = {
+    passCountPerLang?: Record<string, number>;
+    failCountPerLang?: Record<string, number>;
+    lastAttemptPerLang?: Record<string, any>;
+    lastAccuracyPerLang?: Record<string, number>;
+};
+
+export type PracticeHistoryState = Record<string, PracticeHistoryDoc>;
+
+export interface DetailedHistory {
+    id: string;
+    phraseText: string;
+    passCount: number;
+    failCount: number;
+    lastAccuracy: number;
+}
+
+export type SavedPhrase = {
+    id: string;
+    fromLang: LanguageCode;
+    toLang: LanguageCode;
+    fromText: string;
+    toText: string;
+}
+
+export type AudioPack = {
+  [phraseId: string]: string; // phraseId: base64 audio data URI
+};
+
+export interface FeedbackSubmission {
+    id: string;
+    category: string;
+    comment: string;
+    userEmail: string;
+    userName: string;
+    userId: string;
+    createdAt: Timestamp;
+    screenshotUrl?: string;
+}
+
+export interface Invitation {
+    id: string;
+    inviterId: string;
+    invitedEmail: string;
+    createdAt: string; // ISO String for client
+    status: 'pending' | 'accepted';
+}
+
+export interface CountryIntelData {
+    id: string; // country code, e.g. 'KH'
+    countryName: string;
+    region: string;
+    regionalNews: string[];
+    neighbours: string[]; // List of country codes
+    localNews: string[];
+    visaInformation: string;
+    etiquette: string[];
+    publicHolidays: string[];
+    emergencyNumbers: string[];
+}

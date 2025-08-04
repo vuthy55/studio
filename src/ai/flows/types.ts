@@ -22,8 +22,14 @@ export type DiscoverCountryDataInput = z.infer<typeof DiscoverCountryDataInputSc
 export const DiscoverCountryDataOutputSchema = z.object({
   countryName: z.string().describe("The official name of the country, matching the input."),
   region: z.string().describe("The primary geopolitical region or continent the country belongs to (e.g., 'South East Asia', 'South America', 'Western Europe')."),
-  neighbours: z.array(z.string()).describe("A list of country codes (ISO 3166-1 alpha-2) for all countries sharing a land border with the target country."),
+  neighbours: z.array(z.string()).describe("A list of country codes (ISO 3166-1 alpha-2) for all countries sharing a land border."),
   regionalNews: z.array(z.string()).describe("A list of 3-4 reputable, English-language news source root URLs covering the broader geopolitical region."),
   localNews: z.array(z.string()).describe("A list of 2-3 reputable, English-language news source root URLs based in the target country itself."),
+  visaInformation: z.string().describe("A brief, one-sentence summary of the general tourist visa policy."),
+  etiquette: z.array(z.string()).describe("A list of 3-4 bullet points of essential cultural etiquette for travelers."),
+  publicHolidays: z.array(z.string()).describe("A list of 3-5 major national public holidays or festivals, including their approximate dates."),
+  emergencyNumbers: z.array(z.string()).describe("A list of the national emergency numbers for Police, Ambulance, and Fire."),
 });
 export type DiscoverCountryDataOutput = z.infer<typeof DiscoverCountryDataOutputSchema>;
+
+    

@@ -53,7 +53,7 @@ export async function getNeighborIntelData(neighbourCodes: string[]): Promise<Co
             chunks.push(neighbourCodes.slice(i, i + 30));
         }
 
-        const promises = chunks.map(chunk => intelRef.where('id', 'in', chunk).get());
+        const promises = chunks.map(chunk => intelRef.where('__name__', 'in', chunk).get());
         const snapshots = await Promise.all(promises);
 
         const neighbors: CountryIntelData[] = [];
@@ -104,66 +104,36 @@ export async function updateCountryIntelAdmin(countryCode: string, updates: Part
     }
 }
 
-const seedData: Omit<CountryIntelData, 'id'>[] = [
-    { countryName: 'Brunei', region: 'South East Asia', neighbours: ['MY'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['thebruneian.news', 'borneobulletin.com.bn'] },
-    { countryName: 'Cambodia', region: 'South East Asia', neighbours: ['TH', 'VN', 'LA'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['phnompenhpost.com', 'khmertimeskh.com', 'cambodianess.com'] },
-    { countryName: 'Indonesia', region: 'South East Asia', neighbours: ['MY', 'PG', 'TL'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['thejakartapost.com', 'en.tempo.co', 'antaranews.com'] },
-    { countryName: 'Laos', region: 'South East Asia', neighbours: ['TH', 'VN', 'KH', 'MM', 'CN'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['laotiantimes.com', 'vientianetimes.org.la'] },
-    { countryName: 'Malaysia', region: 'South East Asia', neighbours: ['TH', 'ID', 'BN', 'SG'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['thestar.com.my', 'malaysiakini.com', 'freemalaysiatoday.com'] },
-    { countryName: 'Myanmar', region: 'South East Asia', neighbours: ['TH', 'LA', 'CN', 'IN', 'BD'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['irrawaddy.com', 'frontiermyanmar.net', 'mmtimes.com'] },
-    { countryName: 'Philippines', region: 'South East Asia', neighbours: [], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['rappler.com', 'inquirer.net', 'philstar.com'] },
-    { countryName: 'Singapore', region: 'South East Asia', neighbours: ['MY', 'ID'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['straitstimes.com', 'todayonline.com', 'channelnewsasia.com'] },
-    { countryName: 'Thailand', region: 'South East Asia', neighbours: ['MY', 'KH', 'LA', 'MM'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['bangkokpost.com', 'nationthailand.com', 'thaipbsworld.com'] },
-    { countryName: 'Vietnam', region: 'South East Asia', neighbours: ['KH', 'LA', 'CN'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['vnexpress.net', 'tuoitrenews.vn', 'vir.com.vn'] },
-    { countryName: 'Timor-Leste', region: 'South East Asia', neighbours: ['ID'], regionalNews: ['channelnewsasia.com', 'scmp.com', 'asia.nikkei.com'], localNews: ['tatoli.tl'] }
-];
-
-
 /**
- * The "Database Builder" function. Iterates through a given list of country codes (or all if none provided),
- * discovers data for those not already in Firestore, and saves it.
- * It will auto-seed with core ASEAN data if the collection is empty.
+ * The "Database Builder" function. It FIRST DELETES all existing documents in the cache,
+ * then iterates through the given list of country codes (or all if none provided),
+ * discovers new, enriched data for them, and saves it to Firestore.
+ * This ensures a clean and up-to-date database with every build.
  */
-export async function buildCountryIntelData(countryCodes?: string[]): Promise<{ success: boolean; error?: string; totalToProcess?: number; addedCount?: number }> {
+export async function buildCountryIntelData(countryCodesToBuild: string[]): Promise<{ success: boolean; error?: string; totalToProcess?: number; addedCount?: number }> {
     try {
-        console.log('[Intel Builder] Starting database build process...');
+        console.log('[Intel Builder] Starting database rebuild process...');
         const intelCollectionRef = db.collection('countryIntelCache');
-        const existingDocsSnapshot = await intelCollectionRef.get();
-        
-        let shouldSeed = existingDocsSnapshot.empty;
-        
-        // Auto-seed if the database is completely empty
-        if (shouldSeed) {
-            console.log('[Intel Builder] Database is empty. Seeding with core ASEAN data...');
-            const batch = db.batch();
-            for (const country of seedData) {
-                const countryInfo = lightweightCountries.find(c => c.name === country.countryName);
-                if (countryInfo) {
-                    const docRef = intelCollectionRef.doc(countryInfo.code);
-                    batch.set(docRef, { ...country, id: countryInfo.code });
-                }
-            }
-            await batch.commit();
-            console.log('[Intel Builder] Core data seeded.');
-        }
 
-        // Determine which countries to process
-        const updatedSnapshot = shouldSeed ? await intelCollectionRef.get() : existingDocsSnapshot;
-        const existingCountryCodes = new Set(updatedSnapshot.docs.map(doc => doc.id));
+        // --- Step 1: Delete all existing documents for a clean rebuild ---
+        console.log('[Intel Builder] Clearing existing country intel cache...');
+        const allDocsSnapshot = await intelCollectionRef.limit(500).get(); // Get up to 500 docs
+        const batch = db.batch();
+        allDocsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        console.log(`[Intel Builder] Cleared ${allDocsSnapshot.size} documents.`);
         
-        const allCountriesToConsider = countryCodes 
-            ? lightweightCountries.filter(c => countryCodes.includes(c.code))
-            : lightweightCountries;
-            
-        const countriesToProcess = allCountriesToConsider.filter(c => !existingCountryCodes.has(c.code));
+        // --- Step 2: Determine which countries to process ---
+        const countriesToProcess = lightweightCountries.filter(c => countryCodesToBuild.includes(c.code));
         
         if (countriesToProcess.length === 0) {
-            console.log('[Intel Builder] No new countries to process from the provided list.');
+            console.log('[Intel Builder] No countries were selected to process.');
             return { success: true, totalToProcess: 0, addedCount: 0 };
         }
 
         console.log(`[Intel Builder] Found ${countriesToProcess.length} new countries to process.`);
         
+        // --- Step 3: Discover and save new data ---
         let addedCount = 0;
         for (const country of countriesToProcess) {
             try {
@@ -195,3 +165,5 @@ export async function buildCountryIntelData(countryCodes?: string[]): Promise<{ 
         return { success: false, error: 'A critical server error occurred.' };
     }
 }
+
+    

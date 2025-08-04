@@ -220,4 +220,10 @@ export interface CountryIntelData {
     regionalNews: string[];
     neighbours: string[]; // List of country codes
     localNews: string[];
+    visaInformation: string;
+    etiquette: string[];
+    publicHolidays: string[];
+    emergencyNumbers: string[];
 }
+
+    
