@@ -1,29 +1,29 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
-import { collection, doc, orderBy, query, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Participant } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
-function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibeTopic: string, creatorName: string }) {
+function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId: string, vibeTopic: string, creatorName: string, onInviteSent: () => void }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -31,7 +31,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
     const [emails, setEmails] = useState('');
 
     const handleInvite = async (sendEmail: boolean) => {
-        const emailList = emails.split(',').map(e => e.trim()).filter(e => e);
+        const emailList = emails.split(/[, ]+/).map(e => e.trim()).filter(e => e);
         if (emailList.length === 0) {
             toast({ variant: 'destructive', title: 'No emails entered' });
             return;
@@ -54,6 +54,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
                 }
                 setIsOpen(false);
                 setEmails('');
+                onInviteSent();
             } else {
                 throw new Error(result.error);
             }
@@ -108,7 +109,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [vibeData, vibeLoading, vibeError] = useDocumentData(doc(db, 'vibes', vibeId));
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
-    const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
+    
     const [replyContent, setReplyContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -131,19 +132,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             }
             setPostsLoading(false);
         });
-        
-        // This is a simplified approach. A more robust solution for a large app
-        // might involve a dedicated 'participants' sub-collection or fetching only needed users.
-        const fetchAllUsers = async () => {
-             try {
-                const usersSnapshot = await getDocs(collection(db, 'users'));
-                const users = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Participant));
-                setAllParticipants(users);
-            } catch (e) {
-                console.error("Could not fetch all user data for participants list", e);
-            }
-        };
-        fetchAllUsers();
 
         return () => unsubscribePosts();
     }, [vibeId, toast]);
@@ -154,10 +142,10 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     }, [posts]);
 
     const handlePostReply = async () => {
-        if (!replyContent.trim() || !user || !user.displayName) return;
+        if (!replyContent.trim() || !user || !user.displayName || !user.email) return;
         setIsSubmitting(true);
         try {
-            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName });
+            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email });
             setReplyContent('');
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to post reply.' });
@@ -166,30 +154,32 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-    const { presentParticipants, invitedButNotPresent } = React.useMemo(() => {
-        if (!vibeData || allParticipants.length === 0) return { presentParticipants: [], invitedButNotPresent: [] };
+    const { presentParticipants, invitedButNotPresent } = useMemo(() => {
+        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [] };
         
-        const hostEmails: string[] = vibeData.hostEmails || [];
-        const authorUids = new Set(posts.map(p => p.authorId));
+        const hostEmails = new Set(vibeData.hostEmails || []);
+        
+        const emailToDetails = new Map<string, { name: string; isHost: boolean }>();
 
-        const emailToNameMap = new Map<string, string>();
-        allParticipants.forEach(p => {
-            if (p.email) emailToNameMap.set(p.email, p.name);
+        // Add hosts first to ensure they are listed as present
+        hostEmails.forEach(email => {
+            emailToDetails.set(email, { name: email.split('@')[0], isHost: true });
         });
-
-        const presentEmails = new Set<string>();
-        hostEmails.forEach(email => presentEmails.add(email));
-        authorUids.forEach(uid => {
-            const participant = allParticipants.find(p => p.uid === uid);
-            if (participant?.email) {
-                presentEmails.add(participant.email);
+        
+        // Add post authors, updating their name if available
+        posts.forEach(post => {
+            if (post.authorEmail) {
+                const existing = emailToDetails.get(post.authorEmail) || { name: '', isHost: false };
+                emailToDetails.set(post.authorEmail, { ...existing, name: post.authorName });
             }
         });
+
+        const presentEmails = new Set(emailToDetails.keys());
         
         const presentList = Array.from(presentEmails).map(email => ({
             email,
-            name: emailToNameMap.get(email) || email.split('@')[0],
-            isHost: hostEmails.includes(email)
+            name: emailToDetails.get(email)!.name,
+            isHost: emailToDetails.get(email)!.isHost
         })).sort((a, b) => {
             if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
             return a.name.localeCompare(b.name);
@@ -198,8 +188,27 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const invitedList = (vibeData.invitedEmails || []).filter((email: string) => !presentEmails.has(email));
 
         return { presentParticipants: presentList, invitedButNotPresent: invitedList };
+    }, [vibeData, posts]);
 
-    }, [vibeData, posts, allParticipants]);
+
+    const isCurrentUserHost = useMemo(() => {
+        if (!user || !user.email || !vibeData) return false;
+        return (vibeData.hostEmails || []).includes(user.email);
+    }, [user, vibeData]);
+
+    const handleHostToggle = async (targetEmail: string, shouldBeHost: boolean) => {
+        if (!isCurrentUserHost) {
+            toast({ variant: 'destructive', title: 'Permission Denied', description: 'Only hosts can manage other hosts.' });
+            return;
+        }
+
+        const result = await updateHostStatus(vibeId, targetEmail, shouldBeHost);
+        if (result.success) {
+            toast({ title: 'Success', description: `Host status updated for ${targetEmail}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
+        }
+    };
 
 
     if (userLoading || vibeLoading) {
@@ -217,8 +226,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     if (!vibeData) {
         return <p>Vibe not found.</p>
     }
-    
-    const isHost = user && vibeData.hostEmails?.includes(user.email);
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -234,10 +241,12 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline">
-                        <CalendarPlus className="mr-2 h-4 w-4" />
-                        Plan a Party
-                    </Button>
+                    {isCurrentUserHost && (
+                        <Button variant="outline">
+                            <CalendarPlus className="mr-2 h-4 w-4" />
+                            Plan a Party
+                        </Button>
+                    )}
                     <Sheet>
                         <SheetTrigger asChild>
                              <Button variant="outline">
@@ -253,23 +262,44 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 </SheetDescription>
                             </SheetHeader>
                             <div className="py-4 space-y-4">
-                                {isHost && (
+                                {isCurrentUserHost && (
                                      <InviteDialog 
                                         vibeId={vibeId} 
                                         vibeTopic={vibeData.topic} 
                                         creatorName={user?.displayName || 'A user'}
+                                        onInviteSent={() => { /* No-op, react-firebase-hooks handles updates */}}
                                     />
                                 )}
                                 <Separator />
                                 <div className="space-y-2">
                                     <h4 className="font-semibold text-sm flex items-center gap-2"><UserCheck /> Present ({presentParticipants.length})</h4>
-                                    {presentParticipants.map(({ name, email, isHost: isVibeHost }) => (
-                                        <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted">
+                                    {presentParticipants.map(({ name, email, isHost }) => (
+                                        <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
                                              <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
-                                            <span className={`font-medium text-sm ${isVibeHost ? 'text-primary' : ''}`}>{name}</span>
-                                            {isVibeHost && <Badge variant="secondary">Host</Badge>}
+                                            <span className={`font-medium text-sm flex-1 ${isHost ? 'text-primary' : ''}`}>{name}</span>
+                                            {isHost && <Badge variant="secondary">Host</Badge>}
+
+                                            {isCurrentUserHost && email !== vibeData.creatorEmail && (
+                                                 <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button 
+                                                                size="icon" 
+                                                                variant="ghost" 
+                                                                className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                                                onClick={() => handleHostToggle(email, !isHost)}
+                                                            >
+                                                                {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -307,6 +337,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                     <p className="text-xs text-muted-foreground">
                                         {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : ''}
                                     </p>
+                                    {(vibeData.hostEmails || []).includes(post.authorEmail) && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <Crown className="h-3 w-3 text-amber-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent><p>Host</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
                                 </div>
                                 <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
                             </div>

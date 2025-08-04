@@ -100,7 +100,7 @@ export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
 /**
  * Adds a new post to a Vibe and updates the Vibe's metadata.
  */
-export async function postReply(vibeId: string, content: string, author: { uid: string, name: string }): Promise<{ success: boolean; error?: string }> {
+export async function postReply(vibeId: string, content: string, author: { uid: string, name: string, email: string }): Promise<{ success: boolean; error?: string }> {
     if (!vibeId || !content.trim() || !author) {
         return { success: false, error: 'Missing required information.' };
     }
@@ -115,6 +115,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
             content: content,
             authorId: author.uid,
             authorName: author.name,
+            authorEmail: author.email,
             createdAt: FieldValue.serverTimestamp(),
         });
 
@@ -182,5 +183,39 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
     } catch (error: any) {
         console.error("Error inviting to vibe:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+
+export async function updateHostStatus(vibeId: string, targetEmail: string, shouldBeHost: boolean): Promise<{ success: boolean, error?: string }> {
+    if (!vibeId || !targetEmail) {
+        return { success: false, error: "Vibe ID and target email are required." };
+    }
+
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        
+        if (shouldBeHost) {
+            await vibeRef.update({
+                hostEmails: FieldValue.arrayUnion(targetEmail)
+            });
+        } else {
+            // Safety check: Don't allow creator to be demoted
+            const vibeDoc = await vibeRef.get();
+            const creatorEmail = vibeDoc.data()?.creatorEmail;
+            if (targetEmail === creatorEmail) {
+                return { success: false, error: "The original creator cannot be demoted." };
+            }
+
+            await vibeRef.update({
+                hostEmails: FieldValue.arrayRemove(targetEmail)
+            });
+        }
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error updating host status:", error);
+        return { success: false, error: "An unexpected server error occurred." };
     }
 }
