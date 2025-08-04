@@ -26,6 +26,7 @@ import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -271,16 +272,36 @@ export default function CommonRoomClient() {
                                 <TabsTrigger value="my-vibes"><UserCircle className="mr-2"/> My Space</TabsTrigger>
                             </TabsList>
                             <TabsContent value="discover" className="mt-4">
-                                <h3 className="text-xl font-bold mb-4">Public Meetups</h3>
-                                <PartyList parties={publicParties} />
-                                <h3 className="text-xl font-bold my-4 pt-4 border-t">Public Vibes</h3>
-                                <VibeList vibes={publicVibes} title="Public" />
+                                <Accordion type="single" collapsible defaultValue="meetups" className="w-full">
+                                    <AccordionItem value="meetups">
+                                        <AccordionTrigger className="text-xl font-bold">Public Meetups</AccordionTrigger>
+                                        <AccordionContent>
+                                            <PartyList parties={publicParties} />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                    <AccordionItem value="vibes">
+                                        <AccordionTrigger className="text-xl font-bold">Public Vibes</AccordionTrigger>
+                                        <AccordionContent>
+                                            <VibeList vibes={publicVibes} title="Public" />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                             </TabsContent>
                             <TabsContent value="my-vibes" className="mt-4">
-                                <h3 className="text-xl font-bold mb-4">My Upcoming Meetups</h3>
-                                <PartyList parties={myMeetups} />
-                                <h3 className="text-xl font-bold my-4 pt-4 border-t">My Vibes & Invites</h3>
-                                <VibeList vibes={myVibes} title="My Vibes" />
+                               <Accordion type="single" collapsible defaultValue="meetups" className="w-full">
+                                    <AccordionItem value="meetups">
+                                        <AccordionTrigger className="text-xl font-bold">My Upcoming Meetups</AccordionTrigger>
+                                        <AccordionContent>
+                                            <PartyList parties={myMeetups} />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                    <AccordionItem value="vibes">
+                                        <AccordionTrigger className="text-xl font-bold">My Vibes & Invites</AccordionTrigger>
+                                        <AccordionContent>
+                                            <VibeList vibes={myVibes} title="My Vibes" />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                             </TabsContent>
                         </Tabs>
                     )}
