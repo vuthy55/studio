@@ -14,12 +14,13 @@ import { getCountryIntelData, getNeighborIntelData } from '@/actions/intel-admin
 import type { CountryIntelData } from '@/lib/types';
 import { subDays, parseISO } from 'date-fns';
 import { scrapeUrlAction } from '@/actions/scraper';
+import { lightweightCountries } from '@/lib/location-data';
 
 
 // --- Zod Schemas for Input/Output ---
 
 const GetCountryIntelInputSchema = z.object({
-  countryName: z.string().describe('The name of the country to get travel intel for.'),
+  countryCode: z.string().describe('The ISO 3166-1 alpha-2 code of the country to get travel intel for.'),
 });
 type GetCountryIntelInput = z.infer<typeof GetCountryIntelInputSchema>;
 
@@ -49,10 +50,10 @@ export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
 export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ intel: Partial<CountryIntel>, debugLog: string[] }> {
     const debugLog: string[] = [];
-    const { countryName } = input;
+    const { countryCode } = input;
 
-    debugLog.push(`[Intel Flow] Starting getCountryIntelFlow for: ${countryName}`);
-    const intel = await getCountryIntelFlow({ countryName, debugLog });
+    debugLog.push(`[Intel Flow] Starting getCountryIntelFlow for: ${countryCode}`);
+    const intel = await getCountryIntelFlow({ countryCode, debugLog });
     
     debugLog.push(`[Intel Flow] Process finished. Reviewed ${intel.allReviewedSources?.length || 0} sources.`);
     return { intel, debugLog };
@@ -198,10 +199,10 @@ const generateWithFallback = async (prompt: string, context: any, outputSchema: 
 const getCountryIntelFlow = ai.defineFlow(
   {
     name: 'getCountryIntelFlow',
-    inputSchema: z.object({ countryName: z.string(), debugLog: z.custom<string[]>() }),
+    inputSchema: z.object({ countryCode: z.string(), debugLog: z.custom<string[]>() }),
     outputSchema: CountryIntelSchema,
   },
-  async ({ countryName, debugLog }) => {
+  async ({ countryCode, debugLog }) => {
     
     // --- Step 1: Fetch all required data first ---
     const settings = await getAppSettingsAction();
@@ -213,9 +214,9 @@ const getCountryIntelFlow = ai.defineFlow(
         throw new Error('Google Search API credentials are not configured on the server.');
     }
 
-    const countryData = await getCountryIntelData(countryName);
+    const countryData = await getCountryIntelData(countryCode);
     if (!countryData) {
-        debugLog.push(`[Intel Flow] CRITICAL: No intelligence data found for ${countryName}. Cannot proceed.`);
+        debugLog.push(`[Intel Flow] CRITICAL: No intelligence data found for ${countryCode}. Cannot proceed.`);
         return {
              finalScore: 5,
              summary: "No country intelligence data has been configured for this location yet. Please ask an administrator to build the database for this country.",
@@ -223,6 +224,7 @@ const getCountryIntelFlow = ai.defineFlow(
              allReviewedSources: []
         };
     }
+    const countryName = countryData.countryName;
 
     const neighborData = await getNeighborIntelData(countryData.neighbours);
     

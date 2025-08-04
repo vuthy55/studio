@@ -191,7 +191,7 @@ export const lightweightCountries: LightweightCountry[] = [
   { name: 'Djibouti', code: 'DJ', phone: '253', region: 'Africa' },
   { name: 'Dominica', code: 'DM', phone: '1767', region: 'North America' },
   { name: 'Dominican Republic', code: 'DO', phone: '1809', region: 'North America' },
-  { name: 'East Timor', code: 'TL', phone: '670', region: 'Asia' },
+  { name: 'Timor-Leste', code: 'TL', phone: '670', region: 'Asia' },
   { name: 'Ecuador', code: 'EC', phone: '593', region: 'South America' },
   { name: 'Egypt', code: 'EG', phone: '20', region: 'Africa' },
   { name: 'El Salvador', code: 'SV', phone: '503', region: 'North America' },

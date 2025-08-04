@@ -8,28 +8,28 @@ import { lightweightCountries } from '@/lib/location-data';
 
 
 /**
- * Fetches the intelligence data for a single country by its name.
- * @param countryName The name of the country (e.g., "Cambodia").
+ * Fetches the intelligence data for a single country by its unique country code.
+ * @param countryCode The ISO 3166-1 alpha-2 code of the country (e.g., "KH").
  * @returns {Promise<CountryIntelData | null>}
  */
-export async function getCountryIntelData(countryName: string): Promise<CountryIntelData | null> {
+export async function getCountryIntelData(countryCode: string): Promise<CountryIntelData | null> {
     try {
-        const intelRef = db.collection('countryIntelCache');
-        const q = intelRef.where('countryName', '==', countryName).limit(1);
-        const snapshot = await q.get();
+        if (!countryCode) return null;
+        
+        const intelDocRef = db.collection('countryIntelCache').doc(countryCode);
+        const doc = await intelDocRef.get();
 
-        if (snapshot.empty) {
+        if (!doc.exists) {
             return null;
         }
 
-        const doc = snapshot.docs[0];
         return {
             id: doc.id,
             ...doc.data()
         } as CountryIntelData;
 
     } catch (error) {
-        console.error(`Error fetching intel data for ${countryName}:`, error);
+        console.error(`Error fetching intel data for ${countryCode}:`, error);
         return null;
     }
 }

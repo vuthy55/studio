@@ -184,7 +184,7 @@ function InfoHubContent() {
     };
 
     const handleGenerateIntel = async () => {
-        if (!selectedCountryName) return;
+        if (!selectedCountryCode) return;
         
         if (!settings || !userProfile) {
             toast({ variant: 'destructive', title: 'Error', description: 'User data or settings are not available.' });
@@ -208,7 +208,7 @@ function InfoHubContent() {
                 throw new Error("Token spending failed. Your balance may have changed.");
             }
             
-            const { intel, debugLog: log } = await getCountryIntel({ countryName: selectedCountryName });
+            const { intel, debugLog: log } = await getCountryIntel({ countryCode: selectedCountryCode });
             setDebugLog(log);
             
             if (!intel || intel.finalScore === undefined) {
