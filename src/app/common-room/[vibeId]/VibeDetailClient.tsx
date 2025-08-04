@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
-function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId: string, vibeTopic: string, creatorName: string, onInviteSent: () => void }) {
+function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibeTopic: string, creatorName: string }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -54,7 +54,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId
                 }
                 setIsOpen(false);
                 setEmails('');
-                onInviteSent();
+                
             } else {
                 throw new Error(result.error);
             }
@@ -170,7 +170,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         posts.forEach(post => {
             if (post.authorEmail) {
                 const existing = emailToDetails.get(post.authorEmail) || { name: '', isHost: false };
-                emailToDetails.set(post.authorEmail, { ...existing, name: post.authorName });
+                emailToDetails.set(post.authorEmail, { ...existing, name: post.authorName, isHost: hostEmails.has(post.authorEmail) });
             }
         });
 
@@ -262,12 +262,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 </SheetDescription>
                             </SheetHeader>
                             <div className="py-4 space-y-4">
-                                {isCurrentUserHost && (
+                                {isCurrentUserHost && !vibeData.isPublic && (
                                      <InviteDialog 
                                         vibeId={vibeId} 
                                         vibeTopic={vibeData.topic} 
                                         creatorName={user?.displayName || 'A user'}
-                                        onInviteSent={() => { /* No-op, react-firebase-hooks handles updates */}}
                                     />
                                 )}
                                 <Separator />
