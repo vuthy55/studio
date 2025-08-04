@@ -110,6 +110,7 @@ export type Vibe = {
     postsCount: number;
     lastPostAt?: any;
     lastPostBy?: string;
+    activeMeetupId?: string | null;
 };
 
 export type Party = {
@@ -122,6 +123,7 @@ export type Party = {
     creatorName: string;
     vibeId: string;
     vibeTopic: string;
+    rsvps?: string[]; // Array of user UIDs
 };
 
 export interface ClientParty extends Omit<Party, 'startTime' | 'endTime'> {
@@ -138,6 +140,12 @@ export type VibePost = {
     authorName: string;
     authorEmail: string;
     createdAt: Timestamp;
+    type?: 'user_post' | 'meetup_announcement';
+    meetupDetails?: {
+        title: string;
+        location: string;
+        startTime: string; // ISO string
+    };
 };
 
 

@@ -28,6 +28,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             invitedEmails: isPublic ? [] : [creatorEmail], // Only add creator to private vibes
             hostEmails: [creatorEmail],
             postsCount: 0,
+            activeMeetupId: null,
         };
         await newVibeRef.set(vibeData);
         return { success: true, vibeId: newVibeRef.id };
@@ -117,6 +118,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
             authorName: author.name,
             authorEmail: author.email,
             createdAt: FieldValue.serverTimestamp(),
+            type: 'user_post',
         });
 
         // 2. Update the parent Vibe metadata
@@ -233,23 +235,45 @@ interface PlanPartyPayload {
 
 export async function planParty(payload: PlanPartyPayload): Promise<{ success: boolean; error?: string }> {
     const { vibeId, ...partyData } = payload;
+    
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
         const partyRef = vibeRef.collection('parties').doc();
+        const announcementRef = vibeRef.collection('posts').doc();
 
-        await partyRef.set({
+        const batch = db.batch();
+
+        // 1. Create the new party document
+        batch.set(partyRef, {
             ...partyData,
+            rsvps: [partyData.creatorId], // Creator auto-RSVPs
             startTime: Timestamp.fromDate(new Date(partyData.startTime)),
             endTime: Timestamp.fromDate(new Date(partyData.endTime)),
         });
+
+        // 2. Set this as the active meetup for the vibe
+        batch.update(vibeRef, { activeMeetupId: partyRef.id });
+
+        // 3. Create an announcement post in the chat
+        batch.set(announcementRef, {
+            type: 'meetup_announcement',
+            content: `${partyData.creatorName} planned a meetup: "${partyData.title}"`,
+            authorId: 'system',
+            authorName: 'VibeSync Bot',
+            authorEmail: 'system@vibesync.com',
+            createdAt: FieldValue.serverTimestamp(),
+            meetupDetails: {
+                title: partyData.title,
+                location: partyData.location,
+                startTime: partyData.startTime, // Store as ISO string
+            }
+        });
         
-        // Optional: Notify vibe members about the new party
-        const vibeDoc = await vibeRef.get();
-        const invitedEmails = vibeDoc.data()?.invitedEmails || [];
-        // ... logic to create notifications for invitedEmails ...
+        await batch.commit();
 
         return { success: true };
-    } catch (error: any) {
+    } catch (error: any)
+        {
         console.error("Error planning party:", error);
         return { success: false, error: 'Failed to create party on the server.' };
     }
