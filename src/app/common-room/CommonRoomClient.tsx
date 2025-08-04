@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
@@ -27,6 +27,8 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
+import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
+import { notificationSound } from '@/lib/sounds';
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -164,8 +166,6 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
 
 function PartyList({ parties, title, locationStatus }: { parties: ClientParty[], title: string, locationStatus: 'loading' | 'denied' | 'success' | 'unavailable' }) {
     
-    console.log("[Debug] Rendering PartyList with parties:", parties);
-
     return (
         <div className="space-y-4">
             <h3 className="font-bold text-xl">{title}</h3>
@@ -188,7 +188,7 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
                 parties.map(party => (
                     <Card key={party.id} className="hover:border-primary/50 transition-colors">
                         <CardContent className="p-4 space-y-2">
-                            {typeof party.distance === 'number' && (
+                             {typeof party.distance === 'number' && (
                                 <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
                             )}
                             <div className="flex-1">
@@ -233,6 +233,9 @@ export default function CommonRoomClient() {
 
     const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
     const [locationStatus, setLocationStatus] = useState<'loading' | 'denied' | 'success' | 'unavailable'>('unavailable');
+    
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const notifiedPartyIds = useRef(new Set<string>());
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
@@ -247,7 +250,6 @@ export default function CommonRoomClient() {
                 getVibes(user.email),
                 getUpcomingParties(),
             ]);
-            console.log("[Debug] Fetched parties:", fetchedParties);
             setAllVibes(fetchedVibes);
             setPublicParties(fetchedParties);
         } catch (error: any) {
@@ -258,40 +260,38 @@ export default function CommonRoomClient() {
         }
     }, [user, toast]);
     
-    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        if (lat1 === lat2 && lon1 === lon2) {
-            return 0;
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            audioRef.current = new Audio(notificationSound);
         }
-        const R = 6371; // Radius of the Earth in km
+    }, []);
+    
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        if (lat1 === lat2 && lon1 === lon2) return 0;
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const d = R * c;
-        console.log(`[Debug] getDistance: (${lat1}, ${lon1}) to (${lat2}, ${lon2}) = ${d} km`);
-        return d;
+        return R * c;
     };
 
-    const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
-        console.log("[Debug] extractCoordsFromUrl - URL:", url);
+    const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
         if (!url) return null;
-        // Updated regex to handle more general coordinate formats in URLs
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)|z=.*&q=(-?\d+\.\d+),(-?\d+\.\d+)/;
-        const match = url.match(regex);
-        console.log("[Debug] extractCoordsFromUrl - Regex match:", match);
-        if (match) {
-            // Check all possible capture groups
-            const lat = parseFloat(match[1] || match[3] || match[5]);
-            const lon = parseFloat(match[2] || match[4] || match[6]);
-            if (!isNaN(lat) && !isNaN(lon)) {
-                console.log("[Debug] extractCoordsFromUrl - Coords found:", { lat, lon });
-                return { lat, lon };
+        let finalUrl = url;
+        if (url.includes('goo.gl')) {
+            const result = await resolveUrlAction(url);
+            if (result.success && result.finalUrl) {
+                finalUrl = result.finalUrl;
             }
         }
-        console.log("[Debug] extractCoordsFromUrl - No coords found.");
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)|z=.*&q=(-?\d+\.\d+),(-?\d+\.\d+)/;
+        const match = finalUrl.match(regex);
+        if (match) {
+            const lat = parseFloat(match[1] || match[3] || match[5]);
+            const lon = parseFloat(match[2] || match[4] || match[6]);
+            if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
+        }
         return null;
     };
 
@@ -307,16 +307,11 @@ export default function CommonRoomClient() {
             setLocationStatus('loading');
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const loc = {
-                        lat: position.coords.latitude,
-                        lon: position.coords.longitude
-                    };
-                    console.log("[Debug] User location found:", loc);
+                    const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
                     setUserLocation(loc);
                     setLocationStatus('success');
                 },
                 (error) => {
-                    console.warn("[Debug] Could not get user location:", error.message);
                     setUserLocation(null); 
                     setLocationStatus('denied');
                 }
@@ -325,34 +320,47 @@ export default function CommonRoomClient() {
     }, [activeTab]);
     
     useEffect(() => {
-        console.log("[Debug] Recalculating sorted parties. User location:", userLocation, "Public parties:", publicParties.length);
-        if (publicParties.length > 0 && userLocation) {
-            const processParties = async () => {
+        const processParties = async () => {
+            if (publicParties.length > 0 && userLocation) {
                 const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
-                    let finalUrl = party.location;
-                    if (party.location.includes('goo.gl')) {
-                        const result = await resolveUrlAction(party.location);
-                        if (result.success && result.finalUrl) {
-                            finalUrl = result.finalUrl;
-                        }
-                    }
-                    const coords = extractCoordsFromUrl(finalUrl);
+                    const coords = await extractCoordsFromUrl(party.location);
                     let distance: number | undefined;
                     if (coords) {
                         distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
                     }
-                    return { ...party, distance };
+                    return { ...party, distance, coords };
                 }));
 
                 partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-                console.log("[Debug] Final sorted parties with distance:", partiesWithDistance);
                 setSortedPublicParties(partiesWithDistance);
-            };
-            processParties();
-        } else {
-            setSortedPublicParties(publicParties); // Show unsorted if no location
-        }
-    }, [publicParties, userLocation]);
+                
+                try {
+                    const userCityData = await getCityFromCoords(userLocation);
+                    for (const party of partiesWithDistance) {
+                        if (party.coords && party.distance !== undefined && party.distance < 50 && !notifiedPartyIds.current.has(party.id)) {
+                             const partyCityData = await getCityFromCoords(party.coords);
+                             if (userCityData.city === partyCityData.city) {
+                                toast({
+                                    title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /> Nearby Meetup!</div>),
+                                    description: `"${party.title}" is happening soon in ${userCityData.city}. Check it out!`,
+                                    duration: 10000,
+                                });
+                                audioRef.current?.play().catch(console.error);
+                                notifiedPartyIds.current.add(party.id);
+                             }
+                        }
+                    }
+                } catch(e) {
+                    console.warn("[Nearby Check] Could not get city from coords, skipping notifications.", e);
+                }
+
+            } else {
+                setSortedPublicParties(publicParties);
+            }
+        };
+
+        processParties();
+    }, [publicParties, userLocation, toast]);
 
 
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
