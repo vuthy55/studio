@@ -228,6 +228,7 @@ export const lightweightCountries: LightweightCountry[] = [
   { name: 'Hungary', code: 'HU', phone: '36', region: 'Europe' },
   { name: 'Iceland', code: 'IS', phone: '354', region: 'Europe' },
   { name: 'India', code: 'IN', phone: '91', region: 'Asia' },
+  { name: 'Indonesia', code: 'ID', phone: '62', region: 'Asia' },
   { name: 'Iran', code: 'IR', phone: '98', region: 'Asia' },
   { name: 'Iraq', code: 'IQ', phone: '964', region: 'Asia' },
   { name: 'Ireland', code: 'IE', phone: '353', region: 'Europe' },
