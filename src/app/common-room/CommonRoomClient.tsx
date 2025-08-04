@@ -18,12 +18,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe } from '@/actions/common-room';
-import { ClientVibe } from '@/lib/types';
-import { formatDistanceToNow } from 'date-fns';
+import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
+import { ClientVibe, ClientParty } from '@/lib/types';
+import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -146,12 +146,59 @@ function VibeList({ vibes }: { vibes: ClientVibe[] }) {
 }
 
 
+function PartyList({ parties }: { parties: ClientParty[] }) {
+    if (parties.length === 0) {
+        return (
+            <p className="text-muted-foreground text-sm text-center py-8">
+                No upcoming parties. Why not plan one?
+            </p>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            {parties.map(party => (
+                <Card key={party.id} className="hover:border-primary/50 transition-colors">
+                    <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                             <div className="flex-1">
+                                <h3 className="font-semibold text-lg">{party.title}</h3>
+                                <p className="text-sm text-muted-foreground">
+                                   From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline">{party.vibeTopic}</Link>
+                                </p>
+                             </div>
+                             {party.distance && (
+                                <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                             )}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-4 space-y-2">
+                             <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4" />
+                                <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                    View Location <ExternalLink className="h-3 w-3" />
+                                </a>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold">When:</span>
+                                <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+    );
+}
+
+
+
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
     const [vibes, setVibes] = useState<ClientVibe[]>([]);
+    const [parties, setParties] = useState<ClientParty[]>([]);
     const [isFetching, setIsFetching] = useState(true);
-    const [activeTab, setActiveTab] = useState('latest-buzz');
+    const [activeTab, setActiveTab] = useState('parties');
 
 
     const fetchVibes = useCallback(async () => {
@@ -171,13 +218,27 @@ export default function CommonRoomClient() {
         }
     }, [user, toast]);
 
+    const fetchParties = useCallback(async () => {
+         setIsFetching(true);
+        try {
+            const fetchedParties = await getUpcomingParties();
+            setParties(fetchedParties);
+        } catch (error: any) {
+             console.error("Error fetching parties:", error);
+            toast({ variant: 'destructive', title: 'Error fetching parties' });
+        } finally {
+             setIsFetching(false);
+        }
+    }, [toast]);
+
     useEffect(() => {
         if (!loading && user) {
             fetchVibes();
+            fetchParties();
         } else if (!loading && !user) {
             setIsFetching(false);
         }
-    }, [loading, user, fetchVibes]);
+    }, [loading, user, fetchVibes, fetchParties]);
     
     const { publicVibes, privateVibes } = useMemo(() => {
         return {
@@ -208,12 +269,12 @@ export default function CommonRoomClient() {
                     ) : (
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
                             <TabsList className="grid w-full grid-cols-3">
-                                <TabsTrigger value="latest-buzz">Latest Buzz</TabsTrigger>
+                                <TabsTrigger value="parties">Parties</TabsTrigger>
                                 <TabsTrigger value="public-vibes">Public Vibes</TabsTrigger>
                                 <TabsTrigger value="my-invites">My Invites</TabsTrigger>
                             </TabsList>
-                            <TabsContent value="latest-buzz" className="mt-4">
-                                <VibeList vibes={vibes} />
+                             <TabsContent value="parties" className="mt-4">
+                                <PartyList parties={parties} />
                             </TabsContent>
                             <TabsContent value="public-vibes" className="mt-4">
                                 <VibeList vibes={publicVibes} />

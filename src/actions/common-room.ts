@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { Vibe, ClientVibe } from '@/lib/types';
+import { Vibe, ClientVibe, Party, ClientParty } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 
 
@@ -217,5 +217,67 @@ export async function updateHostStatus(vibeId: string, targetEmail: string, shou
     } catch (error: any) {
         console.error("Error updating host status:", error);
         return { success: false, error: "An unexpected server error occurred." };
+    }
+}
+
+
+interface PlanPartyPayload {
+    vibeId: string;
+    title: string;
+    location: string;
+    startTime: string; // ISO string
+    endTime: string; // ISO string
+    creatorId: string;
+    creatorName: string;
+}
+
+export async function planParty(payload: PlanPartyPayload): Promise<{ success: boolean; error?: string }> {
+    const { vibeId, ...partyData } = payload;
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const partyRef = vibeRef.collection('parties').doc();
+
+        await partyRef.set({
+            ...partyData,
+            startTime: Timestamp.fromDate(new Date(partyData.startTime)),
+            endTime: Timestamp.fromDate(new Date(partyData.endTime)),
+        });
+        
+        // Optional: Notify vibe members about the new party
+        const vibeDoc = await vibeRef.get();
+        const invitedEmails = vibeDoc.data()?.invitedEmails || [];
+        // ... logic to create notifications for invitedEmails ...
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error planning party:", error);
+        return { success: false, error: 'Failed to create party on the server.' };
+    }
+}
+
+export async function getUpcomingParties(): Promise<ClientParty[]> {
+    try {
+        const now = Timestamp.now();
+        const partiesSnapshot = await db.collectionGroup('parties').where('startTime', '>', now).orderBy('startTime', 'asc').get();
+
+        const parties: ClientParty[] = [];
+        for (const doc of partiesSnapshot.docs) {
+            const data = doc.data() as Omit<Party, 'id'>;
+            const vibeDoc = await doc.ref.parent.parent!.get();
+
+            parties.push({
+                id: doc.id,
+                vibeId: vibeDoc.id,
+                vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
+                ...data,
+                startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                endTime: (data.endTime as Timestamp).toDate().toISOString(),
+            });
+        }
+        return parties;
+
+    } catch (error: any) {
+        console.error("Error fetching upcoming parties:", error);
+        return [];
     }
 }

@@ -112,12 +112,31 @@ export type Vibe = {
     lastPostBy?: string;
 };
 
+export type Party = {
+    id: string;
+    title: string;
+    location: string; // Google Maps URL
+    startTime: any;
+    endTime: any;
+    creatorId: string;
+    creatorName: string;
+    vibeId: string;
+    vibeTopic: string;
+};
+
+export interface ClientParty extends Omit<Party, 'startTime' | 'endTime'> {
+    startTime: string; // ISO String
+    endTime: string; // ISO String
+    distance?: number; // in kilometers
+}
+
 
 export type VibePost = {
     id: string;
     content: string;
     authorId: string;
     authorName: string;
+    authorEmail: string;
     createdAt: Timestamp;
 };
 
