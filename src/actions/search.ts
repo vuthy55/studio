@@ -60,6 +60,7 @@ export async function searchWebAction(payload: SearchWebActionPayload): Promise<
 
     } catch (error: any) {
         console.error("[Search] Error performing web search:", error.response?.data?.error || error.message);
-        return { success: false, error: "Failed to perform web search." };
+        const errorMessage = error.response?.data?.error?.message || "Failed to perform web search.";
+        return { success: false, error: errorMessage };
     }
 }
