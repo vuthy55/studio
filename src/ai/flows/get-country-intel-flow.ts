@@ -12,6 +12,7 @@ import { searchWebAction } from '@/actions/search';
 import { getAppSettingsAction } from '@/actions/settings';
 import { getCountryIntelData, getNeighborIntelData } from '@/actions/intel-admin';
 import type { CountryIntelData } from '@/lib/types';
+import { subDays, parseISO } from 'date-fns';
 
 
 // --- Zod Schemas for Input/Output ---
@@ -58,7 +59,53 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
 
 
 // --- Helper Functions ---
+/**
+ * Parses a date from a string. It can handle various formats, including ISO dates and relative dates like "2 days ago".
+ * @param dateString The string to parse.
+ * @returns A Date object or null if parsing fails.
+ */
+function parseDate(dateString: string): Date | null {
+  try {
+    // Attempt to parse standard formats first
+    const date = parseISO(dateString);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  } catch (e) {
+    // Ignore errors from parseISO and try other methods
+  }
 
+  // Handle relative dates like "X days/weeks/months ago"
+  const relativeMatch = dateString.match(/(\d+)\s+(day|week|month|year)s?\s+ago/i);
+  if (relativeMatch) {
+    const value = parseInt(relativeMatch[1]);
+    const unit = relativeMatch[2].toLowerCase();
+    let date = new Date();
+    if (unit === 'day') date.setDate(date.getDate() - value);
+    else if (unit === 'week') date.setDate(date.getDate() - value * 7);
+    else if (unit === 'month') date.setMonth(date.getMonth() - value);
+    else if (unit === 'year') date.setFullYear(date.getFullYear() - value);
+    return date;
+  }
+  
+  // Fallback for simple date formats that parseISO might miss
+  try {
+      const parsed = new Date(dateString);
+      if (!isNaN(parsed.getTime())) return parsed;
+  } catch (e) {}
+
+  return null;
+}
+
+/**
+ * Searches the web for a query and verifies that the results are recent.
+ * It now uses a strict date-checking policy and relies on dates found in snippets.
+ * @param query The search query.
+ * @param apiKey The Google API key.
+ * @param searchEngineId The Google Custom Search Engine ID.
+ * @param debugLog An array to log debug messages.
+ * @returns A promise that resolves to an array of verified sources.
+ */
 async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{snippet: string; url: string}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     
@@ -66,7 +113,6 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
         query, 
         apiKey, 
         searchEngineId,
-        dateRestrict: 'd[30]' // Restrict search to the last 30 days
     });
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
@@ -78,20 +124,42 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
         return [];
     }
     
-    debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources.`);
+    debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources. Starting strict date verification...`);
     const verifiedSources = [];
+    const thirtyDaysAgo = subDays(new Date(), 30);
 
-    for (const item of searchResult.results.slice(0, 3)) { // Process top 3 results per query
-        debugLog.push(`[Intel Flow] (searchAndVerify) - Processing snippet for URL: ${item.link}`);
-        if (item.snippet) {
-            verifiedSources.push({ snippet: item.snippet, url: item.link });
+    for (const item of searchResult.results) {
+        if (!item.snippet) {
+            debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (no snippet): ${item.link}`);
+            continue;
+        }
+
+        // Try to find a date within the snippet text.
+        // Google often prepends snippets with "YYYY-MM-DD — " or "Month Day, YYYY ...".
+        const dateMatch = item.snippet.match(/^([A-Za-z]+\s\d{1,2},\s\d{4}|\d{4}-\d{2}-\d{2}|\d+\s\w+\sago)/);
+        let publicationDate: Date | null = null;
+        
+        if (dateMatch) {
+            publicationDate = parseDate(dateMatch[0]);
+        }
+
+        if (publicationDate) {
+            if (publicationDate >= thirtyDaysAgo) {
+                debugLog.push(`[Intel Flow] (searchAndVerify) - PASSED: Found recent date (${publicationDate.toISOString().split('T')[0]}) for ${item.link}`);
+                verifiedSources.push({ snippet: item.snippet, url: item.link });
+            } else {
+                debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (too old: ${publicationDate.toISOString().split('T')[0]}): ${item.link}`);
+            }
         } else {
-             debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (no snippet): ${item.link}`);
+             // Strict policy: if no date is found, discard the source.
+             debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (no valid date found): ${item.link}`);
         }
     }
+    
     debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} recent sources for query: "${query}"`);
     return verifiedSources;
 }
+
 
 const buildSiteSearchQuery = (sites: string[] | undefined): string => {
     if (!sites || sites.length === 0) return '';
