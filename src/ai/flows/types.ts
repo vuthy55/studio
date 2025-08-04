@@ -39,4 +39,17 @@ export const DiscoverCountryDataOutputSchema = z.object({
 });
 export type DiscoverCountryDataOutput = z.infer<typeof DiscoverCountryDataOutputSchema>;
 
+
+// --- Schemas for get-city-from-coords-flow ---
+export const GetCityFromCoordsInputSchema = z.object({
+  lat: z.number().describe('The latitude coordinate.'),
+  lon: z.number().describe('The longitude coordinate.'),
+});
+export type GetCityFromCoordsInput = z.infer<typeof GetCityFromCoordsInputSchema>;
+
+export const GetCityFromCoordsOutputSchema = z.object({
+  city: z.string().describe('The name of the city for the given coordinates.'),
+  country: z.string().describe('The name of the country for the given coordinates.'),
+});
+export type GetCityFromCoordsOutput = z.infer<typeof GetCityFromCoordsOutputSchema>;
     

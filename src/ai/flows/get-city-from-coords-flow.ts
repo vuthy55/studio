@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to determine the city for a given set of coordinates.
@@ -7,22 +8,13 @@
  * This is used to notify users of meetups happening in their current city.
  */
 
-import { z } from 'zod';
 import { ai } from '@/ai/genkit';
-
-// --- Zod Schemas for Input/Output ---
-
-export const GetCityFromCoordsInputSchema = z.object({
-  lat: z.number().describe('The latitude coordinate.'),
-  lon: z.number().describe('The longitude coordinate.'),
-});
-export type GetCityFromCoordsInput = z.infer<typeof GetCityFromCoordsInputSchema>;
-
-export const GetCityFromCoordsOutputSchema = z.object({
-  city: z.string().describe('The name of the city for the given coordinates.'),
-  country: z.string().describe('The name of the country for the given coordinates.'),
-});
-export type GetCityFromCoordsOutput = z.infer<typeof GetCityFromCoordsOutputSchema>;
+import { 
+    GetCityFromCoordsInputSchema, 
+    type GetCityFromCoordsInput, 
+    GetCityFromCoordsOutputSchema,
+    type GetCityFromCoordsOutput
+} from './types';
 
 
 // --- Main Exported Function ---
