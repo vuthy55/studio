@@ -66,7 +66,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                 </div>
             </div>
 
-            {categoryAssessments && (
+            {/* {categoryAssessments && (
                  <Card>
                     <CardHeader><CardTitle className="text-lg">Risk Severity Levels</CardTitle></CardHeader>
                     <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -78,7 +78,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                         ))}
                     </CardContent>
                  </Card>
-            )}
+            )} */}
 
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
@@ -116,7 +116,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                         )}
                     </AccordionContent>
                 </AccordionItem>
-                 <AccordionItem value="debug">
+                 {/* <AccordionItem value="debug">
                     <AccordionTrigger>
                         <h4 className="text-lg font-semibold">Debug Log</h4>
                     </AccordionTrigger>
@@ -133,7 +133,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                             <p className="text-sm text-muted-foreground">No debug information available.</p>
                         )}
                     </AccordionContent>
-                </AccordionItem>
+                </AccordionItem> */}
             </Accordion>
         </div>
     );
@@ -260,7 +260,7 @@ function InfoHubContent() {
                         </div>
                          <Dialog>
                             <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
+                                <Button>
                                     <Info className="h-4 w-4 mr-2"/>
                                     How "Latest Intel" Works
                                 </Button>
