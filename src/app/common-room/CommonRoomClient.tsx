@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -201,7 +202,7 @@ export default function CommonRoomClient() {
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [isFetching, setIsFetching] = useState(true);
     const [activeTab, setActiveTab] = useState('discover');
-
+    const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
@@ -225,6 +226,29 @@ export default function CommonRoomClient() {
             setIsFetching(false);
         }
     }, [user, toast]);
+    
+    // Function to calculate distance (Haversine formula)
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Radius of the Earth in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Extract lat/lon from Google Maps URL
+    const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
+        const match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (match && match[1] && match[2]) {
+            return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+        }
+        return null;
+    };
+
 
     useEffect(() => {
         if (!loading) {
@@ -232,19 +256,46 @@ export default function CommonRoomClient() {
         }
     }, [loading, user, fetchData]);
     
-    const { publicVibes, myVibes, myMeetups } = useMemo(() => {
+    useEffect(() => {
+        if (activeTab === 'discover') {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setUserLocation({
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    console.warn("Could not get user location:", error.message);
+                    // Handle case where user denies location access
+                    setUserLocation(null); 
+                }
+            );
+        }
+    }, [activeTab]);
+
+    const { publicVibes, myVibes, myMeetups, sortedPublicParties } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
         const privateV = allVibes.filter(v => !v.isPublic);
         
         const myVibeIds = new Set(allVibes.map(v => v.id));
         const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
+        
+        const sortedPublic = [...publicParties].map(party => {
+            const coords = extractCoordsFromUrl(party.location);
+            if (userLocation && coords) {
+                party.distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
+            }
+            return party;
+        }).sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
         return {
             publicVibes: publicV,
             myVibes: [...publicV, ...privateV], // For now, "My Vibes" is just all vibes they can see
             myMeetups: myM,
+            sortedPublicParties: sortedPublic,
         };
-    }, [allVibes, publicParties]);
+    }, [allVibes, publicParties, userLocation]);
 
 
     return (
@@ -276,7 +327,7 @@ export default function CommonRoomClient() {
                                     <AccordionItem value="meetups">
                                         <AccordionTrigger className="text-xl font-bold hover:no-underline">Public Meetups</AccordionTrigger>
                                         <AccordionContent>
-                                            <PartyList parties={publicParties} />
+                                            <PartyList parties={sortedPublicParties} />
                                         </AccordionContent>
                                     </AccordionItem>
                                      <AccordionItem value="vibes">
