@@ -272,28 +272,36 @@ export default function CommonRoomClient() {
                                 <TabsTrigger value="my-vibes"><UserCircle className="mr-2"/> My Space</TabsTrigger>
                             </TabsList>
                             <TabsContent value="discover" className="mt-4">
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-4">Public Meetups</h3>
-                                        <PartyList parties={publicParties} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-4">Public Vibes</h3>
-                                        <VibeList vibes={publicVibes} title="Public" />
-                                    </div>
-                                </div>
+                               <Accordion type="single" collapsible defaultValue="parties" className="w-full space-y-4">
+                                    <AccordionItem value="parties">
+                                        <AccordionTrigger className="text-xl font-bold p-2 hover:no-underline">Public Meetups</AccordionTrigger>
+                                        <AccordionContent>
+                                            <PartyList parties={publicParties} />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                    <AccordionItem value="vibes">
+                                        <AccordionTrigger className="text-xl font-bold p-2 hover:no-underline">Public Vibes</AccordionTrigger>
+                                        <AccordionContent>
+                                            <VibeList vibes={publicVibes} title="Public" />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                             </TabsContent>
                             <TabsContent value="my-vibes" className="mt-4">
-                               <div className="grid md:grid-cols-2 gap-8">
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-4">My Upcoming Meetups</h3>
-                                        <PartyList parties={myMeetups} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-4">My Vibes & Invites</h3>
-                                        <VibeList vibes={myVibes} title="My Vibes" />
-                                    </div>
-                                </div>
+                               <Accordion type="single" collapsible defaultValue="my-meetups" className="w-full space-y-4">
+                                    <AccordionItem value="my-meetups">
+                                        <AccordionTrigger className="text-xl font-bold p-2 hover:no-underline">My Upcoming Meetups</AccordionTrigger>
+                                        <AccordionContent>
+                                            <PartyList parties={myMeetups} />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                    <AccordionItem value="my-vibes">
+                                        <AccordionTrigger className="text-xl font-bold p-2 hover:no-underline">My Vibes & Invites</AccordionTrigger>
+                                        <AccordionContent>
+                                            <VibeList vibes={myVibes} title="My Vibes" />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                             </TabsContent>
                         </Tabs>
                     )}
