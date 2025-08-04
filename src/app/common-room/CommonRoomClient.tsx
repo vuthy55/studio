@@ -267,17 +267,26 @@ export default function CommonRoomClient() {
     }, []);
     
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const toRad = (deg: number) => deg * (Math.PI / 180);
-        const R = 6371; // Radius of the Earth in kilometers
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // Distance in km
-    };
+        if ((lat1 === lat2) && (lon1 === lon2)) {
+            return 0;
+        }
+        else {
+            const radlat1 = Math.PI * lat1/180;
+            const radlat2 = Math.PI * lat2/180;
+            const theta = lon1-lon2;
+            const radtheta = Math.PI * theta/180;
+            let dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+            if (dist > 1) {
+                dist = 1;
+            }
+            dist = Math.acos(dist);
+            dist = dist * 180/Math.PI;
+            dist = dist * 60 * 1.1515;
+            // convert to kilometers
+            dist = dist * 1.609344 
+            return dist;
+        }
+    }
 
     const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
         if (!url) return null;
@@ -336,7 +345,11 @@ export default function CommonRoomClient() {
     
     useEffect(() => {
         const processParties = async () => {
-            if (publicParties.length > 0 && userLocation) {
+            if (publicParties.length === 0) {
+                setSortedPublicParties([]);
+                return;
+            }
+            if (userLocation) {
                 const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
                     const coords = await extractCoordsFromUrl(party.location);
                     let distance: number | undefined;
@@ -466,3 +479,5 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
+    
