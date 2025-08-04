@@ -7,7 +7,7 @@ import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -142,40 +142,32 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-    const participants = React.useMemo(() => {
-        if (!vibeData) return [];
-        const seen = new Set<string>();
-        const result: {name: string, isHost: boolean}[] = [];
+    const { presentParticipants, invitedButNotPresent } = React.useMemo(() => {
+        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [] };
         
-        // Add creator/hosts
+        const present = new Map<string, {name: string, isHost: boolean}>();
+
+        // Add creator/hosts who have posted
         if (vibeData.hostEmails) {
             vibeData.hostEmails.forEach((email: string) => {
-                if (!seen.has(email)) {
-                    seen.add(email);
-                    result.push({ name: email, isHost: true });
+                if (posts.some(p => p.authorName === email)) {
+                     present.set(email, { name: email, isHost: true });
                 }
             });
         }
         
         // Add post authors
         posts.forEach(post => {
-            if (!seen.has(post.authorName)) {
-                seen.add(post.authorName);
-                result.push({ name: post.authorName, isHost: vibeData.hostEmails?.includes(post.authorName) });
+            if (!present.has(post.authorName)) {
+                present.set(post.authorName, { name: post.authorName, isHost: vibeData.hostEmails?.includes(post.authorName) });
             }
         });
         
-         // Add other invited people
-        if (vibeData.invitedEmails) {
-            vibeData.invitedEmails.forEach((email: string) => {
-                 if (!seen.has(email)) {
-                    seen.add(email);
-                    result.push({ name: email, isHost: false });
-                }
-            });
-        }
+         // Find invited people who haven't posted
+        const invited = (vibeData.invitedEmails || []).filter((email: string) => !present.has(email));
         
-        return result.sort((a,b) => b.isHost.toString().localeCompare(a.isHost.toString()));
+        const presentList = Array.from(present.values()).sort((a, b) => b.isHost.toString().localeCompare(a.isHost.toString()));
+        return { presentParticipants: presentList, invitedButNotPresent: invited };
 
     }, [vibeData, posts]);
 
@@ -225,7 +217,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         </SheetTrigger>
                         <SheetContent>
                             <SheetHeader>
-                                <SheetTitle>Participants ({participants.length})</SheetTitle>
+                                <SheetTitle>Participants ({presentParticipants.length + invitedButNotPresent.length})</SheetTitle>
                                 <SheetDescription>
                                     People involved in this Vibe.
                                 </SheetDescription>
@@ -240,7 +232,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 )}
                                 <Separator />
                                 <div className="space-y-2">
-                                    {participants.map(({ name, isHost: isVibeHost }) => (
+                                    <h4 className="font-semibold text-sm flex items-center gap-2"><UserCheck /> Present ({presentParticipants.length})</h4>
+                                    {presentParticipants.map(({ name, isHost: isVibeHost }) => (
                                         <div key={name} className="flex items-center gap-2 p-2 rounded-md bg-muted">
                                              <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
@@ -250,6 +243,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         </div>
                                     ))}
                                 </div>
+                                {invitedButNotPresent.length > 0 && (
+                                    <div className="space-y-2">
+                                        <h4 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground"><UserX/> Invited ({invitedButNotPresent.length})</h4>
+                                        {invitedButNotPresent.map((email) => (
+                                            <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                                                <Avatar className="h-8 w-8 opacity-70">
+                                                    <AvatarFallback>{email.charAt(0).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <span className="font-medium text-sm text-muted-foreground">{email}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </SheetContent>
                     </Sheet>
