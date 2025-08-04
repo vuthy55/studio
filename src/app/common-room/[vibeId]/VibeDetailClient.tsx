@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { postReply, inviteToVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 
-function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId: string, vibeTopic: string, creatorName: string, onInviteSent: () => void }) {
+function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibeTopic: string, creatorName: string }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -48,7 +48,6 @@ function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId
                 toast({ title: 'Invites Sent!', description: 'The users have been invited to this Vibe.' });
                 setIsOpen(false);
                 setEmails('');
-                onInviteSent();
             } else {
                 throw new Error(result.error);
             }
@@ -96,7 +95,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-    const [vibeData, vibeLoading, vibeError, vibeSnapshot] = useDocumentData(doc(db, 'vibes', vibeId));
+    const [vibeData, vibeLoading, vibeError] = useDocumentData(doc(db, 'vibes', vibeId));
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     const [replyContent, setReplyContent] = useState('');
@@ -237,7 +236,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         vibeId={vibeId} 
                                         vibeTopic={vibeData.topic} 
                                         creatorName={user?.displayName || 'A user'}
-                                        onInviteSent={() => vibeSnapshot?.ref.get()}
                                     />
                                 )}
                                 <Separator />
