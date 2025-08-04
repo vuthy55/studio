@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile, CountryIntelData } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -1759,6 +1759,15 @@ function FeedbackTabContent() {
     );
 }
 
+type BuildStatus = 'idle' | 'generating' | 'success' | 'failed';
+
+interface CountryBuildStatus {
+    countryCode: string;
+    countryName: string;
+    status: BuildStatus;
+    error?: string;
+}
+
 function IntelTabContent() {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState('database');
@@ -1775,10 +1784,14 @@ function IntelTabContent() {
     const [filteredData, setFilteredData] = useState<CountryIntelData[]>([]);
     const [editState, setEditState] = useState<Record<string, Partial<CountryIntelData>>>({});
     const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
-    const [isBuilding, setIsBuilding] = useState(false);
     const [isBuildDialogOpen, setIsBuildDialogOpen] = useState(false);
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
     const [hasSearched, setHasSearched] = useState(false);
+    
+    // New state for build status tracking
+    const [buildStatuses, setBuildStatuses] = useState<Record<string, CountryBuildStatus>>({});
+    const [isBuilding, setIsBuilding] = useState(false);
+
 
     // AI Sources Logic
     useEffect(() => {
@@ -1879,26 +1892,49 @@ function IntelTabContent() {
         return sortedRegions;
     }, []);
 
-    const builtCountryCodes = useMemo(() => new Set(intelData.map(c => c.id)), [intelData]);
+    const builtCountryData = useMemo(() => {
+        return new Map(intelData.map(c => [c.id, c]));
+    }, [intelData]);
 
     const handleBuildDatabase = async () => {
         if(selectedCountries.length === 0) {
             toast({ variant: 'destructive', title: 'No Selection', description: 'Please select at least one country or region to build.' });
             return;
         }
+        
         setIsBuilding(true);
-        setIsBuildDialogOpen(false);
+        const initialStatuses: Record<string, CountryBuildStatus> = {};
+        selectedCountries.forEach(code => {
+             const country = lightweightCountries.find(c => c.code === code);
+             if (country) {
+                initialStatuses[code] = { countryCode: code, countryName: country.name, status: 'generating' };
+            }
+        });
+        setBuildStatuses(initialStatuses);
+        
         try {
             const result = await buildCountryIntelData(selectedCountries);
+            
             if (result.success) {
-                toast({ title: 'Database Build Started', description: `Processing ${result.totalToProcess} countries. Refresh to see progress.` });
+                const finalStatuses: Record<string, CountryBuildStatus> = {};
+                result.results.forEach(res => {
+                    finalStatuses[res.countryCode] = { ...res, status: res.status === 'success' ? 'success' : 'failed' };
+                });
+                setBuildStatuses(prev => ({...prev, ...finalStatuses}));
+                
+                const successCount = result.results.filter(r => r.status === 'success').length;
+                const failureCount = result.results.length - successCount;
+
+                toast({ title: 'Database Build Finished', description: `Succeeded: ${successCount}, Failed: ${failureCount}.` });
+                
                 await fetchIntelData();
-                setSelectedCountries([]);
             } else {
-                toast({ variant: 'destructive', title: 'Error', description: result.error });
+                 toast({ variant: 'destructive', title: 'Error', description: 'The build process failed to start.' });
+                 setBuildStatuses({});
             }
         } catch(e: any) {
             toast({ variant: 'destructive', title: 'Error', description: e.message || 'Failed to start database build.' });
+             setBuildStatuses({});
         }
         setIsBuilding(false);
     }
@@ -2022,7 +2058,11 @@ function IntelTabContent() {
                                                         </div>
                                                         <AccordionContent>
                                                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4">
-                                                                {countries.map(country => (
+                                                                {countries.map(country => {
+                                                                    const buildStatus = buildStatuses[country.code];
+                                                                    const dbStatus = builtCountryData.get(country.code)?.lastBuildStatus;
+
+                                                                    return (
                                                                     <div key={country.code} className="flex items-center space-x-2">
                                                                         <Checkbox 
                                                                             id={country.code} 
@@ -2031,23 +2071,21 @@ function IntelTabContent() {
                                                                                 setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
                                                                             }}
                                                                         />
-                                                                        <Label htmlFor={country.code} className="flex items-center gap-1.5">
+                                                                        <Label htmlFor={country.code} className="flex items-center gap-1.5 cursor-pointer">
                                                                             {country.name}
-                                                                            {builtCountryCodes.has(country.code) && (
-                                                                                <TooltipProvider>
-                                                                                    <Tooltip>
-                                                                                        <TooltipTrigger>
-                                                                                            <Database className="h-3 w-3 text-muted-foreground" />
-                                                                                        </TooltipTrigger>
-                                                                                        <TooltipContent>
-                                                                                            <p>Data exists. Re-selecting will overwrite.</p>
-                                                                                        </TooltipContent>
-                                                                                    </Tooltip>
-                                                                                </TooltipProvider>
+                                                                            {buildStatus ? (
+                                                                                buildStatus.status === 'generating' ? <LoaderCircle className="h-3 w-3 text-primary animate-spin" />
+                                                                                : buildStatus.status === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                                                                : <AlertTriangle className="h-3 w-3 text-destructive" />
+                                                                            ) : dbStatus ? (
+                                                                                dbStatus === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                                                                : <AlertTriangle className="h-3 w-3 text-destructive" />
+                                                                            ) : (
+                                                                                 <Database className="h-3 w-3 text-muted-foreground" />
                                                                             )}
                                                                         </Label>
                                                                     </div>
-                                                                ))}
+                                                                )})}
                                                             </div>
                                                         </AccordionContent>
                                                     </AccordionItem>
@@ -2056,7 +2094,7 @@ function IntelTabContent() {
                                         </div>
                                     </ScrollArea>
                                     <DialogFooter>
-                                        <Button variant="ghost" onClick={() => setIsBuildDialogOpen(false)}>Cancel</Button>
+                                        <Button variant="ghost" onClick={() => { setIsBuildDialogOpen(false); setBuildStatuses({}); setSelectedCountries([]); }}>Close</Button>
                                         <Button onClick={handleBuildDatabase} disabled={isBuilding || selectedCountries.length === 0}>
                                             {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                                             Build for {selectedCountries.length} Countries

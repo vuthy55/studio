@@ -224,6 +224,8 @@ export interface CountryIntelData {
     etiquette: string[];
     publicHolidays: string[];
     emergencyNumbers: string[];
+    // New fields for build status
+    lastBuildStatus?: 'success' | 'failed';
+    lastBuildError?: string | null;
+    lastBuildAt?: FieldValue;
 }
-
-    

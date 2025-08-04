@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase-admin';
 import type { CountryIntelData } from '@/lib/types';
 import { discoverCountryData } from '@/ai/flows/discover-country-data-flow';
 import { lightweightCountries } from '@/lib/location-data';
+import { FieldValue } from 'firebase-admin/firestore';
 
 
 /**
@@ -104,63 +105,59 @@ export async function updateCountryIntelAdmin(countryCode: string, updates: Part
     }
 }
 
+interface BuildResult {
+    countryCode: string;
+    countryName: string;
+    status: 'success' | 'failed';
+    error?: string;
+}
+
 /**
  * Builds or updates the intelligence database for a given list of country codes.
- * If a document already exists for a country code, it will be OVERWRITTEN.
+ * This function processes each country individually and reports success or failure.
  * @param countryCodesToBuild An array of ISO 3166-1 alpha-2 country codes.
  */
-export async function buildCountryIntelData(countryCodesToBuild: string[]): Promise<{ success: boolean; error?: string; totalToProcess?: number; addedCount?: number }> {
+export async function buildCountryIntelData(countryCodesToBuild: string[]): Promise<{ success: boolean; results: BuildResult[] }> {
     if (!countryCodesToBuild || countryCodesToBuild.length === 0) {
-        return { success: false, error: "No country codes provided to build." };
+        return { success: false, results: [] };
     }
 
-    try {
-        console.log(`[Intel Builder] Starting database build/update process for ${countryCodesToBuild.length} countries.`);
-        const intelCollectionRef = db.collection('countryIntelCache');
-
-        const countriesToProcess = lightweightCountries.filter(c => countryCodesToBuild.includes(c.code));
-        
-        if (countriesToProcess.length === 0) {
-            console.warn('[Intel Builder] No matching countries found in lightweightCountries list for the provided codes.');
-            return { success: true, totalToProcess: 0, addedCount: 0 };
-        }
-
-        console.log(`[Intel Builder] Processing ${countriesToProcess.length} countries.`);
-        
-        let addedCount = 0;
-        // Using Promise.allSettled to process countries and not fail the entire batch if one fails.
-        const results = await Promise.allSettled(countriesToProcess.map(async (country) => {
+    const intelCollectionRef = db.collection('countryIntelCache');
+    const countriesToProcess = lightweightCountries.filter(c => countryCodesToBuild.includes(c.code));
+    
+    const buildPromises = countriesToProcess.map(async (country): Promise<BuildResult> => {
+        const docRef = intelCollectionRef.doc(country.code);
+        try {
             console.log(`[Intel Builder] Discovering data for ${country.name}...`);
             const intelData = await discoverCountryData({ countryName: country.name });
             
             if (intelData && intelData.region && intelData.countryName) {
-                const docRef = intelCollectionRef.doc(country.code);
-                // Using set with merge:false will create or completely overwrite the document.
                 await docRef.set({
                     ...intelData,
-                    id: country.code // Ensure the ID is the country code
+                    id: country.code,
+                    lastBuildStatus: 'success',
+                    lastBuildAt: FieldValue.serverTimestamp(),
+                    lastBuildError: null
                 });
-                return { status: 'fulfilled', country: country.name };
+                return { status: 'success', countryCode: country.code, countryName: country.name };
             } else {
-                 throw new Error(`AI failed to return sufficient data for ${country.name}.`);
+                 throw new Error(`AI failed to return sufficient data.`);
             }
-        }));
-        
-        results.forEach((result, index) => {
-            const countryName = countriesToProcess[index].name;
-            if (result.status === 'fulfilled') {
-                addedCount++;
-                console.log(`[Intel Builder] Successfully built/updated data for ${countryName}.`);
-            } else {
-                 console.error(`[Intel Builder] Error processing ${countryName}:`, result.reason);
-            }
-        });
-        
-        console.log(`[Intel Builder] Process finished. Successfully processed ${addedCount} of ${countriesToProcess.length} countries.`);
-        return { success: true, totalToProcess: countriesToProcess.length, addedCount };
+        } catch (error: any) {
+            console.error(`[Intel Builder] Error processing ${country.name}:`, error);
+            // On failure, write a document with the error status for tracking.
+            await docRef.set({
+                countryName: country.name,
+                id: country.code,
+                lastBuildStatus: 'failed',
+                lastBuildError: error.message || 'An unknown error occurred during AI discovery.',
+                lastBuildAt: FieldValue.serverTimestamp(),
+            }, { merge: true }); // Merge to avoid overwriting potentially useful old data
+            return { status: 'failed', countryCode: country.code, countryName: country.name, error: error.message };
+        }
+    });
 
-    } catch (error: any) {
-        console.error('[Intel Builder] Critical error during database build:', error);
-        return { success: false, error: 'A critical server error occurred.' };
-    }
+    const results = await Promise.all(buildPromises);
+    
+    return { success: true, results };
 }
