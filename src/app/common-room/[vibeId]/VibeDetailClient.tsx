@@ -260,7 +260,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             activeMeetupError,
             activeMeetupExists: !!activeMeetup,
         });
-    }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupId, activeMeetupLoading, activeMeetupError, activeMeetup]);
+    }, [vibeId, userLoading, vibeLoading, vibeError, vibeData, activeMeetupLoading, activeMeetupError, activeMeetup]);
     // --- END DEBUG LOGS ---
     
     const handleRsvp = async (partyId: string, isRsvping: boolean) => {
@@ -588,3 +588,5 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
+
+    
