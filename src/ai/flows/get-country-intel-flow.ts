@@ -13,6 +13,7 @@ import { getAppSettingsAction } from '@/actions/settings';
 import { getCountryIntelData, getNeighborIntelData } from '@/actions/intel-admin';
 import type { CountryIntelData } from '@/lib/types';
 import { subDays, parseISO } from 'date-fns';
+import { scrapeUrlAction } from '@/actions/scraper';
 
 
 // --- Zod Schemas for Input/Output ---
@@ -248,9 +249,24 @@ const getCountryIntelFlow = ai.defineFlow(
     for (const [key, { query, strictDate }] of Object.entries(categories)) {
         debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
         
-        const sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog, strictDate);
-        allSourcesByCategory[key] = sources;
+        let sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog, strictDate);
         
+        // ** NEW FALLBACK LOGIC **
+        if (key === 'Official Advisory' && sources.length === 0) {
+            debugLog.push(`[Intel Flow] (Fallback) - Search failed for Official Advisory. Trying direct scrape.`);
+            const advisorySources = settings.infohubGovernmentAdvisorySources.split(',');
+            if (advisorySources.length > 0) {
+                const scrapeResult = await scrapeUrlAction(`https://${advisorySources[0].trim()}`);
+                if (scrapeResult.success && scrapeResult.content) {
+                    debugLog.push(`[Intel Flow] (Fallback) - Scrape successful from ${advisorySources[0]}.`);
+                    sources.push({ snippet: scrapeResult.content, url: `https://${advisorySources[0].trim()}` });
+                } else {
+                     debugLog.push(`[Intel Flow] (Fallback) - Scrape failed: ${scrapeResult.error}`);
+                }
+            }
+        }
+        
+        allSourcesByCategory[key] = sources;
         debugLog.push(`[Intel Flow] Finished processing category: "${key}". Found ${sources.length} sources.`);
     }
     
