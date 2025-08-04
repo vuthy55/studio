@@ -310,24 +310,36 @@ export async function getUpcomingParties(): Promise<ClientParty[]> {
         const now = Timestamp.now();
         const partiesSnapshot = await db.collectionGroup('parties').where('startTime', '>', now).orderBy('startTime', 'asc').get();
 
-        const parties: ClientParty[] = [];
-        for (const doc of partiesSnapshot.docs) {
-            const data = doc.data() as Omit<Party, 'id'>;
-            const vibeDoc = await doc.ref.parent.parent!.get();
-
-            parties.push({
-                id: doc.id,
-                vibeId: vibeDoc.id,
-                vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
-                ...data,
-                startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                endTime: (data.endTime as Timestamp).toDate().toISOString(),
-            });
+        if (partiesSnapshot.empty) {
+            return [];
         }
-        return parties;
+
+        const publicParties: ClientParty[] = [];
+
+        for (const doc of partiesSnapshot.docs) {
+            const vibeRef = doc.ref.parent.parent!;
+            const vibeDoc = await vibeRef.get();
+            
+            // Only include parties from public vibes
+            if (vibeDoc.exists && vibeDoc.data()?.isPublic) {
+                const data = doc.data() as Omit<Party, 'id'>;
+                publicParties.push({
+                    id: doc.id,
+                    vibeId: vibeDoc.id,
+                    vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
+                    ...data,
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                });
+            }
+        }
+        
+        return publicParties;
 
     } catch (error: any) {
         console.error("Error fetching upcoming parties:", error);
+        // On error, return an empty array to prevent client crashes.
+        // This can happen if the required composite index is missing.
         return [];
     }
 }
