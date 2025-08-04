@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -291,19 +290,22 @@ export default function CommonRoomClient() {
         const myVibeIds = new Set(allVibes.map(v => v.id));
         const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
         
-        const sortedPublic = [...publicParties].map(party => {
+        const partiesWithDistance = publicParties.map(party => {
             const coords = extractCoordsFromUrl(party.location);
+            let distance: number | undefined;
             if (userLocation && coords) {
-                party.distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
+                distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
             }
-            return party;
-        }).sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+            return { ...party, distance };
+        });
+
+        partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
         return {
             publicVibes: publicV,
             myVibes: [...publicV, ...privateV], // For now, "My Vibes" is just all vibes they can see
             myMeetups: myM,
-            sortedPublicParties: sortedPublic,
+            sortedPublicParties: partiesWithDistance,
         };
     }, [allVibes, publicParties, userLocation]);
 
