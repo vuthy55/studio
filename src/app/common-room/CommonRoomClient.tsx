@@ -104,7 +104,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function VibeList({ vibes, title }: { vibes: ClientVibe[], title: string }) {
+function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: ClientParty[], title: string }) {
     if (vibes.length === 0) {
         return (
             <p className="text-muted-foreground text-sm text-center py-8">
@@ -115,34 +115,44 @@ function VibeList({ vibes, title }: { vibes: ClientVibe[], title: string }) {
     
     return (
         <div className="space-y-4">
-            {vibes.map(vibe => (
-                <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
-                    <Card className="hover:border-primary transition-colors">
-                        <CardContent className="p-4">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h3 className="font-semibold text-lg">{vibe.topic}</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        Started by {vibe.creatorName}
-                                    </p>
+            {vibes.map(vibe => {
+                const activeMeetup = vibe.activeMeetupId ? parties.find(p => p.id === vibe.activeMeetupId) : null;
+                return (
+                    <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
+                        <Card className="hover:border-primary transition-colors">
+                            <CardContent className="p-4 space-y-2">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-semibold text-lg">{vibe.topic}</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Started by {vibe.creatorName}
+                                        </p>
+                                    </div>
+                                    <Badge variant={vibe.isPublic ? 'secondary' : 'default'}>
+                                        {vibe.isPublic ? 'Public' : 'Private'}
+                                    </Badge>
                                 </div>
-                                <Badge variant={vibe.isPublic ? 'secondary' : 'default'}>
-                                    {vibe.isPublic ? 'Public' : 'Private'}
-                                </Badge>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground mt-4">
-                                <div className="flex items-center gap-1">
-                                    <MessageSquare className="h-3 w-3" />
-                                    <span>{vibe.postsCount || 0} posts</span>
+                                {activeMeetup && (
+                                    <div className="p-2 bg-primary/10 rounded-md border-l-4 border-primary">
+                                        <p className="font-bold text-sm text-primary flex items-center gap-1.5"><Calendar className="h-4 w-4"/> Upcoming Meetup</p>
+                                        <p className="text-sm text-primary/90 font-medium truncate">{activeMeetup.title}</p>
+                                        <p className="text-xs text-primary/80">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                                    <div className="flex items-center gap-1">
+                                        <MessageSquare className="h-3 w-3" />
+                                        <span>{vibe.postsCount || 0} posts</span>
+                                    </div>
+                                    <span>
+                                        {vibe.lastPostAt ? `Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}` : `Created ${formatDistanceToNow(new Date(vibe.createdAt), { addSuffix: true })}`}
+                                    </span>
                                 </div>
-                                <span>
-                                    {vibe.lastPostAt ? `Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}` : `Created ${formatDistanceToNow(new Date(vibe.createdAt), { addSuffix: true })}`}
-                                </span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </Link>
-            ))}
+                            </CardContent>
+                        </Card>
+                    </Link>
+                )
+            })}
         </div>
     );
 }
@@ -333,7 +343,7 @@ export default function CommonRoomClient() {
                                      <AccordionItem value="vibes">
                                         <AccordionTrigger className="text-xl font-bold hover:no-underline">Public Vibes</AccordionTrigger>
                                         <AccordionContent>
-                                            <VibeList vibes={publicVibes} title="Public" />
+                                            <VibeList vibes={publicVibes} parties={sortedPublicParties} title="Public" />
                                         </AccordionContent>
                                     </AccordionItem>
                                </Accordion>
@@ -349,7 +359,7 @@ export default function CommonRoomClient() {
                                      <AccordionItem value="my-vibes">
                                         <AccordionTrigger className="text-xl font-bold hover:no-underline">My Vibes & Invites</AccordionTrigger>
                                         <AccordionContent>
-                                           <VibeList vibes={myVibes} title="My Vibes" />
+                                           <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes" />
                                         </AccordionContent>
                                     </AccordionItem>
                                </Accordion>
