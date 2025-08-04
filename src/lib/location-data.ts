@@ -277,7 +277,7 @@ export const lightweightCountries: LightweightCountry[] = [
   { name: 'Montserrat', code: 'MS', phone: '1664', region: 'North America' },
   { name: 'Morocco', code: 'MA', phone: '212', region: 'Africa' },
   { name: 'Mozambique', code: 'MZ', phone: '258', region: 'Africa' },
-  { name: 'Myanmar (Burma)', code: 'MM', phone: '95', region: 'Asia' },
+  { name: 'Myanmar', code: 'MM', phone: '95', region: 'Asia' },
   { name: 'Namibia', code: 'NA', phone: '264', region: 'Africa' },
   { name: 'Nauru', code: 'NR', phone: '674', region: 'Oceania' },
   { name: 'Nepal', code: 'NP', phone: '977', region: 'Asia' },
