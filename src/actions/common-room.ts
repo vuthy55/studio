@@ -279,6 +279,29 @@ export async function planParty(payload: PlanPartyPayload): Promise<{ success: b
     }
 }
 
+export async function rsvpToMeetup(vibeId: string, partyId: string, userId: string, isRsvping: boolean): Promise<{ success: boolean, error?: string }> {
+    if (!vibeId || !partyId || !userId) {
+        return { success: false, error: 'Missing required information.' };
+    }
+    try {
+        const partyRef = db.collection('vibes').doc(vibeId).collection('parties').doc(partyId);
+        
+        if (isRsvping) {
+            await partyRef.update({
+                rsvps: FieldValue.arrayUnion(userId)
+            });
+        } else {
+            await partyRef.update({
+                rsvps: FieldValue.arrayRemove(userId)
+            });
+        }
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error RSVPing to meetup:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
 export async function getUpcomingParties(): Promise<ClientParty[]> {
     try {
         const now = Timestamp.now();

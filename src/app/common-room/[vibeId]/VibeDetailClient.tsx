@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Participant } from '@/lib/types';
+import { Vibe, VibePost, Participant, Party } from '@/lib/types';
 import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { useCollectionData } from 'react-firebase-hooks/firestore';
 
 
 function PlanPartyDialog({ vibeId, onPartyCreated }: { vibeId: string, onPartyCreated: () => void }) {
@@ -230,12 +231,36 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-    const [vibeData, vibeLoading, vibeError] = useDocumentData(doc(db, 'vibes', vibeId));
+    const [vibeData, vibeLoading, vibeError] = useDocumentData(doc(db, 'vibes', vibeId)) as [Vibe | undefined, boolean, any];
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     
+    // Listen to the active meetup
+    const activeMeetupQuery = useMemo(() => {
+        if (!vibeData?.activeMeetupId) return null;
+        return doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
+    }, [vibeId, vibeData?.activeMeetupId]);
+
+    const [activeMeetup, activeMeetupLoading] = useDocumentData(activeMeetupQuery as any) as [Party | undefined, boolean];
+
     const [replyContent, setReplyContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // This is the fix: explicitly re-fetch vibe data when a party is created.
+    const handlePartyCreated = async () => {
+        if(vibeData?.ref) {
+            await vibeData.ref.get();
+        }
+    };
+    
+    const handleRsvp = async (partyId: string, isRsvping: boolean) => {
+        if (!user) return;
+        const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
+        if(!result.success) {
+            toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
+        }
+    }
+
 
     useEffect(() => {
         if (!vibeId) return;
@@ -364,6 +389,10 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     if (!vibeData) {
         return <p>Vibe not found.</p>
     }
+    
+    const hasActiveMeetup = !!vibeData.activeMeetupId && activeMeetup;
+    const isUserRsvpd = user && activeMeetup?.rsvps?.includes(user.uid);
+
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -379,7 +408,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {canPlanParty && <PlanPartyDialog vibeId={vibeId} onPartyCreated={() => { /* future refresh logic */ }} />}
+                    {hasActiveMeetup ? (
+                        <div className="text-right">
+                            <p className="font-semibold">{activeMeetup.title}</p>
+                            <p className="text-sm text-muted-foreground">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
+                            {/* RSVP BUTTON LOGIC */}
+                            <Button size="sm" variant={isUserRsvpd ? 'secondary' : 'default'} onClick={() => handleRsvp(activeMeetup.id, !isUserRsvpd)} className="mt-1">
+                                {isUserRsvpd ? "I'm Out" : "I'm In"} ({activeMeetup.rsvps?.length || 0})
+                            </Button>
+                        </div>
+                    ) : canPlanParty && (
+                        <PlanPartyDialog vibeId={vibeId} onPartyCreated={handlePartyCreated} />
+                    )}
+
                     <Sheet>
                         <SheetTrigger asChild>
                              <Button variant="outline">
@@ -458,32 +499,47 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                 {postsLoading ? (
                     <LoaderCircle className="animate-spin mx-auto"/>
                 ) : (
-                    posts.map(post => (
-                        <div key={post.id} className="flex items-start gap-4">
-                            <Avatar>
-                                <AvatarFallback>{post.authorName?.charAt(0) || 'U'}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex-grow">
-                                <div className="flex items-center gap-2">
-                                    <p className="font-semibold">{post.authorName}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : ''}
-                                    </p>
-                                    {(vibeData.hostEmails || []).includes(post.authorEmail) && (
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger>
-                                                    <Crown className="h-3 w-3 text-amber-500" />
-                                                </TooltipTrigger>
-                                                <TooltipContent><p>Host</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    )}
+                    posts.map(post => {
+                        if (post.type === 'meetup_announcement') {
+                            return (
+                                <div key={post.id} className="p-4 rounded-lg border-2 border-primary/50 bg-primary/10 my-4 text-center">
+                                    <h4 className="font-bold text-lg">{post.meetupDetails?.title}</h4>
+                                    <p className="text-sm text-muted-foreground">{post.content}</p>
+                                    <div className="mt-2 flex items-center justify-center gap-4">
+                                        <Button size="sm" onClick={() => handleRsvp(vibeData.activeMeetupId!, !isUserRsvpd)}>
+                                            {isUserRsvpd ? "Can't Make It" : "I'm In!"}
+                                        </Button>
+                                    </div>
                                 </div>
-                                <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+                            )
+                        }
+                        return (
+                            <div key={post.id} className="flex items-start gap-4">
+                                <Avatar>
+                                    <AvatarFallback>{post.authorName?.charAt(0) || 'U'}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-grow">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-semibold">{post.authorName}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : ''}
+                                        </p>
+                                        {(vibeData.hostEmails || []).includes(post.authorEmail) && (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger>
+                                                        <Crown className="h-3 w-3 text-amber-500" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>Host</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
+                                    </div>
+                                    <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        )
+                    })
                 )}
                 <div ref={messagesEndRef} />
             </div>
