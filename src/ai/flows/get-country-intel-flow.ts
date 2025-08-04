@@ -9,9 +9,7 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
-import { scrapeUrlAction } from '@/actions/scraper';
 import { getAppSettingsAction } from '@/actions/settings';
-import { subDays, parseISO } from 'date-fns';
 import { getCountryIntelData, getNeighborIntelData } from '@/actions/intel-admin';
 import type { CountryIntelData } from '@/lib/types';
 
@@ -40,7 +38,7 @@ const CountryIntelSchema = z.object({
   finalScore: z.number().min(0).max(10),
   categoryAssessments: z.record(z.string(), z.number()),
   summary: z.string(),
-  allReviewedSources: z.array(z.object({ url: z.string(), publishedDate: z.string().optional().nullable() })),
+  allReviewedSources: z.array(z.object({ url: z.string(), snippet: z.string() })),
 });
 export type CountryIntel = z.infer<typeof CountryIntelSchema>;
 
@@ -61,10 +59,15 @@ export async function getCountryIntel(input: GetCountryIntelInput): Promise<{ in
 
 // --- Helper Functions ---
 
-async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{content: string; url: string; publishedDate?: string | null}[]> {
+async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[]): Promise<{snippet: string; url: string}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search with query: "${query}"`);
     
-    const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
+    const searchResult = await searchWebAction({ 
+        query, 
+        apiKey, 
+        searchEngineId,
+        dateRestrict: 'd[30]' // Restrict search to the last 30 days
+    });
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
         let errorDetails = searchResult.error || 'No results';
@@ -77,32 +80,13 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
     
     debugLog.push(`[Intel Flow] (searchAndVerify) - Found ${searchResult.results.length} potential sources.`);
     const verifiedSources = [];
-    const thirtyDaysAgo = subDays(new Date(), 30);
 
     for (const item of searchResult.results.slice(0, 3)) { // Process top 3 results per query
-        debugLog.push(`[Intel Flow] (searchAndVerify) - Scraping URL: ${item.link}`);
-        const scrapeResult = await scrapeUrlAction(item.link);
-        
-        if (scrapeResult.success && scrapeResult.content) {
-            let publishedDate: string | null = scrapeResult.publishedDate || null;
-            if (publishedDate) {
-                 try {
-                    const parsedDate = parseISO(publishedDate);
-                    if (parsedDate < thirtyDaysAgo) {
-                        debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (too old): ${item.link}`);
-                        continue; // Skip this article because it's too old
-                    }
-                } catch (e) {
-                     debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: Could not parse date "${publishedDate}" for ${item.link}. Including it anyway.`);
-                }
-            } else {
-                 debugLog.push(`[Intel Flow] (searchAndVerify) - WARN: No publication date found for ${item.link}. Including it anyway.`);
-            }
-
-            debugLog.push(`[Intel Flow] (searchAndVerify) - SUCCESS scraping ${item.link}.`);
-            verifiedSources.push({ content: scrapeResult.content, url: item.link, publishedDate });
+        debugLog.push(`[Intel Flow] (searchAndVerify) - Processing snippet for URL: ${item.link}`);
+        if (item.snippet) {
+            verifiedSources.push({ snippet: item.snippet, url: item.link });
         } else {
-            debugLog.push(`[Intel Flow] (searchAndVerify) - FAILED scraping ${item.link}. Reason: ${scrapeResult.error}`);
+             debugLog.push(`[Intel Flow] (searchAndVerify) - SKIPPED (no snippet): ${item.link}`);
         }
     }
     debugLog.push(`[Intel Flow] (searchAndVerify) - Finished. Verified ${verifiedSources.length} recent sources for query: "${query}"`);
@@ -111,8 +95,8 @@ async function searchAndVerify(query: string, apiKey: string, searchEngineId: st
 
 const buildSiteSearchQuery = (sites: string[] | undefined): string => {
     if (!sites || sites.length === 0) return '';
-    return sites.map(s => `site:${s.trim()}`).join(' OR ');
-}
+    return sites.filter(s => s.trim()).map(s => `site:${s.trim()}`).join(' OR ');
+};
 
 const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[]) => {
     try {
@@ -182,7 +166,7 @@ const getCountryIntelFlow = ai.defineFlow(
     };
     
     // --- Step 3: Sequentially process each category ---
-    const allSourcesByCategory: Record<string, {content: string, url: string, publishedDate?: string | null}[]> = {};
+    const allSourcesByCategory: Record<string, {snippet: string, url: string}[]> = {};
     
     for (const [key, query] of Object.entries(categories)) {
         debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
@@ -195,8 +179,8 @@ const getCountryIntelFlow = ai.defineFlow(
     }
     
     // --- Step 4: Final Analysis ---
-    const allUniqueSources = new Map<string, { url: string; publishedDate?: string | null }>();
-    Object.values(allSourcesByCategory).flat().forEach(s => allUniqueSources.set(s.url, { url: s.url, publishedDate: s.publishedDate }));
+    const allUniqueSources = new Map<string, { url: string; snippet: string }>();
+    Object.values(allSourcesByCategory).flat().forEach(s => allUniqueSources.set(s.url, { url: s.url, snippet: s.snippet }));
 
     if (allUniqueSources.size === 0) {
         debugLog.push('[Intel Flow] No verifiable sources found across all categories. Returning empty assessment.');
@@ -211,7 +195,7 @@ const getCountryIntelFlow = ai.defineFlow(
     debugLog.push(`[Intel Flow] Found ${allUniqueSources.size} unique sources. Calling AI for final analysis...`);
 
     const { output } = await generateWithFallback(
-      `You are a travel intelligence analyst for young backpackers. Your task is to analyze the provided articles for ${countryName}.
+      `You are a travel intelligence analyst for young backpackers. Your task is to analyze the provided search result snippets for ${countryName}.
         The number of unique articles is ${allUniqueSources.size}.
 
         Here is the information gathered from different categories:
@@ -219,15 +203,14 @@ const getCountryIntelFlow = ai.defineFlow(
         --- CATEGORY: {{@key}} ---
         {{#each this}}
         Source URL: {{{url}}}
-        Publication Date: {{#if publishedDate}}{{publishedDate}}{{else}}Not Available{{/if}}
-        Article Content:
-        {{{content}}}
+        Snippet:
+        {{{snippet}}}
         
         {{/each}}
         {{/each}}
 
         --- INSTRUCTIONS ---
-        Based *only* on the information provided above, perform the following actions:
+        Based *only* on the information provided in the snippets above, perform the following actions:
 
         1.  **Severity Score Assessment:** For each category (Official Advisory, Scams & Theft, Health, Political Stability), assign a **severity score** from 0 (low severity/standard precautions) to 10 (extreme severity/do not travel). If you see red flag terms like "war", "do not travel", "state of emergency", or "civil unrest", you MUST assign a 10 to the Political Stability category.
         2.  **Generate a 3-paragraph summary, populating the paragraph1, paragraph2, and paragraph3 fields.**

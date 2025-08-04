@@ -13,6 +13,7 @@ interface SearchWebActionPayload {
     query: string;
     apiKey: string;
     searchEngineId: string;
+    dateRestrict?: string; // e.g., 'd[30]' for last 30 days
 }
 
 /**
@@ -22,7 +23,7 @@ interface SearchWebActionPayload {
  * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
  */
 export async function searchWebAction(payload: SearchWebActionPayload): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
-    const { query, apiKey, searchEngineId } = payload;
+    const { query, apiKey, searchEngineId, dateRestrict } = payload;
     
     if (!apiKey || !searchEngineId) {
         const errorMsg = "Google Search API key or Search Engine ID was not provided to the server action.";
@@ -31,16 +32,20 @@ export async function searchWebAction(payload: SearchWebActionPayload): Promise<
     }
     
     const url = `https://www.googleapis.com/customsearch/v1`;
+    
+    const params: Record<string, any> = {
+        key: apiKey,
+        cx: searchEngineId,
+        q: query,
+        num: 5 // Limit to 5 results per category
+    };
+
+    if (dateRestrict) {
+        params.dateRestrict = dateRestrict;
+    }
 
     try {
-        const response = await axios.get(url, {
-            params: {
-                key: apiKey,
-                cx: searchEngineId,
-                q: query,
-                num: 5 // Limit to 5 results per category
-            }
-        });
+        const response = await axios.get(url, { params });
 
         if (response.data && response.data.items) {
             const results: SearchResult[] = response.data.items.map((item: any) => ({

@@ -108,9 +108,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                                         <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
                                             {source.url}
                                         </a>
-                                        {source.publishedDate && (
-                                            <span className="text-muted-foreground text-xs ml-2">({format(parseISO(source.publishedDate), 'MMM d, yyyy')})</span>
-                                        )}
+                                        <p className="text-xs text-muted-foreground italic pl-2 mt-1">"{source.snippet}"</p>
                                     </li>
                                 ))}
                             </ul>
