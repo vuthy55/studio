@@ -51,11 +51,15 @@ export async function getVibes(userEmail: string): Promise<Vibe[]> {
 
         const allVibes = allVibesSnapshot.docs.map(doc => {
             const data = doc.data();
+            // Convert Timestamps to ISO strings for serialization
+            const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString();
+            const lastPostAt = (data.lastPostAt as Timestamp)?.toDate()?.toISOString() || undefined;
+
             return {
                 id: doc.id,
                 ...data,
-                createdAt: (data.createdAt as Timestamp)?.toDate().toISOString(),
-                lastPostAt: (data.lastPostAt as Timestamp)?.toDate().toISOString(),
+                createdAt,
+                lastPostAt,
             } as Vibe;
         });
         
