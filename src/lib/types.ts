@@ -254,3 +254,10 @@ export interface CountryIntelData {
     lastBuildError?: string | null;
     lastBuildAt?: string; // Changed from FieldValue to string for serialization
 }
+
+// ClientVibe is a version of Vibe that is safe to pass to client components
+export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
+    id: string;
+    createdAt: string; // ISO date string
+    lastPostAt?: string; // ISO date string
+}

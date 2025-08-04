@@ -3,7 +3,8 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { Vibe } from '@/lib/types';
+import { Vibe, ClientVibe } from '@/lib/types';
+
 
 interface StartVibePayload {
     topic: string;
@@ -33,14 +34,6 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
         console.error("Error starting vibe:", error);
         return { success: false, error: 'Failed to create Vibe on the server.' };
     }
-}
-
-// This type represents the "sanitized" Vibe object that is safe to send to the client.
-// Note: Timestamps are converted to strings.
-export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
-    id: string;
-    createdAt: string;
-    lastPostAt?: string;
 }
 
 
@@ -112,7 +105,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
             invitedEmails: FieldValue.arrayUnion(...emails)
         });
 
-        const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/join/${vibeId}`;
+        const joinUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/common-room/${vibeId}`;
         
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
         const existingUsersSnapshot = await existingUsersQuery.get();

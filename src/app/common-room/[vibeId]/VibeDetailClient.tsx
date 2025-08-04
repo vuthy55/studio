@@ -7,28 +7,97 @@ import { useDocumentData } from 'react-firebase-hooks/firestore';
 import { collection, doc, orderBy, query, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { postReply } from '@/actions/common-room';
+import { postReply, inviteToVibe } from '@/actions/common-room';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
+import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+
+
+function InviteDialog({ vibeId, vibeTopic, creatorName, onInviteSent }: { vibeId: string, vibeTopic: string, creatorName: string, onInviteSent: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [emails, setEmails] = useState('');
+
+    const handleInvite = async () => {
+        const emailList = emails.split(',').map(e => e.trim()).filter(e => e);
+        if (emailList.length === 0) {
+            toast({ variant: 'destructive', title: 'No emails entered' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const result = await inviteToVibe(vibeId, emailList, vibeTopic, creatorName);
+            if (result.success) {
+                toast({ title: 'Invites Sent!', description: 'The users have been invited to this Vibe.' });
+                setIsOpen(false);
+                setEmails('');
+                onInviteSent();
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to send invites.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button><UserPlus className="mr-2 h-4 w-4" /> Invite</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Invite to "{vibeTopic}"</DialogTitle>
+                    <DialogDescription>Enter email addresses separated by commas to invite others to join this Vibe.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-2">
+                    <Label htmlFor="emails-to-invite">Emails</Label>
+                    <Textarea 
+                        id="emails-to-invite" 
+                        value={emails}
+                        onChange={(e) => setEmails(e.target.value)}
+                        placeholder="friend1@example.com, friend2@example.com"
+                    />
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <Button onClick={handleInvite} disabled={isSubmitting}>
+                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Send Invites
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { user, loading: userLoading } = useUserData();
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-    const [vibeData, vibeLoading, vibeError] = useDocumentData(doc(db, 'vibes', vibeId));
+    const [vibeData, vibeLoading, vibeError, vibeSnapshot] = useDocumentData(doc(db, 'vibes', vibeId));
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     const [replyContent, setReplyContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        if (!user) return; // Wait for user to be loaded
+        if (!user) return;
 
         const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
         const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
@@ -67,6 +136,44 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             setIsSubmitting(false);
         }
     };
+    
+    const participants = React.useMemo(() => {
+        if (!vibeData) return [];
+        const seen = new Set<string>();
+        const result: {name: string, isHost: boolean}[] = [];
+        
+        // Add creator/hosts
+        if (vibeData.hostEmails) {
+            vibeData.hostEmails.forEach((email: string) => {
+                if (!seen.has(email)) {
+                    seen.add(email);
+                    result.push({ name: email, isHost: true });
+                }
+            });
+        }
+        
+        // Add post authors
+        posts.forEach(post => {
+            if (!seen.has(post.authorName)) {
+                seen.add(post.authorName);
+                result.push({ name: post.authorName, isHost: vibeData.hostEmails?.includes(post.authorName) });
+            }
+        });
+        
+         // Add other invited people
+        if (vibeData.invitedEmails) {
+            vibeData.invitedEmails.forEach((email: string) => {
+                 if (!seen.has(email)) {
+                    seen.add(email);
+                    result.push({ name: email, isHost: false });
+                }
+            });
+        }
+        
+        return result.sort((a,b) => b.isHost.toString().localeCompare(a.isHost.toString()));
+
+    }, [vibeData, posts]);
+
 
     if (userLoading || vibeLoading) {
         return (
@@ -83,6 +190,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     if (!vibeData) {
         return <p>Vibe not found.</p>
     }
+    
+    const isHost = user && vibeData.hostEmails?.includes(user.email);
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -102,10 +211,44 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         <CalendarPlus className="mr-2 h-4 w-4" />
                         Plan a Party
                     </Button>
-                    <Button variant="outline">
-                        <Users className="mr-2 h-4 w-4" />
-                        Participants
-                    </Button>
+                    <Sheet>
+                        <SheetTrigger asChild>
+                             <Button variant="outline">
+                                <Users className="mr-2 h-4 w-4" />
+                                Participants
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent>
+                            <SheetHeader>
+                                <SheetTitle>Participants ({participants.length})</SheetTitle>
+                                <SheetDescription>
+                                    People involved in this Vibe.
+                                </SheetDescription>
+                            </SheetHeader>
+                            <div className="py-4 space-y-4">
+                                {isHost && (
+                                     <InviteDialog 
+                                        vibeId={vibeId} 
+                                        vibeTopic={vibeData.topic} 
+                                        creatorName={user?.displayName || 'A user'}
+                                        onInviteSent={() => vibeSnapshot?.ref.get()}
+                                    />
+                                )}
+                                <Separator />
+                                <div className="space-y-2">
+                                    {participants.map(({ name, isHost: isVibeHost }) => (
+                                        <div key={name} className="flex items-center gap-2 p-2 rounded-md bg-muted">
+                                             <Avatar className="h-8 w-8">
+                                                <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
+                                            </Avatar>
+                                            <span className={`font-medium text-sm ${isVibeHost ? 'text-primary' : ''}`}>{name}</span>
+                                            {isVibeHost && <Badge variant="secondary">Host</Badge>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </SheetContent>
+                    </Sheet>
                 </div>
             </header>
 
