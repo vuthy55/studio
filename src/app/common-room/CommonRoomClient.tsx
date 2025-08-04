@@ -185,8 +185,8 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
                 parties.map(party => (
                     <Card key={party.id} className="hover:border-primary/50 transition-colors">
                         <CardContent className="p-4 space-y-2">
-                            {party.distance && (
-                            <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                            {typeof party.distance === 'number' && (
+                                <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
                             )}
                             <div className="flex-1">
                                 <h4 className="font-semibold">{party.title}</h4>
@@ -220,7 +220,7 @@ export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
-    const [allPublicParties, setAllPublicParties] = useState<ClientParty[]>([]);
+    const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [sortedPublicParties, setSortedPublicParties] = useState<ClientParty[]>([]);
     
     const [isFetching, setIsFetching] = useState(true);
@@ -231,7 +231,7 @@ export default function CommonRoomClient() {
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
             setAllVibes([]);
-            setAllPublicParties([]);
+            setPublicParties([]);
             setIsFetching(false);
             return;
         }
@@ -242,8 +242,7 @@ export default function CommonRoomClient() {
                 getUpcomingParties(),
             ]);
             setAllVibes(fetchedVibes);
-            setAllPublicParties(fetchedParties);
-            setSortedPublicParties(fetchedParties); // Initialize with unsorted
+            setPublicParties(fetchedParties);
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
             toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
@@ -254,6 +253,9 @@ export default function CommonRoomClient() {
     
     // Function to calculate distance (Haversine formula)
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        if (lat1 === lat2 && lon1 === lon2) {
+            return 0;
+        }
         const R = 6371; // Radius of the Earth in km
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -267,7 +269,8 @@ export default function CommonRoomClient() {
 
     // Extract lat/lon from Google Maps URL
     const extractCoordsFromUrl = (url: string): { lat: number, lon: number } | null => {
-        const match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        // Updated regex to handle different Google Maps URL formats
+        const match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/daddr=(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (match && match[1] && match[2]) {
             return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
         }
@@ -302,36 +305,43 @@ export default function CommonRoomClient() {
     }, [activeTab]);
     
     useEffect(() => {
-        if (userLocation && allPublicParties.length > 0) {
-            const partiesWithDistance = allPublicParties.map(party => {
-                const coords = extractCoordsFromUrl(party.location);
+        if (publicParties.length > 0) {
+            const partiesWithDistance = publicParties.map(party => {
+                const coords = userLocation ? extractCoordsFromUrl(party.location) : null;
                 let distance: number | undefined;
-                if (coords) {
+                if (coords && userLocation) {
                     distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
                 }
                 return { ...party, distance };
             });
-            partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+            if(userLocation) {
+                partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+            }
+
             setSortedPublicParties(partiesWithDistance);
         } else {
-            setSortedPublicParties(allPublicParties);
+            setSortedPublicParties([]);
         }
-    }, [userLocation, allPublicParties]);
+    }, [userLocation, publicParties]);
 
 
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
         const privateV = allVibes.filter(v => !v.isPublic);
         
+        // This includes all vibes the user is part of (public and private)
         const myVibeIds = new Set(allVibes.map(v => v.id));
-        const myM = allPublicParties.filter(p => myVibeIds.has(p.vibeId));
+
+        // Filter all parties to find ones associated with the user's vibes
+        const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
         
         return {
             publicVibes: publicV,
-            myVibes: [...publicV, ...privateV],
+            myVibes: allVibes,
             myMeetups: myM,
         };
-    }, [allVibes, allPublicParties]);
+    }, [allVibes, publicParties]);
 
 
     return (
@@ -361,13 +371,13 @@ export default function CommonRoomClient() {
                             <TabsContent value="discover" className="mt-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <PartyList parties={sortedPublicParties} title="Public Meetups" locationStatus={locationStatus} />
-                                    <VibeList vibes={publicVibes} parties={allPublicParties} title="Public Vibes" />
+                                    <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" />
                                 </div>
                             </TabsContent>
                             <TabsContent value="my-space" className="mt-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <PartyList parties={myMeetups} title="My Upcoming Meetups" locationStatus={'unavailable'} />
-                                    <VibeList vibes={myVibes} parties={allPublicParties} title="My Vibes & Invites" />
+                                    <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" />
                                 </div>
                             </TabsContent>
                         </Tabs>
