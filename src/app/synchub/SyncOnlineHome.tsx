@@ -982,30 +982,16 @@ export default function SyncOnlineHome() {
                 if(freeMinutesToDeduct > 0) {
                      batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
                 }
-
-                // Create in-app notifications for existing users
-                const friendsQuery = query(collection(db, 'users'), where('email', 'in', parsedInviteeEmails));
-                const friendsSnapshot = await getDocs(friendsQuery);
-                friendsSnapshot.forEach(friendDoc => {
-                    const notificationRef = doc(collection(db, 'notifications'));
-                    batch.set(notificationRef, {
-                        userId: friendDoc.id,
-                        type: 'room_invite',
-                        message: `${newRoom.creatorName} has invited you to the room: "${newRoom.topic}"`,
-                        roomId: newRoomRef.id,
-                        createdAt: serverTimestamp(),
-                        read: false,
-                    });
-                });
                 
                 await batch.commit();
 
-                // Send email invites
+                // Send email invites, which will also handle in-app notifications on the server
                 if (parsedInviteeEmails.length > 0) {
                     await sendRoomInviteEmail({
                         to: parsedInviteeEmails,
                         roomTopic: roomTopic,
-                        creatorName: user.displayName || 'A user',
+                        fromName: user.displayName || 'A user',
+                        roomId: newRoomRef.id,
                         scheduledAt: finalScheduledDate,
                         joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
                     });
@@ -1243,7 +1229,7 @@ export default function SyncOnlineHome() {
             <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule">Schedule a Room</TabsTrigger>
+                    <TabsTrigger value="schedule" data-tour="so-schedule-button">Schedule a Room</TabsTrigger>
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">
                     {user && (
@@ -1460,7 +1446,9 @@ export default function SyncOnlineHome() {
                             </form>
                         </CardContent>
                         <CardFooter className="flex justify-end gap-2">
-                            <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel</Button>
+                             {isEditMode ? (
+                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                            ) : null}
                             {(userProfile?.tokenBalance || 0) < costDifference ? (
                                 <div className="flex flex-col items-end gap-2">
                                     <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>

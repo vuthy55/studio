@@ -3,11 +3,13 @@
 
 import { Resend } from 'resend';
 import { format } from 'date-fns';
+import { db } from '@/lib/firebase-admin';
 
 interface SendRoomInviteEmailProps {
   to: string[];
   roomTopic: string;
-  creatorName: string;
+  fromName: string;
+  roomId: string;
   scheduledAt: Date;
   joinUrl: string;
 }
@@ -15,7 +17,8 @@ interface SendRoomInviteEmailProps {
 export async function sendRoomInviteEmail({
   to,
   roomTopic,
-  creatorName,
+  fromName,
+  roomId,
   scheduledAt,
   joinUrl,
 }: SendRoomInviteEmailProps): Promise<{ success: boolean; error?: string }> {
@@ -27,38 +30,68 @@ export async function sendRoomInviteEmail({
       return { success: false, error: 'The RESEND_API_KEY is not configured on the server.' };
     }
     
-    const resend = new Resend(apiKey);
-    
-    // Don't send emails if there are no recipients other than the creator
+    // Don't send emails if there are no recipients
     if (!to || to.length === 0) {
-      return { success: true }; // Not an error, just no one to send to.
+      return { success: true }; 
     }
+    
+    // --- Step 1: Query for existing users to send in-app notifications ---
+    const existingUsersQuery = db.collection('users').where('email', 'in', to);
+    const existingUsersSnapshot = await existingUsersQuery.get();
+    const existingEmails = new Set<string>();
 
-    const { data, error } = await resend.emails.send({
-      from: 'VibeSync <onboarding@resend.dev>',
-      to: to,
-      subject: `You're invited to a VibeSync Room: ${roomTopic}`,
-      html: `
-        <div>
-          <h2>Hey!</h2>
-          <p>You've been invited by <strong>${creatorName}</strong> to join a VibeSync room.</p>
-          <p><strong>Topic:</strong> ${roomTopic}</p>
-          <p><strong>When:</strong> ${format(new Date(scheduledAt), 'PPPPp')}</p>
-          <br/>
-          <a href="${joinUrl}" style="background-color: #D4A373; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Join the Room</a>
-          <br/>
-          <p>See you there!</p>
-          <p>- The VibeSync Team</p>
-        </div>
-      `,
+    const batch = db.batch();
+
+    existingUsersSnapshot.forEach(doc => {
+        const userData = doc.data();
+        const userEmail = userData.email.toLowerCase();
+        existingEmails.add(userEmail);
+
+        const notificationRef = db.collection('notifications').doc();
+        batch.set(notificationRef, {
+            userId: doc.id,
+            type: 'room_invite',
+            message: `${fromName} has invited you to the room: "${roomTopic}"`,
+            roomId: roomId,
+            createdAt: serverTimestamp(),
+            read: false,
+        });
     });
+    
+    await batch.commit();
 
-    if (error) {
-      console.error('Resend API Error:', error);
-      return { success: false, error: error.message };
+    // --- Step 2: Send emails only to non-existing users ---
+    const externalEmails = to.filter(email => !existingEmails.has(email.toLowerCase()));
+
+    if (externalEmails.length > 0) {
+      const resend = new Resend(apiKey);
+      const { data, error } = await resend.emails.send({
+        from: 'VibeSync <onboarding@resend.dev>',
+        to: externalEmails,
+        subject: `You're invited to a VibeSync Room: ${roomTopic}`,
+        html: `
+          <div>
+            <h2>Hey!</h2>
+            <p>You've been invited by <strong>${fromName}</strong> to join a VibeSync room.</p>
+            <p><strong>Topic:</strong> ${roomTopic}</p>
+            <p><strong>When:</strong> ${format(new Date(scheduledAt), 'PPPPp')}</p>
+            <br/>
+            <a href="${joinUrl}" style="background-color: #D4A373; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Join the Room</a>
+            <br/>
+            <p>See you there!</p>
+            <p>- The VibeSync Team</p>
+          </div>
+        `,
+      });
+
+      if (error) {
+        console.error('Resend API Error:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('Resend API Success:', data);
     }
 
-    console.log('Resend API Success:', data);
     return { success: true };
 
   } catch (e: any) {
