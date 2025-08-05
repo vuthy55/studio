@@ -436,6 +436,9 @@ export async function editMeetup(vibeId: string, partyId: string, updates: Parti
     }
 }
 
+/**
+ * Removes a participant by a host. This is a "hard" removal that blocks them.
+ */
 export async function removeParticipantFromVibe(vibeId: string, userToRemove: { uid: string, email: string }): Promise<{ success: boolean; error?: string }> {
     if (!vibeId || !userToRemove) {
         return { success: false, error: 'Missing required information.' };
@@ -456,6 +459,26 @@ export async function removeParticipantFromVibe(vibeId: string, userToRemove: { 
         return { success: true };
     } catch (error: any) {
         console.error("Error removing participant from Vibe:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+/**
+ * Allows a user to voluntarily leave a Vibe. This is a "soft" removal.
+ */
+export async function leaveVibe(vibeId: string, userEmail: string): Promise<{ success: boolean, error?: string }> {
+    if (!vibeId || !userEmail) {
+        return { success: false, error: 'Missing required information.' };
+    }
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        await vibeRef.update({
+            invitedEmails: FieldValue.arrayRemove(userEmail),
+            hostEmails: FieldValue.arrayRemove(userEmail) // Also remove as host if they were one
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error leaving Vibe:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }

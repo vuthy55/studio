@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -656,15 +656,15 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         if (!isCurrentUserHost) return;
         const result = await removeParticipantFromVibe(vibeId, userToRemove);
          if (result.success) {
-            toast({ title: 'User Removed', description: `${userToRemove.name} has been removed from this Vibe.` });
+            toast({ title: 'User Removed', description: `${userToRemove.name} has been removed and blocked from this Vibe.` });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
         }
     };
     
     const handleLeaveVibe = async () => {
-        if (!user || !user.email || !user.displayName) return;
-        const result = await removeParticipantFromVibe(vibeId, {uid: user.uid, email: user.email});
+        if (!user || !user.email) return;
+        const result = await leaveVibe(vibeId, user.email);
         if (result.success) {
             toast({ title: 'You have left the Vibe', description: 'You can no longer see or participate in this conversation.' });
             router.push('/common-room');
@@ -882,7 +882,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    You will no longer be able to see this Vibe or its messages. This action cannot be undone.
+                                                    You will no longer be able to see this Vibe or its messages. This action can be undone by a host.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
