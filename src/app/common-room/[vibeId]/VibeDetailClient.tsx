@@ -591,7 +591,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { presentParticipants, invitedButNotPresent, allPresentUsersMap, blockedUsersList } = useMemo(() => {
         if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map(), blockedUsersList: [] };
     
-        const emailToDetails = new Map<string, { uid: string; name: string; isHost: boolean }>();
+        const emailToDetails = new Map<string, { uid: string; name: string; isHost: boolean; email: string; }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
         const blockedUserEmails = new Set((vibeData.blockedUsers || []).map(u => u.email.toLowerCase()));
     
@@ -600,7 +600,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             emailToDetails.set(vibeData.creatorEmail.toLowerCase(), {
                 uid: vibeData.creatorId,
                 name: vibeData.creatorName,
-                isHost: true // The creator is always a host
+                isHost: true, // The creator is always a host
+                email: vibeData.creatorEmail,
             });
         }
     
@@ -613,7 +614,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         emailToDetails.set(lowerEmail, {
                             uid: post.authorId,
                             name: post.authorName,
-                            isHost: hostEmails.has(lowerEmail)
+                            isHost: hostEmails.has(lowerEmail),
+                            email: post.authorEmail,
                         });
                     }
                 }
@@ -775,7 +777,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <div className="space-y-2">
                                     <h4 className="font-semibold text-sm flex items-center gap-2"><UserCheck /> Present ({presentParticipants.length})</h4>
                                     {presentParticipants.map(({ uid, name, email, isHost }) => (
-                                        <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
+                                        <div key={uid} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
                                              <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
