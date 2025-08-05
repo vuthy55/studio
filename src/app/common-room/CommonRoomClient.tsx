@@ -219,6 +219,7 @@ function degToRad(deg: number): number {
   return deg * (Math.PI / 180);
 }
 
+// Correct implementation of the Haversine formula.
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     if (!startCoords || !destCoords) {
         return Infinity;
@@ -477,3 +478,4 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
