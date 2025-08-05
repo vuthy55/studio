@@ -276,6 +276,7 @@ interface PlanPartyPayload {
     vibeId: string;
     title: string;
     location: string;
+    description: string;
     startTime: string; // ISO string
     endTime: string; // ISO string
     creatorId: string;
@@ -550,5 +551,80 @@ export async function unblockParticipantFromVibe(vibeId: string, requesterEmail:
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
+
+export async function removeRsvp(vibeId: string, partyId: string, requesterId: string, userIdToRemove: string): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId || !partyId || !requesterId || !userIdToRemove) {
+        return { success: false, error: 'Missing required information.' };
+    }
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const vibeDoc = await vibeRef.get();
+        if (!vibeDoc.exists) {
+            return { success: false, error: 'Vibe not found.' };
+        }
+        
+        const vibeData = vibeDoc.data() as Vibe;
+        const requesterDoc = await db.collection('users').doc(requesterId).get();
+        const requesterEmail = requesterDoc.data()?.email;
+
+        if (!requesterEmail || !vibeData.hostEmails.includes(requesterEmail)) {
+             return { success: false, error: 'Permission denied. Only hosts can remove attendees.' };
+        }
+
+        const partyRef = vibeRef.collection('parties').doc(partyId);
+        await partyRef.update({
+            rsvps: FieldValue.arrayRemove(userIdToRemove)
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error removing RSVP:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+interface StartPrivateVibePayload {
+  initiator: { uid: string, name: string, email: string };
+  attendee: { uid: string, name: string, email: string };
+}
+export async function startPrivateVibe(payload: StartPrivateVibePayload): Promise<{ success: boolean, vibeId?: string, error?: string }> {
+    const { initiator, attendee } = payload;
+    try {
+        const newVibeRef = db.collection('vibes').doc();
+        const vibeData: Omit<Vibe, 'id' | 'createdAt' | 'lastPostAt'> = {
+            topic: `Private Chat with ${attendee.name}`,
+            isPublic: false,
+            creatorId: initiator.uid,
+            creatorName: initiator.name,
+            creatorEmail: initiator.email,
+            createdAt: FieldValue.serverTimestamp(),
+            invitedEmails: [initiator.email, attendee.email],
+            hostEmails: [initiator.email, attendee.email],
+            postsCount: 0,
+            activeMeetupId: null,
+        };
+        
+        const notificationRef = db.collection('notifications').doc();
+
+        const batch = db.batch();
+        batch.set(newVibeRef, vibeData);
+        batch.set(notificationRef, {
+            userId: attendee.uid,
+            type: 'vibe_invite',
+            message: `${initiator.name} started a private conversation with you.`,
+            vibeId: newVibeRef.id,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+        });
+
+        await batch.commit();
+
+        return { success: true, vibeId: newVibeRef.id };
+    } catch (error: any) {
+        console.error("Error starting private vibe:", error);
+        return { success: false, error: 'Failed to create private Vibe.' };
+    }
+}
+    
 
     

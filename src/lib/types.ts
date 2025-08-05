@@ -120,6 +120,7 @@ export type Party = {
     id: string;
     title: string;
     location: string; // Google Maps URL
+    description?: string; // New optional field
     startTime: any;
     endTime: any;
     creatorId: string;
@@ -291,3 +292,5 @@ export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
     createdAt: string; // ISO date string
     lastPostAt?: string; // ISO date string
 }
+
+    

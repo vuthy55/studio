@@ -6,14 +6,15 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, Calendar } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, Calendar, MessageSquare, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, removeRsvp, startPrivateVibe } from '@/actions/common-room';
+import { sendFriendRequest } from '@/actions/friends';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -31,9 +32,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
-function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
+function MeetupDetailsDialog({ vibeId, meetup, onUpdate }: { vibeId: string, meetup: Party, onUpdate: () => void }) {
     const { user } = useUserData();
     const { toast } = useToast();
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,6 +50,35 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
         setEditableMeetup(meetup);
     }, [meetup]);
     
+    const fetchAttendees = useCallback(async () => {
+        if (!meetup.rsvps || meetup.rsvps.length === 0) {
+            setAttendees([]);
+            return;
+        }
+        setIsLoadingAttendees(true);
+        try {
+            const userIds = meetup.rsvps;
+            const usersRef = collection(db, 'users');
+            // Firestore 'in' queries are limited to 30 items. Chunk if necessary.
+            const chunks = [];
+            for (let i = 0; i < userIds.length; i += 30) {
+                chunks.push(userIds.slice(i, i + 30));
+            }
+            const attendeesData: UserProfile[] = [];
+            for (const chunk of chunks) {
+                const q = query(usersRef, where('__name__', 'in', chunk));
+                const snapshot = await getDocs(q);
+                snapshot.forEach(doc => attendeesData.push({ id: doc.id, ...doc.data() } as UserProfile));
+            }
+            setAttendees(attendeesData);
+        } catch (error) {
+            console.error("Error fetching attendees:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load attendee list.' });
+        } finally {
+            setIsLoadingAttendees(false);
+        }
+    }, [meetup.rsvps, toast]);
+
     useEffect(() => {
         if (!isOpen) return;
         
@@ -56,44 +87,54 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
             setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : null);
         });
         
-        const fetchAttendees = async () => {
-            if (!meetup.rsvps || meetup.rsvps.length === 0) {
-                setAttendees([]);
-                return;
-            }
-            setIsLoadingAttendees(true);
-            try {
-                const userIds = meetup.rsvps;
-                const usersRef = collection(db, 'users');
-                // Firestore 'in' queries are limited to 30 items. Chunk if necessary.
-                const chunks = [];
-                for (let i = 0; i < userIds.length; i += 30) {
-                    chunks.push(userIds.slice(i, i + 30));
-                }
-                const attendeesData: UserProfile[] = [];
-                for (const chunk of chunks) {
-                    const q = query(usersRef, where('__name__', 'in', chunk));
-                    const snapshot = await getDocs(q);
-                    snapshot.forEach(doc => attendeesData.push({ id: doc.id, ...doc.data() } as UserProfile));
-                }
-                setAttendees(attendeesData);
-            } catch (error) {
-                console.error("Error fetching attendees:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load attendee list.' });
-            } finally {
-                setIsLoadingAttendees(false);
-            }
-        };
-
         fetchAttendees();
         
         return () => unsubscribe();
-    }, [vibeId, isOpen, meetup.rsvps, toast]);
+    }, [vibeId, isOpen, fetchAttendees]);
 
     const isCurrentUserHost = useMemo(() => {
         if (!user || !vibeData) return false;
         return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
     }, [user, vibeData]);
+    
+    const handleStartPrivateChat = async (attendee: UserProfile) => {
+        if (!user || !user.displayName || !user.email) return;
+        
+        const result = await startPrivateVibe({
+            initiator: { uid: user.uid, name: user.displayName, email: user.email },
+            attendee: { uid: attendee.id!, name: attendee.name, email: attendee.email }
+        });
+        
+        if (result.success && result.vibeId) {
+            toast({ title: 'Private Vibe Created!', description: `You can now chat privately with ${attendee.name}.` });
+            router.push(`/common-room/${result.vibeId}`);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not start private chat.' });
+        }
+    };
+    
+    const handleSendFriendRequest = async (attendee: UserProfile) => {
+        if (!user || !user.displayName || !user.email) return;
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, attendee.email);
+        if (result.success) {
+            toast({ title: 'Request Sent', description: `Friend request sent to ${attendee.name}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
+
+    const handleRemoveAttendee = async (attendeeId: string) => {
+        if (!user) return;
+        const result = await removeRsvp(vibeId, meetup.id, user.uid, attendeeId);
+        if (result.success) {
+            toast({ title: 'Attendee Removed', description: 'Their RSVP has been canceled.' });
+            onUpdate(); // Re-fetch data on parent
+            fetchAttendees(); // Re-fetch attendees for this dialog
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove attendee.' });
+        }
+    }
+
 
     const handleEdit = async () => {
         if (!user || !user.displayName) return;
@@ -147,21 +188,18 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                     ) : (
                         <DialogTitle>{meetup.title}</DialogTitle>
                     )}
-                    <div className="space-y-1 pt-1">
-                         {isEditing ? (
-                            <Input value={editableMeetup.location} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
-                         ) : (
-                            <>
-                            <a href={meetup.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                                <MapPin className="h-4 w-4" /> Location
-                            </a>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                <Calendar className="h-4 w-4" />
-                                <span>{format(new Date(meetup.startTime), 'MMM d, h:mm a')}</span>
-                            </div>
-                            </>
-                         )}
+                     <div className="space-y-1 pt-1">
+                        <a href={meetup.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                            <MapPin className="h-4 w-4" /> Location
+                        </a>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            <span>{format(new Date(meetup.startTime), 'MMM d, h:mm a')}</span>
+                        </div>
                     </div>
+                    {meetup.description && (
+                        <DialogDescription className="pt-2">{meetup.description}</DialogDescription>
+                    )}
                 </DialogHeader>
                 <ScrollArea className="h-48 my-4">
                     <div className="pr-4">
@@ -172,14 +210,57 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                             </div>
                         ) : attendees.length > 0 ? (
                             <div className="space-y-2">
-                                {attendees.map(attendee => (
-                                    <div key={attendee.id} className="flex items-center gap-2">
+                                {attendees.map(attendee => {
+                                    const isHost = vibeData?.hostEmails?.includes(attendee.email);
+                                    const isCurrentUser = attendee.id === user?.uid;
+                                    const isAlreadyFriend = userProfile?.friends?.includes(attendee.id!);
+                                    return (
+                                    <div key={attendee.id} className="flex items-center gap-2 group">
                                         <Avatar className="h-8 w-8">
                                             <AvatarFallback>{attendee.name.charAt(0).toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <span className="text-sm font-medium">{attendee.name}</span>
+                                        <div className="flex-1">
+                                            <span className="text-sm font-medium">{attendee.name}</span>
+                                            {isHost && <Badge variant="secondary" className="ml-2">Host</Badge>}
+                                        </div>
+                                        {!isCurrentUser && (
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartPrivateChat(attendee)}>
+                                                                <MessageSquare className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Start private chat</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                 <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isAlreadyFriend} onClick={() => handleSendFriendRequest(attendee)}>
+                                                                <UserPlus className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>{isAlreadyFriend ? 'Already friends' : 'Add friend'}</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                 {isCurrentUserHost && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveAttendee(attendee.id!)}>
+                                                                    <UserX className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Remove from RSVP</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                )})}
                             </div>
                         ) : (
                             <p className="text-sm text-muted-foreground">No one has RSVP'd yet.</p>
@@ -217,6 +298,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
     
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
+    const [description, setDescription] = useState('');
     const [startTime, setStartTime] = useState<Date | undefined>(() => {
         const d = new Date();
         d.setHours(d.getHours() + 1);
@@ -246,6 +328,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                 vibeId,
                 title,
                 location,
+                description,
                 startTime: startTime.toISOString(),
                 endTime: endTime.toISOString(),
                 creatorId: user.uid,
@@ -257,6 +340,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                 setIsOpen(false);
                 setTitle('');
                 setLocation('');
+                setDescription('');
             } else {
                 throw new Error(result.error);
             }
@@ -288,6 +372,10 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                      <div className="space-y-2">
                         <Label htmlFor="party-location">Location (Google Maps or Waze Link)</Label>
                         <Input id="party-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="https://maps.app.goo.gl/..." />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="party-description">Description (Optional)</Label>
+                        <Textarea id="party-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Let's meet at the front entrance. I'll be wearing a red shirt." />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -489,7 +577,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
 
 
 export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
-    const { user, loading: userLoading } = useUserData();
+    const { user, userProfile, loading: userLoading } = useUserData();
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const router = useRouter();
@@ -508,10 +596,50 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
     const backLink = `/common-room?tab=${searchParams.get('tab') || 'public-vibes'}`;
 
+    const fetchActiveMeetup = useCallback(async (meetupId: string) => {
+        setActiveMeetupLoading(true);
+        const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, meetupId);
+        
+        const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
+            if (doc.exists()) {
+                 const data = doc.data();
+                 setActiveMeetup({
+                    id: doc.id,
+                    ...data,
+                    startTime: (data.startTime as Timestamp)?.toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp)?.toDate().toISOString(),
+                } as Party);
+            } else {
+                setActiveMeetup(undefined);
+            }
+           
+            setActiveMeetupLoading(false);
+        }, (error) => {
+            console.error("Error fetching active meetup:", error);
+            setActiveMeetupError(error);
+            setActiveMeetupLoading(false);
+        });
+
+        return unsubscribe;
+
+    }, [vibeId]);
+
+
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
         const unsubscribeVibe = onSnapshot(vibeDocRef, (doc) => {
-            setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : undefined);
+            if (doc.exists()) {
+                const data = { id: doc.id, ...doc.data() } as Vibe;
+                setVibeData(data);
+                 if (data.activeMeetupId) {
+                    fetchActiveMeetup(data.activeMeetupId);
+                } else {
+                    setActiveMeetup(undefined);
+                    setActiveMeetupLoading(false);
+                }
+            } else {
+                 setVibeData(undefined);
+            }
             setVibeLoading(false);
         }, (error) => {
             setVibeError(error);
@@ -537,42 +665,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             unsubscribeVibe();
             unsubscribePosts();
         };
-    }, [vibeId, toast]);
+    }, [vibeId, toast, fetchActiveMeetup]);
 
-    useEffect(() => {
-        if (!vibeData) return;
-
-        if (!vibeData.activeMeetupId) {
-            setActiveMeetup(undefined);
-            setActiveMeetupLoading(false);
-            return;
-        }
-
-        setActiveMeetupLoading(true);
-        const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
-        
-        const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
-            if (doc.exists()) {
-                 const data = doc.data();
-                 setActiveMeetup({
-                    id: doc.id,
-                    ...data,
-                    startTime: (data.startTime as Timestamp)?.toDate().toISOString(),
-                    endTime: (data.endTime as Timestamp)?.toDate().toISOString(),
-                } as Party);
-            } else {
-                setActiveMeetup(undefined);
-            }
-           
-            setActiveMeetupLoading(false);
-        }, (error) => {
-            console.error("Error fetching active meetup:", error);
-            setActiveMeetupError(error);
-            setActiveMeetupLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [vibeId, vibeData]);
 
     const [replyContent, setReplyContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -749,7 +843,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <LoaderCircle className="h-5 w-5 animate-spin" />
                             </div>
                         ) : activeMeetup ? (
-                            <MeetupDetailsDialog vibeId={vibeId} meetup={activeMeetup} />
+                            <MeetupDetailsDialog vibeId={vibeId} meetup={activeMeetup} onUpdate={fetchActiveMeetup} />
                         ) : null
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} />
@@ -997,3 +1091,5 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
+
+    
