@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -641,6 +642,456 @@ function ManageRoomDialog({ room, user, onUpdate, onEdit }: { room: InvitedRoomC
     )
 }
 
+function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, setActiveMainTab }: { onRoomSubmitted: () => void, editingRoom: InvitedRoomClient | null, setEditingRoom: (room: InvitedRoomClient | null) => void, setActiveMainTab: (tab: string) => void }) {
+    const { user, userProfile, settings } = useUserData();
+    const { toast } = useToast();
+    const router = useRouter();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Form State
+    const [roomTopic, setRoomTopic] = useState('');
+    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
+    const [inviteeEmails, setInviteeEmails] = useState('');
+    const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
+    const [duration, setDuration] = useState(30);
+    const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+    const [startNow, setStartNow] = useState(false);
+    const [friends, setFriends] = useState<UserProfile[]>([]);
+
+    const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
+
+     useEffect(() => {
+        if (user?.email) {
+            setEmceeEmails([user.email]);
+        }
+    }, [user?.email]);
+
+    const fetchFriends = useCallback(async () => {
+        if (userProfile?.friends && userProfile.friends.length > 0) {
+            const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
+            const snapshot = await getDocs(friendsQuery);
+            const friendsDetails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+            setFriends(friendsDetails);
+        } else {
+            setFriends([]);
+        }
+    }, [userProfile?.friends]);
+
+    useEffect(() => {
+        fetchFriends();
+    }, [fetchFriends]);
+    
+     const resetForm = useCallback(() => {
+        const defaultDate = new Date();
+        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+        defaultDate.setSeconds(0);
+        defaultDate.setMilliseconds(0);
+        
+        setRoomTopic('');
+        setCreatorLanguage(userProfile?.defaultLanguage || '');
+        setInviteeEmails('');
+        setEmceeEmails(user?.email ? [user.email] : []);
+        setDuration(30);
+        setScheduledDate(defaultDate);
+        setStartNow(false);
+        setEditingRoom(null);
+    }, [user?.email, userProfile?.defaultLanguage, setEditingRoom]);
+    
+     useEffect(() => {
+        if (userProfile?.defaultLanguage && !creatorLanguage) {
+            setCreatorLanguage(userProfile.defaultLanguage);
+        }
+    }, [userProfile?.defaultLanguage, creatorLanguage]);
+
+     useEffect(() => {
+        if (isEditMode && editingRoom) {
+            setRoomTopic(editingRoom.topic);
+            setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
+            setEmceeEmails(editingRoom.emceeEmails);
+            setDuration(editingRoom.durationMinutes || 30);
+            setStartNow(false); 
+            
+            const scheduled = editingRoom.scheduledAt;
+            if (scheduled && typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
+                setScheduledDate(new Date(scheduled));
+            } else {
+                 setScheduledDate(new Date());
+            }
+        }
+    }, [editingRoom, isEditMode, user?.email]);
+
+
+    const parsedInviteeEmails = useMemo(() => {
+        return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
+    }, [inviteeEmails]);
+
+    const allInvitedEmailsForCalc = useMemo(() => {
+        return [...new Set([user?.email, ...parsedInviteeEmails].filter(Boolean) as string[])];
+    }, [parsedInviteeEmails, user?.email]);
+
+    const calculatedCost = useMemo(() => {
+        if (!settings || !userProfile) return 0;
+        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const currentUsageMs = userProfile.syncOnlineUsage || 0;
+        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
+        const remainingFreeMinutes = Math.floor(remainingFreeMs / 60000);
+        
+        const billableMinutes = Math.max(0, duration - remainingFreeMinutes);
+        
+        return billableMinutes * (settings.costPerSyncOnlineMinute || 1) * allInvitedEmailsForCalc.length;
+    }, [settings, duration, allInvitedEmailsForCalc.length, userProfile]);
+
+    const costDifference = useMemo(() => {
+        if (!isEditMode || !editingRoom) return 0;
+        return calculatedCost - (editingRoom.initialCost || 0);
+    }, [isEditMode, editingRoom, calculatedCost]);
+    
+     const toggleEmcee = (email: string) => {
+        setEmceeEmails(prev => 
+            prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
+        );
+    };
+
+    const handleSubmitRoom = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email || !userProfile || !settings) {
+            toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create or edit a room.' });
+            return;
+        }
+        
+        const requiredFields = (isEditMode || startNow) ? [roomTopic] : [roomTopic, creatorLanguage, scheduledDate];
+        if (requiredFields.some(f => !f)) {
+            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
+            return;
+        }
+
+        const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
+
+        if (settings && allInvitedEmails.length > settings.maxUsersPerRoom) {
+            toast({
+                variant: 'destructive',
+                title: 'Participant Limit Exceeded',
+                description: `You can invite a maximum of ${settings.maxUsersPerRoom - 1} other participants (total ${settings.maxUsersPerRoom}).`,
+            });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const finalScheduledDate = startNow ? new Date() : scheduledDate!;
+            
+            if (isEditMode && editingRoom) {
+                 if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
+                    toast({ variant: "destructive", title: "Insufficient Tokens", description: `You need ${calculatedCost - ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0))} more tokens.` });
+                    setIsSubmitting(false);
+                    return;
+                }
+                const result = await updateScheduledRoom({
+                    roomId: editingRoom.id,
+                    userId: user.uid,
+                    updates: {
+                        topic: roomTopic,
+                        scheduledAt: finalScheduledDate.toISOString(),
+                        durationMinutes: duration,
+                        invitedEmails: allInvitedEmails,
+                        emceeEmails: [...new Set(emceeEmails)],
+                    },
+                    newCost: calculatedCost
+                });
+                if(result.success) {
+                    toast({ title: "Room Updated!", description: "Your changes have been saved." });
+                } else {
+                     toast({ variant: "destructive", title: "Update Failed", description: result.error });
+                }
+            } else {
+                 if ((userProfile.tokenBalance || 0) < calculatedCost) {
+                    toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
+                    setIsSubmitting(false);
+                    return;
+                }
+                const newRoomRef = doc(collection(db, 'syncRooms'));
+                const batch = writeBatch(db);
+                const userDocRef = doc(db, 'users', user.uid);
+                
+                const newRoom: Omit<SyncRoom, 'id'> = {
+                    topic: roomTopic,
+                    creatorUid: user.uid,
+                    creatorName: user.displayName || user.email?.split('@')[0] || 'Creator',
+                    createdAt: serverTimestamp(),
+                    status: startNow ? 'active' : 'scheduled',
+                    invitedEmails: allInvitedEmails,
+                    emceeEmails: [...new Set(emceeEmails)],
+                    blockedUsers: [],
+                    lastActivityAt: serverTimestamp(),
+                    scheduledAt: Timestamp.fromDate(finalScheduledDate),
+                    durationMinutes: duration,
+                    initialCost: calculatedCost,
+                    hasStarted: startNow,
+                    reminderMinutes: settings.roomReminderMinutes,
+                };
+                batch.set(newRoomRef, newRoom);
+                
+                if (calculatedCost > 0) {
+                    batch.update(userDocRef, { tokenBalance: increment(-calculatedCost) });
+                    const logRef = doc(collection(userDocRef, 'transactionLogs'));
+                    batch.set(logRef, {
+                        actionType: 'live_sync_online_spend',
+                        tokenChange: -calculatedCost,
+                        timestamp: serverTimestamp(),
+                        description: `Pre-paid for room: "${roomTopic}"`
+                    });
+                }
+                
+                const freeMinutesToDeduct = Math.min(duration, Math.floor(Math.max(0, (settings?.freeSyncOnlineMinutes || 0) * 60 * 1000 - (userProfile.syncOnlineUsage || 0)) / 60000));
+                if(freeMinutesToDeduct > 0) {
+                     batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
+                }
+                
+                await batch.commit();
+
+                // Send email invites, which will also handle in-app notifications on the server
+                if (parsedInviteeEmails.length > 0) {
+                    await sendRoomInviteEmail({
+                        to: parsedInviteeEmails,
+                        roomTopic: roomTopic,
+                        fromName: user.displayName || 'A user',
+                        roomId: newRoomRef.id,
+                        scheduledAt: finalScheduledDate,
+                        joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
+                    });
+                }
+                
+                toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
+                
+                if (startNow) {
+                    router.push(`/sync-room/${newRoomRef.id}`);
+                }
+            }
+            
+            resetForm();
+            setActiveMainTab('your-rooms');
+            onRoomSubmitted();
+
+        } catch (error) {
+            console.error("Error submitting room:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not submit the room." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const toggleFriendInvite = (friend: UserProfile) => {
+        if (!friend.email) return;
+        const currentEmails = new Set(parsedInviteeEmails);
+        if (currentEmails.has(friend.email)) {
+            currentEmails.delete(friend.email);
+        } else {
+            currentEmails.add(friend.email);
+        }
+        setInviteeEmails(Array.from(currentEmails).join(', '));
+    };
+
+    return (
+        <Card className="border-2 border-primary">
+            <CardHeader>
+                <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
+                <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="topic">Room Topic</Label>
+                        <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                    </div>
+                    {!isEditMode && (
+                        <div className="space-y-2">
+                            <Label htmlFor="language">Your Spoken Language</Label>
+                            <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                                <SelectTrigger id="language">
+                                    <SelectValue placeholder="Select language..." />
+                                </SelectTrigger>
+                                <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    {!isEditMode && (
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                            <Label htmlFor="start-now">Start meeting immediately</Label>
+                        </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="duration">Duration (minutes)</Label>
+                            <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                                <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                                <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                        {!startNow && (
+                        <div className="space-y-2">
+                            <Label>Date &amp; Time</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                    <div className="p-3 border-t border-border">
+                                        <div className="flex items-center gap-2">
+                                            <Select
+                                                value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setScheduledDate(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setHours(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            :
+                                            <Select
+                                                    value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setScheduledDate(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setMinutes(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {['00', '15', '30', '45'].map(minute => (
+                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                            )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                        <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                    </div>
+                        {friends.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>Or Select Friends</Label>
+                            <ScrollArea className="max-h-32 border rounded-md">
+                                <div className="p-4 space-y-2">
+                                    {friends.map(friend => (
+                                        <div key={friend.id} className="flex items-center space-x-2">
+                                            <Checkbox 
+                                                id={`friend-${friend.id}`}
+                                                checked={parsedInviteeEmails.includes(friend.email)}
+                                                onCheckedChange={() => toggleFriendInvite(friend)}
+                                            />
+                                            <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
+                                                <span>{friend.name}</span>
+                                                <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    )}
+                    
+                    <div className="space-y-3">
+                        <Separator/>
+                        <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
+                        <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                            {allInvitedEmailsForCalc.length > 0 ? (
+                                allInvitedEmailsForCalc.map(email => (
+                                    <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                                ))
+                            ) : (
+                                <p>Just you so far!</p>
+                            )}
+                        </div></ScrollArea>
+                    </div>
+
+                    {allInvitedEmailsForCalc.length > 1 && (
+                        <div className="space-y-3">
+                            <Separator/>
+                            <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
+                            <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                                {allInvitedEmailsForCalc.map(email => (
+                                    <div key={email} className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={email} 
+                                            checked={emceeEmails.includes(email)} 
+                                            onCheckedChange={() => toggleEmcee(email)}
+                                            disabled={email === user?.email}
+                                        />
+                                        <Label htmlFor={email} className="font-normal w-full truncate">
+                                            {email} {email === user?.email && '(Creator)'}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div></ScrollArea>
+                        </div>
+                    )}
+                    <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                        {isEditMode ? (
+                            <>
+                                <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
+                                <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
+                                <Separator/>
+                                <div className="flex justify-between font-bold">
+                                    <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
+                                    <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                        )}
+                        
+                        <p className="text-xs text-muted-foreground">
+                            Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                        </p>
+                        <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                    </div>
+                </form>
+            </CardContent>
+            <CardFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                 {(userProfile?.tokenBalance || 0) < costDifference ? (
+                    <div className="flex flex-col items-end gap-2">
+                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                        <BuyTokens />
+                    </div>
+                ) : (
+                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                        }
+                    </Button>
+                )}
+            </CardFooter>
+        </Card>
+    )
+}
+
 export default function SyncOnlineHome() {
     const { user, userProfile, loading } = useUserData();
     const router = useRouter();
@@ -652,6 +1103,8 @@ export default function SyncOnlineHome() {
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
+
+    const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
 
     const fetchInvitedRooms = useCallback(async () => {
         if (!user || !user.email) {
@@ -974,210 +1427,14 @@ export default function SyncOnlineHome() {
                     )}
                 </TabsContent>
                 <TabsContent value="schedule" className="mt-4">
-                     <Card className="border-2 border-primary">
-                        <CardHeader>
-                            <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
-                            <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
-                                    <div className="space-y-2">
-                                    <Label htmlFor="topic">Room Topic</Label>
-                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
-                                </div>
-                                    {!isEditMode && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="language">Your Spoken Language</Label>
-                                        <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                                            <SelectTrigger id="language">
-                                                <SelectValue placeholder="Select language..." />
-                                            </SelectTrigger>
-                                            <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-                                {!isEditMode && (
-                                    <div className="flex items-center space-x-2 pt-2">
-                                        <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
-                                        <Label htmlFor="start-now">Start meeting immediately</Label>
-                                    </div>
-                                )}
-                                
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="duration">Duration (minutes)</Label>
-                                        <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
-                                            <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
-                                            <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
-                                        </Select>
-                                    </div>
-                                    {!startNow && (
-                                    <div className="space-y-2">
-                                        <Label>Date &amp; Time</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant={"outline"}
-                                                    className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
-                                                >
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0">
-                                                <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
-                                                <div className="p-3 border-t border-border">
-                                                    <div className="flex items-center gap-2">
-                                                        <Select
-                                                            value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
-                                                            onValueChange={(value) => {
-                                                                setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : new Date();
-                                                                    newDate.setHours(parseInt(value));
-                                                                    return newDate;
-                                                                });
-                                                            }}
-                                                        >
-                                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                                            <SelectContent position="popper">
-                                                                {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
-                                                                    <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        :
-                                                        <Select
-                                                                value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
-                                                            onValueChange={(value) => {
-                                                                setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : new Date();
-                                                                    newDate.setMinutes(parseInt(value));
-                                                                    return newDate;
-                                                                });
-                                                            }}
-                                                        >
-                                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                                            <SelectContent position="popper">
-                                                                {['00', '15', '30', '45'].map(minute => (
-                                                                    <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                        )}
-                                </div>
-                                
-                                <div className="space-y-2">
-                                    <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
-                                    <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
-                                </div>
-                                 {friends.length > 0 && (
-                                    <div className="space-y-2">
-                                        <Label>Or Select Friends</Label>
-                                        <ScrollArea className="max-h-32 border rounded-md">
-                                            <div className="p-4 space-y-2">
-                                                {friends.map(friend => (
-                                                    <div key={friend.id} className="flex items-center space-x-2">
-                                                        <Checkbox 
-                                                            id={`friend-${friend.id}`}
-                                                            checked={parsedInviteeEmails.includes(friend.email)}
-                                                            onCheckedChange={() => toggleFriendInvite(friend)}
-                                                        />
-                                                        <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
-                                                            <span>{friend.name}</span>
-                                                            <span className="text-xs text-muted-foreground">{friend.email}</span>
-                                                        </Label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    </div>
-                                )}
-                                
-                                <div className="space-y-3">
-                                    <Separator/>
-                                    <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
-                                    <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
-                                        {allInvitedEmailsForCalc.length > 0 ? (
-                                            allInvitedEmailsForCalc.map(email => (
-                                                <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
-                                            ))
-                                        ) : (
-                                            <p>Just you so far!</p>
-                                        )}
-                                    </div></ScrollArea>
-                                </div>
-
-                                {allInvitedEmailsForCalc.length > 1 && (
-                                    <div className="space-y-3">
-                                        <Separator/>
-                                        <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
-                                        <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
-                                            {allInvitedEmailsForCalc.map(email => (
-                                                <div key={email} className="flex items-center space-x-2">
-                                                    <Checkbox 
-                                                        id={email} 
-                                                        checked={emceeEmails.includes(email)} 
-                                                        onCheckedChange={() => toggleEmcee(email)}
-                                                        disabled={email === user?.email}
-                                                    />
-                                                    <Label htmlFor={email} className="font-normal w-full truncate">
-                                                        {email} {email === user?.email && '(Creator)'}
-                                                    </Label>
-                                                </div>
-                                            ))}
-                                        </div></ScrollArea>
-                                    </div>
-                                )}
-                                <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
-                                    {isEditMode ? (
-                                        <>
-                                            <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
-                                            <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
-                                            <Separator/>
-                                            <div className="flex justify-between font-bold">
-                                                <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
-                                                <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
-                                    )}
-                                    
-                                    <p className="text-xs text-muted-foreground">
-                                        Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
-                                </div>
-                            </form>
-                        </CardContent>
-                        <CardFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                             {isEditMode ? (
-                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
-                            ) : null}
-                            {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                <div className="flex flex-col items-end gap-2">
-                                    <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                    <BuyTokens />
-                                </div>
-                            ) : (
-                                <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                    {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                        isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                    }
-                                </Button>
-                            )}
-                        </CardFooter>
-                    </Card>
+                     <ScheduleRoomContent 
+                        onRoomSubmitted={fetchInvitedRooms} 
+                        editingRoom={editingRoom} 
+                        setEditingRoom={setEditingRoom}
+                        setActiveMainTab={setActiveMainTab}
+                     />
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
-
-    
