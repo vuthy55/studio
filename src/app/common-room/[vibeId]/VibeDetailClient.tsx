@@ -32,7 +32,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
-function MeetupDetailsDialog({ vibeId, meetup, onUpdate }: { vibeId: string, meetup: Party, onUpdate: () => void }) {
+function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId: string, meetup: Party, onUpdate: () => void, userProfile: Partial<UserProfile> | null }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const router = useRouter();
@@ -691,13 +691,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { presentParticipants, invitedButNotPresent, emailToDetails, blockedUsersList } = useMemo(() => {
         if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], emailToDetails: new Map(), blockedUsersList: [] };
     
-        const emailDetailsMap = new Map<string, { uid: string; name: string; isHost: boolean; email: string; }>();
+        const emailToDetailsMap = new Map<string, { uid: string; name: string; isHost: boolean; email: string; }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
         const blockedUserEmails = new Set((vibeData.blockedUsers || []).map(u => u.email.toLowerCase()));
     
         // The creator is always present
         if (vibeData.creatorEmail && !blockedUserEmails.has(vibeData.creatorEmail.toLowerCase())) {
-            emailDetailsMap.set(vibeData.creatorEmail.toLowerCase(), {
+            emailToDetailsMap.set(vibeData.creatorEmail.toLowerCase(), {
                 uid: vibeData.creatorId,
                 name: vibeData.creatorName,
                 isHost: true, // The creator is always a host
@@ -710,8 +710,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
                 if (!blockedUserEmails.has(lowerEmail)) {
-                    if (!emailDetailsMap.has(lowerEmail)) { // Avoid overwriting creator details
-                        emailDetailsMap.set(lowerEmail, {
+                    if (!emailToDetailsMap.has(lowerEmail)) { // Avoid overwriting creator details
+                        emailToDetailsMap.set(lowerEmail, {
                             uid: post.authorId,
                             name: post.authorName,
                             isHost: hostEmails.has(lowerEmail),
@@ -722,16 +722,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             }
         });
     
-        const presentEmails = new Set(Array.from(emailDetailsMap.keys()));
+        const presentEmails = new Set(Array.from(emailToDetailsMap.keys()));
     
         const invitedList = (vibeData.invitedEmails || [])
             .map((e: string) => e.toLowerCase())
             .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
     
         return { 
-            presentParticipants: Array.from(emailDetailsMap.values()), 
+            presentParticipants: Array.from(emailToDetailsMap.values()), 
             invitedButNotPresent: invitedList, 
-            emailToDetails: emailDetailsMap, 
+            emailToDetails: emailToDetailsMap, 
             blockedUsersList: vibeData.blockedUsers || [] 
         };
     }, [vibeData, posts]);
@@ -843,7 +843,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <LoaderCircle className="h-5 w-5 animate-spin" />
                             </div>
                         ) : activeMeetup ? (
-                            <MeetupDetailsDialog vibeId={vibeId} meetup={activeMeetup} onUpdate={fetchActiveMeetup} />
+                            <MeetupDetailsDialog vibeId={vibeId} meetup={activeMeetup} onUpdate={fetchActiveMeetup} userProfile={userProfile} />
                         ) : null
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} />
@@ -1091,5 +1091,3 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
-
-    
