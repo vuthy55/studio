@@ -126,7 +126,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
+function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: (enabled: boolean) => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
     return (
         <div className="space-y-4" data-tour={tourId}>
             <div className="flex justify-between items-center">
@@ -348,12 +348,12 @@ export default function CommonRoomClient() {
                         A place to connect with other travelers. Discover public discussions or check your private invites.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="flex gap-2">
+                <CardContent className="flex justify-center gap-2">
+                    <CreateVibeDialog onVibeCreated={fetchData} />
                     <Button onClick={() => startTour(commonRoomTourSteps)}>
                         <HelpCircle className="mr-2 h-4 w-4" />
                         Take a Tour
                     </Button>
-                    <CreateVibeDialog onVibeCreated={fetchData} />
                 </CardContent>
             </Card>
 
