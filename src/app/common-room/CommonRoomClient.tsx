@@ -402,6 +402,18 @@ export default function CommonRoomClient() {
         }
     }, [loading, user, fetchData]);
 
+    // This useMemo is now for enriching the myParties list with Vibe topics
+    const enrichedMyParties = useMemo(() => {
+        const myVibesMap = new Map(myVibes.map(vibe => [vibe.id, vibe]));
+        return myParties.map(party => {
+            const vibe = myVibesMap.get(party.vibeId);
+            return {
+                ...party,
+                vibeTopic: vibe ? vibe.topic : 'A Vibe',
+            };
+        });
+    }, [myParties, myVibes]);
+
     return (
         <div className="space-y-6">
              <Card data-tour="cr-welcome-card">
@@ -442,7 +454,7 @@ export default function CommonRoomClient() {
                          <VibeList vibes={myVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
                     </TabsContent>
                      <TabsContent value="my-meetups" className="mt-4">
-                        <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
+                        <PartyList parties={enrichedMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
                     </TabsContent>
                 </Tabs>
             )}

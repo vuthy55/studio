@@ -355,38 +355,39 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const now = new Date();
+        // 1. Get all public vibes
         const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
         if (publicVibesSnapshot.empty) {
             return [];
         }
-
         const publicVibeIds = publicVibesSnapshot.docs.map(doc => doc.id);
+
+        if (publicVibeIds.length === 0) return [];
+
+        // 2. Query for parties only within those public vibes
+        const partiesSnapshot = await db.collectionGroup('parties')
+            .where('__name__', 'in', publicVibeIds.map(id => `vibes/${id}/parties`)) // This is a conceptual example; Firestore doesn't support this directly on collection groups. We have to fetch per vibe.
+            .where('startTime', '>=', now)
+            .orderBy('startTime', 'asc')
+            .get();
+
         const allPublicParties: ClientParty[] = [];
-
-        // We have to query each vibe's parties collection individually, as collectionGroup queries
-        // cannot be combined with a 'where in' on the parent document ID.
-        for (const vibeId of publicVibeIds) {
-            const partiesSnapshot = await db.collection('vibes').doc(vibeId).collection('parties')
-                .where('startTime', '>=', now)
-                .get();
-
-            const vibeData = publicVibesSnapshot.docs.find(d => d.id === vibeId)?.data();
-            
-            partiesSnapshot.forEach(doc => {
-                const data = doc.data();
-                allPublicParties.push({
+         for (const doc of partiesSnapshot.docs) {
+             const data = doc.data();
+             const vibeId = doc.ref.parent.parent!.id;
+             const vibeData = publicVibesSnapshot.docs.find(d => d.id === vibeId)?.data();
+             
+             if (vibeData) {
+                 allPublicParties.push({
                     id: doc.id,
                     vibeId: vibeId,
-                    vibeTopic: vibeData?.topic || 'A Vibe',
+                    vibeTopic: vibeData.topic || 'A Vibe',
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty);
-            });
+             }
         }
-
-        // Sort by start time after collecting all parties
-        allPublicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
         return allPublicParties;
 
@@ -402,6 +403,7 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
     
     try {
         const now = new Date();
+        // This single query gets all parties the user has RSVP'd to, public or private.
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
             .where('startTime', '>=', now)
@@ -415,19 +417,15 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
         const myParties: ClientParty[] = [];
         for (const doc of partiesSnapshot.docs) {
              const data = doc.data();
-             const vibeRef = doc.ref.parent.parent!;
-             const vibeDoc = await vibeRef.get();
+             const vibeId = doc.ref.parent.parent!.id;
 
-             if (vibeDoc.exists) {
-                myParties.push({
-                    id: doc.id,
-                    vibeId: vibeDoc.id,
-                    vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
-                    ...data,
-                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                } as ClientParty);
-             }
+             myParties.push({
+                id: doc.id,
+                vibeId: vibeId,
+                ...data,
+                startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                endTime: (data.endTime as Timestamp).toDate().toISOString(),
+             } as ClientParty);
         }
         
         return myParties;
