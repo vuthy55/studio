@@ -18,17 +18,19 @@ export async function getAllVibesAdmin(): Promise<ClientVibe[]> {
 
         const vibes = snapshot.docs.map(doc => {
             const data = doc.data();
+            const sanitizedData: { [key: string]: any } = { id: doc.id };
             
             // Convert any Timestamp objects to ISO strings to prevent serialization errors.
-            const createdAt = data.createdAt ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(0).toISOString();
-            const lastPostAt = data.lastPostAt ? (data.lastPostAt as Timestamp).toDate().toISOString() : undefined;
+            for (const key in data) {
+                const value = data[key];
+                if (value instanceof Timestamp) {
+                    sanitizedData[key] = value.toDate().toISOString();
+                } else {
+                    sanitizedData[key] = value;
+                }
+            }
 
-            return {
-                id: doc.id,
-                ...data,
-                createdAt,
-                lastPostAt,
-            } as ClientVibe;
+            return sanitizedData as ClientVibe;
         });
         
         return vibes;

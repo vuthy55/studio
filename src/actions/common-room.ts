@@ -152,7 +152,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await existingUsersQuery.get();
+        const existingUsersSnapshot = await getDocs(existingUsersQuery);
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         // Create notifications for existing users
