@@ -591,26 +591,38 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
      const { presentParticipants, invitedButNotPresent, allPresentUsersMap, blockedUsersList } = useMemo(() => {
         if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map(), blockedUsersList: [] };
-
-        const emailToDetails = new Map<string, { uid: string, name: string; isHost: boolean }>();
+    
+        const emailToDetails = new Map<string, { uid: string; name: string; isHost: boolean }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
         const blockedUserEmails = new Set((vibeData.blockedUsers || []).map(u => u.email.toLowerCase()));
-
+    
+        // The creator is always present
+        if (vibeData.creatorEmail && !blockedUserEmails.has(vibeData.creatorEmail.toLowerCase())) {
+            emailToDetails.set(vibeData.creatorEmail.toLowerCase(), {
+                uid: vibeData.creatorId,
+                name: vibeData.creatorName,
+                isHost: true // The creator is always a host
+            });
+        }
+    
+        // Add participants from posts, ensuring they are not blocked
         posts.forEach(post => {
             if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
                 if (!blockedUserEmails.has(lowerEmail)) {
-                    emailToDetails.set(lowerEmail, {
-                        uid: post.authorId,
-                        name: post.authorName,
-                        isHost: hostEmails.has(lowerEmail)
-                    });
+                    if (!emailToDetails.has(lowerEmail)) { // Avoid overwriting creator details
+                        emailToDetails.set(lowerEmail, {
+                            uid: post.authorId,
+                            name: post.authorName,
+                            isHost: hostEmails.has(lowerEmail)
+                        });
+                    }
                 }
             }
         });
-        
+    
         const presentEmails = new Set(Array.from(emailToDetails.keys()));
-
+    
         const presentList = Array.from(presentEmails).map(email => ({
             email: email,
             ...emailToDetails.get(email)!
@@ -618,13 +630,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
             return a.name.localeCompare(b.name);
         });
-        
+    
         const invitedList = (vibeData.invitedEmails || [])
             .map((e: string) => e.toLowerCase())
             .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
-        
-
-        return { presentParticipants: presentList, invitedButNotPresent: invitedList, allPresentUsersMap: emailToDetails, blockedUsersList: vibeData.blockedUsers || [] };
+    
+        return { 
+            presentParticipants: presentList, 
+            invitedButNotPresent: invitedList, 
+            allPresentUsersMap: emailToDetails, 
+            blockedUsersList: vibeData.blockedUsers || [] 
+        };
     }, [vibeData, posts]);
 
 
@@ -810,7 +826,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This will permanently remove and block {name} from this Vibe. They will not be able to rejoin.
+                                                                This will permanently remove and block {name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
@@ -882,7 +898,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    You will no longer be able to see this Vibe or its messages. This action can be undone by a host.
+                                                    You will no longer be able to see this Vibe or its messages. You can be re-invited by a host later.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
