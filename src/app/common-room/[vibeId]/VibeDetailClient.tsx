@@ -32,7 +32,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
-function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId: string, meetup: Party, onUpdate: () => void, userProfile: Partial<UserProfile> | null }) {
+function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId: string, meetup: Party, onUpdate: (meetupId: string) => void, userProfile: Partial<UserProfile> | null }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const router = useRouter();
@@ -128,7 +128,7 @@ function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId
         const result = await removeRsvp(vibeId, meetup.id, user.uid, attendeeId);
         if (result.success) {
             toast({ title: 'Attendee Removed', description: 'Their RSVP has been canceled.' });
-            onUpdate(); // Re-fetch data on parent
+            onUpdate(meetup.id);
             fetchAttendees(); // Re-fetch attendees for this dialog
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove attendee.' });
