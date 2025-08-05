@@ -987,7 +987,7 @@ export default function SyncOnlineHome() {
 
                 // Send email invites, which will also handle in-app notifications on the server
                 if (parsedInviteeEmails.length > 0) {
-                    await sendRoomInviteEmail({
+                    const result = await sendRoomInviteEmail({
                         to: parsedInviteeEmails,
                         roomTopic: roomTopic,
                         fromName: user.displayName || 'A user',
@@ -995,7 +995,12 @@ export default function SyncOnlineHome() {
                         scheduledAt: finalScheduledDate,
                         joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
                     });
-                     toast({ title: "Room Scheduled and invites sent!", description: "Your meeting is ready." });
+
+                    if (result.success) {
+                         toast({ title: "Room Scheduled and invites sent!", description: "Your meeting is ready." });
+                    } else {
+                         toast({ variant: 'destructive', title: "Invites Failed", description: result.error });
+                    }
                 } else {
                     toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
                 }
