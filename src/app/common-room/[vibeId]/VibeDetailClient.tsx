@@ -147,7 +147,7 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                     ) : (
                         <DialogTitle>{meetup.title}</DialogTitle>
                     )}
-                    <DialogDescription className="space-y-1 pt-1">
+                    <div className="space-y-1 pt-1">
                          {isEditing ? (
                             <Input value={editableMeetup.location} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
                          ) : (
@@ -155,13 +155,13 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                             <a href={meetup.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
                                 <MapPin className="h-4 w-4" /> Location
                             </a>
-                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Calendar className="h-4 w-4" />
                                 <span>{format(new Date(meetup.startTime), 'MMM d, h:mm a')}</span>
-                             </div>
+                            </div>
                             </>
                          )}
-                    </DialogDescription>
+                    </div>
                 </DialogHeader>
                 <ScrollArea className="h-48 my-4">
                     <div className="pr-4">
@@ -594,16 +594,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-    const { presentParticipants, invitedButNotPresent, allPresentUsersMap, blockedUsersList } = useMemo(() => {
-        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map(), blockedUsersList: [] };
+    const { presentParticipants, invitedButNotPresent, emailToDetails, blockedUsersList } = useMemo(() => {
+        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], emailToDetails: new Map(), blockedUsersList: [] };
     
-        const emailToDetails = new Map<string, { uid: string; name: string; isHost: boolean; email: string; }>();
+        const emailDetailsMap = new Map<string, { uid: string; name: string; isHost: boolean; email: string; }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
         const blockedUserEmails = new Set((vibeData.blockedUsers || []).map(u => u.email.toLowerCase()));
     
         // The creator is always present
         if (vibeData.creatorEmail && !blockedUserEmails.has(vibeData.creatorEmail.toLowerCase())) {
-            emailToDetails.set(vibeData.creatorEmail.toLowerCase(), {
+            emailDetailsMap.set(vibeData.creatorEmail.toLowerCase(), {
                 uid: vibeData.creatorId,
                 name: vibeData.creatorName,
                 isHost: true, // The creator is always a host
@@ -616,8 +616,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
                 if (!blockedUserEmails.has(lowerEmail)) {
-                    if (!emailToDetails.has(lowerEmail)) { // Avoid overwriting creator details
-                        emailToDetails.set(lowerEmail, {
+                    if (!emailDetailsMap.has(lowerEmail)) { // Avoid overwriting creator details
+                        emailDetailsMap.set(lowerEmail, {
                             uid: post.authorId,
                             name: post.authorName,
                             isHost: hostEmails.has(lowerEmail),
@@ -628,16 +628,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             }
         });
     
-        const presentEmails = new Set(Array.from(emailToDetails.keys()));
+        const presentEmails = new Set(Array.from(emailDetailsMap.keys()));
     
         const invitedList = (vibeData.invitedEmails || [])
             .map((e: string) => e.toLowerCase())
             .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
     
         return { 
-            presentParticipants: Array.from(emailToDetails.values()), 
+            presentParticipants: Array.from(emailDetailsMap.values()), 
             invitedButNotPresent: invitedList, 
-            allPresentUsersMap: emailToDetails, 
+            emailToDetails: emailDetailsMap, 
             blockedUsersList: vibeData.blockedUsers || [] 
         };
     }, [vibeData, posts]);
