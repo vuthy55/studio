@@ -174,16 +174,16 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
                                  {party.description && (
                                     <p className="text-sm text-muted-foreground pt-1 italic">"{party.description}"</p>
                                  )}
-                                 <div className="flex items-center gap-4 text-sm text-muted-foreground pt-2">
-                                     <div className="flex items-center gap-2">
-                                        <Calendar className="h-4 w-4" />
-                                        <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
-                                    </div>
-                                     <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                        <MapPin className="h-4 w-4" /> View Map
-                                     </a>
-                                 </div>
                              </div>
+                             <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground ml-4">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4" />
+                                    <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                                </div>
+                                <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                    <MapPin className="h-4 w-4" /> View Map
+                                </a>
+                            </div>
                          </div>
                     ))}
                  </div>
