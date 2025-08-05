@@ -355,36 +355,40 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const now = new Date();
-        const partiesSnapshot = await db.collectionGroup('parties')
-            .where('startTime', '>=', now)
-            .orderBy('startTime', 'asc')
-            .get();
-            
-        if (partiesSnapshot.empty) {
+        const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
+        if (publicVibesSnapshot.empty) {
             return [];
         }
 
-        const publicParties: ClientParty[] = [];
+        const publicVibeIds = publicVibesSnapshot.docs.map(doc => doc.id);
+        const allPublicParties: ClientParty[] = [];
 
-        for (const doc of partiesSnapshot.docs) {
-            // Check if parent vibe is public
-            const vibeRef = doc.ref.parent.parent!;
-            const vibeDoc = await vibeRef.get();
+        // We have to query each vibe's parties collection individually, as collectionGroup queries
+        // cannot be combined with a 'where in' on the parent document ID.
+        for (const vibeId of publicVibeIds) {
+            const partiesSnapshot = await db.collection('vibes').doc(vibeId).collection('parties')
+                .where('startTime', '>=', now)
+                .get();
+
+            const vibeData = publicVibesSnapshot.docs.find(d => d.id === vibeId)?.data();
             
-            if (vibeDoc.exists && vibeDoc.data()?.isPublic) {
-                 const data = doc.data();
-                 publicParties.push({
+            partiesSnapshot.forEach(doc => {
+                const data = doc.data();
+                allPublicParties.push({
                     id: doc.id,
-                    vibeId: vibeDoc.id,
-                    vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
+                    vibeId: vibeId,
+                    vibeTopic: vibeData?.topic || 'A Vibe',
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty);
-            }
+            });
         }
+
+        // Sort by start time after collecting all parties
+        allPublicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
-        return publicParties;
+        return allPublicParties;
 
     } catch (error: any) {
         console.error("Error fetching upcoming public parties:", error);

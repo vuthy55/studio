@@ -18,18 +18,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users, LocateFixed, HelpCircle, ChevronRight, User, Eye } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, HelpCircle, Eye, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getPublicVibes, getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
 import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
-import { resolveUrlAction } from '@/actions/scraper';
-import { useTour, TourStep } from '@/context/TourContext';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { resolveUrlAction } from '@/actions/scraper';
+import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
+import { notificationSound } from '@/lib/sounds';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTour, TourStep } from '@/context/TourContext';
 
 const commonRoomTourSteps: TourStep[] = [
   {
