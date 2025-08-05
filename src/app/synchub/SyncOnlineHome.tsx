@@ -799,7 +799,7 @@ export default function SyncOnlineHome() {
     };
 
     const fetchInvitedRooms = useCallback(async () => {
-        if (!user) {
+        if (!user || !user.email) {
             setInvitedRooms([]);
             setIsFetchingRooms(false);
             return;
