@@ -6,14 +6,14 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -28,6 +28,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSearchParams } from 'next/navigation';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 
 function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
@@ -587,23 +588,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-    const { presentParticipants, invitedButNotPresent } = useMemo(() => {
-        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [] };
+     const { presentParticipants, invitedButNotPresent, allPresentUsersMap } = useMemo(() => {
+        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map() };
 
-        const emailToDetails = new Map<string, { name: string; isHost: boolean }>();
+        const emailToDetails = new Map<string, { uid: string, name: string; isHost: boolean }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
 
-        hostEmails.forEach(email => {
-            emailToDetails.set(email.toLowerCase(), {
-                name: email.split('@')[0],
-                isHost: true
-            });
-        });
-
         posts.forEach(post => {
-            if (post.authorEmail) {
+            if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
                  emailToDetails.set(lowerEmail, {
+                    uid: post.authorId,
                     name: post.authorName,
                     isHost: hostEmails.has(lowerEmail)
                 });
@@ -614,8 +609,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
         const presentList = Array.from(presentEmails).map(email => ({
             email: email,
-            name: emailToDetails.get(email)!.name,
-            isHost: emailToDetails.get(email)!.isHost
+            ...emailToDetails.get(email)!
         })).sort((a, b) => {
             if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
             return a.name.localeCompare(b.name);
@@ -626,7 +620,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             .filter((email: string) => !presentEmails.has(email));
         
 
-        return { presentParticipants: presentList, invitedButNotPresent: invitedList };
+        return { presentParticipants: presentList, invitedButNotPresent: invitedList, allPresentUsersMap: emailToDetails };
     }, [vibeData, posts]);
 
 
@@ -651,6 +645,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ title: 'Success', description: `Host status updated for ${targetEmail}.` });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
+        }
+    };
+    
+     const handleRemoveUser = async (userToRemove: { uid: string, email: string, name: string }) => {
+        if (!isCurrentUserHost) return;
+        const result = await removeParticipantFromVibe(vibeId, userToRemove);
+         if (result.success) {
+            toast({ title: 'User Removed', description: `${userToRemove.name} has been removed from this Vibe.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
         }
     };
 
@@ -737,7 +741,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <Separator />
                                 <div className="space-y-2">
                                     <h4 className="font-semibold text-sm flex items-center gap-2"><UserCheck /> Present ({presentParticipants.length})</h4>
-                                    {presentParticipants.map(({ name, email, isHost }) => (
+                                    {presentParticipants.map(({ uid, name, email, isHost }) => (
                                         <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
                                              <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
@@ -745,14 +749,15 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             <span className={`font-medium text-sm flex-1 ${isHost ? 'text-primary' : ''}`}>{name}</span>
                                             {isHost && <Badge variant="secondary">Host</Badge>}
 
-                                            {isCurrentUserHost && email !== vibeData.creatorEmail && (
-                                                 <TooltipProvider>
+                                            {isCurrentUserHost && email !== vibeData.creatorEmail && email !== user?.email && (
+                                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <Button 
                                                                 size="icon" 
                                                                 variant="ghost" 
-                                                                className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                                                className="h-7 w-7"
                                                                 onClick={() => handleHostToggle(email, !isHost)}
                                                             >
                                                                 {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
@@ -762,6 +767,35 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                             <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
+                                                <AlertDialog>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <AlertDialogTrigger asChild>
+                                                                <TooltipTrigger asChild>
+                                                                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                                        <UserMinus className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                            </AlertDialogTrigger>
+                                                            <TooltipContent>Remove user</TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will permanently remove and block {name} from this Vibe. They will not be able to rejoin.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleRemoveUser({uid, email, name})} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                                Remove & Block
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                                </div>
                                             )}
                                         </div>
                                     ))}

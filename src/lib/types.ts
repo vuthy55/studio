@@ -113,6 +113,7 @@ export type Vibe = {
     lastPostAt?: any;
     lastPostBy?: string;
     activeMeetupId?: string | null;
+    blockedUsers?: BlockedUser[];
 };
 
 export type Party = {

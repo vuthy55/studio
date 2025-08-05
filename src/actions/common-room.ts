@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { Vibe, ClientVibe, Party, ClientParty } from '@/lib/types';
+import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 
 
@@ -63,6 +63,9 @@ export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
 
         vibesSnapshot.forEach(doc => {
             const data = doc.data();
+
+            const isBlocked = data.blockedUsers?.some((blocked: BlockedUser) => blocked.email.toLowerCase() === userEmail.toLowerCase());
+            if (isBlocked) return;
 
             // Filter logic: include if public or if the user is explicitly invited
             const isInvited = data.invitedEmails?.includes(userEmail);
@@ -432,4 +435,27 @@ export async function editMeetup(vibeId: string, partyId: string, updates: Parti
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
-    
+
+export async function removeParticipantFromVibe(vibeId: string, userToRemove: { uid: string, email: string }): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId || !userToRemove) {
+        return { success: false, error: 'Missing required information.' };
+    }
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const batch = db.batch();
+
+        const userToBlock: BlockedUser = { uid: userToRemove.uid, email: userToRemove.email };
+
+        batch.update(vibeRef, {
+            blockedUsers: FieldValue.arrayUnion(userToBlock),
+            invitedEmails: FieldValue.arrayRemove(userToRemove.email),
+            hostEmails: FieldValue.arrayRemove(userToRemove.email)
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error removing participant from Vibe:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
