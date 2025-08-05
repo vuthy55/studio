@@ -159,9 +159,9 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
             ) : (
                  <div className="border rounded-lg">
                     {parties.map((party, index) => (
-                         <div key={party.id} className={`flex items-center p-4 hover:bg-muted/50 transition-colors ${index < parties.length - 1 ? 'border-b' : ''}`}>
+                         <div key={party.id} className={`flex items-start p-4 hover:bg-muted/50 transition-colors ${index < parties.length - 1 ? 'border-b' : ''}`}>
                              <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                      <p className="font-semibold">{party.title}</p>
                                      {!party.isPublic && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1"/>Private</Badge>}
                                      {typeof party.distance === 'number' && (
@@ -174,14 +174,16 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
                                  {party.description && (
                                     <p className="text-sm text-muted-foreground pt-1 italic">"{party.description}"</p>
                                  )}
-                                <div className="text-sm text-muted-foreground flex items-center gap-2 pt-1">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
-                                </div>
+                                 <div className="flex items-center gap-4 text-sm text-muted-foreground pt-2">
+                                     <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4" />
+                                        <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                                    </div>
+                                     <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                        <MapPin className="h-4 w-4" /> View Map
+                                     </a>
+                                 </div>
                              </div>
-                              <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                <Button variant="ghost" size="sm"><MapPin className="mr-2"/>View Map</Button>
-                             </a>
                          </div>
                     ))}
                  </div>
@@ -430,11 +432,10 @@ export default function CommonRoomClient() {
     }, [userLocation, sortMode, processPartiesWithLocation]);
 
 
-    const { publicVibes, myVibes } = useMemo(() => {
+    const { publicVibes } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
         return {
-            publicVibes: publicV,
-            myVibes: allVibes,
+            publicVibes: publicV
         };
     }, [allVibes]);
 
@@ -486,7 +487,7 @@ export default function CommonRoomClient() {
                         <PartyList parties={upcomingPublicParties} title="All Public Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
                     </TabsContent>
                      <TabsContent value="my-vibes" className="mt-4">
-                         <VibeList vibes={myVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
+                         <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
                     </TabsContent>
                      <TabsContent value="my-meetups" className="mt-4">
                         <PartyList parties={upcomingMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
@@ -496,5 +497,3 @@ export default function CommonRoomClient() {
         </div>
     )
 }
-
-    
