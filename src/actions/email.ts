@@ -4,6 +4,7 @@
 import { Resend } from 'resend';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase-admin';
+import { serverTimestamp } from 'firebase-admin/firestore';
 
 interface SendRoomInviteEmailProps {
   to: string[];
@@ -30,7 +31,7 @@ export async function sendRoomInviteEmail({
       return { success: false, error: 'The RESEND_API_KEY is not configured on the server.' };
     }
     
-    // Don't send emails if there are no recipients
+    // Don't proceed if there are no recipients
     if (!to || to.length === 0) {
       return { success: true }; 
     }
@@ -40,25 +41,28 @@ export async function sendRoomInviteEmail({
     const existingUsersSnapshot = await existingUsersQuery.get();
     const existingEmails = new Set<string>();
 
-    const batch = db.batch();
+    if (!existingUsersSnapshot.empty) {
+        const batch = db.batch();
 
-    existingUsersSnapshot.forEach(doc => {
-        const userData = doc.data();
-        const userEmail = userData.email.toLowerCase();
-        existingEmails.add(userEmail);
+        existingUsersSnapshot.forEach(doc => {
+            const userData = doc.data();
+            const userEmail = userData.email.toLowerCase();
+            existingEmails.add(userEmail);
 
-        const notificationRef = db.collection('notifications').doc();
-        batch.set(notificationRef, {
-            userId: doc.id,
-            type: 'room_invite',
-            message: `${fromName} has invited you to the room: "${roomTopic}"`,
-            roomId: roomId,
-            createdAt: serverTimestamp(),
-            read: false,
+            const notificationRef = db.collection('notifications').doc();
+            batch.set(notificationRef, {
+                userId: doc.id,
+                type: 'room_invite',
+                message: `${fromName} has invited you to the room: "${roomTopic}"`,
+                roomId: roomId,
+                createdAt: serverTimestamp(),
+                read: false,
+            });
         });
-    });
-    
-    await batch.commit();
+        
+        await batch.commit();
+    }
+
 
     // --- Step 2: Send emails only to non-existing users ---
     const externalEmails = to.filter(email => !existingEmails.has(email.toLowerCase()));
