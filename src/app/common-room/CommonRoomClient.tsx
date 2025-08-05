@@ -158,11 +158,9 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 
 /**
  * Calculates the distance between two lat/lon points in kilometers using the Haversine formula.
- * This is the corrected and verified version.
  */
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     const R = 6371; // Earth's radius in kilometers
-
     const toRad = (deg: number) => deg * (Math.PI / 180);
 
     const lat1 = toRad(startCoords.lat);
@@ -177,7 +175,7 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(lat1) * Math.cos(lat2) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
+        
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
@@ -201,6 +199,7 @@ export default function CommonRoomClient() {
     
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const notifiedPartyIds = useRef(new Set<string>());
+    const processingJobId = useRef(0); // Used to prevent race conditions
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
@@ -297,6 +296,8 @@ export default function CommonRoomClient() {
             return;
         };
 
+        const currentJobId = ++processingJobId.current;
+
         const processParties = async () => {
             const partiesWithData = await Promise.all(publicParties.map(async (party) => {
                 const coords = await extractCoordsFromUrl(party.location);
@@ -306,6 +307,11 @@ export default function CommonRoomClient() {
                 }
                 return { ...party, coords, distance };
             }));
+            
+            // If another job has started, abort this one to prevent state update race conditions
+            if (currentJobId !== processingJobId.current) {
+                return;
+            }
 
             partiesWithData.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
             setSortedPublicParties(partiesWithData);
