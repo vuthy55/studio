@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -799,7 +800,7 @@ export default function SyncOnlineHome() {
     };
 
     const fetchInvitedRooms = useCallback(async () => {
-        if (!user) {
+        if (!user || !user.email) {
             setInvitedRooms([]);
             setIsFetchingRooms(false);
             return;
@@ -982,37 +983,22 @@ export default function SyncOnlineHome() {
                 if(freeMinutesToDeduct > 0) {
                      batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
                 }
-
-                // Create in-app notifications for existing users
-                const friendsQuery = query(collection(db, 'users'), where('email', 'in', parsedInviteeEmails));
-                const friendsSnapshot = await getDocs(friendsQuery);
-                friendsSnapshot.forEach(friendDoc => {
-                    const notificationRef = doc(collection(db, 'notifications'));
-                    batch.set(notificationRef, {
-                        userId: friendDoc.id,
-                        type: 'room_invite',
-                        message: `${newRoom.creatorName} has invited you to the room: "${newRoom.topic}"`,
-                        roomId: newRoomRef.id,
-                        createdAt: serverTimestamp(),
-                        read: false,
-                    });
-                });
                 
                 await batch.commit();
 
-                // Send email invites
+                // Send email invites, which will also handle in-app notifications on the server
                 if (parsedInviteeEmails.length > 0) {
                     await sendRoomInviteEmail({
                         to: parsedInviteeEmails,
                         roomTopic: roomTopic,
-                        creatorName: user.displayName || 'A user',
+                        fromName: user.displayName || 'A user',
+                        roomId: newRoomRef.id,
                         scheduledAt: finalScheduledDate,
                         joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
                     });
-                     toast({ title: "Room Scheduled and invites sent!", description: "Your meeting is ready." });
-                } else {
-                    toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
                 }
+                
+                toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
                 
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
