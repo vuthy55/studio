@@ -112,16 +112,20 @@ export default function JoinVibePage() {
         try {
             const result = await signUpUser(
                 { name, email, password, country, mobile, defaultLanguage: spokenLanguage },
-                referralId
+                referralId,
+                null, // No roomId
+                vibeId
             );
 
             if (!result.success) {
                 throw new Error(result.error || "Failed to process new user on the server.");
             }
             
+            // Log the user in on the client side after successful server-side creation
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             
-            await fetchVibeAndRedirect(userCredential.user);
+            // Redirect to the vibe page. The user data context will pick up the new user.
+            router.push(`/common-room/${vibeId}`);
             
         } catch (error: any) {
             console.error("Sign-up and join error:", error);
