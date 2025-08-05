@@ -35,8 +35,7 @@ export async function signUpUser(
   // Room specific
   roomStatus?: 'active' | 'scheduled' | 'closed';
   scheduledAt?: string;
-  // Vibe specific
-  vibeExists?: boolean;
+  // Vibe specific - No longer returning vibeExists to simplify client logic
 }> {
   const { name, email, password, country, mobile, defaultLanguage, photoURL } = payload;
   const lowerCaseEmail = email.toLowerCase();
@@ -208,10 +207,8 @@ export async function signUpUser(
     }
     
     if (vibeId) {
-        console.log('[signUpUser] Step 5: Vibe ID provided. Checking vibe status...');
-        const vibeRef = db.collection('vibes').doc(vibeId);
-        const vibeDoc = await vibeRef.get();
-        return { success: true, userId: uid, vibeExists: vibeDoc.exists() };
+        console.log('[signUpUser] Step 5: Vibe ID provided. Client will handle redirect.');
+        return { success: true, userId: uid };
     }
 
 

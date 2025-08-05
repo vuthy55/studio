@@ -122,9 +122,10 @@ export default function JoinVibePage() {
             }
             
             // Log the user in on the client side after successful server-side creation
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            await signInWithEmailAndPassword(auth, email, password);
             
             // Redirect to the vibe page. The user data context will pick up the new user.
+            // No need to check vibeExists on the client, as the server action now guarantees access.
             router.push(`/common-room/${vibeId}`);
             
         } catch (error: any) {
