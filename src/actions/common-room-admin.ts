@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -15,18 +16,21 @@ export async function getAllVibesAdmin(): Promise<ClientVibe[]> {
             return [];
         }
 
-        const vibes: ClientVibe[] = snapshot.docs.map(doc => {
+        const vibes = snapshot.docs.map(doc => {
             const data = doc.data();
-            const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString();
-            const lastPostAt = (data.lastPostAt as Timestamp)?.toDate().toISOString();
+            
+            // Convert any Timestamp objects to ISO strings to prevent serialization errors.
+            const createdAt = data.createdAt ? (data.createdAt as Timestamp).toDate().toISOString() : new Date(0).toISOString();
+            const lastPostAt = data.lastPostAt ? (data.lastPostAt as Timestamp).toDate().toISOString() : undefined;
 
             return {
                 id: doc.id,
                 ...data,
                 createdAt,
-                lastPostAt: lastPostAt || undefined,
+                lastPostAt,
             } as ClientVibe;
         });
+        
         return vibes;
 
     } catch (error) {
