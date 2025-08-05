@@ -44,34 +44,32 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
  * Fetches all public vibes and private vibes the user is invited to.
  * This function is now robust and sanitizes all timestamp fields before returning data.
  */
-export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
+export async function getMyVibes(userEmail: string): Promise<ClientVibe[]> {
     if (!userEmail) {
-        console.log("[getVibes] No user email provided, returning empty array.");
+        console.log("[getMyVibes] No user email provided, returning empty array.");
         return [];
     }
 
     try {
-        console.log(`[getVibes] Fetching all documents from 'vibes' collection for user: ${userEmail}`);
-        const vibesSnapshot = await db.collection('vibes').get();
+        console.log(`[getMyVibes] Fetching all documents from 'vibes' collection for user: ${userEmail}`);
         
-        if (vibesSnapshot.empty) {
-            console.log("[getVibes] 'vibes' collection is empty.");
-            return [];
-        }
+        const publicVibesQuery = db.collection('vibes').where('isPublic', '==', true);
+        const privateVibesQuery = db.collection('vibes').where('invitedEmails', 'array-contains', userEmail);
+        
+        const [publicSnapshot, privateSnapshot] = await Promise.all([
+            publicVibesQuery.get(),
+            privateVibesQuery.get()
+        ]);
 
-        const allVibes: ClientVibe[] = [];
+        const allVibesMap = new Map<string, ClientVibe>();
 
-        vibesSnapshot.forEach(doc => {
-            const data = doc.data();
+        const processSnapshot = (snapshot: FirebaseFirestore.QuerySnapshot) => {
+            snapshot.forEach(doc => {
+                const data = doc.data();
 
-            const isBlocked = data.blockedUsers?.some((blocked: BlockedUser) => blocked.email.toLowerCase() === userEmail.toLowerCase());
-            if (isBlocked) return;
+                const isBlocked = data.blockedUsers?.some((blocked: BlockedUser) => blocked.email.toLowerCase() === userEmail.toLowerCase());
+                if (isBlocked) return;
 
-            // Filter logic: include if public or if the user is explicitly invited
-            const isInvited = data.invitedEmails?.includes(userEmail);
-            if (data.isPublic || isInvited) {
-                
-                // *** CRITICAL: Sanitize all potential Timestamp fields ***
                 const sanitizedData: { [key: string]: any } = { id: doc.id };
                 for (const key in data) {
                     const value = data[key];
@@ -82,25 +80,70 @@ export async function getVibes(userEmail: string): Promise<ClientVibe[]> {
                     }
                 }
                 
-                allVibes.push(sanitizedData as ClientVibe);
-            }
-        });
+                allVibesMap.set(doc.id, sanitizedData as ClientVibe);
+            });
+        };
+
+        processSnapshot(publicSnapshot);
+        processSnapshot(privateSnapshot);
+
+        const allVibes = Array.from(allVibesMap.values());
 
         // Sort by last activity date, with a fallback to creation date
         allVibes.sort((a, b) => {
             const dateA = a.lastPostAt ? new Date(a.lastPostAt) : new Date(a.createdAt);
-            const dateB = b.lastPostAt ? new Date(b.lastPostAt) : new Date(b.createdAt);
+            const dateB = b.lastPostAt ? new Date(b.lastPostAt) : new Date(a.createdAt);
             return dateB.getTime() - dateA.getTime();
         });
 
-        console.log(`[getVibes] Successfully fetched and processed ${allVibes.length} vibes.`);
+        console.log(`[getMyVibes] Successfully fetched and processed ${allVibes.length} vibes.`);
         return allVibes;
 
     } catch (error) {
-        console.error("[getVibes] CRITICAL ERROR fetching vibes:", error);
+        console.error("[getMyVibes] CRITICAL ERROR fetching vibes:", error);
         return []; // Return an empty array on error to prevent client crashes
     }
 }
+
+
+export async function getPublicVibes(): Promise<ClientVibe[]> {
+    try {
+        const vibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
+        
+        if (vibesSnapshot.empty) {
+            return [];
+        }
+
+        const allVibes: ClientVibe[] = [];
+
+        vibesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const sanitizedData: { [key: string]: any } = { id: doc.id };
+            for (const key in data) {
+                const value = data[key];
+                if (value instanceof Timestamp) {
+                    sanitizedData[key] = value.toDate().toISOString();
+                } else {
+                    sanitizedData[key] = value;
+                }
+            }
+            allVibes.push(sanitizedData as ClientVibe);
+        });
+
+        allVibes.sort((a, b) => {
+            const dateA = a.lastPostAt ? new Date(a.lastPostAt) : new Date(a.createdAt);
+            const dateB = b.lastPostAt ? new Date(b.lastPostAt) : new Date(a.createdAt);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        return allVibes;
+
+    } catch (error) {
+        console.error("[getPublicVibes] CRITICAL ERROR fetching vibes:", error);
+        return [];
+    }
+}
+
 
 /**
  * Adds a new post to a Vibe and updates the Vibe's metadata.
@@ -310,41 +353,35 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
-        const partiesSnapshot = await db.collectionGroup('parties').get();
+        const now = new Date();
+        const partiesSnapshot = await db.collectionGroup('parties')
+            .where('startTime', '>=', now)
+            .orderBy('startTime', 'asc')
+            .get();
+            
         if (partiesSnapshot.empty) {
             return [];
         }
 
-        const now = new Date();
         const publicParties: ClientParty[] = [];
 
         for (const doc of partiesSnapshot.docs) {
-            const data = doc.data();
-            const startTime = (data.startTime as Timestamp)?.toDate();
-            
-            // Filter out past parties first
-            if (!startTime || startTime < now) {
-                continue;
-            }
-
             // Check if parent vibe is public
             const vibeRef = doc.ref.parent.parent!;
             const vibeDoc = await vibeRef.get();
             
             if (vibeDoc.exists && vibeDoc.data()?.isPublic) {
-                publicParties.push({
+                 const data = doc.data();
+                 publicParties.push({
                     id: doc.id,
                     vibeId: vibeDoc.id,
                     vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
                     ...data,
-                    startTime: startTime.toISOString(),
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty);
             }
         }
-        
-        // Sort remaining parties by start time
-        publicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
         return publicParties;
 
@@ -355,39 +392,40 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
 }
 
 
-export async function getAllMyUpcomingParties(userEmail: string): Promise<ClientParty[]> {
-    if (!userEmail) return [];
+export async function getAllMyUpcomingParties(userId: string): Promise<ClientParty[]> {
+    if (!userId) return [];
     
     try {
-        const myVibes = await getVibes(userEmail);
-        if (myVibes.length === 0) return [];
-        
         const now = new Date();
-        const allMyParties: ClientParty[] = [];
+        const partiesSnapshot = await db.collectionGroup('parties')
+            .where('rsvps', 'array-contains', userId)
+            .where('startTime', '>=', now)
+            .orderBy('startTime', 'asc')
+            .get();
         
-        const partyPromises = myVibes.map(async (vibe) => {
-            const partiesRef = db.collection('vibes').doc(vibe.id).collection('parties');
-            const q = partiesRef.where('startTime', '>=', now);
-            const partiesSnapshot = await q.get();
+        if (partiesSnapshot.empty) {
+            return [];
+        }
 
-            partiesSnapshot.forEach(doc => {
-                const data = doc.data();
-                 allMyParties.push({
+        const myParties: ClientParty[] = [];
+        for (const doc of partiesSnapshot.docs) {
+             const data = doc.data();
+             const vibeRef = doc.ref.parent.parent!;
+             const vibeDoc = await vibeRef.get();
+
+             if (vibeDoc.exists) {
+                myParties.push({
                     id: doc.id,
-                    vibeId: vibe.id,
-                    vibeTopic: vibe.topic || 'A Vibe',
+                    vibeId: vibeDoc.id,
+                    vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty);
-            });
-        });
-
-        await Promise.all(partyPromises);
-
-        allMyParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+             }
+        }
         
-        return allMyParties;
+        return myParties;
 
     } catch (error: any) {
         console.error("Error fetching all my upcoming parties:", error);
@@ -512,3 +550,5 @@ export async function unblockParticipantFromVibe(vibeId: string, requesterEmail:
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
+
+    

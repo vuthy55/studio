@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
@@ -487,6 +487,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const router = useRouter();
+    const searchParams = useSearchParams();
     
     const [vibeData, setVibeData] = useState<Vibe | undefined>(undefined);
     const [vibeLoading, setVibeLoading] = useState(true);
@@ -499,7 +500,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
     const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
 
-    const backLink = '/common-room';
+    const backLink = `/common-room?tab=${searchParams.get('tab') || 'public-vibes'}`;
 
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
@@ -621,20 +622,12 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
         const presentEmails = new Set(Array.from(emailToDetails.keys()));
     
-        const presentList = Array.from(presentEmails).map(email => ({
-            email: email,
-            ...emailToDetails.get(email)!
-        })).sort((a, b) => {
-            if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
-            return a.name.localeCompare(b.name);
-        });
-    
         const invitedList = (vibeData.invitedEmails || [])
             .map((e: string) => e.toLowerCase())
             .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
     
         return { 
-            presentParticipants: presentList, 
+            presentParticipants: Array.from(allPresentUsersMap.values()), 
             invitedButNotPresent: invitedList, 
             allPresentUsersMap: emailToDetails, 
             blockedUsersList: vibeData.blockedUsers || [] 
@@ -996,3 +989,5 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
+
+    
