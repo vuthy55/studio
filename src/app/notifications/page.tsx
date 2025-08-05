@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, writeBatch } from 'firebase/firestore';
-import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle, Award, Trash2 } from 'lucide-react';
+import { LoaderCircle, Bell, Gift, LogOut, Edit, XCircle, Wifi, UserPlus, AlertTriangle, Award, Trash2, MessagesSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -110,7 +110,8 @@ export default function NotificationsPage() {
             case 'referral_bonus':
                 return <Award className="h-5 w-5 text-amber-500" />;
             case 'buddy_request':
-            case 'buddy_request_accepted':
+            case 'friend_request':
+            case 'friend_request_accepted':
                 return <UserPlus className="h-5 w-5 text-blue-500" />;
             case 'buddy_alert':
                  return <AlertTriangle className="h-5 w-5 text-destructive" />;
@@ -121,6 +122,10 @@ export default function NotificationsPage() {
                 return <XCircle className="h-5 w-5 text-destructive" />;
             case 'edit_request':
                  return <Edit className="h-5 w-5 text-blue-500" />;
+            case 'vibe_invite':
+                return <MessagesSquare className="h-5 w-5 text-indigo-500" />;
+            case 'room_invite':
+                return <Wifi className="h-5 w-5 text-primary" />;
             default:
                 return <Bell className="h-5 w-5" />;
         }
@@ -136,13 +141,17 @@ export default function NotificationsPage() {
             case 'referral_bonus':
                 return { href: '/profile?tab=wallet', isExternal: false };
              case 'buddy_request':
-             case 'buddy_request_accepted':
+             case 'friend_request_accepted':
                 return { href: '/profile?tab=buddies', isExternal: false };
             case 'room_closed':
             case 'room_closed_summary':
             case 'edit_request':
             case 'room_canceled':
                 return { href: `/admin?tab=rooms&highlight=${notification.roomId}`, isExternal: false };
+            case 'room_invite':
+                return { href: `/sync-room/${notification.roomId}`, isExternal: false };
+            case 'vibe_invite':
+                return { href: `/common-room/${notification.vibeId}`, isExternal: false };
             default:
                 return { href: '#', isExternal: false };
         }

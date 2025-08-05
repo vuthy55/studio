@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
-import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus, AlertTriangle, Award } from 'lucide-react';
+import { Bell, Wifi, Gift, LogOut, Edit, XCircle, ArrowRight, UserPlus, AlertTriangle, Award, MessagesSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -140,6 +140,8 @@ export default function NotificationBell() {
                  return <Edit className="h-4 w-4 text-blue-500" />;
             case 'room_invite':
                  return <Wifi className="h-4 w-4 text-primary" />;
+            case 'vibe_invite':
+                 return <MessagesSquare className="h-4 w-4 text-indigo-500" />;
             default:
                 return <Bell className="h-4 w-4" />;
         }
@@ -164,6 +166,8 @@ export default function NotificationBell() {
                 return `/admin?tab=rooms&highlight=${notification.roomId}`;
              case 'room_invite':
                 return `/sync-room/${notification.roomId}`;
+             case 'vibe_invite':
+                return `/common-room/${notification.vibeId}`;
             default:
                 return '/notifications';
         }
