@@ -30,7 +30,6 @@ import { resolveUrlAction } from '@/actions/scraper';
 import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
 import { notificationSound } from '@/lib/sounds';
 
-
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     const { user } = useUserData();
     const { toast } = useToast();
@@ -216,14 +215,15 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
-function degToRad(deg: number) {
-  return deg * (Math.PI / 180);
-}
-
 function calculateDistance(
     startCoords: { lat: number; lon: number },
     destCoords: { lat: number; lon: number }
 ): number {
+    
+    function degToRad(deg: number) {
+        return deg * (Math.PI / 180);
+    }
+
     const startingLat = degToRad(startCoords.lat);
     const startingLong = degToRad(startCoords.lon);
     const destinationLat = degToRad(destCoords.lat);
