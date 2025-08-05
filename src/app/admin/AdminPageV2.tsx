@@ -11,9 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2 } from "lucide-react";
+import { LoaderCircle, Shield, User as UserIcon, ArrowRight, Save, Search, Award, DollarSign, LineChart, Banknote, PlusCircle, MinusCircle, Link as LinkIcon, ExternalLink, Trash2, FileText, Languages, FileSignature, Download, Send, Edit, AlertTriangle, BookUser, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { UserProfile, CountryIntelData } from '@/lib/types';
+import type { UserProfile, CountryIntelData, ClientVibe } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,11 +21,12 @@ import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from 
 import { Separator } from '@/components/ui/separator';
 import { getFinancialLedger, addLedgerEntry, type FinancialLedgerEntry, getLedgerAnalytics, getTokenAnalytics, type TokenAnalytics, findUserByEmail, getTokenLedger, type TokenLedgerEntry } from '@/services/ledger';
 import { clearFinancialLedger, clearTokenLedger, issueTokens } from '@/actions/ledgerAdmin';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
+import { getAllVibesAdmin, deleteVibesAdmin } from '@/actions/common-room-admin';
 import { Checkbox } from '@/components/ui/checkbox';
 import { permanentlyDeleteRooms, setRoomEditability } from '@/actions/room';
 import { deleteUsers, clearAllNotifications } from '@/actions/admin';
@@ -1190,63 +1191,70 @@ function TokensTabContent() {
 }
 
 function RoomsTabContent() {
-  const [rooms, setRooms] = useState<ClientSyncRoom[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [syncOnlineRooms, setSyncOnlineRooms] = useState<ClientSyncRoom[]>([]);
+  const [commonRooms, setCommonRooms] = useState<ClientVibe[]>([]);
+  
+  const [isLoadingSyncOnline, setIsLoadingSyncOnline] = useState(false);
+  const [isLoadingCommonRooms, setIsLoadingCommonRooms] = useState(false);
+  const [hasFetchedSyncOnline, setHasFetchedSyncOnline] = useState(false);
+  const [hasFetchedCommonRooms, setHasFetchedCommonRooms] = useState(false);
+
   const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState('');
   const { toast } = useToast();
   const [user] = useAuthState(auth);
-  const [editability, setEditability] = useState<Record<string, boolean>>({});
 
-  const handleFetchRooms = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
+  const handleFetchSyncOnline = useCallback(async () => {
+    setIsLoadingSyncOnline(true);
+    setHasFetchedSyncOnline(true);
     try {
       const fetchedRooms = await getAllRooms();
-      setRooms(fetchedRooms);
-      const initialEditability: Record<string, boolean> = {};
-      fetchedRooms.forEach(room => {
-        if(room.summary) {
-            initialEditability[room.id] = (room.summary as any).allowMoreEdits || false;
-        }
-      });
-      setEditability(initialEditability);
+      setSyncOnlineRooms(fetchedRooms);
     } catch (e: any) {
-      setError(e.message || 'An unknown error occurred.');
+      toast({ variant: 'destructive', title: 'Error', description: e.message || 'An unknown error occurred.' });
     } finally {
-      setIsLoading(false);
+      setIsLoadingSyncOnline(false);
     }
-  }, []);
-
-  const handleEditabilityChange = async (roomId: string, canEdit: boolean) => {
-    setEditability(prev => ({ ...prev, [roomId]: canEdit }));
-    const result = await setRoomEditability(roomId, canEdit);
-    if (result.success) {
-        toast({ title: "Success", description: "Room editability updated." });
-    } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
-        // Revert UI on failure
-        setEditability(prev => ({ ...prev, [roomId]: !canEdit }));
-    }
-  };
+  }, [toast]);
   
-  const { activeRooms, closedWithSummary, closedWithoutSummary, scheduledRooms } = useMemo(() => {
-    return {
-      activeRooms: rooms.filter(r => r.status === 'active'),
-      closedWithSummary: rooms.filter(r => r.status === 'closed' && r.summary),
-      closedWithoutSummary: rooms.filter(r => r.status === 'closed' && !r.summary),
-      scheduledRooms: rooms.filter(r => r.status === 'scheduled'),
-    };
-  }, [rooms]);
+  const handleFetchCommonRooms = useCallback(async () => {
+    setIsLoadingCommonRooms(true);
+    setHasFetchedCommonRooms(true);
+    try {
+        const fetchedVibes = await getAllVibesAdmin();
+        setCommonRooms(fetchedVibes);
+    } catch (e: any) {
+         toast({ variant: 'destructive', title: 'Error', description: e.message || 'An unknown error occurred.' });
+    } finally {
+        setIsLoadingCommonRooms(false);
+    }
+  }, [toast]);
 
-  const handleDeleteRoom = async (roomId: string) => {
+  const handleDeleteSyncOnlineRoom = async (roomId: string) => {
     if (!user) return;
     setIsDeleting(true);
     try {
         const result = await permanentlyDeleteRooms([roomId]);
         if (result.success) {
             toast({ title: "Success", description: `Room deleted.` });
-            await handleFetchRooms();
+            await handleFetchSyncOnline();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete room.' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+  
+  const handleDeleteVibe = async (vibeId: string) => {
+     if (!user) return;
+    setIsDeleting(true);
+    try {
+        const result = await deleteVibesAdmin([vibeId]);
+        if (result.success) {
+            toast({ title: "Success", description: `Common Room deleted.` });
+            await handleFetchCommonRooms();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -1257,116 +1265,79 @@ function RoomsTabContent() {
     }
   };
 
-  const handleDeleteAllInCategory = async (roomIds: string[]) => {
-    if (!user || roomIds.length === 0) return;
-    setIsDeleting(true);
-    try {
-        const result = await permanentlyDeleteRooms(roomIds);
-        if (result.success) {
-            toast({ title: "Success", description: `${roomIds.length} room(s) permanently deleted.` });
-            await handleFetchRooms();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete rooms.' });
-    } finally {
-        setIsDeleting(false);
-    }
-  };
-
-
-  const RoomList = ({ title, rooms, allowDeleteAll }: { title: string; rooms: ClientSyncRoom[], allowDeleteAll: boolean }) => (
-    <div>
-        <div className="font-semibold p-2 border-b flex items-center justify-between">
-            <h4>{title} ({rooms.length})</h4>
-            {allowDeleteAll && rooms.length > 0 && (
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm">Delete All</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>This will permanently delete all {rooms.length} rooms in this category. This action cannot be undone.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteAllInCategory(rooms.map(r => r.id))}>Confirm Delete All</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
-        </div>
-        <div className="border rounded-md max-h-60 overflow-y-auto">
-            <Table>
-                <TableBody>
-                    {rooms.map(room => (
-                        <TableRow key={room.id}>
-                            <TableCell className="w-12 p-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteRoom(room.id)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                            </TableCell>
-                            <TableCell className="p-2 font-medium">
-                                {room.topic}
-                            </TableCell>
-                            <TableCell className="p-2 text-right flex items-center justify-end gap-2">
-                                {room.status === 'closed' && room.summary && (
-                                  <>
-                                    <Label htmlFor={`edit-switch-${room.id}`} className="text-xs">Allow Edits</Label>
-                                    <Switch 
-                                        id={`edit-switch-${room.id}`}
-                                        checked={editability[room.id] || false}
-                                        onCheckedChange={(checked) => handleEditabilityChange(room.id, checked)}
-                                    />
-                                  </>
-                                )}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    </div>
-  );
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Room Management</CardTitle>
-        <CardDescription>
-          Use this tool to manage rooms. Deleting individual rooms is immediate. Deleting all rooms in a category requires confirmation.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Button onClick={handleFetchRooms} disabled={isLoading}>
-            {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-            {rooms.length > 0 ? 'Refresh List' : 'Fetch All Rooms'}
-        </Button>
-
-        {error && (
-          <div className="p-4 bg-destructive/20 text-destructive rounded-md">
-            <p className="font-semibold">Error:</p>
-            <p>{error}</p>
-          </div>
-        )}
-        
-        {isDeleting && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-                <LoaderCircle className="h-4 w-4 animate-spin"/> Deleting...
-            </div>
-        )}
-
-        {rooms.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               <RoomList title="Rooms with Summaries" rooms={closedWithSummary} allowDeleteAll={true} />
-               <RoomList title="Active &amp; Scheduled" rooms={[...activeRooms, ...scheduledRooms]} allowDeleteAll={false} />
-               <RoomList title="Closed (No Summary)" rooms={closedWithoutSummary} allowDeleteAll={true} />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+            <CardHeader>
+                <CardTitle>Sync Online Rooms</CardTitle>
+                <CardDescription>
+                Manage private, real-time translated voice chat rooms.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <Button onClick={handleFetchSyncOnline} disabled={isLoadingSyncOnline}>
+                    {isLoadingSyncOnline ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
+                    {hasFetchedSyncOnline ? 'Refresh List' : 'Fetch Sync Online Rooms'}
+                </Button>
+                {isLoadingSyncOnline ? (
+                     <div className="flex items-center justify-center p-4"> <LoaderCircle className="animate-spin" /></div>
+                ) : hasFetchedSyncOnline && (
+                     <ScrollArea className="h-72">
+                         <div className="pr-4 space-y-2">
+                         {syncOnlineRooms.length > 0 ? syncOnlineRooms.map(room => (
+                            <div key={room.id} className="flex items-center justify-between p-2 rounded-md bg-muted">
+                                <div>
+                                    <p className="font-semibold">{room.topic}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Status: <Badge variant={room.status === 'active' ? 'default' : (room.status === 'closed' ? 'destructive' : 'secondary')} className="h-5">{room.status}</Badge>
+                                    </p>
+                                </div>
+                                <Button size="icon" variant="ghost" onClick={() => handleDeleteSyncOnlineRoom(room.id)} disabled={isDeleting}>
+                                    <Trash2 className="h-4 w-4 text-destructive"/>
+                                </Button>
+                            </div>
+                         )) : <p className="text-center text-sm text-muted-foreground p-4">No Sync Online rooms found.</p>}
+                         </div>
+                    </ScrollArea>
+                )}
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle>Common Rooms</CardTitle>
+                <CardDescription>
+                Manage public and private community discussion spaces (Vibes).
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <Button onClick={handleFetchCommonRooms} disabled={isLoadingCommonRooms}>
+                    {isLoadingCommonRooms ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
+                    {hasFetchedCommonRooms ? 'Refresh List' : 'Fetch Common Rooms'}
+                </Button>
+                {isLoadingCommonRooms ? (
+                     <div className="flex items-center justify-center p-4"> <LoaderCircle className="animate-spin" /></div>
+                ) : hasFetchedCommonRooms && (
+                     <ScrollArea className="h-72">
+                         <div className="pr-4 space-y-2">
+                         {commonRooms.length > 0 ? commonRooms.map(vibe => (
+                            <div key={vibe.id} className="flex items-center justify-between p-2 rounded-md bg-muted">
+                                <div>
+                                    <p className="font-semibold">{vibe.topic}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {vibe.postsCount} posts &middot; Last active: {vibe.lastPostAt ? formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true }) : 'never'}
+                                    </p>
+                                </div>
+                                <Button size="icon" variant="ghost" onClick={() => handleDeleteVibe(vibe.id)} disabled={isDeleting}>
+                                    <Trash2 className="h-4 w-4 text-destructive"/>
+                                </Button>
+                            </div>
+                         )) : <p className="text-center text-sm text-muted-foreground p-4">No Common Rooms found.</p>}
+                         </div>
+                    </ScrollArea>
+                )}
+            </CardContent>
+        </Card>
+    </div>
   );
 }
 
