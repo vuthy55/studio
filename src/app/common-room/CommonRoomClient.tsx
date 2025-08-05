@@ -160,22 +160,16 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
  * Calculates the distance between two lat/lon points in kilometers using the Haversine formula.
  */
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
-    const R = 6371; // Earth's radius in kilometers
-    const toRad = (deg: number) => deg * (Math.PI / 180);
-
-    const lat1 = toRad(startCoords.lat);
-    const lon1 = toRad(startCoords.lon);
-    const lat2 = toRad(destCoords.lat);
-    const lon2 = toRad(destCoords.lon);
-
-    const dLat = lat2 - lat1;
-    const dLon = lon2 - lon1;
+    const R = 6371; // Earth's radius in km
+    const dLat = (destCoords.lat - startCoords.lat) * (Math.PI / 180);
+    const dLon = (destCoords.lon - startCoords.lon) * (Math.PI / 180);
+    const lat1 = startCoords.lat * (Math.PI / 180);
+    const lat2 = destCoords.lat * (Math.PI / 180);
 
     const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1) * Math.cos(lat2) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        
+        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+    
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
@@ -288,11 +282,8 @@ export default function CommonRoomClient() {
     // Effect 2: Process parties ONLY when both location and parties data are ready
     useEffect(() => {
         // Guard clause: Do not run if data is incomplete
-        if (publicParties.length === 0 || !userLocation) {
-             // If location is denied, we still want to show the list, just unsorted.
-            if (locationStatus === 'denied' && publicParties.length > 0) {
-                setSortedPublicParties(publicParties);
-            }
+        if (isFetching || publicParties.length === 0) {
+            setSortedPublicParties(publicParties); // Show unsorted if no location yet
             return;
         };
 
@@ -317,6 +308,7 @@ export default function CommonRoomClient() {
             setSortedPublicParties(partiesWithData);
 
             try {
+                 if (!userLocation) return;
                 const userCityData = await getCityFromCoords(userLocation);
 
                 for (const party of partiesWithData) {
@@ -339,7 +331,7 @@ export default function CommonRoomClient() {
         };
 
         processParties();
-    }, [publicParties, userLocation, locationStatus, toast, extractCoordsFromUrl]);
+    }, [publicParties, userLocation, toast, extractCoordsFromUrl, isFetching]);
 
 
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
