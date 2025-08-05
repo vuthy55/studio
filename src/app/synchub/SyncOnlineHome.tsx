@@ -799,7 +799,7 @@ export default function SyncOnlineHome() {
     };
 
     const fetchInvitedRooms = useCallback(async () => {
-        if (!user || !user.email) {
+        if (!user?.email) {
             setInvitedRooms([]);
             setIsFetchingRooms(false);
             return;
@@ -987,7 +987,7 @@ export default function SyncOnlineHome() {
 
                 // Send email invites, which will also handle in-app notifications on the server
                 if (parsedInviteeEmails.length > 0) {
-                    const result = await sendRoomInviteEmail({
+                    await sendRoomInviteEmail({
                         to: parsedInviteeEmails,
                         roomTopic: roomTopic,
                         fromName: user.displayName || 'A user',
@@ -995,15 +995,9 @@ export default function SyncOnlineHome() {
                         scheduledAt: finalScheduledDate,
                         joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
                     });
-
-                    if (result.success) {
-                         toast({ title: "Room Scheduled and invites sent!", description: "Your meeting is ready." });
-                    } else {
-                         toast({ variant: 'destructive', title: "Invites Failed", description: result.error });
-                    }
-                } else {
-                    toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
                 }
+                
+                toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
                 
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
@@ -1474,3 +1468,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
