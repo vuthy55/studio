@@ -163,10 +163,10 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                 ))
             )}
              {debugLog.length > 0 && (
-                <Accordion type="single" collapsible>
+                <Accordion type="single" collapsible className="w-full mt-4">
                     <AccordionItem value="debug-log">
                         <AccordionTrigger>
-                            <span className="flex items-center gap-2"><FileCode /> Debug Log</span>
+                            <span className="flex items-center gap-2 text-sm text-muted-foreground"><FileCode /> Debug Log</span>
                         </AccordionTrigger>
                         <AccordionContent>
                              <ScrollArea className="h-48 border bg-muted p-2 rounded-md font-mono text-xs">
@@ -488,3 +488,5 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
         </div>
     );
 }
+
+    
