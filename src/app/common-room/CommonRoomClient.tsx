@@ -375,7 +375,7 @@ export default function CommonRoomClient() {
                                     </div>
                                     <div className="pt-4">
                                         {activeDiscoverTab === 'meetups' && <PartyList parties={displayedParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
-                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" />}
+                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
                                     </div>
                                 </div>
                             </TabsContent>
@@ -397,7 +397,7 @@ export default function CommonRoomClient() {
                                     </div>
                                     <div className="pt-4">
                                         {activeMySpaceTab === 'meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
-                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" />}
+                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" source="my-space" />}
                                     </div>
                                 </div>
                             </TabsContent>
@@ -409,7 +409,7 @@ export default function CommonRoomClient() {
     )
 }
 
-function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: ClientParty[], title: string }) {
+function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'discover' | 'my-space' }) {
     
     const getActiveMeetup = (vibe: ClientVibe) => {
         return parties.find(p => p.vibeId === vibe.id);
@@ -427,7 +427,7 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
                     {vibes.map((vibe, index) => {
                         const activeMeetup = getActiveMeetup(vibe);
                         return (
-                            <Link href={`/common-room/${vibe.id}`} key={vibe.id} className="block">
+                            <Link href={`/common-room/${vibe.id}?from=${source}`} key={vibe.id} className="block">
                                 <div className={`flex items-center p-4 hover:bg-muted/50 transition-colors ${index < vibes.length - 1 ? 'border-b' : ''}`}>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">

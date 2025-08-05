@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useSearchParams } from 'next/navigation';
 
 
 function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
@@ -483,6 +484,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
 export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { user, loading: userLoading } = useUserData();
     const { toast } = useToast();
+    const searchParams = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     
     const [vibeData, setVibeData] = useState<Vibe | undefined>(undefined);
@@ -496,6 +498,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
     const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
 
+    const fromTab = searchParams.get('from') || 'discover';
+    const backLink = fromTab === 'my-space' ? '/common-room?tab=my-space' : '/common-room';
 
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
@@ -679,7 +683,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             <header className="p-4 border-b flex justify-between items-start">
                 <div>
                     <Button variant="ghost" asChild>
-                        <Link href="/common-room">
+                        <Link href={backLink}>
                             <ArrowLeft className="mr-2 h-4 w-4"/>
                             Back to Common Room
                         </Link>
