@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -28,7 +28,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSearchParams } from 'next/navigation';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
@@ -487,6 +487,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { toast } = useToast();
     const searchParams = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const router = useRouter();
     
     const [vibeData, setVibeData] = useState<Vibe | undefined>(undefined);
     const [vibeLoading, setVibeLoading] = useState(true);
@@ -657,6 +658,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
         }
     };
+    
+    const handleLeaveVibe = async () => {
+        if (!user || !user.email || !user.displayName) return;
+        const result = await removeParticipantFromVibe(vibeId, {uid: user.uid, email: user.email, name: user.displayName});
+        if (result.success) {
+            toast({ title: 'You have left the Vibe', description: 'You can no longer see or participate in this conversation.' });
+            router.push('/common-room');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not leave the Vibe.' });
+        }
+    };
 
     const handleCopyInviteLink = (email: string) => {
         if (!user) return;
@@ -723,14 +735,15 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 Participants
                             </Button>
                         </SheetTrigger>
-                        <SheetContent>
+                        <SheetContent className="flex flex-col">
                             <SheetHeader>
                                 <SheetTitle>Participants ({presentParticipants.length + invitedButNotPresent.length})</SheetTitle>
                                 <SheetDescription>
                                     People involved in this Vibe.
                                 </SheetDescription>
                             </SheetHeader>
-                            <div className="py-4 space-y-4">
+                            <ScrollArea className="flex-grow">
+                            <div className="py-4 space-y-4 pr-4">
                                 {isCurrentUserHost && (
                                      <InviteDialog 
                                         vibeId={vibeId} 
@@ -831,6 +844,33 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                     </div>
                                 )}
                             </div>
+                            </ScrollArea>
+                            {user?.email !== vibeData.creatorEmail && (
+                                <div className="mt-auto border-t pt-4">
+                                     <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" className="w-full">
+                                                <LogOut className="mr-2 h-4 w-4" />
+                                                Leave Vibe
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure you want to leave?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    You will no longer be able to see this Vibe or its messages. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleLeaveVibe} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                    Confirm & Leave
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                            )}
                         </SheetContent>
                     </Sheet>
                 </div>
