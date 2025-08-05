@@ -26,8 +26,7 @@ import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { resolveUrlAction } from '@/actions/scraper';
-import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
+import { getCityFromCoordsAction } from '@/actions/location';
 import { notificationSound } from '@/lib/sounds';
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -226,13 +225,14 @@ export default function CommonRoomClient() {
             async (position) => {
                 const { latitude, longitude } = position.coords;
                 try {
-                    const { city } = await getCityFromCoords({ lat: latitude, lon: longitude });
+                    const { city } = await getCityFromCoordsAction({ lat: latitude, lon: longitude });
                     setUserCity(city);
                     
                     const lowerCity = city.toLowerCase();
                     const filteredParties = publicParties.filter(party => 
                         party.title.toLowerCase().includes(lowerCity) ||
-                        party.vibeTopic.toLowerCase().includes(lowerCity)
+                        party.vibeTopic.toLowerCase().includes(lowerCity) ||
+                        party.location.toLowerCase().includes(lowerCity)
                     );
                     
                     setDisplayedParties(filteredParties);
