@@ -457,7 +457,7 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
                                         ) : (
                                             <div className="flex items-center gap-2">
                                                 <UsersIcon className="h-4 w-4 text-muted-foreground"/>
-                                                <span className="text-sm text-muted-foreground">{vibe.invitedEmails.length} member(s)</span>
+                                                <span className="text-sm text-muted-foreground">{(vibe.invitedEmails || []).length} member(s)</span>
                                             </div>
                                         )}
                                     </CardContent>
