@@ -131,7 +131,6 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
 }
 
 function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: (enabled: boolean) => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
-    console.log(`[CLIENT_DEBUG] Rendering PartyList for "${title}" with ${parties.length} parties.`); // DEBUG
     return (
         <div className="space-y-4" data-tour={tourId}>
             <div className="flex justify-between items-center">
@@ -293,7 +292,6 @@ export default function CommonRoomClient() {
     };
 
     const fetchData = useStableCallback(async () => {
-        console.log("[CLIENT_DEBUG] fetchData called"); // DEBUG
         if (!user || !user.email) {
             setIsLoading(false);
             return;
@@ -310,10 +308,6 @@ export default function CommonRoomClient() {
                 getAllMyUpcomingParties(user.uid),
             ]);
             
-            console.log("[CLIENT_DEBUG] Fetched My Vibes:", fetchedMyVibes.length); // DEBUG
-            console.log("[CLIENT_DEBUG] Fetched Public Parties:", fetchedPublicParties.length); // DEBUG
-            console.log("[CLIENT_DEBUG] Fetched My Parties:", fetchedMyParties.length); // DEBUG
-
             const sortedMyParties = [...fetchedMyParties].sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
             
             setAllVibes(fetchedMyVibes);
@@ -429,10 +423,10 @@ export default function CommonRoomClient() {
     }, [userLocation, sortMode, processPartiesWithLocation]);
 
 
-    const { filteredPublicVibes } = useMemo(() => {
+    const { publicVibes } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
         return {
-            filteredPublicVibes: publicV,
+            publicVibes: publicV,
         };
     }, [allVibes]);
     
@@ -469,7 +463,7 @@ export default function CommonRoomClient() {
                         <TabsTrigger value="my-meetups" data-tour="cr-my-meetups-tab"><Calendar className="mr-2"/> My Meetups</TabsTrigger>
                     </TabsList>
                     <TabsContent value="public-vibes" className="mt-4">
-                        <VibeList vibes={filteredPublicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
+                        <VibeList vibes={publicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
                     </TabsContent>
                     <TabsContent value="public-meetups" className="mt-4">
                         <PartyList parties={publicParties} title="All Public Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />

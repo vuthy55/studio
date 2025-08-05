@@ -317,43 +317,28 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const now = new Date();
         const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
+        
         if (publicVibesSnapshot.empty) {
             return [];
         }
 
-        const publicVibeIds = publicVibesSnapshot.docs.map(doc => doc.id);
-        const publicVibeTopics = new Map(publicVibesSnapshot.docs.map(doc => [doc.id, doc.data().topic || 'A Vibe']));
-
         const allPublicParties: ClientParty[] = [];
-        
-        // Firestore 'in' query is limited to 30 items, so we might need to chunk if there are many public vibes.
-        const chunkedVibeIds: string[][] = [];
-        for (let i = 0; i < publicVibeIds.length; i += 30) {
-            chunkedVibeIds.push(publicVibeIds.slice(i, i + 30));
-        }
 
-        for (const chunk of chunkedVibeIds) {
-             const partiesQuery = db.collectionGroup('parties')
-                .where(db.FieldPath.documentId(), 'in', chunk.map(id => `vibes/${id}/parties`)) // This is a trick to query subcollections of specific docs
-                .where('startTime', '>=', now);
-            
-            const partiesSnapshot = await db.collectionGroup('parties')
+        for (const vibeDoc of publicVibesSnapshot.docs) {
+            const partiesSnapshot = await vibeDoc.ref.collection('parties')
                 .where('startTime', '>=', now)
                 .get();
-                
+
             partiesSnapshot.forEach(partyDoc => {
-                const vibeId = partyDoc.ref.parent.parent!.id;
-                if (publicVibeTopics.has(vibeId)) {
-                    const data = partyDoc.data();
-                    allPublicParties.push({
-                        id: partyDoc.id,
-                        vibeId: vibeId,
-                        vibeTopic: publicVibeTopics.get(vibeId)!,
-                        ...data,
-                        startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                        endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                    } as ClientParty);
-                }
+                const data = partyDoc.data();
+                allPublicParties.push({
+                    id: partyDoc.id,
+                    vibeId: vibeDoc.id,
+                    vibeTopic: vibeDoc.data().topic || 'A Vibe',
+                    ...data,
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                } as ClientParty);
             });
         }
 
@@ -369,45 +354,49 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
 
 
 export async function getAllMyUpcomingParties(userId: string): Promise<ClientParty[]> {
-    console.log(`[ACTION_DEBUG] Fetching "My Meetups" for userId: ${userId}`);
     if (!userId) {
-        console.log("[ACTION_DEBUG] No userId provided, returning empty array.");
         return [];
     }
     
     try {
-        // Simplified query to avoid composite index by only filtering on one field.
+        const now = new Date();
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
             .get();
         
-        console.log(`[ACTION_DEBUG] Found ${partiesSnapshot.docs.length} raw party documents for user.`);
-        const now = new Date();
         const myParties: ClientParty[] = [];
 
         for (const doc of partiesSnapshot.docs) {
             const data = doc.data();
 
-            // Client-side filtering for date
             if ((data.startTime as Timestamp).toDate() < now) {
                 continue;
             }
 
-            const vibeRef = doc.ref.parent.parent!;
+            const vibeRef = doc.ref.parent.parent;
+            if (!vibeRef) continue;
+
             const vibeDoc = await vibeRef.get();
-            const vibeTopic = vibeDoc.exists() ? vibeDoc.data()?.topic || 'A Vibe' : 'A Vibe';
+            const vibeData = vibeDoc.data();
+            
+            // This is the crucial permission check.
+            // A user can only see a party if they can also see the vibe.
+            const canSeeVibe = vibeData?.isPublic || vibeData?.invitedEmails?.includes(vibeData?.creatorEmail);
+            if (!vibeDoc.exists || !canSeeVibe) {
+                continue;
+            }
 
             myParties.push({
                 id: doc.id,
                 vibeId: vibeRef.id,
-                vibeTopic: vibeTopic,
+                vibeTopic: vibeData.topic || 'A Vibe',
                 ...data,
                 startTime: (data.startTime as Timestamp).toDate().toISOString(),
                 endTime: (data.endTime as Timestamp).toDate().toISOString(),
             } as ClientParty);
         }
         
-        console.log(`[ACTION_DEBUG] Returning ${myParties.length} upcoming parties for user after date filtering.`);
+        myParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         return myParties;
 
     } catch (error: any) {
