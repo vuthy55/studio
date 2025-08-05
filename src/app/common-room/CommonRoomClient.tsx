@@ -216,7 +216,7 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
-function degToRad(deg: number): number {
+function degToRad(deg: number) {
   return deg * (Math.PI / 180);
 }
 
@@ -224,17 +224,19 @@ function calculateDistance(
     startCoords: { lat: number; lon: number },
     destCoords: { lat: number; lon: number }
 ): number {
-    const R = 6371; // Radius of the Earth in kilometers
-    const dLat = degToRad(destCoords.lat - startCoords.lat);
-    const dLon = degToRad(destCoords.lon - startCoords.lon);
-    
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(degToRad(startCoords.lat)) * Math.cos(degToRad(destCoords.lat)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
+    const startingLat = degToRad(startCoords.lat);
+    const startingLong = degToRad(startCoords.lon);
+    const destinationLat = degToRad(destCoords.lat);
+    const destinationLong = degToRad(destCoords.lon);
+
+    const radius = 6371; // Earth's radius in kilometers
+
+    const distance = Math.acos(
+        Math.sin(startingLat) * Math.sin(destinationLat) +
+        Math.cos(startingLat) * Math.cos(destinationLat) *
+        Math.cos(startingLong - destinationLong)
+    ) * radius;
+
     return distance;
 }
 
@@ -286,7 +288,7 @@ export default function CommonRoomClient() {
         }
     }, []);
     
-    const extractCoordsFromUrl = async (url: string): Promise<{ lat: number; lon: number } | null> => {
+    const extractCoordsFromUrl = useCallback(async (url: string): Promise<{ lat: number; lon: number } | null> => {
         if (!url) return null;
         
         let finalUrl = url;
@@ -314,7 +316,7 @@ export default function CommonRoomClient() {
         }
         
         return null;
-    };
+    }, []);
 
 
     useEffect(() => {
@@ -352,7 +354,7 @@ export default function CommonRoomClient() {
                     const coords = await extractCoordsFromUrl(party.location);
                     let distance: number | undefined;
                     if (coords) {
-                        distance = calculateDistance({lat: userLocation.lat, lon: userLocation.lon}, {lat: coords.lat, lon: coords.lon});
+                        distance = calculateDistance({lat: userLocation.lat, lon: userLocation.lon}, coords);
                     }
                     return { ...party, distance, coords };
                 }));
@@ -386,7 +388,7 @@ export default function CommonRoomClient() {
         };
 
         processParties();
-    }, [publicParties, userLocation, toast]);
+    }, [publicParties, userLocation, toast, extractCoordsFromUrl]);
 
 
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
