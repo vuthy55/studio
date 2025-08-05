@@ -171,6 +171,9 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
                                 <p className="text-sm text-muted-foreground">
                                     In Vibe: <Link href={`/common-room/${party.vibeId}?tab=my-vibes`} className="text-primary hover:underline">{party.vibeTopic}</Link>
                                 </p>
+                                 {party.description && (
+                                    <p className="text-sm text-muted-foreground pt-1 italic">"{party.description}"</p>
+                                 )}
                                 <div className="text-sm text-muted-foreground flex items-center gap-2 pt-1">
                                     <Calendar className="h-4 w-4" />
                                     <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
@@ -493,3 +496,5 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
+    
