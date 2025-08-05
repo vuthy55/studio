@@ -215,15 +215,11 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
-function calculateDistance(
-    startCoords: { lat: number; lon: number },
-    destCoords: { lat: number; lon: number }
-): number {
-    
-    function degToRad(deg: number) {
-        return deg * (Math.PI / 180);
-    }
+function degToRad(deg: number): number {
+    return deg * (Math.PI / 180);
+}
 
+function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     const startingLat = degToRad(startCoords.lat);
     const startingLong = degToRad(startCoords.lon);
     const destinationLat = degToRad(destCoords.lat);
