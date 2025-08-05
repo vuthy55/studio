@@ -334,6 +334,7 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
                     vibeId: vibeDoc.id,
                     vibeTopic: vibeDoc.data().topic || 'A Vibe',
                     ...data,
+                    isPublic: true,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty;
@@ -362,8 +363,9 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
  * @returns A promise that resolves to an array of ClientParty objects.
  */
 export async function getAllMyUpcomingParties(userId: string): Promise<ClientParty[]> {
+    console.log(`[SERVER_DEBUG] getAllMyUpcomingParties called for user: ${userId}`);
     if (!userId) {
-        console.log("[SERVER_DEBUG] getAllMyUpcomingParties: No userId provided.");
+        console.log("[SERVER_DEBUG] No userId provided.");
         return [];
     }
     
@@ -385,14 +387,18 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
             return [];
         }
 
-        const allMyParties: ClientParty[] = [];
+        const now = Timestamp.now();
 
         // Step 2: Query the parties subcollection for each accessible vibe
         const partyPromises = myVibes.map(async (vibe) => {
             const partiesSnapshot = await db.collection('vibes').doc(vibe.id).collection('parties')
                 .where('rsvps', 'array-contains', userId)
+                // Remove the date filter from here to simplify the query and avoid index issues
+                // .where('startTime', '>=', now)
                 .get();
             
+            console.log(`[SERVER_DEBUG] Vibe ${vibe.id} (${vibe.topic}): Found ${partiesSnapshot.size} parties user RSVP'd to.`);
+
             return partiesSnapshot.docs.map(partyDoc => {
                 const data = partyDoc.data();
                 return {
@@ -400,6 +406,7 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
                     vibeId: vibe.id,
                     vibeTopic: vibe.topic || 'A Vibe',
                     ...data,
+                    isPublic: vibe.isPublic,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty;
@@ -409,7 +416,7 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
         const partiesByVibe = await Promise.all(partyPromises);
         const flattenedParties = partiesByVibe.flat();
 
-        console.log(`[SERVER_DEBUG] Found a total of ${flattenedParties.length} parties the user has RSVP'd to.`);
+        console.log(`[SERVER_DEBUG] Found a total of ${flattenedParties.length} parties the user has RSVP'd to across all their vibes.`);
 
         return flattenedParties;
 
@@ -611,6 +618,3 @@ export async function startPrivateVibe(payload: StartPrivateVibePayload): Promis
         return { success: false, error: 'Failed to create private Vibe.' };
     }
 }
-    
-
-    

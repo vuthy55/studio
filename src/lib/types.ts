@@ -128,6 +128,7 @@ export type Party = {
     vibeId: string;
     vibeTopic: string;
     rsvps?: string[]; // Array of user UIDs
+    isPublic: boolean;
 };
 
 export interface ClientParty extends Omit<Party, 'startTime' | 'endTime'> {
@@ -292,5 +293,3 @@ export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
     createdAt: string; // ISO date string
     lastPostAt?: string; // ISO date string
 }
-
-    

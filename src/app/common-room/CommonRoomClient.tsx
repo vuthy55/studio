@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, HelpCircle, Eye, ChevronRight } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, HelpCircle, Eye, ChevronRight, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
@@ -163,6 +163,7 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
                              <div className="flex-1 space-y-1">
                                 <div className="flex items-center gap-2">
                                      <p className="font-semibold">{party.title}</p>
+                                     {!party.isPublic && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1"/>Private</Badge>}
                                      {typeof party.distance === 'number' && (
                                         <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
                                     )}
@@ -206,7 +207,7 @@ function VibeList({ vibes, title, tourId, onVibeClick }: { vibes: ClientVibe[], 
                                 <div className="flex-1 cursor-pointer" onClick={() => onVibeClick(vibe.id, currentTab)}>
                                     <div className="flex items-center gap-2">
                                         <p className="font-semibold">{vibe.topic}</p>
-                                        {isPrivate && <Badge variant="secondary">Private</Badge>}
+                                        {isPrivate && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1"/>Private</Badge>}
                                         {vibe.activeMeetupId && <Badge variant="outline">[Meetup]</Badge>}
                                     </div>
                                     <p className="text-sm text-muted-foreground">
