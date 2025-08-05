@@ -216,24 +216,24 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 }
 
 function degToRad(deg: number): number {
-    return deg * (Math.PI / 180);
+  return deg * (Math.PI / 180);
 }
 
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
-    const startingLat = degToRad(startCoords.lat);
-    const startingLong = degToRad(startCoords.lon);
-    const destinationLat = degToRad(destCoords.lat);
-    const destinationLong = degToRad(destCoords.lon);
+  const startingLat = degToRad(startCoords.lat);
+  const startingLong = degToRad(startCoords.lon);
+  const destinationLat = degToRad(destCoords.lat);
+  const destinationLong = degToRad(destCoords.lon);
 
-    const radius = 6371; // Earth's radius in kilometers
+  const radius = 6371; // Earth's radius in kilometers
 
-    const distance = Math.acos(
-        Math.sin(startingLat) * Math.sin(destinationLat) +
-        Math.cos(startingLat) * Math.cos(destinationLat) *
-        Math.cos(startingLong - destinationLong)
-    ) * radius;
+  const distance = Math.acos(
+    Math.sin(startingLat) * Math.sin(destinationLat) +
+    Math.cos(startingLat) * Math.cos(destinationLat) *
+    Math.cos(startingLong - destinationLong)
+  ) * radius;
 
-    return distance;
+  return distance;
 }
 
 
