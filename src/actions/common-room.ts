@@ -399,7 +399,6 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
             .where('startTime', '>=', now)
-            .orderBy('startTime', 'asc')
             .get();
         
         if (partiesSnapshot.empty) {
@@ -410,7 +409,7 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
         for (const doc of partiesSnapshot.docs) {
             const data = doc.data();
             const vibeRef = doc.ref.parent.parent!;
-            const vibeDoc = await vibeRef.get(); // Fetch the parent Vibe
+            const vibeDoc = await vibeRef.get();
             const vibeTopic = vibeDoc.exists() ? vibeDoc.data()?.topic || 'A Vibe' : 'A Vibe';
 
             myParties.push({

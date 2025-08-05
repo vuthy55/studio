@@ -307,6 +307,9 @@ export default function CommonRoomClient() {
                 getUpcomingPublicParties(),
                 getAllMyUpcomingParties(user.uid),
             ]);
+
+            fetchedMyParties.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            
             setAllVibes(fetchedMyVibes);
             setPublicParties(fetchedPublicParties);
             setMyParties(fetchedMyParties);
