@@ -219,20 +219,25 @@ function degToRad(deg: number): number {
   return deg * (Math.PI / 180);
 }
 
+// Version 2: A more standard and robust implementation of the Haversine formula.
 function calculateDistance(startCoords: { lat: number, lon: number }, destCoords: { lat: number, lon: number }): number {
-  if (!startCoords || !destCoords) {
-    return Infinity;
-  }
-  const R = 6371; // Radius of the Earth in kilometers
-  const dLat = degToRad(destCoords.lat - startCoords.lat);
-  const dLon = degToRad(destCoords.lon - startCoords.lon);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(degToRad(startCoords.lat)) * Math.cos(degToRad(destCoords.lat)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
-  return distance;
+    if (!startCoords || !destCoords) {
+        return Infinity;
+    }
+    const R = 6371; // Radius of the Earth in kilometers
+    
+    const dLat = degToRad(destCoords.lat - startCoords.lat);
+    const dLon = degToRad(destCoords.lon - startCoords.lon);
+    
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(degToRad(startCoords.lat)) * Math.cos(degToRad(destCoords.lat)) * 
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    
+    const distance = R * c; // Distance in km
+    return distance;
 }
 
 
