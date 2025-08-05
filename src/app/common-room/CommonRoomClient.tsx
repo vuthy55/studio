@@ -33,23 +33,25 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 const commonRoomTourSteps: TourStep[] = [
   {
-    selector: '[data-tour="cr-welcome-card"]',
-    content: "Welcome to the Common Room! This is your hub for connecting with other travelers.",
-  },
-  {
-    selector: '[data-tour="cr-tabs"]',
-    content: "Use these tabs to explore public discussions and meetups, or to see a private view of your own vibes and scheduled parties.",
-    position: 'bottom',
-  },
-  {
-    selector: '[data-tour="cr-public-vibes"]',
-    content: "Browse all public discussion topics here. Jump in to chat with other travelers.",
-    position: 'top',
-  },
-  {
     selector: '[data-tour="cr-start-vibe-button"]',
-    content: "Have something to talk about? Click here to start your own Vibe for the community.",
+    content: "Start by creating a Vibe. It can be public for everyone to see, or private for just you and your friends.",
     position: 'bottom',
+  },
+  {
+    selector: '[data-tour="cr-public-vibes-tab"]',
+    content: "This tab shows all public discussions. Jump into any Vibe to chat with other travelers.",
+  },
+  {
+    selector: '[data-tour="cr-public-meetups-tab"]',
+    content: "Discover public meetups happening around you. Click 'Parties Near Me' to find events closest to your current location.",
+  },
+  {
+    selector: '[data-tour="cr-my-vibes-tab"]',
+    content: "This is your personal space, listing all public Vibes you've joined and any private ones you've been invited to.",
+  },
+  {
+    selector: '[data-tour="cr-my-meetups-tab"]',
+    content: "This is your personal agenda, showing all the meetups you've RSVP'd to, both public and private.",
   },
 ];
 
@@ -424,10 +426,10 @@ export default function CommonRoomClient() {
             ) : (
                 <Tabs value={activeTab} onValueChange={handleTabChange} data-tour="cr-tabs">
                     <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="public-vibes"><Eye className="mr-2"/> Public Vibes</TabsTrigger>
-                        <TabsTrigger value="public-meetups"><MapPin className="mr-2"/> Public Meetups</TabsTrigger>
-                        <TabsTrigger value="my-vibes"><MessageSquare className="mr-2"/> My Vibes</TabsTrigger>
-                        <TabsTrigger value="my-meetups"><Calendar className="mr-2"/> My Meetups</TabsTrigger>
+                        <TabsTrigger value="public-vibes" data-tour="cr-public-vibes-tab"><Eye className="mr-2"/> Public Vibes</TabsTrigger>
+                        <TabsTrigger value="public-meetups" data-tour="cr-public-meetups-tab"><MapPin className="mr-2"/> Public Meetups</TabsTrigger>
+                        <TabsTrigger value="my-vibes" data-tour="cr-my-vibes-tab"><MessageSquare className="mr-2"/> My Vibes</TabsTrigger>
+                        <TabsTrigger value="my-meetups" data-tour="cr-my-meetups-tab"><Calendar className="mr-2"/> My Meetups</TabsTrigger>
                     </TabsList>
                     <TabsContent value="public-vibes" className="mt-4">
                         <VibeList vibes={publicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
@@ -446,5 +448,3 @@ export default function CommonRoomClient() {
         </div>
     )
 }
-
-    
