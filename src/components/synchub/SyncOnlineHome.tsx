@@ -605,7 +605,7 @@ function ManageRoomDialog({ room, user, onUpdate, onEdit }: { room: InvitedRoomC
                 
                 <div className="py-4 space-y-4">
                     {room.status === 'scheduled' && (
-                        <Button variant="outline" onClick={() => { onEdit(room); setIsOpen(false); }}>
+                        <Button variant="outline" onClick={() => { onEdit(room); }}>
                             <Edit className="mr-2 h-4 w-4"/> Edit Schedule & Participants
                         </Button>
                     )}
@@ -642,10 +642,16 @@ function ManageRoomDialog({ room, user, onUpdate, onEdit }: { room: InvitedRoomC
     )
 }
 
-function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, setActiveMainTab }: { onRoomSubmitted: () => void, editingRoom: InvitedRoomClient | null, setEditingRoom: (room: InvitedRoomClient | null) => void, setActiveMainTab: (tab: string) => void }) {
+function ScheduleRoomDialog({ onRoomSubmitted, editingRoom, setEditingRoom, isOpen, setIsOpen }: { 
+    onRoomSubmitted: () => void, 
+    editingRoom: InvitedRoomClient | null, 
+    setEditingRoom: (room: InvitedRoomClient | null) => void,
+    isOpen: boolean,
+    setIsOpen: (open: boolean) => void,
+}) {
     const { user, userProfile, settings } = useUserData();
-    const { toast } = useToast();
     const router = useRouter();
+    const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Form State
@@ -664,7 +670,8 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
         if (user?.email) {
             setEmceeEmails([user.email]);
         }
-    }, [user?.email]);
+    }, [user?.email, isOpen]);
+
 
     const fetchFriends = useCallback(async () => {
         if (userProfile?.friends && userProfile.friends.length > 0) {
@@ -678,8 +685,10 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
     }, [userProfile?.friends]);
 
     useEffect(() => {
-        fetchFriends();
-    }, [fetchFriends]);
+        if (isOpen) {
+            fetchFriends();
+        }
+    }, [isOpen, fetchFriends]);
     
      const resetForm = useCallback(() => {
         const defaultDate = new Date();
@@ -697,6 +706,13 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
         setEditingRoom(null);
     }, [user?.email, userProfile?.defaultLanguage, setEditingRoom]);
     
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open);
+        if (!open) {
+            resetForm();
+        }
+    }
+    
      useEffect(() => {
         if (userProfile?.defaultLanguage && !creatorLanguage) {
             setCreatorLanguage(userProfile.defaultLanguage);
@@ -705,6 +721,7 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
 
      useEffect(() => {
         if (isEditMode && editingRoom) {
+            setIsOpen(true);
             setRoomTopic(editingRoom.topic);
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
@@ -718,7 +735,7 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
                  setScheduledDate(new Date());
             }
         }
-    }, [editingRoom, isEditMode, user?.email]);
+    }, [editingRoom, isEditMode, user?.email, setIsOpen]);
 
 
     const parsedInviteeEmails = useMemo(() => {
@@ -868,8 +885,7 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
                 }
             }
             
-            resetForm();
-            setActiveMainTab('your-rooms');
+            handleOpenChange(false);
             onRoomSubmitted();
 
         } catch (error) {
@@ -892,18 +908,24 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
     };
 
     return (
-        <Card className="border-2 border-primary">
-            <CardHeader>
-                <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
-                <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
-            </CardHeader>
-            <CardContent>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+             <DialogTrigger asChild>
+                <Button data-tour="so-schedule-button">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Schedule a Room
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                 <DialogHeader>
+                    <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
+                    <DialogDescription>Set the details for your meeting. The cost will be calculated and displayed below.</DialogDescription>
+                </DialogHeader>
                 <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
-                    <div className="space-y-2">
+                        <div className="space-y-2">
                         <Label htmlFor="topic">Room Topic</Label>
                         <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
                     </div>
-                    {!isEditMode && (
+                        {!isEditMode && (
                         <div className="space-y-2">
                             <Label htmlFor="language">Your Spoken Language</Label>
                             <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
@@ -1072,23 +1094,26 @@ function ScheduleRoomContent({ onRoomSubmitted, editingRoom, setEditingRoom, set
                         <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                     </div>
                 </form>
-            </CardContent>
-            <CardFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                 {(userProfile?.tokenBalance || 0) < costDifference ? (
-                    <div className="flex flex-col items-end gap-2">
-                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                        <BuyTokens />
-                    </div>
-                ) : (
-                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                        }
-                    </Button>
-                )}
-            </CardFooter>
-        </Card>
+                <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
+                        {(userProfile?.tokenBalance || 0) < costDifference ? (
+                            <div className="flex flex-col items-end gap-2">
+                                <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                <BuyTokens />
+                            </div>
+                        ) : (
+                            <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                    isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                }
+                            </Button>
+                        )}
+                        <DialogClose asChild>
+                            <Button variant="outline" type="button">Cancel</Button>
+                        </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -1098,11 +1123,11 @@ export default function SyncOnlineHome() {
     const { toast } = useToast();
     const { startTour } = useTour();
     
-    const [activeMainTab, setActiveMainTab] = useState('your-rooms');
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoomClient[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
+    const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
 
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
 
@@ -1188,8 +1213,14 @@ export default function SyncOnlineHome() {
     
     const handleOpenEditDialog = (room: InvitedRoomClient) => {
         setEditingRoom(room);
-        setActiveMainTab('schedule');
+        setIsScheduleDialogOpen(true);
     };
+    
+    const onScheduleDialogSubmit = () => {
+        fetchInvitedRooms();
+        setIsScheduleDialogOpen(false);
+        setEditingRoom(null);
+    }
 
     const handleUnblockUser = useCallback(async (room: InvitedRoomClient, userToUnblock: any) => {
         try {
@@ -1377,10 +1408,13 @@ export default function SyncOnlineHome() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
-                        <Button data-tour="so-schedule-button" onClick={() => setActiveMainTab('schedule')}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Schedule a Room
-                        </Button>
+                        <ScheduleRoomDialog 
+                            onRoomSubmitted={onScheduleDialogSubmit}
+                            editingRoom={editingRoom}
+                            setEditingRoom={setEditingRoom}
+                            isOpen={isScheduleDialogOpen}
+                            setIsOpen={setIsScheduleDialogOpen}
+                        />
                         <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg" variant="outline">
                             <HelpCircle className="mr-2" />
                             Take a Tour
@@ -1389,52 +1423,36 @@ export default function SyncOnlineHome() {
                 </CardContent>
             </Card>
 
-            <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule">{isEditMode ? 'Edit Room' : 'Schedule a Room'}</TabsTrigger>
-                </TabsList>
-                <TabsContent value="your-rooms" className="mt-4">
-                    {user && (
-                        <Card data-tour="so-room-list">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
-                                <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {isFetchingRooms ? (
-                                    <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
-                                ) : (
-                                    <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
-                                        <TabsList className="grid w-full grid-cols-3">
-                                            <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                                            <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-                                        </TabsList>
-                                        <TabsContent value="scheduled" className="mt-4">
-                                            {renderRoomList(scheduled, 'scheduled')}
-                                        </TabsContent>
-                                        <TabsContent value="active" className="mt-4">
-                                            {renderRoomList(active, 'active')}
-                                        </TabsContent>
-                                        <TabsContent value="closed" className="mt-4">
-                                            {renderRoomList(closed, 'closed')}
-                                        </TabsContent>
-                                    </Tabs>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-                </TabsContent>
-                <TabsContent value="schedule" className="mt-4">
-                     <ScheduleRoomContent 
-                        onRoomSubmitted={fetchInvitedRooms} 
-                        editingRoom={editingRoom} 
-                        setEditingRoom={setEditingRoom}
-                        setActiveMainTab={setActiveMainTab}
-                     />
-                </TabsContent>
-            </Tabs>
+            {user && (
+                <Card data-tour="so-room-list">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><List /> Your Rooms</CardTitle>
+                        <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isFetchingRooms ? (
+                            <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
+                        ) : (
+                            <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
+                                <TabsList className="grid w-full grid-cols-3">
+                                    <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                                    <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                                    <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="scheduled" className="mt-4">
+                                    {renderRoomList(scheduled, 'scheduled')}
+                                </TabsContent>
+                                <TabsContent value="active" className="mt-4">
+                                    {renderRoomList(active, 'active')}
+                                </TabsContent>
+                                <TabsContent value="closed" className="mt-4">
+                                    {renderRoomList(closed, 'closed')}
+                                </TabsContent>
+                            </Tabs>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
