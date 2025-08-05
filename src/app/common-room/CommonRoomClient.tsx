@@ -164,6 +164,7 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
 
 
 function PartyList({ parties, title, locationStatus }: { parties: ClientParty[], title: string, locationStatus: 'loading' | 'denied' | 'success' | 'unavailable' }) {
+    console.log('[Debug] Rendering PartyList with parties:', parties);
     return (
         <div className="space-y-4">
             <h3 className="font-bold text-xl">{title}</h3>
@@ -219,24 +220,32 @@ function degToRad(deg: number): number {
   return deg * (Math.PI / 180);
 }
 
-// Version 2: A more standard and robust implementation of the Haversine formula.
 function calculateDistance(startCoords: { lat: number, lon: number }, destCoords: { lat: number, lon: number }): number {
+    console.log('[Debug] calculateDistance inputs:', { startCoords, destCoords });
     if (!startCoords || !destCoords) {
         return Infinity;
     }
     const R = 6371; // Radius of the Earth in kilometers
     
-    const dLat = degToRad(destCoords.lat - startCoords.lat);
-    const dLon = degToRad(destCoords.lon - startCoords.lon);
+    const startingLat = degToRad(startCoords.lat);
+    const startingLong = degToRad(startCoords.lon);
+    const destinationLat = degToRad(destCoords.lat);
+    const destinationLong = degToRad(destCoords.lon);
     
-    const a = 
+    console.log('[Debug] Radians:', { startingLat, startingLong, destinationLat, destinationLong });
+
+    const dLat = destinationLat - startingLat;
+    const dLon = destinationLong - startingLong;
+
+    const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(degToRad(startCoords.lat)) * Math.cos(degToRad(destCoords.lat)) * 
+        Math.cos(startingLat) * Math.cos(destinationLat) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    
+
     const distance = R * c; // Distance in km
+    console.log('[Debug] Calculated distance:', distance, 'km');
     return distance;
 }
 
@@ -292,11 +301,14 @@ export default function CommonRoomClient() {
         if (!url) return null;
         let finalUrl = url;
         
+        console.log('[Debug] extractCoordsFromUrl - Initial URL:', url);
+        
         if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
             try {
                 const result = await resolveUrlAction(url);
                 if (result.success && result.finalUrl) {
                     finalUrl = result.finalUrl;
+                    console.log('[Debug] extractCoordsFromUrl - Resolved to:', finalUrl);
                 }
             } catch (error) {
                  console.error("Could not resolve shortened URL:", url, error);
@@ -305,11 +317,13 @@ export default function CommonRoomClient() {
     
         const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
         const match = finalUrl.match(regex);
+        console.log('[Debug] extractCoordsFromUrl - Regex match:', match);
     
         if (match) {
             const lat = parseFloat(match[1]);
             const lon = parseFloat(match[2]);
             if (!isNaN(lat) && !isNaN(lon)) {
+                 console.log('[Debug] extractCoordsFromUrl - Found coords:', { lat, lon });
                 return { lat, lon };
             }
         }
@@ -330,6 +344,7 @@ export default function CommonRoomClient() {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
+                    console.log('[Debug] Fetched user location:', loc);
                     setUserLocation(loc);
                     setLocationStatus('success');
                 },
@@ -344,12 +359,14 @@ export default function CommonRoomClient() {
     
     useEffect(() => {
         const processParties = async () => {
+            console.log('[Debug] processParties triggered. User location:', userLocation, 'Public parties:', publicParties.length);
             if (publicParties.length === 0) {
                 setSortedPublicParties([]);
                 return;
             }
             if (userLocation) {
                 const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
+                    console.log(`[Debug] Processing party: ${party.title}`);
                     const coords = await extractCoordsFromUrl(party.location);
                     let distance;
                     if (coords) {
@@ -359,6 +376,7 @@ export default function CommonRoomClient() {
                 }));
 
                 partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+                console.log('[Debug] Final sorted parties with distance:', partiesWithDistance);
                 setSortedPublicParties(partiesWithDistance);
                 
                 try {
@@ -382,6 +400,7 @@ export default function CommonRoomClient() {
                 }
 
             } else {
+                 console.log('[Debug] No user location. Displaying parties unsorted by distance.');
                 setSortedPublicParties(publicParties);
             }
         };
