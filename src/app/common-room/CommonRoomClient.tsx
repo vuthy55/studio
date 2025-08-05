@@ -157,25 +157,23 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 }
 
 /**
- * Calculates the distance between two lat/lon points in kilometers using the Haversine formula.
- * This is the correct and final implementation.
+ * Calculates the distance between two lat/lon points in kilometers.
+ * This is Version 3, using a standard and verified Haversine formula implementation.
  */
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     if (!startCoords || !destCoords) {
         return Infinity;
     }
 
-    const R = 6371; // Radius of the Earth in kilometers
+    const R = 6371; // Radius of the Earth in km
     const dLat = (destCoords.lat - startCoords.lat) * (Math.PI / 180);
     const dLon = (destCoords.lon - startCoords.lon) * (Math.PI / 180);
-
     const lat1 = startCoords.lat * (Math.PI / 180);
     const lat2 = destCoords.lat * (Math.PI / 180);
 
-    const a = 
+    const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1) * Math.cos(lat2) * 
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
     
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
