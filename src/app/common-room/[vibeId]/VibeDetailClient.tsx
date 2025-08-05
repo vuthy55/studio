@@ -588,7 +588,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-     const { presentParticipants, invitedButNotPresent, allPresentUsersMap, blockedUsersList } = useMemo(() => {
+    const { presentParticipants, invitedButNotPresent, allPresentUsersMap, blockedUsersList } = useMemo(() => {
         if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map(), blockedUsersList: [] };
     
         const emailToDetails = new Map<string, { uid: string; name: string; isHost: boolean }>();
@@ -627,7 +627,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
     
         return { 
-            presentParticipants: Array.from(allPresentUsersMap.values()), 
+            presentParticipants: Array.from(emailToDetails.values()), 
             invitedButNotPresent: invitedList, 
             allPresentUsersMap: emailToDetails, 
             blockedUsersList: vibeData.blockedUsers || [] 
@@ -989,5 +989,3 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
-
-    
