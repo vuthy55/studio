@@ -18,18 +18,38 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, ChevronRight, FileCode } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, HelpCircle, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
 import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
-import { notificationSound } from '@/lib/sounds';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useTour, TourStep } from '@/context/TourContext';
+import { Separator } from '@/components/ui/separator';
+
+const commonRoomTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="cr-welcome-card"]',
+    content: "Welcome to the Common Room! This is your hub for connecting with other travelers.",
+  },
+  {
+    selector: '[data-tour="cr-public-meetups"]',
+    content: "Here you'll find all public meetups. You can use the 'Parties Near Me' button to sort them by your current location.",
+    position: 'bottom',
+  },
+  {
+    selector: '[data-tour="cr-my-meetups"]',
+    content: "This section shows meetups for vibes you're a part of, giving you a personal agenda.",
+    position: 'bottom',
+  },
+  {
+    selector: '[data-tour="cr-my-vibes"]',
+    content: "And finally, here are all the discussion vibes you've joined or been invited to. Click any of them to jump into the conversation.",
+    position: 'bottom',
+  },
+];
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -106,16 +126,16 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, isCalculatingDistance, locationStatus, debugLog }: { parties: ClientParty[], title: string, onSortByDistance: () => void, onSortByDate: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', debugLog: string[] }) {
+function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour={tourId}>
             <div className="flex justify-between items-center">
                  <h3 className="font-bold text-xl">{title}</h3>
                  <div className="flex items-center gap-2">
                     {sortMode === 'distance' ? (
-                        <Button variant="outline" size="sm" onClick={onSortByDate}><Calendar className="mr-2"/> Sort by Date</Button>
+                        <Button variant="outline" size="sm" onClick={() => onSortByDistance(false)}><Calendar className="mr-2"/> Sort by Date</Button>
                     ) : (
-                        <Button variant="outline" size="sm" onClick={onSortByDistance} disabled={isCalculatingDistance}>
+                        <Button variant="outline" size="sm" onClick={() => onSortByDistance(true)} disabled={isCalculatingDistance}>
                             {isCalculatingDistance ? <LoaderCircle className="h-4 w-4 animate-spin mr-2"/> : <LocateFixed className="h-4 w-4 mr-2" />}
                             Parties Near Me
                         </Button>
@@ -189,20 +209,18 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
+    const { startTour } = useTour();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
+    
+    // Have separate states for each list of parties
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
-    const [myParties, setMyParties] = useState<ClientParty[]>([]); // New state for private meetups
+    const [myParties, setMyParties] = useState<ClientParty[]>([]); 
     
     const [isFetching, setIsFetching] = useState(true);
-    const [activeTab, setActiveTab] = useState('discover');
-    const [activeDiscoverTab, setActiveDiscoverTab] = useState('meetups');
-    const [activeMySpaceTab, setActiveMySpaceTab] = useState('meetups');
     
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
     const [isProcessingLocation, setIsProcessingLocation] = useState(false);
-    
-    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
@@ -230,12 +248,6 @@ export default function CommonRoomClient() {
             setIsFetching(false);
         }
     }, [user, toast]);
-    
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            audioRef.current = new Audio(notificationSound);
-        }
-    }, []);
     
     const extractCoordsFromUrl = useCallback(async (url: string): Promise<{ lat: number; lon: number } | null> => {
         if (!url) return null;
@@ -266,20 +278,25 @@ export default function CommonRoomClient() {
         return null;
     }, []);
 
-    const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }, targetParties: ClientParty[], setParties: React.Dispatch<React.SetStateAction<ClientParty[]>>) => {
+    const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }) => {
         setIsProcessingLocation(true);
         try {
-            const partiesWithDistance = await Promise.all(targetParties.map(async (party) => {
+            // Process public parties
+            const publicWithDistance = await Promise.all(publicParties.map(async (party) => {
                 const coords = await extractCoordsFromUrl(party.location);
-                let distance;
-                if (coords) {
-                    distance = calculateDistance(location, coords);
-                }
-                return { ...party, distance };
+                return { ...party, distance: coords ? calculateDistance(location, coords) : undefined };
             }));
+            publicWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+            setPublicParties(publicWithDistance);
 
-            partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-            setParties(partiesWithDistance);
+            // Process my parties
+             const myWithDistance = await Promise.all(myParties.map(async (party) => {
+                const coords = await extractCoordsFromUrl(party.location);
+                return { ...party, distance: coords ? calculateDistance(location, coords) : undefined };
+            }));
+            myWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+            setMyParties(myWithDistance);
+
             setSortMode('distance');
             setLocationStatus('success');
         } catch (error) {
@@ -289,17 +306,24 @@ export default function CommonRoomClient() {
         } finally {
             setIsProcessingLocation(false);
         }
-    }, [extractCoordsFromUrl, toast]);
+    }, [publicParties, myParties, extractCoordsFromUrl, toast]);
 
 
-    const handleSortByDistance = () => {
+    const handleSortByDistance = (shouldEnable: boolean) => {
+        if (!shouldEnable) {
+            // Sort both lists by date
+            setPublicParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+            setMyParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+            setSortMode('date');
+            setLocationStatus('idle');
+            return;
+        }
+
         setLocationStatus('loading');
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                // Process both public and private parties when location is available
-                processPartiesWithLocation(loc, publicParties, setPublicParties);
-                processPartiesWithLocation(loc, myParties, setMyParties);
+                processPartiesWithLocation(loc);
             },
             (error) => {
                 toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get your location. Please enable location services in your browser.' });
@@ -309,111 +333,50 @@ export default function CommonRoomClient() {
         );
     };
 
-    const handleSortByDate = () => {
-        setPublicParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
-        setMyParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
-        setSortMode('date');
-        setLocationStatus('idle');
-    };
-
-
     useEffect(() => {
         if (!loading) {
             fetchData();
         }
     }, [loading, user, fetchData]);
-    
-
-    const { publicVibes } = useMemo(() => {
-        const publicV = allVibes.filter(v => v.isPublic);
-        return { publicVibes: publicV };
-    }, [allVibes]);
-
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-end">
-                <CreateVibeDialog onVibeCreated={fetchData} />
-            </div>
-
-            <Card>
+             <Card data-tour="cr-welcome-card">
                 <CardHeader>
                     <CardTitle>Welcome to the Common Room</CardTitle>
                     <CardDescription>
                         A place to connect with other travelers. Discover public discussions or check your private invites.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    {isFetching ? (
-                        <div className="flex justify-center items-center py-8">
-                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                        </div>
-                    ) : (
-                        <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="discover"><Compass className="mr-2"/> Discover</TabsTrigger>
-                                <TabsTrigger value="my-space"><UserCircle className="mr-2"/> My Space</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="discover" className="mt-4">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <Button 
-                                            variant={activeDiscoverTab === 'meetups' ? 'default' : 'outline'}
-                                            onClick={() => setActiveDiscoverTab('meetups')}
-                                        >
-                                            <Calendar className="mr-2"/> Public Meetups
-                                        </Button>
-                                         <Button 
-                                            variant={activeDiscoverTab === 'vibes' ? 'default' : 'outline'}
-                                            onClick={() => setActiveDiscoverTab('vibes')}
-                                        >
-                                            <MessageSquare className="mr-2"/> Public Vibes
-                                        </Button>
-                                    </div>
-                                    <div className="pt-4">
-                                        {activeDiscoverTab === 'meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
-                                    </div>
-                                </div>
-                            </TabsContent>
-                            <TabsContent value="my-space" className="mt-4">
-                               <div className="space-y-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <Button 
-                                            variant={activeMySpaceTab === 'meetups' ? 'default' : 'outline'}
-                                            onClick={() => setActiveMySpaceTab('meetups')}
-                                        >
-                                            <Calendar className="mr-2"/> My Meetups
-                                        </Button>
-                                         <Button 
-                                            variant={activeMySpaceTab === 'vibes' ? 'default' : 'outline'}
-                                            onClick={() => setActiveMySpaceTab('vibes')}
-                                        >
-                                            <MessageSquare className="mr-2"/> My Vibes
-                                        </Button>
-                                    </div>
-                                    <div className="pt-4">
-                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
-                                    </div>
-                                </div>
-                            </TabsContent>
-                        </Tabs>
-                    )}
+                <CardContent className="flex gap-2">
+                    <Button onClick={() => startTour(commonRoomTourSteps)}>
+                        <HelpCircle className="mr-2 h-4 w-4" />
+                        Take a Tour
+                    </Button>
+                    <CreateVibeDialog onVibeCreated={fetchData} />
                 </CardContent>
             </Card>
+
+            {isFetching ? (
+                <div className="flex justify-center items-center py-8">
+                    <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : (
+                <div className="space-y-8">
+                    <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} tourId="cr-public-meetups" />
+                    <Separator />
+                    <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} tourId="cr-my-meetups" />
+                    <Separator />
+                    <VibeList vibes={allVibes} title="My Vibes & Invites" tourId="cr-my-vibes" />
+                </div>
+            )}
         </div>
     )
 }
 
-function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'discover' | 'my-space' }) {
-    
-    const getActiveMeetup = (vibe: ClientVibe) => {
-        return parties.find(p => p.vibeId === vibe.id);
-    }
-    
+function VibeList({ vibes, title, tourId }: { vibes: ClientVibe[], title: string, tourId?: string }) {
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour={tourId}>
             <h3 className="font-bold text-xl">{title}</h3>
             {vibes.length === 0 ? (
                 <div className="text-muted-foreground text-sm text-center py-8">
@@ -422,14 +385,13 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
             ) : (
                  <div className="border rounded-lg">
                     {vibes.map((vibe, index) => {
-                        const activeMeetup = getActiveMeetup(vibe);
                         return (
-                            <Link href={`/common-room/${vibe.id}?from=${source}`} key={vibe.id} className="block">
+                            <Link href={`/common-room/${vibe.id}`} key={vibe.id} className="block">
                                 <div className={`flex items-center p-4 hover:bg-muted/50 transition-colors ${index < vibes.length - 1 ? 'border-b' : ''}`}>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
                                             <p className="font-semibold">{vibe.topic}</p>
-                                            {activeMeetup && <Badge variant="secondary">[Meetup]</Badge>}
+                                            {vibe.activeMeetupId && <Badge variant="secondary">[Meetup]</Badge>}
                                         </div>
                                         <p className="text-sm text-muted-foreground">
                                             {vibe.postsCount} posts
