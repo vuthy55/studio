@@ -217,6 +217,35 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
+// Helper function to convert degrees to radians
+function degToRad(deg: number): number {
+    return deg * (Math.PI / 180);
+}
+
+// Main function to calculate distance using the Haversine formula
+function calculateDistance(
+    startCoords: { lat: number; lon: number },
+    destCoords: { lat: number; lon: number }
+): number {
+    const startingLat = degToRad(startCoords.lat);
+    const startingLong = degToRad(startCoords.lon);
+    const destinationLat = degToRad(destCoords.lat);
+    const destinationLong = degToRad(destCoords.lon);
+
+    // Radius of the Earth (in kilometers)
+    const radius = 6371;
+
+    // Haversine formula
+    const distance =
+        Math.acos(
+            Math.sin(startingLat) * Math.sin(destinationLat) +
+            Math.cos(startingLat) *
+            Math.cos(destinationLat) *
+            Math.cos(startingLong - destinationLong)
+        ) * radius;
+
+    return distance;
+}
 
 
 export default function CommonRoomClient() {
@@ -266,24 +295,7 @@ export default function CommonRoomClient() {
         }
     }, []);
     
-    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const toRad = (deg: number) => deg * (Math.PI / 180);
-        const R = 6371; // Radius of the Earth in km
-
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const radLat1 = toRad(lat1);
-        const radLat2 = toRad(lat2);
-
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(radLat1) * Math.cos(radLat2) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const d = R * c;
-        return d; // Distance in km
-    };
-
-    const extractCoordsFromUrl = async (url: string): Promise<{ lat: number, lon: number } | null> => {
+    const extractCoordsFromUrl = async (url: string): Promise<{ lat: number; lon: number } | null> => {
         if (!url) return null;
         
         let finalUrl = url;
@@ -349,7 +361,7 @@ export default function CommonRoomClient() {
                     const coords = await extractCoordsFromUrl(party.location);
                     let distance: number | undefined;
                     if (coords) {
-                        distance = getDistance(userLocation.lat, userLocation.lon, coords.lat, coords.lon);
+                        distance = calculateDistance({lat: userLocation.lat, lon: userLocation.lon}, {lat: coords.lat, lon: coords.lon});
                     }
                     return { ...party, distance, coords };
                 }));
@@ -474,5 +486,3 @@ export default function CommonRoomClient() {
         </div>
     )
 }
-
-    
