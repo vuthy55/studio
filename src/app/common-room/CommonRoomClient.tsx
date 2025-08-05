@@ -131,6 +131,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
 }
 
 function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: (enabled: boolean) => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
+    console.log(`[CLIENT_DEBUG] Rendering PartyList for "${title}" with ${parties.length} parties.`); // DEBUG
     return (
         <div className="space-y-4" data-tour={tourId}>
             <div className="flex justify-between items-center">
@@ -292,6 +293,7 @@ export default function CommonRoomClient() {
     };
 
     const fetchData = useStableCallback(async () => {
+        console.log("[CLIENT_DEBUG] fetchData called"); // DEBUG
         if (!user || !user.email) {
             setIsLoading(false);
             return;
@@ -307,12 +309,16 @@ export default function CommonRoomClient() {
                 getUpcomingPublicParties(),
                 getAllMyUpcomingParties(user.uid),
             ]);
+            
+            console.log("[CLIENT_DEBUG] Fetched My Vibes:", fetchedMyVibes.length); // DEBUG
+            console.log("[CLIENT_DEBUG] Fetched Public Parties:", fetchedPublicParties.length); // DEBUG
+            console.log("[CLIENT_DEBUG] Fetched My Parties:", fetchedMyParties.length); // DEBUG
 
-            fetchedMyParties.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            const sortedMyParties = [...fetchedMyParties].sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
             
             setAllVibes(fetchedMyVibes);
             setPublicParties(fetchedPublicParties);
-            setMyParties(fetchedMyParties);
+            setMyParties(sortedMyParties);
             setSortMode('date');
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
@@ -423,11 +429,23 @@ export default function CommonRoomClient() {
     }, [userLocation, sortMode, processPartiesWithLocation]);
 
 
-    const { filteredPublicVibes } = useMemo(() => {
+    const { filteredPublicVibes, enrichedMyParties } = useMemo(() => {
+        console.log('[CLIENT_DEBUG] useMemo running. MyParties count:', myParties.length, 'AllVibes count:', allVibes.length); // DEBUG
+        const publicV = allVibes.filter(v => v.isPublic);
+
+        const allVibesMap = new Map(allVibes.map(v => [v.id, v.topic]));
+        const myEnriched = myParties.map(p => ({
+            ...p,
+            vibeTopic: allVibesMap.get(p.vibeId) || p.vibeTopic,
+        }));
+        
+        console.log('[CLIENT_DEBUG] Enriched meetups count:', myEnriched.length); // DEBUG
+
         return {
-            filteredPublicVibes: allVibes.filter(v => v.isPublic),
+            filteredPublicVibes: publicV,
+            enrichedMyParties: myEnriched,
         };
-    }, [allVibes]);
+    }, [allVibes, myParties]);
     
      const locationStatus = isLocationLoading ? 'loading' : userLocation ? 'success' : 'idle';
 
@@ -471,7 +489,7 @@ export default function CommonRoomClient() {
                          <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
                     </TabsContent>
                      <TabsContent value="my-meetups" className="mt-4">
-                        <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
+                        <PartyList parties={enrichedMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
                     </TabsContent>
                 </Tabs>
             )}

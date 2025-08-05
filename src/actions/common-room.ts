@@ -198,7 +198,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await existingUsersQuery.get();
+        const existingUsersSnapshot = await getDocs(existingUsersQuery);
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         // Create notifications for existing users
@@ -355,28 +355,46 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const now = new Date();
+        // Step 1: Get all public vibes
         const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
         if (publicVibesSnapshot.empty) {
             return [];
         }
 
+        const publicVibeIds = publicVibesSnapshot.docs.map(doc => doc.id);
+        const publicVibeTopics = new Map(publicVibesSnapshot.docs.map(doc => [doc.id, doc.data().topic || 'A Vibe']));
+
+        // Step 2: Get all upcoming parties that belong to these public vibes
         const allPublicParties: ClientParty[] = [];
         
-        for (const vibeDoc of publicVibesSnapshot.docs) {
-            const partiesSnapshot = await vibeDoc.ref.collection('parties')
+        // Firestore 'in' query is limited to 30 items, so we might need to chunk if there are many public vibes.
+        const chunkedVibeIds: string[][] = [];
+        for (let i = 0; i < publicVibeIds.length; i += 30) {
+            chunkedVibeIds.push(publicVibeIds.slice(i, i + 30));
+        }
+
+        for (const chunk of chunkedVibeIds) {
+             const partiesQuery = db.collectionGroup('parties')
+                .where('__name__', 'in', chunk.map(id => `vibes/${id}/parties`)) // This is a trick to query subcollections of specific docs
+                .where('startTime', '>=', now);
+            
+            const partiesSnapshot = await db.collectionGroup('parties')
                 .where('startTime', '>=', now)
                 .get();
-
+                
             partiesSnapshot.forEach(partyDoc => {
-                const data = partyDoc.data();
-                allPublicParties.push({
-                    id: partyDoc.id,
-                    vibeId: vibeDoc.id,
-                    vibeTopic: vibeDoc.data().topic || 'A Vibe',
-                    ...data,
-                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                } as ClientParty);
+                const vibeId = partyDoc.ref.parent.parent!.id;
+                if (publicVibeTopics.has(vibeId)) {
+                    const data = partyDoc.data();
+                    allPublicParties.push({
+                        id: partyDoc.id,
+                        vibeId: vibeId,
+                        vibeTopic: publicVibeTopics.get(vibeId)!,
+                        ...data,
+                        startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                        endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                    } as ClientParty);
+                }
             });
         }
 
@@ -392,22 +410,30 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
 
 
 export async function getAllMyUpcomingParties(userId: string): Promise<ClientParty[]> {
-    if (!userId) return [];
+    console.log(`[ACTION_DEBUG] Fetching "My Meetups" for userId: ${userId}`);
+    if (!userId) {
+        console.log("[ACTION_DEBUG] No userId provided, returning empty array.");
+        return [];
+    }
     
     try {
         const now = new Date();
+        // Simplified query to avoid composite index
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
-            .where('startTime', '>=', now)
             .get();
         
-        if (partiesSnapshot.empty) {
-            return [];
-        }
+        console.log(`[ACTION_DEBUG] Found ${partiesSnapshot.docs.length} raw party documents for user.`);
 
         const myParties: ClientParty[] = [];
         for (const doc of partiesSnapshot.docs) {
             const data = doc.data();
+
+            // Client-side filtering for date
+            if ((data.startTime as Timestamp).toDate() < now) {
+                continue;
+            }
+
             const vibeRef = doc.ref.parent.parent!;
             const vibeDoc = await vibeRef.get();
             const vibeTopic = vibeDoc.exists() ? vibeDoc.data()?.topic || 'A Vibe' : 'A Vibe';
@@ -422,10 +448,11 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
             } as ClientParty);
         }
         
+        console.log(`[ACTION_DEBUG] Returning ${myParties.length} upcoming parties for user.`);
         return myParties;
 
     } catch (error: any) {
-        console.error("Error fetching all my upcoming parties:", error);
+        console.error("[ACTION_DEBUG] Error fetching all my upcoming parties:", error);
         return [];
     }
 }
