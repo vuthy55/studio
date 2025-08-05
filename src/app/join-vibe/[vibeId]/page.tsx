@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, LogIn, UserPlus } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { signUpUser } from '@/actions/auth';
 import { useUserData } from '@/context/UserDataContext';
@@ -147,11 +147,27 @@ export default function JoinVibePage() {
         <div className="flex h-screen w-full items-center justify-center bg-muted">
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
-                    <CardTitle className="text-2xl">Join Vibe</CardTitle>
-                    <CardDescription>Create an account to join the conversation.</CardDescription>
+                    <CardTitle className="text-2xl">You're Invited!</CardTitle>
+                    <CardDescription>Create an account or log in to join the conversation.</CardDescription>
                 </CardHeader>
+                 <CardContent className="space-y-4">
+                     <Button className="w-full" asChild>
+                         <Link href={`/login?redirect=/common-room/${vibeId}`}>
+                             <LogIn className="mr-2" />
+                             Login to Join
+                         </Link>
+                     </Button>
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">
+                            Or create a new account
+                            </span>
+                        </div>
+                    </div>
                 <form onSubmit={handleSignUpAndJoin}>
-                    <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="spoken-language">Your Spoken Language</Label>
                              <Select onValueChange={(v) => setSpokenLanguage(v as AzureLanguageCode)} value={spokenLanguage} required>
@@ -199,13 +215,11 @@ export default function JoinVibePage() {
                          <p className="text-sm text-muted-foreground text-center pt-2">
                             You'll receive {settings.signupBonus} tokens as a welcome bonus!
                         </p>
-                    </CardContent>
-                    <CardFooter>
-                        <Button type="submit" className="w-full" disabled={isSubmitting}>
-                            {isSubmitting ? <LoaderCircle className="animate-spin" /> : 'Sign Up & Join Vibe'}
-                        </Button>
-                    </CardFooter>
+                    <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>
+                        {isSubmitting ? <LoaderCircle className="animate-spin" /> : <><UserPlus className="mr-2"/>Sign Up & Join Vibe</>}
+                    </Button>
                 </form>
+                </CardContent>
             </Card>
         </div>
     );
