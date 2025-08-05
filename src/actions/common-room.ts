@@ -159,7 +159,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await existingUsersQuery.get();
+        const existingUsersSnapshot = await getDocs(existingUsersQuery);
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         // Create notifications for existing users
@@ -355,36 +355,38 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
 
 export async function getAllMyUpcomingParties(userId: string): Promise<ClientParty[]> {
     if (!userId) {
+        console.log("[DEBUG] getAllMyUpcomingParties: No userId provided.");
         return [];
     }
     
     try {
-        const now = new Date();
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
             .get();
         
+        console.log(`[DEBUG] getAllMyUpcomingParties: Found ${partiesSnapshot.size} parties where user ${userId} has RSVP'd.`);
+        
+        if (partiesSnapshot.empty) {
+            return [];
+        }
+
         const myParties: ClientParty[] = [];
 
         for (const doc of partiesSnapshot.docs) {
             const data = doc.data();
-
-            if ((data.startTime as Timestamp).toDate() < now) {
+            const vibeRef = doc.ref.parent.parent;
+            if (!vibeRef) {
+                console.log(`[DEBUG] Skipping party ${doc.id}, no parent Vibe ref.`);
                 continue;
             }
-
-            const vibeRef = doc.ref.parent.parent;
-            if (!vibeRef) continue;
 
             const vibeDoc = await vibeRef.get();
-            const vibeData = vibeDoc.data();
-            
-            // This is the crucial permission check.
-            // A user can only see a party if they can also see the vibe.
-            const canSeeVibe = vibeData?.isPublic || vibeData?.invitedEmails?.includes(vibeData?.creatorEmail);
-            if (!vibeDoc.exists || !canSeeVibe) {
+            if (!vibeDoc.exists) {
+                 console.log(`[DEBUG] Skipping party ${doc.id}, parent Vibe ${vibeRef.id} does not exist.`);
                 continue;
             }
+            
+            const vibeData = vibeDoc.data()!;
 
             myParties.push({
                 id: doc.id,
@@ -396,7 +398,7 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
             } as ClientParty);
         }
         
-        myParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        console.log(`[DEBUG] getAllMyUpcomingParties: Processed and returning ${myParties.length} parties.`);
         return myParties;
 
     } catch (error: any) {
