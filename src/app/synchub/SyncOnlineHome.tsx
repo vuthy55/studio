@@ -799,7 +799,7 @@ export default function SyncOnlineHome() {
     };
 
     const fetchInvitedRooms = useCallback(async () => {
-        if (!user?.email) {
+        if (!user || !user.email) {
             setInvitedRooms([]);
             setIsFetchingRooms(false);
             return;
@@ -1468,5 +1468,3 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
-
-    
