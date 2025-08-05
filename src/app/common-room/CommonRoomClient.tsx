@@ -21,13 +21,12 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, HelpCircle, Eye, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getPublicVibes, getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
+import { getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
 import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
-import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
 import { notificationSound } from '@/lib/sounds';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTour, TourStep } from '@/context/TourContext';
@@ -132,8 +131,6 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
 }
 
 function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: (enabled: boolean) => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
-    // This is a simplified version for display within a tab. 
-    // The full-featured dialog for details is omitted for brevity in this refactor.
     return (
         <div className="space-y-4" data-tour={tourId}>
             <div className="flex justify-between items-center">
@@ -250,6 +247,17 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
     return R * c;
 }
 
+// A stable callback hook to prevent function re-creation on re-renders
+const useStableCallback = <T extends (...args: any[]) => any>(callback: T): T => {
+    const callbackRef = useRef<T>(callback);
+    
+    useEffect(() => {
+        callbackRef.current = callback;
+    });
+
+    return useMemo(() => ((...args) => callbackRef.current(...args)) as T, []);
+};
+
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
@@ -261,18 +269,18 @@ export default function CommonRoomClient() {
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'public-vibes');
     
     // Data states
-    const [publicVibes, setPublicVibes] = useState<ClientVibe[]>([]);
-    const [myVibes, setMyVibes] = useState<ClientVibe[]>([]);
+    const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [myParties, setMyParties] = useState<ClientParty[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
-    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     
     // Location & Sorting states
-    const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
+    const [isLocationLoading, setIsLocationLoading] = useState(false);
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
     const [isProcessingLocation, setIsProcessingLocation] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     const handleTabChange = (value: string) => {
         setActiveTab(value);
@@ -283,7 +291,7 @@ export default function CommonRoomClient() {
         router.push(`/common-room/${vibeId}?tab=${currentTab}`);
     };
 
-    const fetchData = useCallback(async () => {
+    const fetchData = useStableCallback(async () => {
         if (!user || !user.email) {
             setIsLoading(false);
             return;
@@ -291,18 +299,15 @@ export default function CommonRoomClient() {
         setIsLoading(true);
         try {
             const [
-                fetchedPublicVibes,
                 fetchedMyVibes,
                 fetchedPublicParties,
                 fetchedMyParties
             ] = await Promise.all([
-                getPublicVibes(),
                 getMyVibes(user.email),
                 getUpcomingPublicParties(),
                 getAllMyUpcomingParties(user.uid),
             ]);
-            setPublicVibes(fetchedPublicVibes);
-            setMyVibes(fetchedMyVibes);
+            setAllVibes(fetchedMyVibes);
             setPublicParties(fetchedPublicParties);
             setMyParties(fetchedMyParties);
             setSortMode('date');
@@ -311,11 +316,11 @@ export default function CommonRoomClient() {
             toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
         } finally {
             setIsLoading(false);
-            setHasLoadedOnce(true);
+            setIsInitialLoad(false);
         }
-    }, [user, toast]);
+    });
     
-    const extractCoordsFromUrl = useCallback(async (url: string): Promise<{ lat: number; lon: number } | null> => {
+    const extractCoordsFromUrl = useStableCallback(async (url: string): Promise<{ lat: number; lon: number } | null> => {
         if (!url) return null;
         let finalUrl = url;
         
@@ -342,11 +347,10 @@ export default function CommonRoomClient() {
         }
         
         return null;
-    }, []);
+    });
 
-    const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }) => {
-        // Guard against running this on initial empty arrays
-        if (!hasLoadedOnce) return;
+    const processPartiesWithLocation = useStableCallback(async (location: { lat: number, lon: number }) => {
+        if (isInitialLoad) return; // Guard against running before data is loaded
 
         setIsProcessingLocation(true);
         try {
@@ -367,57 +371,70 @@ export default function CommonRoomClient() {
             setPublicParties(sortedPublic);
             setMyParties(sortedMy);
             setSortMode('distance');
-            setLocationStatus('success');
         } catch (error) {
             console.error("Error processing parties with location:", error);
             toast({ variant: 'destructive', title: 'Calculation Error', description: 'Could not calculate distances for meetups.' });
-            setLocationStatus('error');
         } finally {
             setIsProcessingLocation(false);
         }
-    }, [publicParties, myParties, extractCoordsFromUrl, toast, hasLoadedOnce]);
+    });
 
-
-    const handleSortByDistance = (shouldEnable: boolean) => {
+    const handleSortByDistance = useStableCallback((shouldEnable: boolean) => {
         if (!shouldEnable) {
             setPublicParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
             setMyParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
             setSortMode('date');
-            setLocationStatus('idle');
+            setUserLocation(null);
             return;
         }
-
-        setLocationStatus('loading');
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                processPartiesWithLocation(loc);
-            },
-            (error) => {
-                toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get your location. Please enable location services in your browser.' });
-                setLocationStatus('error');
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
-        );
-    };
-
+        
+        if (userLocation) {
+            processPartiesWithLocation(userLocation);
+        } else {
+            setIsLocationLoading(true);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
+                    setUserLocation(loc);
+                    setIsLocationLoading(false);
+                },
+                (error) => {
+                    toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get your location. Please enable location services in your browser.' });
+                    setIsLocationLoading(false);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
+            );
+        }
+    });
+    
     useEffect(() => {
         if (!loading) {
             fetchData();
         }
     }, [loading, user, fetchData]);
+    
+    useEffect(() => {
+        if (userLocation && sortMode === 'date') {
+            processPartiesWithLocation(userLocation);
+        }
+    }, [userLocation, sortMode, processPartiesWithLocation]);
 
-    // This useMemo is now for enriching the myParties list with Vibe topics
-    const enrichedMyParties = useMemo(() => {
-        const myVibesMap = new Map(myVibes.map(vibe => [vibe.id, vibe]));
-        return myParties.map(party => {
-            const vibe = myVibesMap.get(party.vibeId);
-            return {
-                ...party,
-                vibeTopic: vibe ? vibe.topic : 'A Vibe',
-            };
-        });
-    }, [myParties, myVibes]);
+
+    const { filteredPublicVibes, enrichedMyParties } = useMemo(() => {
+        const vibesMap = new Map(allVibes.map(vibe => [vibe.id, vibe]));
+        
+        const myEnriched = myParties.map(party => ({
+            ...party,
+            vibeTopic: vibesMap.get(party.vibeId)?.topic || 'A Vibe',
+        }));
+
+        return {
+            filteredPublicVibes: allVibes.filter(v => v.isPublic),
+            enrichedMyParties: myEnriched
+        };
+    }, [allVibes, myParties]);
+    
+     const locationStatus = isLocationLoading ? 'loading' : userLocation ? 'success' : 'idle';
 
     return (
         <div className="space-y-6">
@@ -450,13 +467,13 @@ export default function CommonRoomClient() {
                         <TabsTrigger value="my-meetups" data-tour="cr-my-meetups-tab"><Calendar className="mr-2"/> My Meetups</TabsTrigger>
                     </TabsList>
                     <TabsContent value="public-vibes" className="mt-4">
-                        <VibeList vibes={publicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
+                        <VibeList vibes={filteredPublicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
                     </TabsContent>
                     <TabsContent value="public-meetups" className="mt-4">
                         <PartyList parties={publicParties} title="All Public Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
                     </TabsContent>
                      <TabsContent value="my-vibes" className="mt-4">
-                         <VibeList vibes={myVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
+                         <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
                     </TabsContent>
                      <TabsContent value="my-meetups" className="mt-4">
                         <PartyList parties={enrichedMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />

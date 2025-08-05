@@ -355,39 +355,32 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const now = new Date();
-        // 1. Get all public vibes
         const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
         if (publicVibesSnapshot.empty) {
             return [];
         }
-        const publicVibeIds = publicVibesSnapshot.docs.map(doc => doc.id);
-
-        if (publicVibeIds.length === 0) return [];
-
-        // 2. Query for parties only within those public vibes
-        const partiesSnapshot = await db.collectionGroup('parties')
-            .where('__name__', 'in', publicVibeIds.map(id => `vibes/${id}/parties`)) // This is a conceptual example; Firestore doesn't support this directly on collection groups. We have to fetch per vibe.
-            .where('startTime', '>=', now)
-            .orderBy('startTime', 'asc')
-            .get();
 
         const allPublicParties: ClientParty[] = [];
-         for (const doc of partiesSnapshot.docs) {
-             const data = doc.data();
-             const vibeId = doc.ref.parent.parent!.id;
-             const vibeData = publicVibesSnapshot.docs.find(d => d.id === vibeId)?.data();
-             
-             if (vibeData) {
-                 allPublicParties.push({
-                    id: doc.id,
-                    vibeId: vibeId,
-                    vibeTopic: vibeData.topic || 'A Vibe',
+        
+        for (const vibeDoc of publicVibesSnapshot.docs) {
+            const partiesSnapshot = await vibeDoc.ref.collection('parties')
+                .where('startTime', '>=', now)
+                .get();
+
+            partiesSnapshot.forEach(partyDoc => {
+                const data = partyDoc.data();
+                allPublicParties.push({
+                    id: partyDoc.id,
+                    vibeId: vibeDoc.id,
+                    vibeTopic: vibeDoc.data().topic || 'A Vibe',
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty);
-             }
+            });
         }
+
+        allPublicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
         return allPublicParties;
 
@@ -403,7 +396,6 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
     
     try {
         const now = new Date();
-        // This single query gets all parties the user has RSVP'd to, public or private.
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
             .where('startTime', '>=', now)
