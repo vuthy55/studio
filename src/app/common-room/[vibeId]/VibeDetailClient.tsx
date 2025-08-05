@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party, UserProfile } from '@/lib/types';
+import { Vibe, VibePost, Party, UserProfile, BlockedUser } from '@/lib/types';
 import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -589,8 +589,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
-     const { presentParticipants, invitedButNotPresent, allPresentUsersMap } = useMemo(() => {
-        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map() };
+     const { presentParticipants, invitedButNotPresent, allPresentUsersMap, blockedUsersList } = useMemo(() => {
+        if (!vibeData) return { presentParticipants: [], invitedButNotPresent: [], allPresentUsersMap: new Map(), blockedUsersList: [] };
 
         const emailToDetails = new Map<string, { uid: string, name: string; isHost: boolean }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
@@ -599,7 +599,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         posts.forEach(post => {
             if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
-                 // Only add user if they haven't been blocked
                 if (!blockedUserEmails.has(lowerEmail)) {
                     emailToDetails.set(lowerEmail, {
                         uid: post.authorId,
@@ -625,7 +624,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
         
 
-        return { presentParticipants: presentList, invitedButNotPresent: invitedList, allPresentUsersMap: emailToDetails };
+        return { presentParticipants: presentList, invitedButNotPresent: invitedList, allPresentUsersMap: emailToDetails, blockedUsersList: vibeData.blockedUsers || [] };
     }, [vibeData, posts]);
 
 
@@ -665,7 +664,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const handleLeaveVibe = async () => {
         if (!user || !user.email || !user.displayName) return;
-        const result = await removeParticipantFromVibe(vibeId, {uid: user.uid, email: user.email, name: user.displayName});
+        const result = await removeParticipantFromVibe(vibeId, {uid: user.uid, email: user.email});
         if (result.success) {
             toast({ title: 'You have left the Vibe', description: 'You can no longer see or participate in this conversation.' });
             router.push('/common-room');
@@ -686,6 +685,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
         if(!result.success) {
             toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
+        }
+    }
+    
+    const handleUnblockUser = async (userToUnblock: BlockedUser) => {
+        if (!user?.email) return;
+        const result = await unblockParticipantFromVibe(vibeId, user.email, userToUnblock);
+        if (result.success) {
+            toast({ title: "User Unblocked", description: `${userToUnblock.email} can now rejoin this Vibe.` });
+        } else {
+             toast({ variant: "destructive", title: "Error", description: result.error || "Could not unblock user." });
         }
     }
     
@@ -843,6 +852,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {isCurrentUserHost && blockedUsersList.length > 0 && (
+                                     <div className="space-y-2 pt-2 border-t">
+                                        <h4 className="font-semibold text-sm flex items-center gap-2 text-destructive"><UserMinus/> Blocked ({blockedUsersList.length})</h4>
+                                        {blockedUsersList.map((blockedUser) => (
+                                            <div key={blockedUser.uid} className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 group">
+                                                <span className="font-medium text-sm text-destructive flex-1 truncate">{blockedUser.email}</span>
+                                                <Button size="sm" variant="outline" onClick={() => handleUnblockUser(blockedUser)}>Re-admit</Button>
                                             </div>
                                         ))}
                                     </div>

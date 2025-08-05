@@ -155,7 +155,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await existingUsersQuery.get();
+        const existingUsersSnapshot = await getDocs(existingUsersQuery);
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         // Create notifications for existing users
@@ -456,6 +456,36 @@ export async function removeParticipantFromVibe(vibeId: string, userToRemove: { 
         return { success: true };
     } catch (error: any) {
         console.error("Error removing participant from Vibe:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+
+export async function unblockParticipantFromVibe(vibeId: string, requesterEmail: string, userToUnblock: BlockedUser): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId || !requesterEmail || !userToUnblock) {
+        return { success: false, error: 'Missing required information.' };
+    }
+
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const vibeDoc = await vibeRef.get();
+        if (!vibeDoc.exists) {
+            return { success: false, error: 'Vibe not found.' };
+        }
+
+        const vibeData = vibeDoc.data() as Vibe;
+        const isHost = vibeData.hostEmails.includes(requesterEmail);
+        if (!isHost) {
+            return { success: false, error: 'Permission denied. Only hosts can unblock users.' };
+        }
+
+        await vibeRef.update({
+            blockedUsers: FieldValue.arrayRemove(userToUnblock)
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error unblocking participant from Vibe:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
