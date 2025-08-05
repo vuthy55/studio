@@ -157,7 +157,8 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 }
 
 /**
- * Version 3: A standard and correct implementation of the Haversine formula.
+ * Calculates the distance between two lat/lon points in kilometers using the Haversine formula.
+ * This is the correct and final implementation.
  */
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     if (!startCoords || !destCoords) {
@@ -173,7 +174,8 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
 
     const a = 
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+        Math.cos(lat1) * Math.cos(lat2) * 
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
     
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
@@ -471,4 +473,3 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
         </div>
     );
 }
-
