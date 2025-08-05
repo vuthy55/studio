@@ -217,16 +217,15 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
-// Helper function to convert degrees to radians
-function degToRad(deg: number): number {
-    return deg * (Math.PI / 180);
-}
-
 // Main function to calculate distance using the Haversine formula
 function calculateDistance(
     startCoords: { lat: number; lon: number },
     destCoords: { lat: number; lon: number }
 ): number {
+    function degToRad(deg: number): number {
+        return deg * (Math.PI / 180);
+    }
+
     const startingLat = degToRad(startCoords.lat);
     const startingLong = degToRad(startCoords.lon);
     const destinationLat = degToRad(destCoords.lat);
@@ -300,24 +299,23 @@ export default function CommonRoomClient() {
         
         let finalUrl = url;
         
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
-        let match = finalUrl.match(regex);
-        
-        if (!match && (url.includes('goo.gl') || url.includes('maps.app.goo.gl'))) {
+        if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
             try {
                 const result = await resolveUrlAction(url);
                 if (result.success && result.finalUrl) {
                     finalUrl = result.finalUrl;
-                    match = finalUrl.match(regex);
                 }
             } catch (error) {
                 console.error("[Debug] Error resolving URL:", url, error);
             }
         }
     
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+        const match = finalUrl.match(regex);
+    
         if (match) {
-            const lat = parseFloat(match[1] || match[3]);
-            const lon = parseFloat(match[2] || match[4]);
+            const lat = parseFloat(match[1]);
+            const lon = parseFloat(match[2]);
             if (!isNaN(lat) && !isNaN(lon)) {
                 return { lat, lon };
             }
