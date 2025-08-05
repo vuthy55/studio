@@ -1288,9 +1288,9 @@ function RoomsTabContent() {
                             <div key={room.id} className="flex items-center justify-between p-2 rounded-md bg-muted">
                                 <div>
                                     <p className="font-semibold">{room.topic}</p>
-                                    <p className="text-xs text-muted-foreground">
+                                    <div className="text-xs text-muted-foreground">
                                         Status: <Badge variant={room.status === 'active' ? 'default' : (room.status === 'closed' ? 'destructive' : 'secondary')} className="h-5">{room.status}</Badge>
-                                    </p>
+                                    </div>
                                 </div>
                                 <Button size="icon" variant="ghost" onClick={() => handleDeleteSyncOnlineRoom(room.id)} disabled={isDeleting}>
                                     <Trash2 className="h-4 w-4 text-destructive"/>
