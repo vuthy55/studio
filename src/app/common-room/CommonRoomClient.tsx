@@ -219,26 +219,19 @@ function degToRad(deg: number): number {
   return deg * (Math.PI / 180);
 }
 
-function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
-  if (!startCoords || !destCoords || typeof startCoords.lat !== 'number' || typeof destCoords.lon !== 'number') {
+function calculateDistance(startCoords: { lat: number, lon: number }, destCoords: { lat: number, lon: number }): number {
+  if (!startCoords || !destCoords) {
     return Infinity;
   }
-  const radius = 6371; // Earth's radius in kilometers
-  
-  const startingLat = degToRad(startCoords.lat);
-  const startingLong = degToRad(startCoords.lon);
-  const destinationLat = degToRad(destCoords.lat);
-  const destinationLong = degToRad(destCoords.lon);
-
+  const R = 6371; // Radius of the Earth in kilometers
+  const dLat = degToRad(destCoords.lat - startCoords.lat);
+  const dLon = degToRad(destCoords.lon - startCoords.lon);
   const a =
-    Math.sin((destinationLat - startingLat) / 2) ** 2 +
-    Math.cos(startingLat) *
-      Math.cos(destinationLat) *
-      Math.sin((destinationLong - startingLong) / 2) ** 2;
-
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(degToRad(startCoords.lat)) * Math.cos(degToRad(destCoords.lat)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  const distance = radius * c;
+  const distance = R * c;
   return distance;
 }
 
@@ -353,7 +346,7 @@ export default function CommonRoomClient() {
             if (userLocation) {
                 const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
                     const coords = await extractCoordsFromUrl(party.location);
-                    let distance: number | undefined;
+                    let distance;
                     if (coords) {
                         distance = calculateDistance(userLocation, coords);
                     }
