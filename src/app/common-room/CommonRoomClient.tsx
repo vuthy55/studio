@@ -420,19 +420,11 @@ export default function CommonRoomClient() {
     }, [userLocation, sortMode, processPartiesWithLocation]);
 
 
-    const { filteredPublicVibes, enrichedMyParties } = useMemo(() => {
-        const vibesMap = new Map(allVibes.map(vibe => [vibe.id, vibe]));
-        
-        const myEnriched = myParties.map(party => ({
-            ...party,
-            vibeTopic: vibesMap.get(party.vibeId)?.topic || 'A Vibe',
-        }));
-
+    const { filteredPublicVibes } = useMemo(() => {
         return {
             filteredPublicVibes: allVibes.filter(v => v.isPublic),
-            enrichedMyParties: myEnriched
         };
-    }, [allVibes, myParties]);
+    }, [allVibes]);
     
      const locationStatus = isLocationLoading ? 'loading' : userLocation ? 'success' : 'idle';
 
@@ -476,7 +468,7 @@ export default function CommonRoomClient() {
                          <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
                     </TabsContent>
                      <TabsContent value="my-meetups" className="mt-4">
-                        <PartyList parties={enrichedMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
+                        <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
                     </TabsContent>
                 </Tabs>
             )}

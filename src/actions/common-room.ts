@@ -408,16 +408,19 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
 
         const myParties: ClientParty[] = [];
         for (const doc of partiesSnapshot.docs) {
-             const data = doc.data();
-             const vibeId = doc.ref.parent.parent!.id;
+            const data = doc.data();
+            const vibeRef = doc.ref.parent.parent!;
+            const vibeDoc = await vibeRef.get(); // Fetch the parent Vibe
+            const vibeTopic = vibeDoc.exists() ? vibeDoc.data()?.topic || 'A Vibe' : 'A Vibe';
 
-             myParties.push({
+            myParties.push({
                 id: doc.id,
-                vibeId: vibeId,
+                vibeId: vibeRef.id,
+                vibeTopic: vibeTopic,
                 ...data,
                 startTime: (data.startTime as Timestamp).toDate().toISOString(),
                 endTime: (data.endTime as Timestamp).toDate().toISOString(),
-             } as ClientParty);
+            } as ClientParty);
         }
         
         return myParties;
