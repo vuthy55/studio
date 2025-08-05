@@ -27,6 +27,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
+import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
 import { notificationSound } from '@/lib/sounds';
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -103,7 +104,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, isCalculatingDistance, locationStatus }: { parties: ClientParty[], title: string, onSortByDistance: () => void, onSortByDate: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error' }) {
+function PartyList({ parties, title, onSortByCity, onSortByDate, sortMode, isCalculatingDistance, locationStatus, userCity }: { parties: ClientParty[], title: string, onSortByCity: () => void, onSortByDate: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', userCity: string | null }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -112,7 +113,7 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                     {sortMode === 'distance' ? (
                         <Button variant="outline" size="sm" onClick={onSortByDate}><Calendar className="mr-2"/> Sort by Date</Button>
                     ) : (
-                        <Button variant="outline" size="sm" onClick={onSortByDistance} disabled={isCalculatingDistance}>
+                        <Button variant="outline" size="sm" onClick={onSortByCity} disabled={isCalculatingDistance}>
                             {isCalculatingDistance ? <LoaderCircle className="h-4 w-4 animate-spin mr-2"/> : <LocateFixed className="h-4 w-4 mr-2" />}
                             Parties Near Me
                         </Button>
@@ -120,10 +121,10 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                 </div>
             </div>
             {locationStatus === 'loading' && (
-                <div className="text-sm text-muted-foreground text-center py-4">Requesting your location...</div>
+                <div className="text-sm text-muted-foreground text-center py-4">Finding meetups in your city...</div>
             )}
-            {locationStatus === 'success' && sortMode === 'distance' && (
-                 <div className="text-sm text-muted-foreground text-center py-2 bg-muted rounded-md">Sorting meetups by your location.</div>
+            {locationStatus === 'success' && sortMode === 'distance' && userCity && (
+                 <div className="text-sm text-muted-foreground text-center py-2 bg-muted rounded-md">Showing meetups in or near <strong>{userCity}</strong>.</div>
             )}
              {parties.length === 0 ? (
                  <div className="text-muted-foreground text-sm text-center py-8 space-y-2">
@@ -163,25 +164,6 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
     );
 }
 
-/**
- * Calculates the distance between two lat/lon points in kilometers using the Haversine formula.
- */
-function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
-    const R = 6371; // Earth's radius in km
-    const dLat = (destCoords.lat - startCoords.lat) * (Math.PI / 180);
-    const dLon = (destCoords.lon - startCoords.lon) * (Math.PI / 180);
-    const lat1 = startCoords.lat * (Math.PI / 180);
-    const lat2 = destCoords.lat * (Math.PI / 180);
-
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
-}
-
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
@@ -198,6 +180,7 @@ export default function CommonRoomClient() {
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
     const [isProcessingLocation, setIsProcessingLocation] = useState(false);
+    const [userCity, setUserCity] = useState<string | null>(null);
     
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -235,75 +218,44 @@ export default function CommonRoomClient() {
         }
     }, []);
     
-    const extractCoordsFromUrl = useCallback(async (url: string): Promise<{ lat: number; lon: number } | null> => {
-        if (!url) return null;
-        let finalUrl = url;
-        
-        if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
-            try {
-                const result = await resolveUrlAction(url);
-                if (result.success && result.finalUrl) {
-                    finalUrl = result.finalUrl;
-                }
-            } catch (error) {
-                 console.error("Could not resolve shortened URL:", url, error);
-            }
-        }
-    
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
-        const match = finalUrl.match(regex);
-    
-        if (match) {
-            const lat = parseFloat(match[1]);
-            const lon = parseFloat(match[2]);
-            if (!isNaN(lat) && !isNaN(lon)) {
-                return { lat, lon };
-            }
-        }
-        
-        return null;
-    }, []);
-
-    const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }) => {
-        setIsProcessingLocation(true);
-        try {
-            const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
-                const coords = await extractCoordsFromUrl(party.location);
-                let distance;
-                if (coords) {
-                    distance = calculateDistance(location, coords);
-                }
-                return { ...party, distance };
-            }));
-
-            partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-            setDisplayedParties(partiesWithDistance);
-            setSortMode('distance');
-            setLocationStatus('success');
-        } catch (error) {
-            console.error("Error processing parties with location:", error);
-            toast({ variant: 'destructive', title: 'Calculation Error', description: 'Could not calculate distances for meetups.' });
-            setLocationStatus('error');
-        } finally {
-            setIsProcessingLocation(false);
-        }
-    }, [publicParties, extractCoordsFromUrl, toast]);
-
-
-    const handleSortByDistance = () => {
+    const handleSortByCity = () => {
         setLocationStatus('loading');
+        setIsProcessingLocation(true);
+
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                processPartiesWithLocation(loc);
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const { city } = await getCityFromCoords({ lat: latitude, lon: longitude });
+                    setUserCity(city);
+                    
+                    const lowerCity = city.toLowerCase();
+                    const filteredParties = publicParties.filter(party => 
+                        party.title.toLowerCase().includes(lowerCity) ||
+                        party.vibeTopic.toLowerCase().includes(lowerCity)
+                    );
+                    
+                    setDisplayedParties(filteredParties);
+                    setSortMode('distance');
+                    setLocationStatus('success');
+
+                } catch (aiError) {
+                    console.error("AI city lookup failed:", aiError);
+                    toast({ variant: 'destructive', title: 'Could not determine city', description: 'The AI could not identify your city from your location.' });
+                    setLocationStatus('error');
+                } finally {
+                    setIsProcessingLocation(false);
+                }
             },
             (error) => {
                 toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get your location. Please enable location services in your browser.' });
                 setLocationStatus('error');
+                setIsProcessingLocation(false);
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
         );
     };
+
 
     const handleSortByDate = () => {
         const sortedByDate = [...publicParties].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -374,7 +326,7 @@ export default function CommonRoomClient() {
                                         </Button>
                                     </div>
                                     <div className="pt-4">
-                                        {activeDiscoverTab === 'meetups' && <PartyList parties={displayedParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
+                                        {activeDiscoverTab === 'meetups' && <PartyList parties={displayedParties} title="Public Meetups" onSortByCity={handleSortByCity} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} userCity={userCity} />}
                                         {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
                                     </div>
                                 </div>
@@ -396,7 +348,7 @@ export default function CommonRoomClient() {
                                         </Button>
                                     </div>
                                     <div className="pt-4">
-                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
+                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByCity={handleSortByCity} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} userCity={userCity} />}
                                         {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" source="my-space" />}
                                     </div>
                                 </div>
