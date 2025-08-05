@@ -106,45 +106,6 @@ export async function getMyVibes(userEmail: string): Promise<ClientVibe[]> {
 }
 
 
-export async function getPublicVibes(): Promise<ClientVibe[]> {
-    try {
-        const vibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
-        
-        if (vibesSnapshot.empty) {
-            return [];
-        }
-
-        const allVibes: ClientVibe[] = [];
-
-        vibesSnapshot.forEach(doc => {
-            const data = doc.data();
-            const sanitizedData: { [key: string]: any } = { id: doc.id };
-            for (const key in data) {
-                const value = data[key];
-                if (value instanceof Timestamp) {
-                    sanitizedData[key] = value.toDate().toISOString();
-                } else {
-                    sanitizedData[key] = value;
-                }
-            }
-            allVibes.push(sanitizedData as ClientVibe);
-        });
-
-        allVibes.sort((a, b) => {
-            const dateA = a.lastPostAt ? new Date(a.lastPostAt) : new Date(a.createdAt);
-            const dateB = b.lastPostAt ? new Date(b.lastPostAt) : new Date(a.createdAt);
-            return dateB.getTime() - dateA.getTime();
-        });
-
-        return allVibes;
-
-    } catch (error) {
-        console.error("[getPublicVibes] CRITICAL ERROR fetching vibes:", error);
-        return [];
-    }
-}
-
-
 /**
  * Adds a new post to a Vibe and updates the Vibe's metadata.
  */
@@ -198,7 +159,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await getDocs(existingUsersQuery);
+        const existingUsersSnapshot = await existingUsersQuery.get();
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         // Create notifications for existing users
@@ -355,7 +316,6 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const now = new Date();
-        // Step 1: Get all public vibes
         const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
         if (publicVibesSnapshot.empty) {
             return [];
@@ -364,7 +324,6 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
         const publicVibeIds = publicVibesSnapshot.docs.map(doc => doc.id);
         const publicVibeTopics = new Map(publicVibesSnapshot.docs.map(doc => [doc.id, doc.data().topic || 'A Vibe']));
 
-        // Step 2: Get all upcoming parties that belong to these public vibes
         const allPublicParties: ClientParty[] = [];
         
         // Firestore 'in' query is limited to 30 items, so we might need to chunk if there are many public vibes.
@@ -375,7 +334,7 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
 
         for (const chunk of chunkedVibeIds) {
              const partiesQuery = db.collectionGroup('parties')
-                .where('__name__', 'in', chunk.map(id => `vibes/${id}/parties`)) // This is a trick to query subcollections of specific docs
+                .where(db.FieldPath.documentId(), 'in', chunk.map(id => `vibes/${id}/parties`)) // This is a trick to query subcollections of specific docs
                 .where('startTime', '>=', now);
             
             const partiesSnapshot = await db.collectionGroup('parties')
@@ -417,15 +376,15 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
     }
     
     try {
-        const now = new Date();
-        // Simplified query to avoid composite index
+        // Simplified query to avoid composite index by only filtering on one field.
         const partiesSnapshot = await db.collectionGroup('parties')
             .where('rsvps', 'array-contains', userId)
             .get();
         
         console.log(`[ACTION_DEBUG] Found ${partiesSnapshot.docs.length} raw party documents for user.`);
-
+        const now = new Date();
         const myParties: ClientParty[] = [];
+
         for (const doc of partiesSnapshot.docs) {
             const data = doc.data();
 
@@ -448,7 +407,7 @@ export async function getAllMyUpcomingParties(userId: string): Promise<ClientPar
             } as ClientParty);
         }
         
-        console.log(`[ACTION_DEBUG] Returning ${myParties.length} upcoming parties for user.`);
+        console.log(`[ACTION_DEBUG] Returning ${myParties.length} upcoming parties for user after date filtering.`);
         return myParties;
 
     } catch (error: any) {

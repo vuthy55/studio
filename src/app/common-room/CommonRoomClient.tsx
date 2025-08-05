@@ -429,23 +429,12 @@ export default function CommonRoomClient() {
     }, [userLocation, sortMode, processPartiesWithLocation]);
 
 
-    const { filteredPublicVibes, enrichedMyParties } = useMemo(() => {
-        console.log('[CLIENT_DEBUG] useMemo running. MyParties count:', myParties.length, 'AllVibes count:', allVibes.length); // DEBUG
+    const { filteredPublicVibes } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
-
-        const allVibesMap = new Map(allVibes.map(v => [v.id, v.topic]));
-        const myEnriched = myParties.map(p => ({
-            ...p,
-            vibeTopic: allVibesMap.get(p.vibeId) || p.vibeTopic,
-        }));
-        
-        console.log('[CLIENT_DEBUG] Enriched meetups count:', myEnriched.length); // DEBUG
-
         return {
             filteredPublicVibes: publicV,
-            enrichedMyParties: myEnriched,
         };
-    }, [allVibes, myParties]);
+    }, [allVibes]);
     
      const locationStatus = isLocationLoading ? 'loading' : userLocation ? 'success' : 'idle';
 
@@ -489,7 +478,7 @@ export default function CommonRoomClient() {
                          <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
                     </TabsContent>
                      <TabsContent value="my-meetups" className="mt-4">
-                        <PartyList parties={enrichedMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
+                        <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
                     </TabsContent>
                 </Tabs>
             )}
