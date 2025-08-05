@@ -594,15 +594,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
         const emailToDetails = new Map<string, { uid: string, name: string; isHost: boolean }>();
         const hostEmails = new Set(vibeData.hostEmails || []);
+        const blockedUserEmails = new Set((vibeData.blockedUsers || []).map(u => u.email.toLowerCase()));
 
         posts.forEach(post => {
             if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
-                 emailToDetails.set(lowerEmail, {
-                    uid: post.authorId,
-                    name: post.authorName,
-                    isHost: hostEmails.has(lowerEmail)
-                });
+                 // Only add user if they haven't been blocked
+                if (!blockedUserEmails.has(lowerEmail)) {
+                    emailToDetails.set(lowerEmail, {
+                        uid: post.authorId,
+                        name: post.authorName,
+                        isHost: hostEmails.has(lowerEmail)
+                    });
+                }
             }
         });
         
@@ -618,7 +622,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         
         const invitedList = (vibeData.invitedEmails || [])
             .map((e: string) => e.toLowerCase())
-            .filter((email: string) => !presentEmails.has(email));
+            .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
         
 
         return { presentParticipants: presentList, invitedButNotPresent: invitedList, allPresentUsersMap: emailToDetails };
@@ -687,7 +691,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     if (userLoading || vibeLoading) {
         return (
-            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+            <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
             </div>
         );
