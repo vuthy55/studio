@@ -720,7 +720,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 </SheetDescription>
                             </SheetHeader>
                             <div className="py-4 space-y-4">
-                                {isCurrentUserHost && !vibeData.isPublic && (
+                                {isCurrentUserHost && (
                                      <InviteDialog 
                                         vibeId={vibeId} 
                                         vibeTopic={vibeData.topic} 
@@ -860,8 +860,5 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
-    
-
-    
 
     
