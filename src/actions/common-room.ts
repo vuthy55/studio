@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
+import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, UserProfile } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 
 
@@ -159,7 +159,7 @@ export async function inviteToVibe(vibeId: string, emails: string[], vibeTopic: 
         
         // Find existing users to send in-app notifications
         const existingUsersQuery = db.collection('users').where('email', 'in', emails);
-        const existingUsersSnapshot = await getDocs(existingUsersQuery);
+        const existingUsersSnapshot = await existingUsersQuery.get();
         const existingEmails = new Set(existingUsersSnapshot.docs.map(d => d.data().email));
 
         // Create notifications for existing users
@@ -315,32 +315,33 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
-        const now = new Date();
+        const now = Timestamp.now();
         const publicVibesSnapshot = await db.collection('vibes').where('isPublic', '==', true).get();
         
         if (publicVibesSnapshot.empty) {
             return [];
         }
 
-        const allPublicParties: ClientParty[] = [];
-
-        for (const vibeDoc of publicVibesSnapshot.docs) {
+        const partyPromises = publicVibesSnapshot.docs.map(async (vibeDoc) => {
             const partiesSnapshot = await vibeDoc.ref.collection('parties')
                 .where('startTime', '>=', now)
                 .get();
 
-            partiesSnapshot.forEach(partyDoc => {
+            return partiesSnapshot.docs.map(partyDoc => {
                 const data = partyDoc.data();
-                allPublicParties.push({
+                return {
                     id: partyDoc.id,
                     vibeId: vibeDoc.id,
                     vibeTopic: vibeDoc.data().topic || 'A Vibe',
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                } as ClientParty);
+                } as ClientParty;
             });
-        }
+        });
+
+        const allPublicPartiesArrays = await Promise.all(partyPromises);
+        const allPublicParties = allPublicPartiesArrays.flat();
 
         allPublicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
@@ -353,59 +354,71 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
 }
 
 
+/**
+ * Securely fetches all meetups a user has RSVP'd to.
+ * It first finds all vibes the user is part of, then queries the parties subcollection for each.
+ * This avoids insecure collectionGroup queries.
+ * @param userId - The ID of the user.
+ * @returns A promise that resolves to an array of ClientParty objects.
+ */
 export async function getAllMyUpcomingParties(userId: string): Promise<ClientParty[]> {
     if (!userId) {
-        console.log("[DEBUG] getAllMyUpcomingParties: No userId provided.");
+        console.log("[SERVER_DEBUG] getAllMyUpcomingParties: No userId provided.");
         return [];
     }
     
     try {
-        const partiesSnapshot = await db.collectionGroup('parties')
-            .where('rsvps', 'array-contains', userId)
-            .get();
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            console.log(`[SERVER_DEBUG] User ${userId} not found.`);
+            return [];
+        }
+        const userEmail = userDoc.data()!.email;
         
-        console.log(`[DEBUG] getAllMyUpcomingParties: Found ${partiesSnapshot.size} parties where user ${userId} has RSVP'd.`);
-        
-        if (partiesSnapshot.empty) {
+        // Step 1: Get all vibes the user has access to (public and private invites)
+        const myVibes = await getMyVibes(userEmail);
+        const myVibeIds = myVibes.map(v => v.id);
+
+        console.log(`[SERVER_DEBUG] User ${userEmail} has access to ${myVibeIds.length} vibes.`);
+
+        if (myVibeIds.length === 0) {
             return [];
         }
 
-        const myParties: ClientParty[] = [];
+        const allMyParties: ClientParty[] = [];
 
-        for (const doc of partiesSnapshot.docs) {
-            const data = doc.data();
-            const vibeRef = doc.ref.parent.parent;
-            if (!vibeRef) {
-                console.log(`[DEBUG] Skipping party ${doc.id}, no parent Vibe ref.`);
-                continue;
-            }
-
-            const vibeDoc = await vibeRef.get();
-            if (!vibeDoc.exists) {
-                 console.log(`[DEBUG] Skipping party ${doc.id}, parent Vibe ${vibeRef.id} does not exist.`);
-                continue;
-            }
+        // Step 2: Query the parties subcollection for each accessible vibe
+        const partyPromises = myVibes.map(async (vibe) => {
+            const partiesSnapshot = await db.collection('vibes').doc(vibe.id).collection('parties')
+                .where('rsvps', 'array-contains', userId)
+                .get();
             
-            const vibeData = vibeDoc.data()!;
+            return partiesSnapshot.docs.map(partyDoc => {
+                const data = partyDoc.data();
+                return {
+                    id: partyDoc.id,
+                    vibeId: vibe.id,
+                    vibeTopic: vibe.topic || 'A Vibe',
+                    ...data,
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                } as ClientParty;
+            });
+        });
 
-            myParties.push({
-                id: doc.id,
-                vibeId: vibeRef.id,
-                vibeTopic: vibeData.topic || 'A Vibe',
-                ...data,
-                startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                endTime: (data.endTime as Timestamp).toDate().toISOString(),
-            } as ClientParty);
-        }
-        
-        console.log(`[DEBUG] getAllMyUpcomingParties: Processed and returning ${myParties.length} parties.`);
-        return myParties;
+        const partiesByVibe = await Promise.all(partyPromises);
+        const flattenedParties = partiesByVibe.flat();
+
+        console.log(`[SERVER_DEBUG] Found a total of ${flattenedParties.length} parties the user has RSVP'd to.`);
+
+        return flattenedParties;
 
     } catch (error: any) {
-        console.error("[ACTION_DEBUG] Error fetching all my upcoming parties:", error);
+        console.error("[SERVER_DEBUG] Error in getAllMyUpcomingParties:", error);
         return [];
     }
 }
+
 
 
 export async function editMeetup(vibeId: string, partyId: string, updates: Partial<Party>, editorName: string): Promise<{ success: boolean; error?: string }> {
