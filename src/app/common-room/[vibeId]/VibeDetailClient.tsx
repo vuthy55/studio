@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -653,6 +653,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
         }
     };
+
+    const handleCopyInviteLink = (email: string) => {
+        if (!user) return;
+        const joinUrl = `${window.location.origin}/join-vibe/${vibeId}?ref=${user.uid}`;
+        navigator.clipboard.writeText(joinUrl);
+        toast({ title: 'Link Copied!', description: `Invite link for ${email} is on your clipboard.` });
+    };
     
     const handleRsvp = async (partyId: string, isRsvping: boolean) => {
         if (!user) return;
@@ -763,11 +770,28 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                     <div className="space-y-2">
                                         <h4 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground"><UserX/> Invited ({invitedButNotPresent.length})</h4>
                                         {invitedButNotPresent.map((email) => (
-                                            <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                                            <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted/50 group">
                                                 <Avatar className="h-8 w-8 opacity-70">
                                                     <AvatarFallback>{email.charAt(0).toUpperCase()}</AvatarFallback>
                                                 </Avatar>
-                                                <span className="font-medium text-sm text-muted-foreground">{email}</span>
+                                                <span className="font-medium text-sm text-muted-foreground flex-1 truncate">{email}</span>
+                                                 {isCurrentUserHost && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button 
+                                                                    size="icon" 
+                                                                    variant="ghost" 
+                                                                    className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                                                    onClick={() => handleCopyInviteLink(email)}
+                                                                >
+                                                                    <Copy className="h-4 w-4 text-primary" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Copy Invite Link</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
