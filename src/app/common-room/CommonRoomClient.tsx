@@ -104,65 +104,6 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: ClientParty[], title: string }) {
-    if (vibes.length === 0) {
-        return (
-             <div className="space-y-4">
-                <h3 className="font-bold text-xl">{title}</h3>
-                <div className="text-muted-foreground text-sm text-center py-8 space-y-2">
-                    <p className="font-semibold">No vibes here yet.</p>
-                </div>
-            </div>
-        );
-    }
-    
-    return (
-        <div className="space-y-4">
-            <h3 className="font-bold text-xl">{title}</h3>
-            {vibes.map(vibe => {
-                 const activeMeetup = vibe.activeMeetupId ? parties.find(p => p.id === vibe.activeMeetupId) : null;
-                return (
-                    <Link key={vibe.id} href={`/common-room/${vibe.id}`} className="block">
-                        <Card className="hover:border-primary transition-colors">
-                            <CardContent className="p-4 space-y-2">
-                                {activeMeetup && (
-                                    <div className="p-2 bg-primary/10 rounded-md border-l-4 border-primary">
-                                        <p className="font-bold text-sm text-primary flex items-center gap-1.5"><Calendar className="h-4 w-4"/> Upcoming Meetup</p>
-                                        <p className="text-sm text-primary/90 font-medium truncate">{activeMeetup.title}</p>
-                                        <p className="text-xs text-primary/80">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
-                                    </div>
-                                )}
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h4 className="font-semibold">{vibe.topic}</h4>
-                                        <p className="text-sm text-muted-foreground">
-                                            Started by {vibe.creatorName}
-                                        </p>
-                                    </div>
-                                    <Badge variant={vibe.isPublic ? 'secondary' : 'default'}>
-                                        {vibe.isPublic ? 'Public' : 'Private'}
-                                    </Badge>
-                                </div>
-                                
-                                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                                    <div className="flex items-center gap-1">
-                                        <MessageSquare className="h-3 w-3" />
-                                        <span>{vibe.postsCount || 0} posts</span>
-                                    </div>
-                                    <span>
-                                        {vibe.lastPostAt ? `Last post ${formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}` : `Created ${formatDistanceToNow(new Date(vibe.createdAt), { addSuffix: true })}`}
-                                    </span>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-                )
-            })}
-        </div>
-    );
-}
-
-
 function PartyList({ parties, title, locationStatus }: { parties: ClientParty[], title: string, locationStatus: 'loading' | 'denied' | 'success' | 'unavailable' }) {
     return (
         <div className="space-y-4">
@@ -215,28 +156,26 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
-function degToRad(deg: number): number {
-  return deg * (Math.PI / 180);
-}
-
+// Corrected Haversine distance calculation
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     if (!startCoords || !destCoords) {
         return Infinity;
     }
     const R = 6371; // Radius of the Earth in kilometers
 
-    const dLat = degToRad(destCoords.lat - startCoords.lat);
-    const dLon = degToRad(destCoords.lon - startCoords.lon);
+    const toRad = (value: number) => (value * Math.PI) / 180;
 
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(degToRad(startCoords.lat)) * Math.cos(degToRad(destCoords.lat)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distance in km
+    const dLat = toRad(destCoords.lat - startCoords.lat);
+    const dLon = toRad(destCoords.lon - startCoords.lon);
     
-    return distance;
+    const lat1 = toRad(startCoords.lat);
+    const lat2 = toRad(destCoords.lat);
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+    
+    return R * c;
 }
 
 
