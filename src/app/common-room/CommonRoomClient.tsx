@@ -156,25 +156,27 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
     );
 }
 
-// Corrected Haversine distance calculation
+/**
+ * Version 3: A standard and correct implementation of the Haversine formula.
+ */
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     if (!startCoords || !destCoords) {
         return Infinity;
     }
+
     const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (destCoords.lat - startCoords.lat) * (Math.PI / 180);
+    const dLon = (destCoords.lon - startCoords.lon) * (Math.PI / 180);
 
-    const toRad = (value: number) => (value * Math.PI) / 180;
+    const lat1 = startCoords.lat * (Math.PI / 180);
+    const lat2 = destCoords.lat * (Math.PI / 180);
 
-    const dLat = toRad(destCoords.lat - startCoords.lat);
-    const dLon = toRad(destCoords.lon - startCoords.lon);
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
     
-    const lat1 = toRad(startCoords.lat);
-    const lat2 = toRad(destCoords.lat);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
-    
     return R * c;
 }
 
@@ -416,3 +418,57 @@ export default function CommonRoomClient() {
         </div>
     )
 }
+
+function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: ClientParty[], title: string }) {
+    
+    const getActiveMeetup = (vibe: ClientVibe) => {
+        return parties.find(p => p.vibeId === vibe.id);
+    }
+    
+    return (
+        <div className="space-y-4">
+            <h3 className="font-bold text-xl">{title}</h3>
+            {vibes.length === 0 ? (
+                <div className="text-muted-foreground text-sm text-center py-8">
+                    <p>No vibes found here.</p>
+                </div>
+            ) : (
+                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {vibes.map(vibe => {
+                        const activeMeetup = getActiveMeetup(vibe);
+                        return (
+                            <Link href={`/common-room/${vibe.id}`} key={vibe.id} className="block">
+                                <Card className="hover:border-primary/50 transition-colors h-full flex flex-col">
+                                    <CardHeader>
+                                        <CardTitle className="text-lg">{vibe.topic}</CardTitle>
+                                        <CardDescription>
+                                            {vibe.postsCount} posts
+                                            {vibe.lastPostAt && (
+                                                <> &middot; Last post {formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true })}</>
+                                            )}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="flex-grow flex flex-col justify-end">
+                                        {activeMeetup ? (
+                                             <div className="p-2 bg-primary/10 rounded-md text-sm">
+                                                <p className="font-bold text-primary flex items-center gap-2"><Calendar className="h-4 w-4"/> Upcoming Meetup</p>
+                                                <p className="font-semibold text-primary/90">{activeMeetup.title}</p>
+                                                <p className="text-xs text-primary/80">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
+                                             </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <UsersIcon className="h-4 w-4 text-muted-foreground"/>
+                                                <span className="text-sm text-muted-foreground">{vibe.invitedEmails.length} member(s)</span>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
