@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -147,13 +147,19 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                     ) : (
                         <DialogTitle>{meetup.title}</DialogTitle>
                     )}
-                    <DialogDescription>
+                    <DialogDescription className="space-y-1 pt-1">
                          {isEditing ? (
                             <Input value={editableMeetup.location} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
                          ) : (
+                            <>
                             <a href={meetup.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
                                 <MapPin className="h-4 w-4" /> Location
                             </a>
+                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Calendar className="h-4 w-4" />
+                                <span>{format(new Date(meetup.startTime), 'MMM d, h:mm a')}</span>
+                             </div>
+                            </>
                          )}
                     </DialogDescription>
                 </DialogHeader>
@@ -294,7 +300,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={startTime} onSelect={setStartTime} />
+                                    <CalendarPicker mode="single" selected={startTime} onSelect={setStartTime} />
                                      <div className="p-3 border-t border-border">
                                         <div className="flex items-center gap-2">
                                             <Select
@@ -347,7 +353,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={endTime} onSelect={setEndTime} />
+                                    <CalendarPicker mode="single" selected={endTime} onSelect={setEndTime} />
                                      <div className="p-3 border-t border-border">
                                         <div className="flex items-center gap-2">
                                             <Select
