@@ -267,6 +267,7 @@ export default function CommonRoomClient() {
     const [myParties, setMyParties] = useState<ClientParty[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     
     // Location & Sorting states
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -310,6 +311,7 @@ export default function CommonRoomClient() {
             toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
         } finally {
             setIsLoading(false);
+            setHasLoadedOnce(true);
         }
     }, [user, toast]);
     
@@ -343,6 +345,9 @@ export default function CommonRoomClient() {
     }, []);
 
     const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }) => {
+        // Guard against running this on initial empty arrays
+        if (!hasLoadedOnce) return;
+
         setIsProcessingLocation(true);
         try {
             const processList = async (list: ClientParty[]) => {
@@ -370,7 +375,7 @@ export default function CommonRoomClient() {
         } finally {
             setIsProcessingLocation(false);
         }
-    }, [publicParties, myParties, extractCoordsFromUrl, toast]);
+    }, [publicParties, myParties, extractCoordsFromUrl, toast, hasLoadedOnce]);
 
 
     const handleSortByDistance = (shouldEnable: boolean) => {
