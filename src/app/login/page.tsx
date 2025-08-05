@@ -48,12 +48,17 @@ function LoginPageContent() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
+  const redirectUrl = useMemo(() => searchParams.get('redirect'), [searchParams]);
 
   useEffect(() => {
-      if (!authLoading && user) {
+    if (!authLoading && user) {
+      if (redirectUrl) {
+        router.push(redirectUrl);
+      } else {
         router.push('/synchub');
       }
-  }, [user, authLoading, router]);
+    }
+  }, [user, authLoading, router, redirectUrl]);
 
   useEffect(() => {
     getAppSettingsAction().then(setSettings);
