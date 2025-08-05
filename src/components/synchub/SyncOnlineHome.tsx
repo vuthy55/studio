@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -555,8 +554,8 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
     )
 }
 
-function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; user: any; onUpdate: () => void }) {
-    const { toast, dismiss } = useToast();
+function ManageRoomDialog({ room, user, onUpdate, onEdit }: { room: InvitedRoomClient; user: any; onUpdate: () => void; onEdit: (room: InvitedRoomClient) => void; }) {
+    const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
@@ -604,52 +603,38 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
                 </DialogHeader>
                 
                 <div className="py-4 space-y-4">
-                    {room.status === 'scheduled' ? (
-                         <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">This room is scheduled. You can cancel and delete it, which will notify participants.</p>
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={isActionLoading}>
-                                        {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                        Cancel and Delete Room
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will permanently delete the room and notify invited participants.
-                                            {(room.initialCost ?? 0) > 0 && 
-                                                <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
-                                            }
-                                            This action cannot be undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Go Back</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handlePermanentDelete}>Confirm Cancellation</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-                    ) : room.status === 'closed' ? (
-                         <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">This room is closed.</p>
-                        </div>
-                    ) : ( // Active rooms
-                        <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">This room is active. Closing it will end the session for all users.</p>
-                            <div className="flex flex-col gap-2">
-                                 <Button onClick={handleEndAndReconcile} disabled={isActionLoading} variant="destructive">
-                                    {isActionLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                                    End Meeting & Reconcile
-                                </Button>
-                            </div>
-                        </div>
+                    {room.status === 'scheduled' && (
+                        <Button variant="outline" onClick={() => { onEdit(room); setIsOpen(false); }}>
+                            <Edit className="mr-2 h-4 w-4"/> Edit Schedule & Participants
+                        </Button>
                     )}
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isActionLoading}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {room.status === 'scheduled' ? 'Cancel and Delete Room' : 'Permanently Delete Room'}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete the room and notify invited participants.
+                                    {(room.initialCost ?? 0) > 0 && 
+                                        <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
+                                    }
+                                    This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Go Back</AlertDialogCancel>
+                                <AlertDialogAction onClick={handlePermanentDelete}>Confirm Deletion</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
                 <DialogFooter>
-                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <DialogClose asChild><Button variant="ghost">Close</Button></DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -663,141 +648,10 @@ export default function SyncOnlineHome() {
     const { startTour } = useTour();
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    // Form State
-    const [roomTopic, setRoomTopic] = useState('');
-    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>(userProfile?.defaultLanguage || '');
-    const [inviteeEmails, setInviteeEmails] = useState('');
-    const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
-    const [duration, setDuration] = useState(30);
-    const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
-    const [startNow, setStartNow] = useState(false);
-    const [friends, setFriends] = useState<UserProfile[]>([]);
-
-    
-    // Edit Mode State
-    const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
-    const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
-
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoomClient[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('active');
-    
-    const { settings } = useUserData();
-    
-    const fetchFriends = useCallback(async () => {
-        if (userProfile?.friends && userProfile.friends.length > 0) {
-            const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
-            const snapshot = await getDocs(friendsQuery);
-            const friendsDetails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
-            setFriends(friendsDetails);
-        } else {
-            setFriends([]);
-        }
-    }, [userProfile?.friends]);
-
-    useEffect(() => {
-        if (activeMainTab === 'schedule') {
-            fetchFriends();
-        }
-    }, [activeMainTab, fetchFriends]);
-
-    // Defer date initialization to client-side to avoid hydration mismatch
-    useEffect(() => {
-        if (activeMainTab !== 'schedule') return;
-        if (!isEditMode) {
-             const defaultDate = new Date();
-            defaultDate.setMinutes(defaultDate.getMinutes() + 30);
-            defaultDate.setSeconds(0);
-            defaultDate.setMilliseconds(0);
-            setScheduledDate(defaultDate);
-        } else if (editingRoom?.scheduledAt) {
-            const scheduled = editingRoom.scheduledAt;
-            if (scheduled && typeof scheduled === 'string') {
-                setScheduledDate(new Date(scheduled));
-            }
-        }
-    }, [activeMainTab, isEditMode, editingRoom]);
-
-
-     const resetForm = useCallback(() => {
-        const defaultDate = new Date();
-        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
-        defaultDate.setSeconds(0);
-        defaultDate.setMilliseconds(0);
-        
-        setRoomTopic('');
-        setCreatorLanguage(userProfile?.defaultLanguage || '');
-        setInviteeEmails('');
-        setEmceeEmails(user?.email ? [user.email] : []);
-        setDuration(30);
-        setScheduledDate(defaultDate);
-        setStartNow(false);
-        setEditingRoom(null);
-    }, [user?.email, userProfile?.defaultLanguage]);
-
-     useEffect(() => {
-        if (activeMainTab === 'schedule' && !isEditMode) {
-             resetForm();
-        }
-    }, [activeMainTab, isEditMode, resetForm]);
-    
-     useEffect(() => {
-        if (userProfile?.defaultLanguage && !creatorLanguage) {
-            setCreatorLanguage(userProfile.defaultLanguage);
-        }
-    }, [userProfile?.defaultLanguage, creatorLanguage]);
-
-     useEffect(() => {
-        if (isEditMode && editingRoom) {
-            setRoomTopic(editingRoom.topic);
-            setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
-            setEmceeEmails(editingRoom.emceeEmails);
-            setDuration(editingRoom.durationMinutes || 30);
-            setStartNow(false); // "Start Now" is not applicable for editing
-            
-            const scheduled = editingRoom.scheduledAt;
-            if (scheduled && typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
-                setScheduledDate(new Date(scheduled));
-            } else {
-                 setScheduledDate(new Date());
-            }
-        }
-    }, [editingRoom, isEditMode, user?.email]);
-
-
-    const parsedInviteeEmails = useMemo(() => {
-        return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
-    }, [inviteeEmails]);
-
-    const allInvitedEmailsForCalc = useMemo(() => {
-        return [...new Set([user?.email, ...parsedInviteeEmails].filter(Boolean) as string[])];
-    }, [parsedInviteeEmails, user?.email]);
-
-    const calculatedCost = useMemo(() => {
-        if (!settings || !userProfile) return 0;
-        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
-        const currentUsageMs = userProfile.syncOnlineUsage || 0;
-        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
-        const remainingFreeMinutes = Math.floor(remainingFreeMs / 60000);
-        
-        const billableMinutes = Math.max(0, duration - remainingFreeMinutes);
-        
-        return billableMinutes * (settings.costPerSyncOnlineMinute || 1) * allInvitedEmailsForCalc.length;
-    }, [settings, duration, allInvitedEmailsForCalc.length, userProfile]);
-
-    const costDifference = useMemo(() => {
-        if (!isEditMode || !editingRoom) return 0;
-        return calculatedCost - (editingRoom.initialCost || 0);
-    }, [isEditMode, editingRoom, calculatedCost]);
-    
-     const toggleEmcee = (email: string) => {
-        setEmceeEmails(prev => 
-            prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
-        );
-    };
+    const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
 
     const fetchInvitedRooms = useCallback(async () => {
         if (!user || !user.email) {
@@ -883,138 +737,6 @@ export default function SyncOnlineHome() {
         setEditingRoom(room);
         setActiveMainTab('schedule');
     };
-    
-    const handleOpenScheduleTab = () => {
-        setEditingRoom(null);
-        setActiveMainTab('schedule');
-    }
-
-    const handleSubmitRoom = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || !user.email || !userProfile || !settings) {
-            toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create or edit a room.' });
-            return;
-        }
-        
-        const requiredFields = (isEditMode || startNow) ? [roomTopic] : [roomTopic, creatorLanguage, scheduledDate];
-        if (requiredFields.some(f => !f)) {
-            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
-            return;
-        }
-
-        const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
-
-        if (settings && allInvitedEmails.length > settings.maxUsersPerRoom) {
-            toast({
-                variant: 'destructive',
-                title: 'Participant Limit Exceeded',
-                description: `You can invite a maximum of ${settings.maxUsersPerRoom - 1} other participants (total ${settings.maxUsersPerRoom}).`,
-            });
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            const finalScheduledDate = startNow ? new Date() : scheduledDate!;
-            
-            if (isEditMode && editingRoom) {
-                 if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
-                    toast({ variant: "destructive", title: "Insufficient Tokens", description: `You need ${calculatedCost - ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0))} more tokens.` });
-                    setIsSubmitting(false);
-                    return;
-                }
-                const result = await updateScheduledRoom({
-                    roomId: editingRoom.id,
-                    userId: user.uid,
-                    updates: {
-                        topic: roomTopic,
-                        scheduledAt: finalScheduledDate.toISOString(),
-                        durationMinutes: duration,
-                        invitedEmails: allInvitedEmails,
-                        emceeEmails: [...new Set(emceeEmails)],
-                    },
-                    newCost: calculatedCost
-                });
-                if(result.success) {
-                    toast({ title: "Room Updated!", description: "Your changes have been saved." });
-                } else {
-                     toast({ variant: "destructive", title: "Update Failed", description: result.error });
-                }
-            } else {
-                 if ((userProfile.tokenBalance || 0) < calculatedCost) {
-                    toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
-                    setIsSubmitting(false);
-                    return;
-                }
-                const newRoomRef = doc(collection(db, 'syncRooms'));
-                const batch = writeBatch(db);
-                const userDocRef = doc(db, 'users', user.uid);
-                
-                const newRoom: Omit<SyncRoom, 'id'> = {
-                    topic: roomTopic,
-                    creatorUid: user.uid,
-                    creatorName: user.displayName || user.email?.split('@')[0] || 'Creator',
-                    createdAt: serverTimestamp(),
-                    status: startNow ? 'active' : 'scheduled',
-                    invitedEmails: allInvitedEmails,
-                    emceeEmails: [...new Set(emceeEmails)],
-                    blockedUsers: [],
-                    lastActivityAt: serverTimestamp(),
-                    scheduledAt: Timestamp.fromDate(finalScheduledDate),
-                    durationMinutes: duration,
-                    initialCost: calculatedCost,
-                    hasStarted: startNow,
-                    reminderMinutes: settings.roomReminderMinutes,
-                };
-                batch.set(newRoomRef, newRoom);
-                
-                if (calculatedCost > 0) {
-                    batch.update(userDocRef, { tokenBalance: increment(-calculatedCost) });
-                    const logRef = doc(collection(userDocRef, 'transactionLogs'));
-                    batch.set(logRef, {
-                        actionType: 'live_sync_online_spend',
-                        tokenChange: -calculatedCost,
-                        timestamp: serverTimestamp(),
-                        description: `Pre-paid for room: "${roomTopic}"`
-                    });
-                }
-                
-                const freeMinutesToDeduct = Math.min(duration, Math.floor(Math.max(0, (settings?.freeSyncOnlineMinutes || 0) * 60 * 1000 - (userProfile.syncOnlineUsage || 0)) / 60000));
-                if(freeMinutesToDeduct > 0) {
-                     batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
-                }
-                
-                await batch.commit();
-
-                // Send email invites, which will also handle in-app notifications on the server
-                if (parsedInviteeEmails.length > 0) {
-                    await sendRoomInviteEmail({
-                        to: parsedInviteeEmails,
-                        roomTopic: roomTopic,
-                        fromName: user.displayName || 'A user',
-                        roomId: newRoomRef.id,
-                        scheduledAt: finalScheduledDate,
-                        joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
-                    });
-                }
-                
-                toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
-                
-                if (startNow) {
-                    router.push(`/sync-room/${newRoomRef.id}`);
-                }
-            }
-            
-            fetchInvitedRooms();
-            setActiveMainTab('your-rooms');
-
-        } catch (error) {
-            console.error("Error submitting room:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not submit the room." });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
 
     const handleUnblockUser = useCallback(async (room: InvitedRoomClient, userToUnblock: any) => {
         try {
@@ -1062,18 +784,6 @@ export default function SyncOnlineHome() {
         navigator.clipboard.writeText(link);
         toast({ title: 'Invite Link Copied!', description: 'You can now share this link with anyone.' });
     };
-
-    const toggleFriendInvite = (friend: UserProfile) => {
-        if (!friend.email) return;
-        const currentEmails = new Set(parsedInviteeEmails);
-        if (currentEmails.has(friend.email)) {
-            currentEmails.delete(friend.email);
-        } else {
-            currentEmails.add(friend.email);
-        }
-        setInviteeEmails(Array.from(currentEmails).join(', '));
-    };
-
 
     const renderRoomList = (rooms: InvitedRoomClient[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
@@ -1142,17 +852,13 @@ export default function SyncOnlineHome() {
                                         <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
                                     )}
 
-                                    {isCreator && room.status === 'scheduled' && (
-                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
-                                    )}
-
                                     {room.summary && (
                                         <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
                                     )}
                                     
                                     {isCreator && (
                                         <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} onEdit={handleOpenEditDialog} />
                                         </div>
                                     )}
 
@@ -1209,7 +915,7 @@ export default function SyncOnlineHome() {
 
     return (
         <div className="space-y-6">
-            <Card>
+             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
                     <CardDescription>
@@ -1217,8 +923,12 @@ export default function SyncOnlineHome() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+                        <Button data-tour="so-schedule-button" onClick={() => setActiveMainTab('schedule')}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Schedule a Room
+                        </Button>
+                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg" variant="outline">
                             <HelpCircle className="mr-2" />
                             Take a Tour
                         </Button>
@@ -1229,7 +939,7 @@ export default function SyncOnlineHome() {
             <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule" data-tour="so-schedule-button">Schedule a Room</TabsTrigger>
+                    <TabsTrigger value="schedule">{isEditMode ? 'Edit Room' : 'Schedule a Room'}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">
                     {user && (
@@ -1445,7 +1155,7 @@ export default function SyncOnlineHome() {
                                 </div>
                             </form>
                         </CardContent>
-                        <CardFooter className="flex justify-end gap-2">
+                        <CardFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
                              {isEditMode ? (
                                 <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
                             ) : null}
@@ -1469,3 +1179,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
