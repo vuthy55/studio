@@ -655,19 +655,16 @@ function ManageRoomDialog({ room, user, onUpdate }: { room: InvitedRoomClient; u
     )
 }
 
-export default function SyncOnlineHome() {
-    const { user, userProfile, loading } = useUserData();
+function ScheduleRoomDialog({ onRoomSubmitted, editingRoom, setEditingRoom }: { onRoomSubmitted: () => void, editingRoom: InvitedRoomClient | null, setEditingRoom: (room: InvitedRoomClient | null) => void }) {
+    const { user, userProfile, settings } = useUserData();
     const router = useRouter();
     const { toast } = useToast();
-    const { startTour } = useTour();
-    
-    const [activeMainTab, setActiveMainTab] = useState('your-rooms');
-
+    const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
-    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>(userProfile?.defaultLanguage || '');
+    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>('');
     const [inviteeEmails, setInviteeEmails] = useState('');
     const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
     const [duration, setDuration] = useState(30);
@@ -675,17 +672,15 @@ export default function SyncOnlineHome() {
     const [startNow, setStartNow] = useState(false);
     const [friends, setFriends] = useState<UserProfile[]>([]);
 
-    
-    // Edit Mode State
-    const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
     const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
 
-    const [invitedRooms, setInvitedRooms] = useState<InvitedRoomClient[]>([]);
-    const [isFetchingRooms, setIsFetchingRooms] = useState(true);
-    const [activeRoomTab, setActiveRoomTab] = useState('active');
-    
-    const { settings } = useUserData();
-    
+     useEffect(() => {
+        if (user?.email) {
+            setEmceeEmails([user.email]);
+        }
+    }, [user?.email, isOpen]);
+
+
     const fetchFriends = useCallback(async () => {
         if (userProfile?.friends && userProfile.friends.length > 0) {
             const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
@@ -698,29 +693,11 @@ export default function SyncOnlineHome() {
     }, [userProfile?.friends]);
 
     useEffect(() => {
-        if (activeMainTab === 'schedule') {
+        if (isOpen) {
             fetchFriends();
         }
-    }, [activeMainTab, fetchFriends]);
-
-    // Defer date initialization to client-side to avoid hydration mismatch
-    useEffect(() => {
-        if (activeMainTab !== 'schedule') return;
-        if (!isEditMode) {
-             const defaultDate = new Date();
-            defaultDate.setMinutes(defaultDate.getMinutes() + 30);
-            defaultDate.setSeconds(0);
-            defaultDate.setMilliseconds(0);
-            setScheduledDate(defaultDate);
-        } else if (editingRoom?.scheduledAt) {
-            const scheduled = editingRoom.scheduledAt;
-            if (scheduled && typeof scheduled === 'string') {
-                setScheduledDate(new Date(scheduled));
-            }
-        }
-    }, [activeMainTab, isEditMode, editingRoom]);
-
-
+    }, [isOpen, fetchFriends]);
+    
      const resetForm = useCallback(() => {
         const defaultDate = new Date();
         defaultDate.setMinutes(defaultDate.getMinutes() + 30);
@@ -735,13 +712,14 @@ export default function SyncOnlineHome() {
         setScheduledDate(defaultDate);
         setStartNow(false);
         setEditingRoom(null);
-    }, [user?.email, userProfile?.defaultLanguage]);
-
-     useEffect(() => {
-        if (activeMainTab === 'schedule' && !isEditMode) {
-             resetForm();
+    }, [user?.email, userProfile?.defaultLanguage, setEditingRoom]);
+    
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open);
+        if (!open) {
+            resetForm();
         }
-    }, [activeMainTab, isEditMode, resetForm]);
+    }
     
      useEffect(() => {
         if (userProfile?.defaultLanguage && !creatorLanguage) {
@@ -751,11 +729,12 @@ export default function SyncOnlineHome() {
 
      useEffect(() => {
         if (isEditMode && editingRoom) {
+            setIsOpen(true);
             setRoomTopic(editingRoom.topic);
             setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
             setEmceeEmails(editingRoom.emceeEmails);
             setDuration(editingRoom.durationMinutes || 30);
-            setStartNow(false); // "Start Now" is not applicable for editing
+            setStartNow(false); 
             
             const scheduled = editingRoom.scheduledAt;
             if (scheduled && typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
@@ -797,96 +776,6 @@ export default function SyncOnlineHome() {
             prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
         );
     };
-
-    const fetchInvitedRooms = useCallback(async () => {
-        if (!user || !user.email) {
-            setInvitedRooms([]);
-            setIsFetchingRooms(false);
-            return;
-        }
-        setIsFetchingRooms(true);
-        try {
-            const roomsRef = collection(db, 'syncRooms');
-            const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
-            const querySnapshot = await getDocs(q);
-            const roomsData: InvitedRoomClient[] = querySnapshot.docs
-                .map(docSnapshot => {
-                    const data = docSnapshot.data() as SyncRoom;
-                     const toISO = (ts: any): string => {
-                        if (!ts) return new Date(0).toISOString();
-                        if (ts instanceof Timestamp) {
-                            return ts.toDate().toISOString();
-                        }
-                        if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) {
-                            return ts;
-                        }
-                        if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
-                             return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
-                        }
-                        return new Date(0).toISOString();
-                    };
-
-                    return {
-                        id: docSnapshot.id,
-                        topic: data.topic,
-                        creatorUid: data.creatorUid,
-                        creatorName: data.creatorName,
-                        createdAt: toISO(data.createdAt),
-                        status: data.status,
-                        invitedEmails: data.invitedEmails,
-                        emceeEmails: data.emceeEmails,
-                        lastActivityAt: toISO(data.lastActivityAt),
-                        blockedUsers: data.blockedUsers,
-                        summary: data.summary,
-                        transcript: data.transcript,
-                        scheduledAt: toISO(data.scheduledAt),
-                        durationMinutes: data.durationMinutes,
-                        initialCost: data.initialCost,
-                        paymentLogId: data.paymentLogId,
-                        hasStarted: data.hasStarted,
-                        reminderMinutes: data.reminderMinutes,
-                        firstMessageAt: toISO(data.firstMessageAt),
-                    };
-                })
-                .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
-            
-            setInvitedRooms(roomsData);
-        } catch (error: any) {
-            console.error("Error fetching invited rooms:", error);
-            if (error.code === 'failed-precondition') {
-                 toast({ 
-                    variant: "destructive", 
-                    title: "Error: Missing Index", 
-                    description: "A Firestore index is required. Please check the browser console for a link to create it.",
-                    duration: 10000
-                });
-                console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
-            } else {
-                toast({ variant: 'destructive', title: 'Could not fetch rooms', description: 'There was an error fetching your room invitations.' });
-            }
-        } finally {
-            setIsFetchingRooms(false);
-        }
-    }, [user, toast]);
-
-    useEffect(() => {
-        if (user) {
-            fetchInvitedRooms();
-        } else if (!loading) {
-             setIsFetchingRooms(false);
-             setInvitedRooms([]);
-        }
-    }, [user, loading, fetchInvitedRooms]);
-    
-    const handleOpenEditDialog = (room: InvitedRoomClient) => {
-        setEditingRoom(room);
-        setActiveMainTab('schedule');
-    };
-    
-    const handleOpenScheduleTab = () => {
-        setEditingRoom(null);
-        setActiveMainTab('schedule');
-    }
 
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1004,8 +893,8 @@ export default function SyncOnlineHome() {
                 }
             }
             
-            fetchInvitedRooms();
-            setActiveMainTab('your-rooms');
+            handleOpenChange(false);
+            onRoomSubmitted();
 
         } catch (error) {
             console.error("Error submitting room:", error);
@@ -1013,6 +902,321 @@ export default function SyncOnlineHome() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+    
+    const toggleFriendInvite = (friend: UserProfile) => {
+        if (!friend.email) return;
+        const currentEmails = new Set(parsedInviteeEmails);
+        if (currentEmails.has(friend.email)) {
+            currentEmails.delete(friend.email);
+        } else {
+            currentEmails.add(friend.email);
+        }
+        setInviteeEmails(Array.from(currentEmails).join(', '));
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+             <DialogTrigger asChild>
+                <Button data-tour="so-schedule-button">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Schedule a Room
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                 <DialogHeader>
+                    <DialogTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</DialogTitle>
+                    <DialogDescription>Set the details for your meeting. The cost will be calculated and displayed below.</DialogDescription>
+                </DialogHeader>
+                <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="topic">Room Topic</Label>
+                        <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                    </div>
+                        {!isEditMode && (
+                        <div className="space-y-2">
+                            <Label htmlFor="language">Your Spoken Language</Label>
+                            <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                                <SelectTrigger id="language">
+                                    <SelectValue placeholder="Select language..." />
+                                </SelectTrigger>
+                                <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    {!isEditMode && (
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                            <Label htmlFor="start-now">Start meeting immediately</Label>
+                        </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="duration">Duration (minutes)</Label>
+                            <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                                <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                                <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                        {!startNow && (
+                        <div className="space-y-2">
+                            <Label>Date &amp; Time</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                    <div className="p-3 border-t border-border">
+                                        <div className="flex items-center gap-2">
+                                            <Select
+                                                value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setScheduledDate(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setHours(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            :
+                                            <Select
+                                                    value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                onValueChange={(value) => {
+                                                    setScheduledDate(d => {
+                                                        const newDate = d ? new Date(d) : new Date();
+                                                        newDate.setMinutes(parseInt(value));
+                                                        return newDate;
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    {['00', '15', '30', '45'].map(minute => (
+                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                            )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                        <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                    </div>
+                        {friends.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>Or Select Friends</Label>
+                            <ScrollArea className="max-h-32 border rounded-md">
+                                <div className="p-4 space-y-2">
+                                    {friends.map(friend => (
+                                        <div key={friend.id} className="flex items-center space-x-2">
+                                            <Checkbox 
+                                                id={`friend-${friend.id}`}
+                                                checked={parsedInviteeEmails.includes(friend.email)}
+                                                onCheckedChange={() => toggleFriendInvite(friend)}
+                                            />
+                                            <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
+                                                <span>{friend.name}</span>
+                                                <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    )}
+                    
+                    <div className="space-y-3">
+                        <Separator/>
+                        <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
+                        <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                            {allInvitedEmailsForCalc.length > 0 ? (
+                                allInvitedEmailsForCalc.map(email => (
+                                    <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                                ))
+                            ) : (
+                                <p>Just you so far!</p>
+                            )}
+                        </div></ScrollArea>
+                    </div>
+
+                    {allInvitedEmailsForCalc.length > 1 && (
+                        <div className="space-y-3">
+                            <Separator/>
+                            <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
+                            <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                                {allInvitedEmailsForCalc.map(email => (
+                                    <div key={email} className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={email} 
+                                            checked={emceeEmails.includes(email)} 
+                                            onCheckedChange={() => toggleEmcee(email)}
+                                            disabled={email === user?.email}
+                                        />
+                                        <Label htmlFor={email} className="font-normal w-full truncate">
+                                            {email} {email === user?.email && '(Creator)'}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div></ScrollArea>
+                        </div>
+                    )}
+                    <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                        {isEditMode ? (
+                            <>
+                                <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
+                                <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
+                                <Separator/>
+                                <div className="flex justify-between font-bold">
+                                    <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
+                                    <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                        )}
+                        
+                        <p className="text-xs text-muted-foreground">
+                            Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                        </p>
+                        <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                    </div>
+                </form>
+                <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
+                        {(userProfile?.tokenBalance || 0) < costDifference ? (
+                            <div className="flex flex-col items-end gap-2">
+                                <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                <BuyTokens />
+                            </div>
+                        ) : (
+                            <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                    isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                }
+                            </Button>
+                        )}
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+export default function SyncOnlineHome() {
+    const { user, userProfile, loading } = useUserData();
+    const { toast } = useToast();
+    const { startTour } = useTour();
+    
+    const [invitedRooms, setInvitedRooms] = useState<InvitedRoomClient[]>([]);
+    const [isFetchingRooms, setIsFetchingRooms] = useState(true);
+    const [activeRoomTab, setActiveRoomTab] = useState('active');
+    const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
+
+    const fetchInvitedRooms = useCallback(async () => {
+        if (!user || !user.email) {
+            setInvitedRooms([]);
+            setIsFetchingRooms(false);
+            return;
+        }
+        setIsFetchingRooms(true);
+        try {
+            const roomsRef = collection(db, 'syncRooms');
+            const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
+            const querySnapshot = await getDocs(q);
+            const roomsData: InvitedRoomClient[] = querySnapshot.docs
+                .map(docSnapshot => {
+                    const data = docSnapshot.data() as SyncRoom;
+                     const toISO = (ts: any): string => {
+                        if (!ts) return new Date(0).toISOString();
+                        if (ts instanceof Timestamp) {
+                            return ts.toDate().toISOString();
+                        }
+                        if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) {
+                            return ts;
+                        }
+                        if (ts && typeof ts.seconds === 'number' && typeof ts.nanoseconds === 'number') {
+                             return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+                        }
+                        return new Date(0).toISOString();
+                    };
+
+                    return {
+                        id: docSnapshot.id,
+                        topic: data.topic,
+                        creatorUid: data.creatorUid,
+                        creatorName: data.creatorName,
+                        createdAt: toISO(data.createdAt),
+                        status: data.status,
+                        invitedEmails: data.invitedEmails,
+                        emceeEmails: data.emceeEmails,
+                        lastActivityAt: toISO(data.lastActivityAt),
+                        blockedUsers: data.blockedUsers,
+                        summary: data.summary,
+                        transcript: data.transcript,
+                        scheduledAt: toISO(data.scheduledAt),
+                        durationMinutes: data.durationMinutes,
+                        initialCost: data.initialCost,
+                        paymentLogId: data.paymentLogId,
+                        hasStarted: data.hasStarted,
+                        reminderMinutes: data.reminderMinutes,
+                        firstMessageAt: toISO(data.firstMessageAt),
+                    };
+                })
+                .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
+            
+            setInvitedRooms(roomsData);
+        } catch (error: any) {
+            console.error("Error fetching invited rooms:", error);
+            if (error.code === 'failed-precondition') {
+                 toast({ 
+                    variant: "destructive", 
+                    title: "Error: Missing Index", 
+                    description: "A Firestore index is required. Please check the browser console for a link to create it.",
+                    duration: 10000
+                });
+                console.error("FULL FIREBASE ERROR - You probably need to create an index. Look for a URL in this error message to create it automatically:", error);
+            } else {
+                toast({ variant: 'destructive', title: 'Could not fetch rooms', description: 'There was an error fetching your room invitations.' });
+            }
+        } finally {
+            setIsFetchingRooms(false);
+        }
+    }, [user, toast]);
+
+    useEffect(() => {
+        if (user) {
+            fetchInvitedRooms();
+        } else if (!loading) {
+             setIsFetchingRooms(false);
+             setInvitedRooms([]);
+        }
+    }, [user, loading, fetchInvitedRooms]);
+    
+    const handleOpenEditDialog = (room: InvitedRoomClient) => {
+        setEditingRoom(room);
     };
 
     const handleUnblockUser = useCallback(async (room: InvitedRoomClient, userToUnblock: any) => {
@@ -1061,18 +1265,6 @@ export default function SyncOnlineHome() {
         navigator.clipboard.writeText(link);
         toast({ title: 'Invite Link Copied!', description: 'You can now share this link with anyone.' });
     };
-
-    const toggleFriendInvite = (friend: UserProfile) => {
-        if (!friend.email) return;
-        const currentEmails = new Set(parsedInviteeEmails);
-        if (currentEmails.has(friend.email)) {
-            currentEmails.delete(friend.email);
-        } else {
-            currentEmails.add(friend.email);
-        }
-        setInviteeEmails(Array.from(currentEmails).join(', '));
-    };
-
 
     const renderRoomList = (rooms: InvitedRoomClient[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
@@ -1216,8 +1408,13 @@ export default function SyncOnlineHome() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+                        <ScheduleRoomDialog 
+                            onRoomSubmitted={fetchInvitedRooms} 
+                            editingRoom={editingRoom}
+                            setEditingRoom={setEditingRoom}
+                        />
+                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg" variant="outline">
                             <HelpCircle className="mr-2" />
                             Take a Tour
                         </Button>
@@ -1225,246 +1422,38 @@ export default function SyncOnlineHome() {
                 </CardContent>
             </Card>
 
-            <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule" data-tour="so-schedule-button">Schedule a Room</TabsTrigger>
-                </TabsList>
-                <TabsContent value="your-rooms" className="mt-4">
-                    {user && (
-                        <Card data-tour="so-room-list">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
-                                <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {isFetchingRooms ? (
-                                    <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
-                                ) : (
-                                    <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
-                                        <TabsList className="grid w-full grid-cols-3">
-                                            <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                                            <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-                                        </TabsList>
-                                        <TabsContent value="scheduled" className="mt-4">
-                                            {renderRoomList(scheduled, 'scheduled')}
-                                        </TabsContent>
-                                        <TabsContent value="active" className="mt-4">
-                                            {renderRoomList(active, 'active')}
-                                        </TabsContent>
-                                        <TabsContent value="closed" className="mt-4">
-                                            {renderRoomList(closed, 'closed')}
-                                        </TabsContent>
-                                    </Tabs>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-                </TabsContent>
-                <TabsContent value="schedule" className="mt-4">
-                     <Card className="border-2 border-primary">
-                        <CardHeader>
-                            <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
-                            <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
-                                    <div className="space-y-2">
-                                    <Label htmlFor="topic">Room Topic</Label>
-                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
-                                </div>
-                                    {!isEditMode && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="language">Your Spoken Language</Label>
-                                        <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                                            <SelectTrigger id="language">
-                                                <SelectValue placeholder="Select language..." />
-                                            </SelectTrigger>
-                                            <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-                                {!isEditMode && (
-                                    <div className="flex items-center space-x-2 pt-2">
-                                        <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
-                                        <Label htmlFor="start-now">Start meeting immediately</Label>
-                                    </div>
-                                )}
-                                
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="duration">Duration (minutes)</Label>
-                                        <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
-                                            <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
-                                            <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
-                                        </Select>
-                                    </div>
-                                    {!startNow && (
-                                    <div className="space-y-2">
-                                        <Label>Date &amp; Time</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant={"outline"}
-                                                    className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
-                                                >
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0">
-                                                <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
-                                                <div className="p-3 border-t border-border">
-                                                    <div className="flex items-center gap-2">
-                                                        <Select
-                                                            value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
-                                                            onValueChange={(value) => {
-                                                                setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : new Date();
-                                                                    newDate.setHours(parseInt(value));
-                                                                    return newDate;
-                                                                });
-                                                            }}
-                                                        >
-                                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                                            <SelectContent position="popper">
-                                                                {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
-                                                                    <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        :
-                                                        <Select
-                                                                value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
-                                                            onValueChange={(value) => {
-                                                                setScheduledDate(d => {
-                                                                    const newDate = d ? new Date(d) : new Date();
-                                                                    newDate.setMinutes(parseInt(value));
-                                                                    return newDate;
-                                                                });
-                                                            }}
-                                                        >
-                                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                                            <SelectContent position="popper">
-                                                                {['00', '15', '30', '45'].map(minute => (
-                                                                    <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                        )}
-                                </div>
-                                
-                                <div className="space-y-2">
-                                    <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
-                                    <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
-                                </div>
-                                 {friends.length > 0 && (
-                                    <div className="space-y-2">
-                                        <Label>Or Select Friends</Label>
-                                        <ScrollArea className="max-h-32 border rounded-md">
-                                            <div className="p-4 space-y-2">
-                                                {friends.map(friend => (
-                                                    <div key={friend.id} className="flex items-center space-x-2">
-                                                        <Checkbox 
-                                                            id={`friend-${friend.id}`}
-                                                            checked={parsedInviteeEmails.includes(friend.email)}
-                                                            onCheckedChange={() => toggleFriendInvite(friend)}
-                                                        />
-                                                        <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
-                                                            <span>{friend.name}</span>
-                                                            <span className="text-xs text-muted-foreground">{friend.email}</span>
-                                                        </Label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    </div>
-                                )}
-                                
-                                <div className="space-y-3">
-                                    <Separator/>
-                                    <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
-                                    <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
-                                        {allInvitedEmailsForCalc.length > 0 ? (
-                                            allInvitedEmailsForCalc.map(email => (
-                                                <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
-                                            ))
-                                        ) : (
-                                            <p>Just you so far!</p>
-                                        )}
-                                    </div></ScrollArea>
-                                </div>
-
-                                {allInvitedEmailsForCalc.length > 1 && (
-                                    <div className="space-y-3">
-                                        <Separator/>
-                                        <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
-                                        <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
-                                            {allInvitedEmailsForCalc.map(email => (
-                                                <div key={email} className="flex items-center space-x-2">
-                                                    <Checkbox 
-                                                        id={email} 
-                                                        checked={emceeEmails.includes(email)} 
-                                                        onCheckedChange={() => toggleEmcee(email)}
-                                                        disabled={email === user?.email}
-                                                    />
-                                                    <Label htmlFor={email} className="font-normal w-full truncate">
-                                                        {email} {email === user?.email && '(Creator)'}
-                                                    </Label>
-                                                </div>
-                                            ))}
-                                        </div></ScrollArea>
-                                    </div>
-                                )}
-                                <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
-                                    {isEditMode ? (
-                                        <>
-                                            <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
-                                            <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
-                                            <Separator/>
-                                            <div className="flex justify-between font-bold">
-                                                <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
-                                                <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
-                                    )}
-                                    
-                                    <p className="text-xs text-muted-foreground">
-                                        Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
-                                </div>
-                            </form>
-                        </CardContent>
-                        <CardFooter className="flex justify-end gap-2">
-                             {isEditMode ? (
-                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
-                            ) : null}
-                            {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                <div className="flex flex-col items-end gap-2">
-                                    <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                    <BuyTokens />
-                                </div>
-                            ) : (
-                                <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                    {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                        isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                    }
-                                </Button>
-                            )}
-                        </CardFooter>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+            {user && (
+                <Card data-tour="so-room-list">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><List /> Your Rooms</CardTitle>
+                        <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isFetchingRooms ? (
+                            <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
+                        ) : (
+                            <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
+                                <TabsList className="grid w-full grid-cols-3">
+                                    <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                                    <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                                    <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="scheduled" className="mt-4">
+                                    {renderRoomList(scheduled, 'scheduled')}
+                                </TabsContent>
+                                <TabsContent value="active" className="mt-4">
+                                    {renderRoomList(active, 'active')}
+                                </TabsContent>
+                                <TabsContent value="closed" className="mt-4">
+                                    {renderRoomList(closed, 'closed')}
+                                </TabsContent>
+                            </Tabs>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
+
+    
