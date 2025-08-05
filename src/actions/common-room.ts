@@ -305,7 +305,7 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
     }
 }
 
-export async function getUpcomingParties(): Promise<ClientParty[]> {
+export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
         const partiesSnapshot = await db.collectionGroup('parties').get();
         if (partiesSnapshot.empty) {
@@ -346,7 +346,48 @@ export async function getUpcomingParties(): Promise<ClientParty[]> {
         return publicParties;
 
     } catch (error: any) {
-        console.error("Error fetching upcoming parties:", error);
+        console.error("Error fetching upcoming public parties:", error);
+        return [];
+    }
+}
+
+
+export async function getAllMyUpcomingParties(userEmail: string): Promise<ClientParty[]> {
+    if (!userEmail) return [];
+    
+    try {
+        const myVibes = await getVibes(userEmail);
+        if (myVibes.length === 0) return [];
+        
+        const now = new Date();
+        const allMyParties: ClientParty[] = [];
+        
+        const partyPromises = myVibes.map(async (vibe) => {
+            const partiesRef = db.collection('vibes').doc(vibe.id).collection('parties');
+            const q = partiesRef.where('startTime', '>=', now);
+            const partiesSnapshot = await q.get();
+
+            partiesSnapshot.forEach(doc => {
+                const data = doc.data();
+                 allMyParties.push({
+                    id: doc.id,
+                    vibeId: vibe.id,
+                    vibeTopic: vibe.topic || 'A Vibe',
+                    ...data,
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                } as ClientParty);
+            });
+        });
+
+        await Promise.all(partyPromises);
+
+        allMyParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        
+        return allMyParties;
+
+    } catch (error: any) {
+        console.error("Error fetching all my upcoming parties:", error);
         return [];
     }
 }
@@ -391,5 +432,4 @@ export async function editMeetup(vibeId: string, partyId: string, updates: Parti
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
-
     

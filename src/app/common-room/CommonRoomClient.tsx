@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, ChevronRight, FileCode } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
+import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
 import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -162,20 +162,6 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                     </Card>
                 ))
             )}
-             {debugLog.length > 0 && (
-                <Accordion type="single" collapsible className="w-full mt-4">
-                    <AccordionItem value="debug-log">
-                        <AccordionTrigger>
-                            <span className="flex items-center gap-2 text-sm text-muted-foreground"><FileCode /> Debug Log</span>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                             <ScrollArea className="h-48 border bg-muted p-2 rounded-md font-mono text-xs">
-                                {debugLog.map((log, index) => <p key={index}>{log}</p>)}
-                            </ScrollArea>
-                        </AccordionContent>
-                    </AccordionItem>
-                </Accordion>
-            )}
         </div>
     );
 }
@@ -204,8 +190,8 @@ export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
-    const [publicParties, setPublicParties] = useState<ClientParty[]>([]); // This holds the original, unsorted list
-    const [displayedParties, setDisplayedParties] = useState<ClientParty[]>([]); // This is what gets rendered
+    const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
+    const [myParties, setMyParties] = useState<ClientParty[]>([]); // New state for private meetups
     
     const [isFetching, setIsFetching] = useState(true);
     const [activeTab, setActiveTab] = useState('discover');
@@ -216,29 +202,26 @@ export default function CommonRoomClient() {
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
     const [isProcessingLocation, setIsProcessingLocation] = useState(false);
     
-    const [debugLog, setDebugLog] = useState<string[]>([]);
-    
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
             setAllVibes([]);
             setPublicParties([]);
-            setDisplayedParties([]);
+            setMyParties([]);
             setIsFetching(false);
             return;
         }
         setIsFetching(true);
         try {
-            const [fetchedVibes, fetchedParties] = await Promise.all([
+            const [fetchedVibes, fetchedPublicParties, fetchedMyParties] = await Promise.all([
                 getVibes(user.email),
-                getUpcomingParties(),
+                getUpcomingPublicParties(),
+                getAllMyUpcomingParties(user.email),
             ]);
             setAllVibes(fetchedVibes);
-            // Default sort by date
-            const sortedParties = [...fetchedParties].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-            setPublicParties(sortedParties);
-            setDisplayedParties(sortedParties);
+            setPublicParties(fetchedPublicParties);
+            setMyParties(fetchedMyParties);
             setSortMode('date');
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
@@ -254,22 +237,18 @@ export default function CommonRoomClient() {
         }
     }, []);
     
-    const extractCoordsFromUrl = useCallback(async (url: string, log: (msg: string) => void): Promise<{ lat: number; lon: number } | null> => {
+    const extractCoordsFromUrl = useCallback(async (url: string): Promise<{ lat: number; lon: number } | null> => {
         if (!url) return null;
         let finalUrl = url;
         
-        log(`[INFO] Starting coord extraction for URL: ${url}`);
         if (url.includes('goo.gl') || url.includes('maps.app.goo.gl')) {
             try {
                 const result = await resolveUrlAction(url);
                 if (result.success && result.finalUrl) {
                     finalUrl = result.finalUrl;
-                    log(`[SUCCESS] Resolved shortened URL to: ${finalUrl}`);
-                } else {
-                     log(`[WARN] Failed to resolve shortened URL. Error: ${result.error}`);
                 }
             } catch (error) {
-                 log(`[ERROR] Could not resolve shortened URL: ${url}, ${error}`);
+                 console.error("Could not resolve shortened URL:", url, error);
             }
         }
     
@@ -280,51 +259,37 @@ export default function CommonRoomClient() {
             const lat = parseFloat(match[1]);
             const lon = parseFloat(match[2]);
             if (!isNaN(lat) && !isNaN(lon)) {
-                log(`[SUCCESS] Extracted coords: lat=${lat}, lon=${lon}`);
                 return { lat, lon };
             }
         }
         
-        log(`[FAIL] No coordinates found in URL: ${finalUrl}`);
         return null;
     }, []);
 
-    const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }) => {
+    const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }, targetParties: ClientParty[], setParties: React.Dispatch<React.SetStateAction<ClientParty[]>>) => {
         setIsProcessingLocation(true);
-        const logBuffer: string[] = [];
-        const log = (msg: string) => logBuffer.push(msg);
-        
-        log(`[START] Processing ${publicParties.length} parties.`);
-        log(`[INFO] User location: lat=${location.lat.toFixed(4)}, lon=${location.lon.toFixed(4)}`);
-        
         try {
-            const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
-                log(`\n--- Processing Party: "${party.title}" ---`);
-                const coords = await extractCoordsFromUrl(party.location, log);
+            const partiesWithDistance = await Promise.all(targetParties.map(async (party) => {
+                const coords = await extractCoordsFromUrl(party.location);
                 let distance;
                 if (coords) {
                     distance = calculateDistance(location, coords);
-                    log(`[SUCCESS] Calculated distance: ${distance.toFixed(2)} km`);
                 }
                 return { ...party, distance };
             }));
 
             partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-            setDisplayedParties(partiesWithDistance);
+            setParties(partiesWithDistance);
             setSortMode('distance');
             setLocationStatus('success');
-            log(`[END] Finished processing.`);
-
         } catch (error) {
             console.error("Error processing parties with location:", error);
-            log(`[CRITICAL] An error occurred: ${error}`);
             toast({ variant: 'destructive', title: 'Calculation Error', description: 'Could not calculate distances for meetups.' });
             setLocationStatus('error');
         } finally {
-            setDebugLog(logBuffer);
             setIsProcessingLocation(false);
         }
-    }, [publicParties, extractCoordsFromUrl, toast]);
+    }, [extractCoordsFromUrl, toast]);
 
 
     const handleSortByDistance = () => {
@@ -332,7 +297,9 @@ export default function CommonRoomClient() {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                processPartiesWithLocation(loc);
+                // Process both public and private parties when location is available
+                processPartiesWithLocation(loc, publicParties, setPublicParties);
+                processPartiesWithLocation(loc, myParties, setMyParties);
             },
             (error) => {
                 toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get your location. Please enable location services in your browser.' });
@@ -343,8 +310,8 @@ export default function CommonRoomClient() {
     };
 
     const handleSortByDate = () => {
-        const sortedByDate = [...publicParties].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        setDisplayedParties(sortedByDate);
+        setPublicParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+        setMyParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
         setSortMode('date');
         setLocationStatus('idle');
     };
@@ -357,17 +324,10 @@ export default function CommonRoomClient() {
     }, [loading, user, fetchData]);
     
 
-    const { publicVibes, myVibes, myMeetups } = useMemo(() => {
+    const { publicVibes } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
-        const myVibeIds = new Set(allVibes.map(v => v.id));
-        const myM = displayedParties.filter(p => myVibeIds.has(p.vibeId));
-        
-        return {
-            publicVibes: publicV,
-            myVibes: allVibes,
-            myMeetups: myM,
-        };
-    }, [allVibes, displayedParties]);
+        return { publicVibes: publicV };
+    }, [allVibes]);
 
 
     return (
@@ -411,7 +371,7 @@ export default function CommonRoomClient() {
                                         </Button>
                                     </div>
                                     <div className="pt-4">
-                                        {activeDiscoverTab === 'meetups' && <PartyList parties={displayedParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
+                                        {activeDiscoverTab === 'meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
                                         {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
                                     </div>
                                 </div>
@@ -433,8 +393,8 @@ export default function CommonRoomClient() {
                                         </Button>
                                     </div>
                                     <div className="pt-4">
-                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
-                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" source="my-space" />}
+                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
                                     </div>
                                 </div>
                             </TabsContent>
@@ -488,5 +448,3 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
         </div>
     );
 }
-
-    
