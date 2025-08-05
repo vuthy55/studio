@@ -165,15 +165,21 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
     }
 
     const R = 6371; // Radius of the Earth in km
-    const dLat = (destCoords.lat - startCoords.lat) * (Math.PI / 180);
-    const dLon = (destCoords.lon - startCoords.lon) * (Math.PI / 180);
-    const lat1 = startCoords.lat * (Math.PI / 180);
-    const lat2 = destCoords.lat * (Math.PI / 180);
+    const toRad = (deg: number) => deg * (Math.PI / 180);
+
+    const lat1 = toRad(startCoords.lat);
+    const lon1 = toRad(startCoords.lon);
+    const lat2 = toRad(destCoords.lat);
+    const lon2 = toRad(destCoords.lon);
+
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
 
     const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
-    
+        Math.cos(lat1) * Math.cos(lat2) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
@@ -287,41 +293,42 @@ export default function CommonRoomClient() {
                 setSortedPublicParties([]);
                 return;
             }
-            if (userLocation) {
-                const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
-                    const coords = await extractCoordsFromUrl(party.location);
-                    let distance;
-                    if (coords) {
-                        distance = calculateDistance(userLocation, coords);
-                    }
-                    return { ...party, distance, coords };
-                }));
 
-                partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-                setSortedPublicParties(partiesWithDistance);
-                
-                try {
-                    const userCityData = await getCityFromCoords(userLocation);
-                    for (const party of partiesWithDistance) {
-                        if (party.coords && party.distance !== undefined && party.distance < 50 && !notifiedPartyIds.current.has(party.id)) {
-                             const partyCityData = await getCityFromCoords(party.coords);
-                             if (userCityData.city === partyCityData.city) {
-                                toast({
-                                    title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /> Nearby Meetup!</div>),
-                                    description: `"${party.title}" is happening soon in ${userCityData.city}. Check it out!`,
-                                    duration: 10000,
-                                });
-                                audioRef.current?.play().catch(console.error);
-                                notifiedPartyIds.current.add(party.id);
-                             }
+            const partiesWithData = await Promise.all(publicParties.map(async (party) => {
+                const coords = await extractCoordsFromUrl(party.location);
+                let distance;
+                if (coords && userLocation) {
+                    distance = calculateDistance(userLocation, coords);
+                }
+                return { ...party, coords, distance };
+            }));
+
+            if (userLocation) {
+                partiesWithData.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+            }
+
+            setSortedPublicParties(partiesWithData);
+
+            try {
+                if (!userLocation) return;
+                const userCityData = await getCityFromCoords(userLocation);
+
+                for (const party of partiesWithData) {
+                    if (party.coords && party.distance !== undefined && party.distance < 50 && !notifiedPartyIds.current.has(party.id)) {
+                        const partyCityData = await getCityFromCoords(party.coords);
+                        if (userCityData.city === partyCityData.city) {
+                        toast({
+                            title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /> Nearby Meetup!</div>),
+                            description: `"${party.title}" is happening soon in ${userCityData.city}. Check it out!`,
+                            duration: 10000,
+                        });
+                        audioRef.current?.play().catch(console.error);
+                        notifiedPartyIds.current.add(party.id);
                         }
                     }
-                } catch(e) {
-                    console.warn("[Nearby Check] Could not get city from coords, skipping notifications.", e);
                 }
-
-            } else {
-                setSortedPublicParties(publicParties);
+            } catch(e) {
+                console.warn("[Nearby Check] Could not get city from coords, skipping notifications.", e);
             }
         };
 
@@ -332,14 +339,14 @@ export default function CommonRoomClient() {
     const { publicVibes, myVibes, myMeetups } = useMemo(() => {
         const publicV = allVibes.filter(v => v.isPublic);
         const myVibeIds = new Set(allVibes.map(v => v.id));
-        const myM = publicParties.filter(p => myVibeIds.has(p.vibeId));
+        const myM = sortedPublicParties.filter(p => myVibeIds.has(p.vibeId));
         
         return {
             publicVibes: publicV,
             myVibes: allVibes,
             myMeetups: myM,
         };
-    }, [allVibes, publicParties]);
+    }, [allVibes, sortedPublicParties]);
 
 
     return (
