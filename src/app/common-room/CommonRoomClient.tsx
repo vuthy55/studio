@@ -157,8 +157,7 @@ function PartyList({ parties, title, locationStatus }: { parties: ClientParty[],
 }
 
 /**
- * Calculates the distance between two lat/lon points in kilometers.
- * This is Version 3, using a standard and verified Haversine formula implementation.
+ * Calculates the distance between two lat/lon points in kilometers using the Haversine formula.
  */
 function calculateDistance(startCoords: { lat: number; lon: number }, destCoords: { lat: number; lon: number }): number {
     if (!startCoords || !destCoords) {
