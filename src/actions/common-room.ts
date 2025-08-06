@@ -264,71 +264,70 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
-        const now = new Date();
+        // --- Step 1: Fetch all vibes in a single query ---
+        const vibesSnapshot = await db.collection('vibes').get();
+        const allVibes: Vibe[] = vibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
+        debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
-        // Fetch all vibes and all upcoming parties in parallel
-        const [vibesSnapshot, partiesSnapshot] = await Promise.all([
-            db.collection('vibes').get(),
-            db.collectionGroup('parties').where('startTime', '>=', now).get()
-        ]);
-        debugLog.push(`[INFO] Fetched ${vibesSnapshot.size} total vibes and ${partiesSnapshot.size} total upcoming parties.`);
-
-        // Process Vibes
-        const myVibes: ClientVibe[] = [];
-        const publicVibes: ClientVibe[] = [];
-        const vibeMap = new Map<string, Vibe>();
+        // --- Step 2: Categorize vibes ---
+        const myVibesClient: ClientVibe[] = [];
+        const publicVibesClient: ClientVibe[] = [];
         const myVibeIds = new Set<string>();
 
-        vibesSnapshot.forEach(doc => {
-            const vibe = { id: doc.id, ...doc.data() } as Vibe;
-            vibeMap.set(doc.id, vibe);
+        allVibes.forEach(vibe => {
+            const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
             
-            const clientVibe = JSON.parse(JSON.stringify({
+             // Convert Timestamps to ISO strings for serialization
+            const clientVibe: ClientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
                 createdAt: (vibe.createdAt as Timestamp)?.toDate(),
                 lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate(),
-            })) as ClientVibe;
+            }));
             
-            const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
             if (isMember) {
-                myVibes.push(clientVibe);
+                myVibesClient.push(clientVibe);
                 myVibeIds.add(vibe.id);
             }
             if (vibe.isPublic) {
-                 publicVibes.push(clientVibe);
+                 publicVibesClient.push(clientVibe);
             }
         });
-        debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
+        debugLog.push(`[INFO] Categorized into ${myVibesClient.length} 'My Vibes' and ${publicVibesClient.length} 'Public Vibes'.`);
 
-        // Process Parties
+        // --- Step 3: Fetch all upcoming parties by iterating through vibes ---
+        const now = new Date();
+        let allParties: ClientParty[] = [];
+        
+        for (const vibe of allVibes) {
+            const partiesRef = db.collection('vibes').doc(vibe.id).collection('parties');
+            const q = partiesRef.where('startTime', '>=', now);
+            const partiesSnapshot = await q.get();
+
+            partiesSnapshot.forEach(doc => {
+                const data = doc.data();
+                allParties.push({
+                    id: doc.id,
+                    vibeId: vibe.id,
+                    ...data,
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                    vibeTopic: vibe.topic || 'A Vibe',
+                    isPublic: vibe.isPublic,
+                } as ClientParty);
+            });
+        }
+        debugLog.push(`[INFO] Fetched ${allParties.length} total upcoming parties by iterating through vibes.`);
+        
+        // --- Step 4: Categorize meetups ---
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];
 
-        partiesSnapshot.forEach(doc => {
-            const partyData = doc.data() as Party;
-            const vibeRef = doc.ref.parent.parent!;
-            const parentVibe = vibeMap.get(vibeRef.id);
-
-            if (!parentVibe) {
-                 debugLog.push(`[WARN] Party ${doc.id} has orphan vibe ID ${vibeRef.id}. Skipping.`);
-                return;
+        allParties.forEach(party => {
+            if (myVibeIds.has(party.vibeId)) {
+                myMeetups.push(party);
             }
-
-            const clientParty: ClientParty = {
-                ...partyData,
-                id: doc.id,
-                vibeId: vibeRef.id,
-                startTime: (partyData.startTime as Timestamp).toDate().toISOString(),
-                endTime: (partyData.endTime as Timestamp).toDate().toISOString(),
-                vibeTopic: parentVibe.topic || 'A Vibe',
-                isPublic: parentVibe.isPublic,
-            };
-
-            if (myVibeIds.has(clientParty.vibeId)) {
-                myMeetups.push(clientParty);
-            }
-            if (parentVibe.isPublic) {
-                publicMeetups.push(clientParty);
+            if (party.isPublic) {
+                publicMeetups.push(party);
             }
         });
 
@@ -337,16 +336,15 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         // --- Step 5: Sort everything before returning ---
         myMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         publicMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        myVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
-        publicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        myVibesClient.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        publicVibesClient.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
 
         debugLog.push(`[SUCCESS] Data fetch and processing complete.`);
-        return { myVibes, publicVibes, myMeetups, publicMeetups, debugLog };
+        return { myVibes: myVibesClient, publicVibes: publicVibesClient, myMeetups, publicMeetups, debugLog };
 
     } catch (error: any) {
         console.error("Error fetching common room data:", error);
         debugLog.push(`[CRITICAL] An error occurred: ${error.message}`);
-        // Ensure we always return a valid structure on error
         return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [], debugLog };
     }
 }

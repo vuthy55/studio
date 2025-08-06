@@ -366,7 +366,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                             <CreateVibeDialog onVibeCreated={fetchData}>
+                                            <CreateVibeDialog onVibeCreated={fetchData}>
                                                 <Button variant="default" data-tour="cr-start-vibe-button" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
                                                     <PlusCircle className="h-5 w-5" />
                                                     <span className="hidden md:inline">Start a Vibe</span>
