@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Improved the Common Room layout by centering the main navigation tabs on mobile devices and repositioning the "Take a Tour" button for better visibility.
 - **`[IMPROVEMENT]`** Redesigned the "InfoHub Management" section in the Admin Dashboard for clarity and control. The new interface separates AI source configuration from the country database view into distinct tabs. It also introduces a powerful "Build/Update Database" feature, allowing administrators to selectively research and add countries by region, rather than being forced to build the entire world database at once. The database view itself has been overhauled into an accordion layout for improved readability and easier editing of individual country data.
 - **`[IMPROVEMENT]`** Confirmed and documented the stability of the Sync Live billing logic. The system operates on a real-time, pay-as-you-go model where users first consume a free monthly minute allowance. Once the free minutes are exhausted, the `UserDataContext` correctly deducts tokens on a per-minute basis for any subsequent usage, ensuring accurate and immediate transaction handling.
 - **`[IMPROVEMENT]`** Implemented a fully responsive, mobile-first design for the Sync Online room interface. On desktop, the layout features a persistent two-panel view with the participant list on the left and the main chat area on the right. On mobile devices, the interface collapses into a single view where the chat area is primary, and the participant list becomes a slide-in "sheet" accessible via an icon button in the header. This ensures an optimal and intuitive user experience across all screen sizes.
@@ -44,6 +45,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
