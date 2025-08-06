@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party, UserProfile, BlockedUser } from '@/lib/types';
+import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
 import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -29,10 +29,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { sendFriendRequest } from '@/actions/friends';
 
 
 function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party }) {
-    const { user } = useUserData();
+    const { user, userProfile } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -159,6 +160,19 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
         }
     }
     
+    const handleSendFriendRequest = async (recipient: { email: string; name: string }) => {
+        if (!user || !user.displayName || !user.email) {
+            toast({ variant: 'destructive', title: 'Login required', description: 'You must be logged in to send friend requests.' });
+            return;
+        }
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, recipient.email);
+        if (result.success) {
+            toast({ title: 'Request Sent!', description: `Friend request sent to ${recipient.name}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not send friend request.' });
+        }
+    };
+    
     const isUserRsvpd = user && meetup.rsvps?.includes(user.uid);
 
     return (
@@ -204,6 +218,9 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                             <div className="space-y-2">
                                 {attendees.map(attendee => {
                                     const isHost = vibeData?.hostEmails?.includes(attendee.email);
+                                    const isFriend = userProfile?.friends?.includes(attendee.id!);
+                                    const hasPendingRequest = userProfile?.friendRequests?.some(req => req.fromUid === attendee.id);
+
                                     return (
                                     <div key={attendee.id} className="flex items-center gap-2 group">
                                         <Avatar className="h-8 w-8">
@@ -271,6 +288,18 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                                                     </AlertDialogContent>
                                                 </AlertDialog>
                                             </div>
+                                        )}
+                                        {user?.uid !== attendee.id && !isFriend && !hasPendingRequest && (
+                                            <TooltipProvider>
+                                                 <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                         <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(attendee)}>
+                                                            <UserPlus className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>Add Friend</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
                                         )}
                                     </div>
                                     );
@@ -591,7 +620,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
 
 
 export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
-    const { user, loading: userLoading } = useUserData();
+    const { user, userProfile, loading: userLoading } = useUserData();
     const { toast } = useToast();
     const searchParams = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -822,6 +851,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     }
     
+    const handleSendFriendRequest = async (recipient: { email: string; name: string }) => {
+        if (!user || !user.displayName || !user.email) {
+            toast({ variant: 'destructive', title: 'Login required', description: 'You must be logged in to send friend requests.' });
+            return;
+        }
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, recipient.email);
+        if (result.success) {
+            toast({ title: 'Request Sent!', description: `Friend request sent to ${recipient.name}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not send friend request.' });
+        }
+    };
+    
     if (userLoading || vibeLoading) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
@@ -891,22 +933,39 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <Separator />
                                 <div className="space-y-2">
                                     <h4 className="font-semibold text-sm flex items-center gap-2"><UserCheck /> Present ({presentParticipants.length})</h4>
-                                    {presentParticipants.map(({ uid, name, email, isHost }) => (
-                                        <div key={email} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
-                                             <Avatar className="h-8 w-8">
-                                                <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
-                                            </Avatar>
-                                            <span className={`font-medium text-sm flex-1 ${isHost ? 'text-primary' : ''}`}>{name}</span>
-                                            {isHost && <Badge variant="secondary">Host</Badge>}
+                                    {presentParticipants.map((p) => {
+                                        const isFriend = userProfile?.friends?.includes(p.uid);
+                                        const hasPendingRequest = userProfile?.friendRequests?.some(req => req.fromUid === p.uid);
 
-                                            {isCurrentUserHost && email !== vibeData.creatorEmail && email !== user?.email && (
+                                        return (
+                                        <div key={p.email} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
+                                             <Avatar className="h-8 w-8">
+                                                <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                            </Avatar>
+                                            <span className={`font-medium text-sm flex-1 ${p.isHost ? 'text-primary' : ''}`}>{p.name}</span>
+                                            {p.isHost && <Badge variant="secondary">Host</Badge>}
+
+                                            {user?.uid !== p.uid && !isFriend && !hasPendingRequest && (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(p)}>
+                                                                <UserPlus className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Add Friend</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+
+                                            {isCurrentUserHost && p.email !== vibeData.creatorEmail && p.email !== user?.email && (
                                                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button>
                                                         </TooltipTrigger>
-                                                        <TooltipContent><p>Chat with {name}</p></TooltipContent>
+                                                        <TooltipContent><p>Chat with {p.name}</p></TooltipContent>
                                                     </Tooltip>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -920,13 +979,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                                 size="icon" 
                                                                 variant="ghost" 
                                                                 className="h-7 w-7"
-                                                                onClick={() => handleHostToggle(email, !isHost)}
+                                                                onClick={() => handleHostToggle(p.email, !p.isHost)}
                                                             >
-                                                                {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
+                                                                {p.isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
                                                             </Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
-                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
+                                                            <p>{p.isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
                                                 <AlertDialog>
@@ -944,14 +1003,14 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                     </TooltipProvider>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
+                                                            <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This will permanently remove and block {name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
+                                                                This will permanently remove and block {p.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleRemoveUser({uid, email, name})} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                            <AlertDialogAction onClick={() => handleRemoveUser(p)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                                                                 Remove & Block
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
@@ -960,7 +1019,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
                                 {invitedButNotPresent.length > 0 && (
                                     <div className="space-y-2">
