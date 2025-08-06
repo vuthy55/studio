@@ -32,7 +32,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
-function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId: string, meetup: Party, onUpdate: (meetupId: string) => void, userProfile: Partial<UserProfile> | null }) {
+function MeetupDetailsDialog({ 
+    vibeId, 
+    meetup, 
+    onUpdate, 
+    userProfile,
+    onStartPrivateChat,
+    onSendFriendRequest
+}: { 
+    vibeId: string, 
+    meetup: Party, 
+    onUpdate: (meetupId: string) => void, 
+    userProfile: Partial<UserProfile> | null,
+    onStartPrivateChat: (attendee: UserProfile) => void;
+    onSendFriendRequest: (attendee: UserProfile) => void;
+}) {
     const { user } = useUserData();
     const { toast } = useToast();
     const router = useRouter();
@@ -97,32 +111,6 @@ function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId
         return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
     }, [user, vibeData]);
     
-    const handleStartPrivateChat = async (attendee: UserProfile) => {
-        if (!user || !user.displayName || !user.email) return;
-        
-        const result = await startPrivateVibe({
-            initiator: { uid: user.uid, name: user.displayName, email: user.email },
-            attendee: { uid: attendee.id!, name: attendee.name, email: attendee.email }
-        });
-        
-        if (result.success && result.vibeId) {
-            toast({ title: 'Private Vibe Created!', description: `You can now chat privately with ${attendee.name}.` });
-            router.push(`/common-room/${result.vibeId}`);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not start private chat.' });
-        }
-    };
-    
-    const handleSendFriendRequest = async (attendee: UserProfile) => {
-        if (!user || !user.displayName || !user.email) return;
-        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, attendee.email);
-        if (result.success) {
-            toast({ title: 'Request Sent', description: `Friend request sent to ${attendee.name}.` });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    };
-
     const handleRemoveAttendee = async (attendeeId: string) => {
         if (!user) return;
         const result = await removeRsvp(vibeId, meetup.id, user.uid, attendeeId);
@@ -228,7 +216,7 @@ function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartPrivateChat(attendee)}>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onStartPrivateChat(attendee)}>
                                                                 <MessageSquare className="h-4 w-4" />
                                                             </Button>
                                                         </TooltipTrigger>
@@ -238,7 +226,7 @@ function MeetupDetailsDialog({ vibeId, meetup, onUpdate, userProfile }: { vibeId
                                                  <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isAlreadyFriend} onClick={() => handleSendFriendRequest(attendee)}>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isAlreadyFriend} onClick={() => onSendFriendRequest(attendee)}>
                                                                 <UserPlus className="h-4 w-4" />
                                                             </Button>
                                                         </TooltipTrigger>
@@ -823,6 +811,16 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
     
+    const handleSendFriendRequest = async (attendee: {id?: string, name: string, email: string}) => {
+        if (!user || !user.displayName || !user.email) return;
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, attendee.email);
+        if (result.success) {
+            toast({ title: 'Request Sent', description: `Friend request sent to ${attendee.name}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
+
     if (userLoading || vibeLoading) {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
@@ -859,7 +857,14 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <LoaderCircle className="h-5 w-5 animate-spin" />
                             </div>
                         ) : activeMeetup ? (
-                            <MeetupDetailsDialog vibeId={vibeId} meetup={activeMeetup} onUpdate={fetchActiveMeetup} userProfile={userProfile} />
+                            <MeetupDetailsDialog 
+                                vibeId={vibeId} 
+                                meetup={activeMeetup} 
+                                onUpdate={fetchActiveMeetup} 
+                                userProfile={userProfile} 
+                                onStartPrivateChat={handleStartPrivateChat}
+                                onSendFriendRequest={handleSendFriendRequest}
+                            />
                         ) : null
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} />
@@ -916,7 +921,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                          <TooltipProvider>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={userProfile?.friends?.includes(uid)} onClick={() => sendFriendRequest({uid: user!.uid, name: user!.displayName!, email: user!.email!}, email)}>
+                                                                    <Button size="icon" variant="ghost" className="h-7 w-7" disabled={userProfile?.friends?.includes(uid)} onClick={() => handleSendFriendRequest({id: uid, name, email})}>
                                                                         <UserPlus className="h-4 w-4" />
                                                                     </Button>
                                                                 </TooltipTrigger>
