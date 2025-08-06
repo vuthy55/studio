@@ -25,6 +25,7 @@ import { generateSpeech } from '@/services/tts';
 import { useTour, TourStep } from '@/context/TourContext';
 import { openDB } from 'idb';
 import type { AudioPack } from '@/lib/types';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -58,7 +59,7 @@ const liveTranslationTourSteps: TourStep[] = [
 
   },
   {
-    selector: '[data-tour="lt-saved-phrases"]',
+    selector: '[data-tour="lt-saved-phrases-button"]',
     content: "Your saved phrases will appear here. You can practice your pronunciation, get feedback, and earn tokens for correct attempts, just like in the 'Prep Your Vibe' section.",
     position: 'top',
   },
@@ -85,7 +86,7 @@ export default function LiveTranslationContent() {
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
     const [savedPhrases, setSavedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
-    const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
+    const [visiblePhraseCount, setVisiblePhraseCount] = useState(5);
     
     const [isOnline, setIsOnline] = useState(true);
 
@@ -392,7 +393,118 @@ export default function LiveTranslationContent() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <div className="flex flex-col items-center gap-4 text-center">
+                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+                        {user && savedPhrases.length > 0 && (
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                     <Button size="lg" variant="outline" data-tour="lt-saved-phrases-button">
+                                        <Bookmark className="mr-2" />
+                                        My Saved Phrases ({savedPhrases.length})
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                        <DialogTitle>Your Saved Phrases for Practice</DialogTitle>
+                                        <DialogDescription>
+                                            Practice your pronunciation on phrases you've saved.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="w-full space-y-2 max-h-[60vh] overflow-y-auto p-1">
+                                        {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
+                                            const assessment = lastAssessment[phrase.id];
+                                            const history = practiceHistory[phrase.id];
+                                            const passes = history?.passCountPerLang?.[phrase.toLang] || 0;
+                                            const fails = history?.failCountPerLang?.[phrase.toLang] || 0;
+                                            const isAssessingCurrent = assessingPhraseId === phrase.id;
+                                            const hasBeenRewarded = settings && passes >= settings.practiceThreshold;
+
+                                            const getResultIcon = () => {
+                                                if (!assessment) return null;
+                                                if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+                                                if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
+                                                return null;
+                                            };
+
+                                            return (
+                                                <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
+                                                    <p className="font-semibold text-lg">{phrase.fromText}</p>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <div>
+                                                                <p className="font-bold text-lg text-primary">{phrase.toText}</p>
+                                                                {assessment && (
+                                                                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
+                                                                        <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                                        <p>Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center shrink-0">
+                                                                {getResultIcon()}
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                                                <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
+                                                                            </Button>
+                                                                        </TooltipTrigger>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div className="relative">
+                                                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
+                                                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+                                                                                    <span className="sr-only">Practice</span>
+                                                                                </Button>
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                         {!isOnline && (
+                                                                            <TooltipContent>
+                                                                                <p>Practice is disabled while offline.</p>
+                                                                            </TooltipContent>
+                                                                        )}
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+                                                                <Button size="icon" variant="ghost" onClick={() => handleRemovePhrase(phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
+                                                                    <Trash2 className="h-5 w-5 text-red-500" /><span className="sr-only">Remove</span>
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {(passes > 0 || fails > 0) &&
+                                                        <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
+                                                            {hasBeenRewarded && (
+                                                                <div className="flex items-center gap-1 text-amber-500 font-bold" title={`Tokens awarded for this phrase: +${settings?.practiceReward || 0}`}>
+                                                                    <Award className="h-4 w-4" />
+                                                                    <span>+{settings?.practiceReward || 0}</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center gap-1" title='Correct attempts'>
+                                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                                <span className="font-bold">{passes}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1" title='Incorrect attempts'>
+                                                                <XCircle className="h-4 w-4 text-red-500" />
+                                                                <span className="font-bold">{fails}</span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    {savedPhrases.length > visiblePhraseCount && (
+                                        <div className="text-center mt-4">
+                                            <Button variant="outline" onClick={() => setVisiblePhraseCount(prev => prev + 5)}>Load More</Button>
+                                        </div>
+                                    )}
+                                </DialogContent>
+                            </Dialog>
+                        )}
+
                         <Button onClick={() => startTour(liveTranslationTourSteps)} size="lg">
                             <HelpCircle className="mr-2" />
                             Take a Tour
@@ -530,104 +642,6 @@ export default function LiveTranslationContent() {
                     </div>
                 </CardContent>
             </Card>
-
-            {savedPhrases.length > 0 && user && (
-                <div className="space-y-4" data-tour="lt-saved-phrases">
-                    <h3 id="saved-phrases" className="text-xl font-bold font-headline scroll-mt-20">Your Saved Phrases for Practice</h3>
-                    <div className="w-full space-y-2">
-                        {savedPhrases.slice(0, visiblePhraseCount).map(phrase => {
-                            const assessment = lastAssessment[phrase.id];
-                            const history = practiceHistory[phrase.id];
-                            const passes = history?.passCountPerLang?.[phrase.toLang] || 0;
-                            const fails = history?.failCountPerLang?.[phrase.toLang] || 0;
-                            const isAssessingCurrent = assessingPhraseId === phrase.id;
-                            const hasBeenRewarded = settings && passes >= settings.practiceThreshold;
-
-                            const getResultIcon = () => {
-                                if (!assessment) return null;
-                                if (assessment.status === 'pass') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
-                                if (assessment.status === 'fail') return <XCircle className="h-5 w-5 text-red-500" />;
-                                return null;
-                            };
-
-                            return (
-                                <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border">
-                                    <p className="font-semibold text-lg">{phrase.fromText}</p>
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex justify-between items-center w-full">
-                                            <div>
-                                                <p className="font-bold text-lg text-primary">{phrase.toText}</p>
-                                                {assessment && (
-                                                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
-                                                        <p>Accuracy: <span className="font-bold">{assessment.accuracy?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                        <p>Fluency: <span className="font-bold">{assessment.fluency?.toFixed(0) ?? 'N/A'}%</span></p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center shrink-0">
-                                                {getResultIcon()}
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(phrase.toText, phrase.toLang, phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                                <Volume2 className="h-5 w-5" /><span className="sr-only">Play</span>
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <div className="relative">
-                                                                <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId}>
-                                                                    {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                                                                    <span className="sr-only">Practice</span>
-                                                                </Button>
-                                                             </div>
-                                                        </TooltipTrigger>
-                                                         {!isOnline && (
-                                                            <TooltipContent>
-                                                                <p>Practice is disabled while offline.</p>
-                                                            </TooltipContent>
-                                                        )}
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                <Button size="icon" variant="ghost" onClick={() => handleRemovePhrase(phrase.id)} disabled={isAssessingCurrent || !!assessingPhraseId}>
-                                                    <Trash2 className="h-5 w-5 text-red-500" /><span className="sr-only">Remove</span>
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {(passes > 0 || fails > 0) &&
-                                        <div className="text-xs text-muted-foreground flex items-center gap-4 border-t pt-2">
-                                            {hasBeenRewarded && (
-                                                <div className="flex items-center gap-1 text-amber-500 font-bold" title={`Tokens awarded for this phrase: +${settings?.practiceReward || 0}`}>
-                                                    <Award className="h-4 w-4" />
-                                                    <span>+{settings?.practiceReward || 0}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex items-center gap-1" title='Correct attempts'>
-                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                <span className="font-bold">{passes}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1" title='Incorrect attempts'>
-                                                <XCircle className="h-4 w-4 text-red-500" />
-                                                <span className="font-bold">{fails}</span>
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
-                            )
-                        })}
-                    </div>
-                    {savedPhrases.length > visiblePhraseCount && (
-                        <div className="text-center">
-                            <Button variant="outline" onClick={() => setVisiblePhraseCount(prev => prev + 3)}>Load More</Button>
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
     );
 }
