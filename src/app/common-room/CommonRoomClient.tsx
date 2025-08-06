@@ -365,18 +365,12 @@ export default function CommonRoomClient() {
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                             <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
-                                                        <PlusCircle className="h-5 w-5" />
-                                                        <span className="hidden md:inline">Start a Vibe</span>
-                                                    </Button>
-                                                </DialogTrigger>
-                                                <CreateVibeDialog onVibeCreated={fetchData}>
-                                                    {/* This seems to be a bug in ShadCN where the trigger needs a child, even if the content is in the parent */}
-                                                    <></>
-                                                </CreateVibeDialog>
-                                             </Dialog>
+                                            <CreateVibeDialog onVibeCreated={fetchData}>
+                                                <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                                    <PlusCircle className="h-5 w-5" />
+                                                    <span className="hidden md:inline">Start a Vibe</span>
+                                                </Button>
+                                            </CreateVibeDialog>
                                         </TooltipTrigger>
                                         <TooltipContent side="bottom" className="md:hidden"><p>Start a Vibe</p></TooltipContent>
                                     </Tooltip>
