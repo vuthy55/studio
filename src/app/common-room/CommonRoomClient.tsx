@@ -95,7 +95,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="outline" className="h-10 w-10 p-0 md:w-auto md:px-4 md:py-2">
+                 <Button variant="default" className="h-10 w-10 p-0 md:w-auto md:px-4 md:py-2">
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -397,11 +397,11 @@ export default function CommonRoomClient() {
             <Card>
                 <CardHeader>
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                       <CreateVibeDialog onVibeCreated={fetchData} />
                        <NavButton view="public-meetups" label="Public Meetups" icon={Calendar} />
                        <NavButton view="public-vibes" label="Public Vibes" icon={MessageSquare} />
                        <NavButton view="my-meetups" label="My Meetups" icon={Calendar} />
                        <NavButton view="my-vibes" label="My Vibes" icon={UserCircle} />
-                       <CreateVibeDialog onVibeCreated={fetchData} />
                     </div>
                 </CardHeader>
                 <CardContent>
