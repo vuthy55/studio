@@ -32,6 +32,9 @@ import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -214,6 +217,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
     const [publicVibes, setPublicVibes] = useState<ClientVibe[]>([]);
     const [myMeetups, setMyMeetups] = useState<ClientParty[]>([]);
     const [publicMeetups, setPublicMeetups] = useState<ClientParty[]>([]);
+    const [debugLog, setDebugLog] = useState<string[]>([]);
     
     const [isFetching, setIsFetching] = useState(true);
     const [activeTab, setActiveTab] = useState<ActiveContentView>(initialTab as ActiveContentView);
@@ -230,6 +234,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
             setPublicVibes([]);
             setMyMeetups([]);
             setPublicMeetups([]);
+            setDebugLog([]);
             setIsFetching(false);
             return;
         }
@@ -240,6 +245,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
             setPublicVibes(data.publicVibes);
             setMyMeetups(data.myMeetups);
             setPublicMeetups(data.publicMeetups);
+            setDebugLog(data.debugLog);
             setSortMode('date');
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
@@ -384,14 +390,35 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
                         </div>
                     ) : (
                         <div className="pt-4">
-                            {activeTab === 'public-meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeTab === 'public-meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
                             {activeTab === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicMeetups} title="Public Vibes" source="public-vibes" />}
-                            {activeTab === 'my-meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeTab === 'my-meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
                             {activeTab === 'my-vibes' && <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes & Invites" source="my-vibes" />}
                         </div>
                     )}
                 </CardContent>
             </Card>
+
+             {debugLog.length > 0 && (
+                <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="debug-log">
+                        <AccordionTrigger>Debug Information</AccordionTrigger>
+                        <AccordionContent>
+                            <ScrollArea className="h-48 w-full p-4 border rounded-md bg-muted font-mono text-xs">
+                                {debugLog.map((log, index) => (
+                                    <p key={index} className={cn(
+                                        log.startsWith('[FAIL]') && 'text-red-500',
+                                        log.startsWith('[CRITICAL]') && 'text-red-700 font-bold',
+                                        log.startsWith('[SUCCESS]') && 'text-green-600',
+                                    )}>
+                                        {log}
+                                    </p>
+                                ))}
+                            </ScrollArea>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            )}
         </div>
     )
 }
