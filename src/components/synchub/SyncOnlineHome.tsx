@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1069,7 +1070,7 @@ function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsS
                 </p>
                 <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
             </div>
-            <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
                     {(userProfile?.tokenBalance || 0) < costDifference ? (
                         <div className="flex flex-col items-end gap-2">
                             <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
@@ -1084,7 +1085,7 @@ function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsS
                         </Button>
                     )}
                     <Button variant="outline" type="button" onClick={() => setIsScheduling(false)}>Cancel</Button>
-            </DialogFooter>
+            </div>
         </form>
     )
 }
@@ -1096,7 +1097,7 @@ export default function SyncOnlineHome() {
     const { startTour } = useTour();
     
     const [invitedRooms, setInvitedRooms] = useState<InvitedRoomClient[]>([]);
-    const [isFetchingRooms, setIsFetchingRooms] = useState(isFetchingRooms);
+    const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     const [editingRoom, setEditingRoom] = useState<InvitedRoomClient | null>(null);
     const [isScheduling, setIsScheduling] = useState(false);
@@ -1379,21 +1380,28 @@ export default function SyncOnlineHome() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
+                     <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
-                            <CollapsibleTrigger asChild>
-                                <Button data-tour="so-schedule-button" onClick={() => setEditingRoom(null)}>
+                             <CollapsibleTrigger asChild>
+                                <Button data-tour="so-schedule-button" onClick={() => {
+                                    if (isScheduling) {
+                                        setIsScheduling(false);
+                                    } else {
+                                        setEditingRoom(null);
+                                        setIsScheduling(true);
+                                    }
+                                }}>
                                     <PlusCircle className="mr-2 h-4 w-4" />
-                                    {isScheduling && !isEditMode ? 'Cancel' : 'Schedule a Room'}
+                                    {isScheduling && !isEditMode ? 'Cancel' : (isEditMode ? 'Edit Room' : 'Schedule a Room')}
                                 </Button>
-                            </CollapsibleTrigger>
+                             </CollapsibleTrigger>
                             <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg" variant="outline">
                                 <HelpCircle className="mr-2" />
                                 Take a Tour
                             </Button>
                         </div>
                         <CollapsibleContent>
-                            <ScheduleRoomForm
+                             <ScheduleRoomForm
                                 onRoomSubmitted={onScheduleDialogSubmit}
                                 editingRoom={editingRoom}
                                 setEditingRoom={setEditingRoom}
