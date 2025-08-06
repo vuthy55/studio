@@ -2,7 +2,7 @@
 "use client";
 
 import { Suspense, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUserData } from '@/context/UserDataContext';
 import { LoaderCircle } from 'lucide-react';
 import CommonRoomClient from './CommonRoomClient';
@@ -13,6 +13,9 @@ import Tour from '@/components/tour/Tour';
 function CommonRoomPageContent() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const initialTab = searchParams.get('tab') || 'public-meetups';
+
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -27,7 +30,7 @@ function CommonRoomPageContent() {
             </div>
         );
     }
-    return <CommonRoomClient />;
+    return <CommonRoomClient initialTab={initialTab} />;
 }
 
 

@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
+import { getCommonRoomData, startVibe } from '@/actions/common-room';
 import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -205,16 +205,18 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
 
 type ActiveContentView = 'public-meetups' | 'public-vibes' | 'my-meetups' | 'my-vibes';
 
-export default function CommonRoomClient() {
+export default function CommonRoomClient({ initialTab }: { initialTab: string }) {
     const { user, loading } = useUserData();
     const { toast } = useToast();
     const { startTour } = useTour();
-    const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
-    const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
-    const [myParties, setMyParties] = useState<ClientParty[]>([]);
+
+    const [myVibes, setMyVibes] = useState<ClientVibe[]>([]);
+    const [publicVibes, setPublicVibes] = useState<ClientVibe[]>([]);
+    const [myMeetups, setMyMeetups] = useState<ClientParty[]>([]);
+    const [publicMeetups, setPublicMeetups] = useState<ClientParty[]>([]);
     
     const [isFetching, setIsFetching] = useState(true);
-    const [activeTab, setActiveTab] = useState<ActiveContentView>('public-meetups');
+    const [activeTab, setActiveTab] = useState<ActiveContentView>(initialTab as ActiveContentView);
     
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
@@ -224,22 +226,20 @@ export default function CommonRoomClient() {
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
-            setAllVibes([]);
-            setPublicParties([]);
-            setMyParties([]);
+            setMyVibes([]);
+            setPublicVibes([]);
+            setMyMeetups([]);
+            setPublicMeetups([]);
             setIsFetching(false);
             return;
         }
         setIsFetching(true);
         try {
-            const [fetchedVibes, fetchedPublicParties, fetchedMyParties] = await Promise.all([
-                getVibes(user.email),
-                getUpcomingPublicParties(),
-                getAllMyUpcomingParties(user.email),
-            ]);
-            setAllVibes(fetchedVibes);
-            setPublicParties(fetchedPublicParties);
-            setMyParties(fetchedMyParties);
+            const data = await getCommonRoomData(user.email);
+            setMyVibes(data.myVibes);
+            setPublicVibes(data.publicVibes);
+            setMyMeetups(data.myMeetups);
+            setPublicMeetups(data.publicMeetups);
             setSortMode('date');
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
@@ -315,8 +315,8 @@ export default function CommonRoomClient() {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                processPartiesWithLocation(loc, publicParties, setPublicParties);
-                processPartiesWithLocation(loc, myParties, setMyParties);
+                processPartiesWithLocation(loc, publicMeetups, setPublicMeetups);
+                processPartiesWithLocation(loc, myMeetups, setMyMeetups);
             },
             (error) => {
                 toast({ variant: 'destructive', title: 'Location Error', description: 'Could not get your location. Please enable location services in your browser.' });
@@ -327,8 +327,8 @@ export default function CommonRoomClient() {
     };
 
     const handleSortByDate = () => {
-        setPublicParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
-        setMyParties(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+        setPublicMeetups(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+        setMyMeetups(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
         setSortMode('date');
         setLocationStatus('idle');
     };
@@ -339,12 +339,6 @@ export default function CommonRoomClient() {
             fetchData();
         }
     }, [loading, user, fetchData]);
-    
-
-    const { publicVibes } = useMemo(() => {
-        const publicV = allVibes.filter(v => v.isPublic);
-        return { publicVibes: publicV };
-    }, [allVibes]);
 
     return (
         <div className="space-y-6">
@@ -365,8 +359,8 @@ export default function CommonRoomClient() {
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <CreateVibeDialog onVibeCreated={fetchData}>
-                                                <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                             <CreateVibeDialog onVibeCreated={fetchData}>
+                                                <Button variant="default" data-tour="cr-start-vibe-button" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
                                                     <PlusCircle className="h-5 w-5" />
                                                     <span className="hidden md:inline">Start a Vibe</span>
                                                 </Button>
@@ -375,9 +369,9 @@ export default function CommonRoomClient() {
                                         <TooltipContent side="bottom" className="md:hidden"><p>Start a Vibe</p></TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
-                                <TabsTrigger value="public-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Compass className="h-5 w-5" /><span className="hidden md:inline">Public Meetups</span></TabsTrigger>
+                                <TabsTrigger value="public-meetups" data-tour="cr-discover-tab" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Compass className="h-5 w-5" /><span className="hidden md:inline">Public Meetups</span></TabsTrigger>
                                 <TabsTrigger value="public-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><MessageSquare className="h-5 w-5" /><span className="hidden md:inline">Public Vibes</span></TabsTrigger>
-                                <TabsTrigger value="my-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Calendar className="h-5 w-5" /><span className="hidden md:inline">My Meetups</span></TabsTrigger>
+                                <TabsTrigger value="my-meetups" data-tour="cr-my-space-tab" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Calendar className="h-5 w-5" /><span className="hidden md:inline">My Meetups</span></TabsTrigger>
                                 <TabsTrigger value="my-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><UserCircle className="h-5 w-5" /><span className="hidden md:inline">My Vibes</span></TabsTrigger>
                             </TabsList>
                         </Tabs>
@@ -390,10 +384,10 @@ export default function CommonRoomClient() {
                         </div>
                     ) : (
                         <div className="pt-4">
-                            {activeTab === 'public-meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                            {activeTab === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
-                            {activeTab === 'my-meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                            {activeTab === 'my-vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
+                            {activeTab === 'public-meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeTab === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicMeetups} title="Public Vibes" source="public-vibes" />}
+                            {activeTab === 'my-meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeTab === 'my-vibes' && <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes & Invites" source="my-vibes" />}
                         </div>
                     )}
                 </CardContent>
@@ -402,7 +396,7 @@ export default function CommonRoomClient() {
     )
 }
 
-function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'discover' | 'my-space' }) {
+function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'public-vibes' | 'my-vibes' }) {
     
     const getActiveMeetup = (vibe: ClientVibe) => {
         return parties.find(p => p.vibeId === vibe.id);
