@@ -18,11 +18,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Phone, Copy, UserMinus, UserCheck, ShieldCheck, ShieldX, XCircle, Crown, Edit, Trash2, CalendarPlus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
-import { ClientVibe, ClientParty } from '@/lib/types';
+import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties, rsvpToMeetup, updateHostStatus, removeParticipantFromVibe, editMeetup } from '@/actions/common-room';
+import { ClientVibe, ClientParty, UserProfile, Vibe, Party } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,6 +32,13 @@ import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback } from '../ui/avatar';
+import { onSnapshot, doc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { sendFriendRequest } from '@/actions/friends';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import { ScrollArea } from '../ui/scroll-area';
+import { Textarea } from '../ui/textarea';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -50,6 +57,298 @@ const commonRoomTourSteps: TourStep[] = [
   },
 ];
 
+function MeetupDetailsDialog({ party, children }: { party: ClientParty, children: React.ReactNode }) {
+    const { user, userProfile } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>({});
+    const [vibeData, setVibeData] = useState<Vibe | null>(null);
+
+    const [attendees, setAttendees] = useState<UserProfile[]>([]);
+    const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
+
+    useEffect(() => {
+        setEditableMeetup(party);
+    }, [party]);
+    
+    useEffect(() => {
+        if (!isOpen) return;
+        
+        const vibeDocRef = doc(db, 'vibes', party.vibeId);
+        const unsubscribe = onSnapshot(vibeDocRef, (doc) => {
+            setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : null);
+        });
+        
+        const fetchAttendees = async () => {
+            if (!party.rsvps || party.rsvps.length === 0) {
+                setAttendees([]);
+                return;
+            }
+            setIsLoadingAttendees(true);
+            try {
+                const userIds = party.rsvps;
+                const usersRef = collection(db, 'users');
+                const chunks = [];
+                for (let i = 0; i < userIds.length; i += 30) {
+                    chunks.push(userIds.slice(i, i + 30));
+                }
+                const attendeesData: UserProfile[] = [];
+                for (const chunk of chunks) {
+                    const q = query(usersRef, where('__name__', 'in', chunk));
+                    const snapshot = await getDocs(q);
+                    snapshot.forEach(doc => attendeesData.push({ id: doc.id, ...doc.data() } as UserProfile));
+                }
+                setAttendees(attendeesData);
+            } catch (error) {
+                console.error("Error fetching attendees:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load attendee list.' });
+            } finally {
+                setIsLoadingAttendees(false);
+            }
+        };
+
+        fetchAttendees();
+        
+        return () => unsubscribe();
+    }, [party.vibeId, isOpen, party.rsvps, toast]);
+
+    const isCurrentUserHost = useMemo(() => {
+        if (!user || !vibeData) return false;
+        return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
+    }, [user, vibeData]);
+    
+    const handleHostToggle = async (targetEmail: string, shouldBeHost: boolean) => {
+        if (!isCurrentUserHost) {
+            toast({ variant: 'destructive', title: 'Permission Denied', description: 'Only hosts can manage other hosts.' });
+            return;
+        }
+
+        const result = await updateHostStatus(party.vibeId, targetEmail, shouldBeHost);
+        if (result.success) {
+            toast({ title: 'Success', description: `Host status updated for ${targetEmail}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
+        }
+    };
+    
+    const handleRemoveUser = async (userToRemove: { id?: string, uid?: string, email: string, name: string }) => {
+        if (!isCurrentUserHost) return;
+        const uid = userToRemove.uid || userToRemove.id;
+        if (!uid) {
+             toast({ variant: 'destructive', title: 'Error', description: 'User ID not found.' });
+             return;
+        }
+        const result = await removeParticipantFromVibe(party.vibeId, { uid, email: userToRemove.email });
+         if (result.success) {
+            toast({ title: 'User Removed', description: `${userToRemove.name} has been removed and blocked from this Vibe.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
+        }
+    };
+
+    const handleEdit = async () => {
+        if (!user || !user.displayName) return;
+        setIsSubmitting(true);
+        
+        try {
+            const payload = {
+                ...editableMeetup,
+                startTime: editableMeetup.startTime ? new Date(editableMeetup.startTime).toISOString() : undefined,
+                endTime: editableMeetup.endTime ? new Date(editableMeetup.endTime).toISOString() : undefined,
+            };
+
+            const result = await editMeetup(party.vibeId, party.id, payload, user.displayName);
+
+            if (result.success) {
+                toast({ title: 'Meetup Updated', description: 'Changes have been saved and announced in the chat.' });
+                setIsEditing(false);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update meetup.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const handleRsvp = async (partyId: string, isRsvping: boolean) => {
+        if (!user) return;
+        const result = await rsvpToMeetup(party.vibeId, partyId, user.uid, isRsvping);
+        if(!result.success) {
+            toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
+        }
+    }
+    
+    const handleSendFriendRequest = async (recipient: { email: string; name: string }) => {
+        if (!user || !user.displayName || !user.email) {
+            toast({ variant: 'destructive', title: 'Login required', description: 'You must be logged in to send friend requests.' });
+            return;
+        }
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, recipient.email);
+        if (result.success) {
+            toast({ title: 'Request Sent!', description: `Friend request sent to ${recipient.name}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not send friend request.' });
+        }
+    };
+    
+    const isUserRsvpd = user && party.rsvps?.includes(user.uid);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            {children}
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    {isEditing ? (
+                        <Input value={editableMeetup.title} onChange={(e) => setEditableMeetup(p => ({...p, title: e.target.value}))} className="text-lg font-semibold" />
+                    ) : (
+                        <DialogTitle>{party.title}</DialogTitle>
+                    )}
+                    <DialogDescription>
+                         {isEditing ? (
+                            <Input value={editableMeetup.location} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
+                         ) : (
+                            <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                <MapPin className="h-4 w-4" /> Location
+                            </a>
+                         )}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-2">
+                    {isEditing ? (
+                         <Textarea placeholder="Event details and instructions..." value={editableMeetup.description} onChange={(e) => setEditableMeetup(p => ({...p, description: e.target.value}))} className="text-sm" />
+                    ) : (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{party.description || 'No description provided.'}</p>
+                    )}
+                </div>
+                <ScrollArea className="h-48 my-4">
+                    <div className="pr-4">
+                        <h4 className="font-semibold mb-2">Attendees ({party.rsvps?.length || 0})</h4>
+                        {isLoadingAttendees ? (
+                            <div className="flex justify-center items-center">
+                                <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+                            </div>
+                        ) : attendees.length > 0 ? (
+                            <div className="space-y-2">
+                                {attendees.map(attendee => {
+                                    const isHost = vibeData?.hostEmails?.includes(attendee.email);
+                                    const isFriend = userProfile?.friends?.includes(attendee.id!);
+                                    const hasPendingRequest = userProfile?.friendRequests?.some(req => req.fromUid === attendee.id);
+
+                                    return (
+                                    <div key={attendee.id} className="flex items-center gap-2 group">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarFallback>{attendee.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <span className={cn("text-sm font-medium flex-1", isHost && "text-primary")}>{attendee.name}</span>
+                                        {isHost && <Badge variant="secondary">Host</Badge>}
+
+                                        {isCurrentUserHost && user?.uid !== attendee.id && (
+                                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Chat with {attendee.name}</p></TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7"><Phone className="h-4 w-4" /></Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Start voice call</p></TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button 
+                                                                size="icon" 
+                                                                variant="ghost" 
+                                                                className="h-7 w-7"
+                                                                onClick={() => handleHostToggle(attendee.email, !isHost)}
+                                                            >
+                                                                {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <AlertDialog>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <AlertDialogTrigger asChild>
+                                                                <TooltipTrigger asChild>
+                                                                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                                        <UserMinus className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                            </AlertDialogTrigger>
+                                                            <TooltipContent>Remove user</TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Remove {attendee.name}?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will permanently remove and block {attendee.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleRemoveUser(attendee)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                                Remove & Block
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        )}
+                                        {user?.uid !== attendee.id && !isFriend && !hasPendingRequest && (
+                                            <TooltipProvider>
+                                                 <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                         <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(attendee)}>
+                                                            <UserPlus className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>Add Friend</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No one has RSVP'd yet.</p>
+                        )}
+                    </div>
+                </ScrollArea>
+                <DialogFooter className="sm:justify-between gap-2">
+                    {isEditing ? (
+                         <>
+                            <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                            <Button onClick={handleEdit} disabled={isSubmitting}>
+                                {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null} Save Changes
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                             {isCurrentUserHost && <Button variant="secondary" onClick={() => setIsEditing(true)}>Edit</Button>}
+                             <Button onClick={() => handleRsvp(party.id, !isUserRsvpd)} variant={isUserRsvpd ? 'secondary' : 'default'} className="flex-1">
+                                {isUserRsvpd ? `I'm Out (${party.rsvps?.length || 0})` : `I'm In! (${party.rsvps?.length || 0})`}
+                             </Button>
+                        </>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { onVibeCreated: () => void, children: React.ReactNode, variant?: "default" | "primary" }) {
     const { user } = useUserData();
@@ -149,31 +448,40 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                 </div>
             ) : (
                 parties.map(party => (
-                    <Card key={party.id} className="hover:border-primary/50 transition-colors">
-                        <CardContent className="p-4 space-y-2">
-                             {typeof party.distance === 'number' && (
-                                <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
-                            )}
-                            <div className="flex-1">
-                                <h4 className="font-semibold">{party.title}</h4>
-                                <p className="text-sm text-muted-foreground">
-                                From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline">{party.vibeTopic}</Link>
-                                </p>
-                            </div>
-                            <div className="text-sm text-muted-foreground mt-2 space-y-1">
-                                <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4" />
-                                    <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                        View Location <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-semibold">When:</span>
-                                    <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <MeetupDetailsDialog key={party.id} party={party}>
+                        <DialogTrigger asChild>
+                            <Card className="hover:border-primary/50 transition-colors cursor-pointer text-left">
+                                <CardContent className="p-4 space-y-2">
+                                    {typeof party.distance === 'number' && (
+                                        <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                                    )}
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="flex-1">
+                                            <h4 className="font-semibold">{party.title}</h4>
+                                            <p className="text-sm text-muted-foreground">
+                                                From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
+                                            </p>
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                            <p className="font-semibold text-sm">{format(new Date(party.startTime), 'MMM d')}</p>
+                                            <p className="text-xs text-muted-foreground">{format(new Date(party.startTime), 'h:mm a')}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-muted-foreground pt-2 space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <MapPin className="h-4 w-4" />
+                                            <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                View Location <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        </div>
+                                        {party.description && (
+                                            <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                         </DialogTrigger>
+                    </MeetupDetailsDialog>
                 ))
             )}
         </div>
