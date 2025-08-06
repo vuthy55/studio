@@ -7,8 +7,10 @@ import { useUserData } from '@/context/UserDataContext';
 import { LoaderCircle } from 'lucide-react';
 import CommonRoomClient from './CommonRoomClient';
 import MainHeader from '@/components/layout/MainHeader';
+import { TourProvider } from '@/context/TourContext';
+import Tour from '@/components/tour/Tour';
 
-export default function CommonRoomPage() {
+function CommonRoomPageContent() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
 
@@ -25,13 +27,17 @@ export default function CommonRoomPage() {
             </div>
         );
     }
+    return <CommonRoomClient />;
+}
 
+
+export default function CommonRoomPage() {
     return (
-        <div className="space-y-8">
-            <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers." />
-            <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
-                <CommonRoomClient />
-            </Suspense>
-        </div>
+        <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <TourProvider>
+                <CommonRoomPageContent />
+                <Tour/>
+            </TourProvider>
+        </Suspense>
     );
 }

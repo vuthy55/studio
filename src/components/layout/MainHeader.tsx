@@ -16,9 +16,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 interface MainHeaderProps {
     title: string;
     description: string;
+    children?: React.ReactNode;
 }
 
-export default function MainHeader({ title, description }: MainHeaderProps) {
+export default function MainHeader({ title, description, children }: MainHeaderProps) {
     const { user, userProfile } = useUserData();
     const [isClient, setIsClient] = useState(false);
 
@@ -36,6 +37,7 @@ export default function MainHeader({ title, description }: MainHeaderProps) {
                 </div>
             </div>
              <div className="flex items-center justify-end gap-2 w-full md:w-auto">
+                {children}
                 {isClient && user && userProfile && (
                     <>
                         <NotificationBell />

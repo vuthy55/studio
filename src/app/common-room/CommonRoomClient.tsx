@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, ChevronRight, FileCode } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, ChevronRight, FileCode, HelpCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
@@ -30,6 +30,24 @@ import { resolveUrlAction } from '@/actions/scraper';
 import { notificationSound } from '@/lib/sounds';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useTour, TourStep } from '@/context/TourContext';
+import MainHeader from '@/components/layout/MainHeader';
+
+const commonRoomTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="cr-discover-tab"]',
+    content: "The 'Discover' tab is where you can find all public meetups and ongoing conversations (called 'Vibes').",
+  },
+  {
+    selector: '[data-tour="cr-my-space-tab"]',
+    content: "The 'My Space' tab shows all the Vibes you've created or been invited to, along with meetups happening within them.",
+  },
+  {
+    selector: '[data-tour="cr-start-vibe-button"]',
+    content: "Ready to start your own conversation? Click here to create a new Vibe.",
+    position: 'bottom',
+  },
+];
 
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
@@ -74,7 +92,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button>
+                <Button data-tour="cr-start-vibe-button">
                     <PlusCircle className="mr-2 h-4 w-4"/>
                     Start a Vibe
                 </Button>
@@ -189,6 +207,7 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
+    const { startTour } = useTour();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
     const [myParties, setMyParties] = useState<ClientParty[]>([]); // New state for private meetups
@@ -332,9 +351,15 @@ export default function CommonRoomClient() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-end">
-                <CreateVibeDialog onVibeCreated={fetchData} />
-            </div>
+            <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers.">
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => startTour(commonRoomTourSteps)}>
+                        <HelpCircle className="mr-2 h-4 w-4"/>
+                        Take a Tour
+                    </Button>
+                    <CreateVibeDialog onVibeCreated={fetchData} />
+                </div>
+            </MainHeader>
 
             <Card>
                 <CardHeader>
@@ -351,8 +376,8 @@ export default function CommonRoomClient() {
                     ) : (
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
                             <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="discover"><Compass className="mr-2"/> Discover</TabsTrigger>
-                                <TabsTrigger value="my-space"><UserCircle className="mr-2"/> My Space</TabsTrigger>
+                                <TabsTrigger value="discover" data-tour="cr-discover-tab"><Compass className="mr-2"/> Discover</TabsTrigger>
+                                <TabsTrigger value="my-space" data-tour="cr-my-space-tab"><UserCircle className="mr-2"/> My Space</TabsTrigger>
                             </TabsList>
                             <TabsContent value="discover" className="mt-4">
                                 <div className="space-y-4">
