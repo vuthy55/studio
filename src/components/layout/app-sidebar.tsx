@@ -185,14 +185,6 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
-                  <Link href="/infohub" onClick={closeSidebar}>
-                    <Compass />
-                    InfoHub
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
                <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
                   <Link href="/common-room" onClick={closeSidebar}>
@@ -201,34 +193,40 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
+                  <Link href="/infohub" onClick={closeSidebar}>
+                    <Compass />
+                    InfoHub
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               
                <Collapsible asChild>
-                  <>
-                    <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                            <SidebarMenuButton asChild isActive={pathname === '/profile'}>
-                                <Link href="/profile" onClick={closeSidebar}>
-                                    <User />
-                                    My Account
-                                </Link>
-                            </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                    </SidebarMenuItem>
-                    <CollapsibleContent asChild>
-                      <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={pathname === '/stats'}>
-                                <Link href="/stats" onClick={closeSidebar}><BarChart/> My Stats</Link>
-                            </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                         <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={pathname === '/notifications'}>
-                                <Link href="/notifications" onClick={closeSidebar}><Bell/> Notifications</Link>
-                            </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </>
+                  <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                          <SidebarMenuButton asChild isActive={pathname === '/profile'}>
+                              <Link href="/profile" onClick={closeSidebar}>
+                                  <User />
+                                  My Account
+                              </Link>
+                          </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent asChild>
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={pathname === '/stats'}>
+                                  <Link href="/stats" onClick={closeSidebar}><BarChart/> My Stats</Link>
+                              </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={pathname === '/notifications'}>
+                                  <Link href="/notifications" onClick={closeSidebar}><Bell/> Notifications</Link>
+                              </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                  </SidebarMenuItem>
               </Collapsible>
               
               {userProfile?.role === 'admin' && (
