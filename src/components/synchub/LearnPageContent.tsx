@@ -7,7 +7,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, Download } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -27,6 +27,7 @@ import { getOfflineAudio } from './OfflineManager';
 import OfflineManager from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import { useTour, TourStep } from '@/context/TourContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -255,7 +256,24 @@ export default function LearnPageContent() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <div className="flex flex-col items-center gap-4 text-center">
+                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button size="lg" variant="outline" data-tour="offline-manager">
+                                    <Download className="mr-2" />
+                                    Offline Packs
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                    <DialogTitle>Offline Language Packs</DialogTitle>
+                                    <DialogDescription>
+                                        Manage your downloaded language packs for offline audio playback.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <OfflineManager />
+                            </DialogContent>
+                        </Dialog>
                         <Button onClick={() => startTour(learnPageTourSteps)} size="lg">
                             <HelpCircle className="mr-2" />
                             Take a Tour
@@ -263,10 +281,6 @@ export default function LearnPageContent() {
                     </div>
                 </CardContent>
             </Card>
-
-            <div data-tour="offline-manager">
-                <OfflineManager />
-            </div>
             
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
