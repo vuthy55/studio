@@ -366,18 +366,17 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
 
     return (
         <div className="space-y-6">
-            <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers.">
-                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => startTour(commonRoomTourSteps)}>
-                        <HelpCircle className="mr-2 h-4 w-4"/>
-                        <span className="hidden md:inline">Take a Tour</span>
-                    </Button>
-                </div>
-            </MainHeader>
+            <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers." />
+            <div className="flex items-center justify-center md:justify-start">
+                <Button variant="outline" onClick={() => startTour(commonRoomTourSteps)}>
+                    <HelpCircle className="mr-2 h-4 w-4"/>
+                    Take a Tour
+                </Button>
+            </div>
 
             <Card>
                 <CardHeader>
-                    <div className="flex flex-wrap items-center justify-start gap-2">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveContentView)}>
                             <TabsList className="grid w-full grid-cols-5 h-auto">
                                 <TooltipProvider>
