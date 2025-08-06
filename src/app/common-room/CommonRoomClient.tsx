@@ -92,9 +92,7 @@ function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { on
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 {children}
-            </DialogTrigger>
+            {children}
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Start a New Vibe</DialogTitle>
@@ -118,7 +116,6 @@ function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { on
                     </Button>
                 </DialogFooter>
             </DialogContent>
-        </Dialog>
     )
 }
 
@@ -363,12 +360,14 @@ export default function CommonRoomClient() {
                                 <CreateVibeDialog onVibeCreated={fetchData}>
                                     <TooltipProvider>
                                         <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
-                                                    <PlusCircle className="h-5 w-5" />
-                                                    <span className="hidden md:inline">Start a Vibe</span>
-                                                </Button>
-                                            </TooltipTrigger>
+                                            <DialogTrigger asChild>
+                                                <TooltipTrigger asChild>
+                                                    <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                                        <PlusCircle className="h-5 w-5" />
+                                                        <span className="hidden md:inline">Start a Vibe</span>
+                                                    </Button>
+                                                </TooltipTrigger>
+                                            </DialogTrigger>
                                             <TooltipContent className="md:hidden">Start a Vibe</TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
