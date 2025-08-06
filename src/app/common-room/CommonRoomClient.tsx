@@ -22,7 +22,7 @@ import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass,
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties, rsvpToMeetup, updateHostStatus, removeParticipantFromVibe, editMeetup } from '@/actions/common-room';
-import { ClientVibe, ClientParty, UserProfile, Vibe, Party } from '@/lib/types';
+import { ClientVibe, ClientParty, UserProfile, Vibe, Party, BlockedUser } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -464,18 +464,16 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                                 From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
                                             </p>
                                         </div>
-                                        <div className="text-right flex-shrink-0">
-                                            <p className="font-semibold text-sm">{format(new Date(party.startTime), 'MMM d')}</p>
-                                            <p className="text-xs text-muted-foreground">{format(new Date(party.startTime), 'h:mm a')}</p>
+                                        <div className="text-right flex-shrink-0 flex flex-col items-end">
+                                            <p className="font-semibold text-sm whitespace-nowrap">{format(new Date(party.startTime), 'MMM d')}</p>
+                                            <p className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(party.startTime), 'h:mm a')}</p>
                                         </div>
                                     </div>
                                     <div className="text-sm text-muted-foreground pt-2 space-y-1">
-                                        <div className="flex items-center gap-2">
+                                        <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
                                             <MapPin className="h-4 w-4" />
-                                            <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                                View Location <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        </div>
+                                            View Location <ExternalLink className="h-3 w-3" />
+                                        </a>
                                         {party.description && (
                                             <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
                                         )}
