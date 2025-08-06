@@ -897,13 +897,13 @@ function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsS
     };
 
     return (
-         <ScrollArea className="max-h-[60vh] p-1 border-2 border-red-500">
-            <form onSubmit={handleSubmitRoom} className="space-y-4 pt-4 pr-6">
-                    <div className="space-y-2">
+        <div className="border border-primary rounded-lg p-4 mt-4">
+            <form onSubmit={handleSubmitRoom} className="space-y-4">
+                <div className="space-y-2">
                     <Label htmlFor="topic">Room Topic</Label>
                     <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
                 </div>
-                    {!isEditMode && (
+                {!isEditMode && (
                     <div className="space-y-2">
                         <Label htmlFor="language">Your Spoken Language</Label>
                         <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
@@ -1088,7 +1088,7 @@ function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsS
                         <Button variant="outline" type="button" onClick={() => setIsScheduling(false)}>Cancel</Button>
                 </div>
             </form>
-        </ScrollArea>
+        </div>
     )
 }
 
@@ -1382,7 +1382,7 @@ export default function SyncOnlineHome() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
+                    <Collapsible open={isScheduling} onOpenChange={setIsScheduling}>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
                              <CollapsibleTrigger asChild>
                                 <Button data-tour="so-schedule-button" onClick={() => {
@@ -1401,7 +1401,7 @@ export default function SyncOnlineHome() {
                                     ) : (
                                         <>
                                             <PlusCircle className="mr-2 h-4 w-4" />
-                                            Schedule a Room
+                                            {isEditMode ? 'Edit Room' : 'Schedule a Room'}
                                         </>
                                     )}
                                 </Button>
@@ -1411,7 +1411,7 @@ export default function SyncOnlineHome() {
                                 Take a Tour
                             </Button>
                         </div>
-                        <CollapsibleContent>
+                        <CollapsibleContent className="max-h-[60vh] overflow-y-auto mt-4">
                              <ScheduleRoomForm
                                 onRoomSubmitted={onScheduleDialogSubmit}
                                 editingRoom={editingRoom}
@@ -1435,16 +1435,16 @@ export default function SyncOnlineHome() {
                         ) : (
                             <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-3">
-                                    <TabsTrigger value="scheduled">
-                                        <CalendarIcon className="h-4 w-4 md:mr-2" />
+                                    <TabsTrigger value="scheduled" className="flex items-center gap-2">
+                                        <CalendarIcon className="h-4 w-4" />
                                         <span className="hidden md:inline">Scheduled ({scheduled.length})</span>
                                     </TabsTrigger>
-                                    <TabsTrigger value="active">
-                                        <RadioTower className="h-4 w-4 md:mr-2" />
+                                    <TabsTrigger value="active" className="flex items-center gap-2">
+                                        <RadioTower className="h-4 w-4" />
                                         <span className="hidden md:inline">Active ({active.length})</span>
                                     </TabsTrigger>
-                                    <TabsTrigger value="closed">
-                                        <FileText className="h-4 w-4 md:mr-2" />
+                                    <TabsTrigger value="closed" className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4" />
                                         <span className="hidden md:inline">Closed ({closed.length})</span>
                                     </TabsTrigger>
                                 </TabsList>
