@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Redesigned the SyncHub feature set for a cleaner, more focused user experience. In "Prep Your Vibe" and "Live Translation," secondary content like the Offline Manager and Saved Phrases list has been moved from the main view into convenient pop-up dialogs, decluttering the interface. In "Sync Live," the microphone button is now the primary focus, with usage stats and language selection neatly organized into collapsible sections below it.
 - **`[IMPROVEMENT]`** Overhauled the "Schedule a Room" interface on the Sync Online page. Replaced the problematic dialog-based form with a smooth, inline collapsible section. This resolves all prior layout and scrolling issues, particularly with the date picker, ensuring a reliable and intuitive user experience.
 - **`[IMPROVEMENT]`** Redesigned the "InfoHub Management" section in the Admin Dashboard for clarity and control. The new interface separates AI source configuration from the country database view into distinct tabs. It also introduces a powerful "Build/Update Database" feature, allowing administrators to selectively research and add countries by region, rather than being forced to build the entire world database at once. The database view itself has been overhauled into an accordion layout for improved readability and easier editing of individual country data.
 - **`[IMPROVEMENT]`** Confirmed and documented the stability of the Sync Live billing logic. The system operates on a real-time, pay-as-you-go model where users first consume a free monthly minute allowance. Once the free minutes are exhausted, the `UserDataContext` correctly deducts tokens on a per-minute basis for any subsequent usage, ensuring accurate and immediate transaction handling.
@@ -39,6 +40,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
