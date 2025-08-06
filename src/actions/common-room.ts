@@ -264,18 +264,21 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
+        const now = new Date();
+        
         // --- Step 1: Fetch all vibes in a single query ---
         const vibesSnapshot = await db.collection('vibes').get();
         const allVibes: Vibe[] = vibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
         debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
-        // --- Step 2: Categorize vibes ---
+        // --- Step 2: Categorize vibes and prepare maps for efficient lookup ---
         const myVibesClient: ClientVibe[] = [];
         const publicVibesClient: ClientVibe[] = [];
         const myVibeIds = new Set<string>();
+        const vibeMap = new Map<string, Vibe>();
 
         allVibes.forEach(vibe => {
-             // Sanitize vibe by converting Timestamps to ISO strings
+            vibeMap.set(vibe.id, vibe);
             const clientVibe: ClientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
                 createdAt: (vibe.createdAt as Timestamp)?.toDate()?.toISOString(),
@@ -292,30 +295,53 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         });
         debugLog.push(`[INFO] Categorized into ${myVibesClient.length} 'My Vibes' and ${publicVibesClient.length} 'Public Vibes'.`);
 
-        // --- Step 3: Fetch all upcoming parties by iterating through vibes ---
-        const now = new Date();
+        // --- Step 3: Fetch all upcoming parties using an efficient collectionGroup query ---
         let allParties: ClientParty[] = [];
         
-        for (const vibe of allVibes) {
-            const partiesRef = db.collection('vibes').doc(vibe.id).collection('parties');
-            const q = partiesRef.where('startTime', '>=', now);
-            const partiesSnapshot = await q.get();
-
-            partiesSnapshot.forEach(doc => {
+        try {
+            debugLog.push('[INFO] Attempting high-performance collectionGroup query for parties...');
+            const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
+            allParties = allPartiesSnapshot.docs.map(doc => {
                 const data = doc.data();
-                allParties.push({
+                const vibeRef = doc.ref.parent.parent!;
+                const parentVibe = vibeMap.get(vibeRef.id);
+                return {
                     id: doc.id,
-                    vibeId: vibe.id,
+                    vibeId: vibeRef.id,
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                    vibeTopic: vibe.topic || 'A Vibe',
-                    isPublic: vibe.isPublic,
-                } as ClientParty);
+                    vibeTopic: parentVibe?.topic || 'A Vibe',
+                    isPublic: parentVibe?.isPublic || false,
+                } as ClientParty;
             });
+            debugLog.push(`[SUCCESS] Fetched ${allParties.length} parties via collectionGroup query.`);
+        } catch (error: any) {
+            debugLog.push(`[WARN] collectionGroup query failed: ${error.message}.`);
+            debugLog.push('[INFO] Falling back to slower, per-vibe query method.');
+
+            // Fallback Logic: Iterate through vibes if the collectionGroup query fails
+            for (const vibe of allVibes) {
+                const partiesRef = db.collection('vibes').doc(vibe.id).collection('parties');
+                const q = partiesRef.where('startTime', '>=', now);
+                const partiesSnapshot = await q.get();
+
+                partiesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    allParties.push({
+                        id: doc.id,
+                        vibeId: vibe.id,
+                        ...data,
+                        startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                        endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                        vibeTopic: vibe.topic || 'A Vibe',
+                        isPublic: vibe.isPublic,
+                    } as ClientParty);
+                });
+            }
+            debugLog.push(`[SUCCESS] Fetched ${allParties.length} parties via fallback method.`);
         }
-        debugLog.push(`[INFO] Fetched ${allParties.length} total upcoming parties by iterating through vibes.`);
-        
+
         // --- Step 4: Categorize meetups ---
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];
@@ -328,7 +354,6 @@ export async function getCommonRoomData(userEmail: string): Promise<{
                 publicMeetups.push(party);
             }
         });
-
         debugLog.push(`[INFO] Categorized into ${myMeetups.length} 'My Meetups' and ${publicMeetups.length} 'Public Meetups'.`);
         
         // --- Step 5: Sort everything before returning ---
