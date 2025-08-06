@@ -14,11 +14,16 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Heart } from 'lucide-react';
+import { Heart, LoaderCircle } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js";
+import { createPayPalOrder } from '@/actions/paypal';
+import { addLedgerEntry } from '@/services/ledger';
+
 
 interface DonateButtonProps {
     variant?: 'button' | 'icon';
@@ -27,18 +32,60 @@ interface DonateButtonProps {
 export default function DonateButton({ variant = 'button' }: DonateButtonProps) {
   const [user] = useAuthState(auth);
   const { toast } = useToast();
-  const [amount, setAmount] = useState(10.00);
+  const [amount, setAmount] = useState(5.00);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const presetAmounts = [5, 10, 15];
+  const presetAmounts = [5, 10, 25];
+  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 
-  const handleDonateClick = () => {
-    toast({
-        variant: 'destructive',
-        title: 'Feature Disabled',
-        description: 'The payment system is temporarily unavailable. Please check back later.',
-    });
-  }
+  const handleCreateOrder = async (data: Record<string, unknown>, actions: CreateOrderActions) => {
+     if (!user) {
+        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to donate.' });
+        return '';
+    }
+    try {
+        const { orderID, error } = await createPayPalOrder({
+            userId: user.uid,
+            orderType: 'donation',
+            value: amount,
+        });
+
+        if (error) throw new Error(error);
+        return orderID || '';
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not create PayPal order.' });
+        return '';
+    }
+  };
+
+  const handleOnApprove = async (data: OnApproveData) => {
+      setIsProcessing(true);
+      if (!user) {
+        toast({ variant: 'destructive', title: 'Not Logged In' });
+        setIsProcessing(false);
+        return;
+      }
+      try {
+          // Note: For donations, we don't need to call capturePayPalOrder because we don't need to award tokens.
+          // We just log it for our records.
+          await addLedgerEntry({
+              type: 'revenue',
+              source: 'paypal-donation',
+              description: `Donation from ${user.email}`,
+              amount: amount,
+              orderId: data.orderID,
+              userId: user.uid,
+              timestamp: new Date(),
+          });
+          toast({ title: 'Thank You!', description: 'Your generous donation is greatly appreciated!' });
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Error', description: 'There was an issue logging your donation.' });
+      } finally {
+          setIsProcessing(false);
+          setDialogOpen(false);
+      }
+  };
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -52,7 +99,7 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                             </Button>
                         </DialogTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><p>Donate (Disabled)</p></TooltipContent>
+                    <TooltipContent side="top"><p>Donate</p></TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         ) : (
@@ -66,7 +113,7 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
             <DialogHeader>
                 <DialogTitle>Make a Donation</DialogTitle>
                 <DialogDescription>
-                   The payment system is temporarily unavailable. Thank you for your consideration!
+                   Your support helps us keep the servers running and continue development. Thank you!
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
@@ -93,13 +140,26 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                         step="1"
                     />
                 </div>
-                <div className="text-center font-bold text-lg">
-                    Total: ${amount.toFixed(2)} USD
-                </div>
-                <Button className="w-full" onClick={handleDonateClick} disabled>
-                    Payments Unavailable
-                </Button>
-                 {!user && <p className="text-center text-sm text-destructive">Please log in to make a donation.</p>}
+                 {isProcessing && (
+                    <div className="flex justify-center items-center gap-2">
+                        <LoaderCircle className="animate-spin" />
+                        <span>Processing donation...</span>
+                    </div>
+                )}
+                {PAYPAL_CLIENT_ID && user ? (
+                    <PayPalScriptProvider options={{ "clientId": PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+                        <PayPalButtons 
+                            style={{ layout: "vertical", label: "donate" }}
+                            createOrder={handleCreateOrder}
+                            onApprove={handleOnApprove}
+                            disabled={isProcessing}
+                        />
+                    </PayPalScriptProvider>
+                ) : (
+                    <p className="text-center text-sm text-destructive">
+                        { !user ? "Please log in to make a donation." : "PayPal is not configured." }
+                    </p>
+                )}
             </div>
         </DialogContent>
     </Dialog>

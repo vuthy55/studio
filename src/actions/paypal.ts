@@ -1,9 +1,11 @@
 
 'use server';
 
-// import paypal from '@paypal/checkout-server-sdk'; // Temporarily removed
+import paypal from '@paypal/checkout-server-sdk';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getAppSettingsAction } from './settings';
+
 
 interface CreateOrderPayload {
     userId: string;
@@ -13,19 +15,131 @@ interface CreateOrderPayload {
 
 // --- PayPal Client Setup ---
 function getPayPalClient() {
-  // const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID; // Temporarily removed
-  // const clientSecret = process.env.PAYPAL_CLIENT_SECRET; // Temporarily removed
-  throw new Error('PayPal functionality is temporarily disabled.');
+  const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('PayPal client ID or secret is not configured on the server.');
+  }
+
+  const environment = process.env.NODE_ENV === 'production'
+    ? new paypal.core.LiveEnvironment(clientId, clientSecret)
+    : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+    
+  return new paypal.core.PayPalHttpClient(environment);
 }
 
 // --- Server Action: Create an order ---
 export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{orderID?: string, error?: string}> {
-  console.error("createPayPalOrder is called, but PayPal functionality is temporarily disabled.");
-  return { error: 'Payment processing is temporarily disabled. Please try again later.' };
+    const { orderType, value } = payload;
+    let purchaseAmount = '0.01'; // Default to a small amount
+
+    if (orderType === 'tokens') {
+        // Assume 100 tokens = $1, so 1 token = $0.01
+        purchaseAmount = (value * 0.01).toFixed(2);
+    } else if (orderType === 'donation') {
+        purchaseAmount = value.toFixed(2);
+    }
+
+    if (parseFloat(purchaseAmount) <= 0) {
+        return { error: 'Invalid purchase amount.' };
+    }
+
+    const request = new paypal.orders.OrdersCreateRequest();
+    request.prefer("return=representation");
+    request.requestBody({
+        intent: 'CAPTURE',
+        purchase_units: [{
+            amount: {
+                currency_code: 'USD',
+                value: purchaseAmount,
+            },
+        }],
+    });
+
+    try {
+        const client = getPayPalClient();
+        const response = await client.execute(request);
+        return { orderID: response.result.id };
+    } catch (error: any) {
+        console.error("Error creating PayPal order:", error.message);
+        return { error: 'Failed to create PayPal order on the server.' };
+    }
 }
 
 // --- Server Action: Capture an order ---
-export async function capturePayPalOrder(orderID: string): Promise<{success: boolean, message: string}> {
-  console.error("capturePayPalOrder is called, but PayPal functionality is temporarily disabled.");
-  return { success: false, message: 'Payment processing is temporarily disabled. Please try again later.'};
+export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
+    const request = new paypal.orders.OrdersCaptureRequest(orderID);
+    request.requestBody({});
+
+    try {
+        const client = getPayPalClient();
+        const response = await client.execute(request);
+        const orderData = response.result;
+
+        if (orderData.status === 'COMPLETED') {
+            const purchaseUnit = orderData.purchase_units[0];
+            const amountPaid = parseFloat(purchaseUnit.payments.captures[0].amount.value);
+            const currency = purchaseUnit.payments.captures[0].amount.currency_code;
+            
+            // Calculate tokens based on the amount paid (100 tokens per dollar)
+            const tokensEarned = Math.round(amountPaid * 100);
+
+            // Fetch app settings to check for bonus tokens
+            const settings = await getAppSettingsAction();
+            let bonusTokens = 0;
+            if (amountPaid === 10.00) bonusTokens = settings.referralBonus || 0; // Re-using referralBonus for a simple package deal
+            if (amountPaid >= 25.00) bonusTokens = 500;
+            
+            const totalTokens = tokensEarned + bonusTokens;
+            
+            const userRef = db.collection('users').doc(userId);
+            const batch = db.batch();
+
+            // 1. Update user's token balance
+            batch.update(userRef, { tokenBalance: FieldValue.increment(totalTokens) });
+
+            // 2. Log the token transaction
+            const tokenLogRef = userRef.collection('transactionLogs').doc();
+            batch.set(tokenLogRef, {
+                actionType: 'purchase',
+                tokenChange: totalTokens,
+                timestamp: FieldValue.serverTimestamp(),
+                description: `Purchased ${tokensEarned} tokens (+${bonusTokens} bonus) via PayPal.`,
+            });
+            
+            // 3. Log the financial transaction in a separate history
+            const paymentHistoryRef = userRef.collection('paymentHistory').doc(orderID);
+            batch.set(paymentHistoryRef, {
+                orderId: orderID,
+                amount: amountPaid,
+                currency: currency,
+                status: 'COMPLETED',
+                tokensPurchased: tokensEarned,
+                createdAt: FieldValue.serverTimestamp(),
+            });
+            
+            // 4. Also log to a central financial ledger for admin auditing
+            const centralLedgerRef = db.collection('financialLedger').doc();
+             batch.set(centralLedgerRef, {
+                type: 'revenue',
+                source: 'paypal',
+                description: `Token Purchase: ${tokensEarned} tokens`,
+                amount: amountPaid,
+                orderId: orderID,
+                userId: userId,
+                timestamp: FieldValue.serverTimestamp(),
+            });
+
+            await batch.commit();
+
+            return { success: true, message: `Successfully purchased ${totalTokens} tokens!` };
+        } else {
+             return { success: false, message: 'Payment was not completed.' };
+        }
+
+    } catch (error: any) {
+        console.error("Error capturing PayPal order:", error.message);
+        return { success: false, message: 'Failed to capture payment on the server.' };
+    }
 }

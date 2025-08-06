@@ -18,9 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, Wallet } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
-// import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js"; // Temporarily removed
-// import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js"; // Temporarily removed
-// import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal'; // Temporarily removed
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js";
+import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
@@ -43,15 +43,56 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
+  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 
+  const handleCreateOrder = async (data: Record<string, unknown>, actions: CreateOrderActions) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to make a purchase.' });
+        return '';
+    }
+    try {
+        const { orderID, error } = await createPayPalOrder({
+            userId: user.uid,
+            orderType: 'tokens',
+            value: tokenAmount,
+        });
 
-  const handleBuyClick = () => {
-    toast({
-        variant: 'destructive',
-        title: 'Feature Disabled',
-        description: 'The payment system is temporarily unavailable. Please check back later.',
-    });
-  }
+        if (error) {
+            throw new Error(error);
+        }
+        return orderID || '';
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not create PayPal order.' });
+        return '';
+    }
+  };
+
+  const handleOnApprove = async (data: OnApproveData) => {
+      setIsProcessing(true);
+      if (!user) {
+        toast({ variant: 'destructive', title: 'Not Logged In', description: 'Cannot process payment without a user session.'});
+        setIsProcessing(false);
+        return;
+      }
+      try {
+          const result = await capturePayPalOrder(data.orderID, user.uid);
+          if (result.success) {
+              toast({ title: 'Payment Successful!', description: result.message });
+          } else {
+              throw new Error(result.message);
+          }
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Payment Error', description: error.message || 'There was an issue processing your payment.' });
+      } finally {
+          setIsProcessing(false);
+          setDialogOpen(false);
+      }
+  };
+
+  const onError = (err: any) => {
+      console.error("PayPal Error:", err);
+      toast({ variant: 'destructive', title: 'PayPal Error', description: 'An error occurred with the PayPal transaction.'});
+  };
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -65,7 +106,7 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                             </Button>
                         </DialogTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><p>Buy Tokens (Disabled)</p></TooltipContent>
+                    <TooltipContent side="top"><p>Buy Tokens</p></TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         ) : (
@@ -80,7 +121,7 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
             <DialogHeader>
                 <DialogTitle>Buy More Tokens</DialogTitle>
                 <DialogDescription>
-                    The payment system is temporarily disabled. Please check back later.
+                    Choose a package or enter a custom amount.
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
@@ -113,9 +154,26 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                 <div className="text-center font-bold text-lg">
                     Total: ${currentPrice} USD
                 </div>
-                <Button className="w-full" onClick={handleBuyClick} disabled>
-                    Payments Unavailable
-                </Button>
+                {isProcessing && (
+                    <div className="flex justify-center items-center gap-2">
+                        <LoaderCircle className="animate-spin" />
+                        <span>Processing payment...</span>
+                    </div>
+                )}
+                 {PAYPAL_CLIENT_ID ? (
+                    <PayPalScriptProvider options={{ "clientId": PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+                        <PayPalButtons 
+                            style={{ layout: "vertical", label: "pay" }}
+                            createOrder={handleCreateOrder}
+                            onApprove={handleOnApprove}
+                            onError={onError}
+                            disabled={isProcessing}
+                        />
+                    </PayPalScriptProvider>
+                ) : (
+                    <p className="text-center text-sm text-destructive">PayPal is not configured.</p>
+                )}
+                 {!user && <p className="text-center text-sm text-destructive">Please log in to make a purchase.</p>}
             </div>
         </DialogContent>
     </Dialog>
