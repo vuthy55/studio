@@ -31,6 +31,7 @@ import { notificationSound } from '@/lib/sounds';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const commonRoomTourSteps: TourStep[] = [
