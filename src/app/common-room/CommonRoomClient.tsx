@@ -35,6 +35,7 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/comp
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { getCommonRoomCache, setCommonRoomCache } from '@/services/cache';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -233,26 +234,40 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
-            setMyVibes([]);
-            setPublicVibes([]);
-            setMyMeetups([]);
-            setPublicMeetups([]);
-            setDebugLog([]);
             setIsFetching(false);
             return;
         }
-        setIsFetching(true);
+
+        // --- Caching Logic ---
+        const cachedData = await getCommonRoomCache();
+        if (cachedData) {
+            setMyVibes(cachedData.myVibes);
+            setPublicVibes(cachedData.publicVibes);
+            setMyMeetups(cachedData.myMeetups);
+            setPublicMeetups(cachedData.publicMeetups);
+            setIsFetching(false); // We have data, so stop initial loading spinner
+        } else {
+            setIsFetching(true); // No cache, so show main loading spinner
+        }
+
         try {
-            const data = await getCommonRoomData(user.email);
-            setMyVibes(data.myVibes);
-            setPublicVibes(data.publicVibes);
-            setMyMeetups(data.myMeetups);
-            setPublicMeetups(data.publicMeetups);
-            setDebugLog(data.debugLog || []); // Ensure debugLog is always an array
-            setSortMode('date');
+            const serverData = await getCommonRoomData(user.email);
+            
+            // This ensures we have the latest data and updates the UI
+            setMyVibes(serverData.myVibes);
+            setPublicVibes(serverData.publicVibes);
+            setMyMeetups(serverData.myMeetups);
+            setPublicMeetups(serverData.publicMeetups);
+            setDebugLog(serverData.debugLog || []);
+            
+            // Update the cache with the fresh data
+            await setCommonRoomCache(serverData);
+
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
-            toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
+            if (!cachedData) { // Only show error if we couldn't even show cached data
+                toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
+            }
         } finally {
             setIsFetching(false);
         }
@@ -279,7 +294,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
             }
         }
     
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+/;
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
         const match = finalUrl.match(regex);
     
         if (match) {
@@ -296,17 +311,13 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
     const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }, targetParties: ClientParty[], setParties: React.Dispatch<React.SetStateAction<ClientParty[]>>) => {
         setIsProcessingLocation(true);
         try {
-            // This is the critical change: wrap the map in Promise.all
             const partiesWithDistancePromises = targetParties.map(async (party) => {
                 const coords = await extractCoordsFromUrl(party.location);
                 const distance = coords ? calculateDistance(location, coords) : undefined;
                 return { ...party, distance };
             });
 
-            // Wait for all distance calculations to complete
             const partiesWithDistance = await Promise.all(partiesWithDistancePromises);
-
-            // Now sort and update the state once
             partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
             setParties(partiesWithDistance);
 
@@ -328,7 +339,6 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                // Call the corrected function for both lists
                 processPartiesWithLocation(loc, publicMeetups, setPublicMeetups);
                 processPartiesWithLocation(loc, myMeetups, setMyMeetups);
             },
