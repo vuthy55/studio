@@ -663,6 +663,43 @@ function MeetupDetailsDialog({ party, onUpdate }: { party: ClientParty, onUpdate
     
     const isUserRsvpd = user && party.rsvps?.includes(user.uid);
 
+    const handleAddToCalendar = () => {
+        if (!party) return;
+
+        const toICSDate = (date: Date) => {
+            return date.toISOString().replace(/[-:.]/g, '').slice(0, -4) + 'Z';
+        };
+
+        const startDate = toICSDate(new Date(party.startTime));
+        const endDate = toICSDate(new Date(party.endTime));
+
+        const icsContent = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//VibeSync//Meetup//EN',
+            'BEGIN:VEVENT',
+            `UID:${party.id}@vibesync.com`,
+            `DTSTAMP:${toICSDate(new Date())}`,
+            `DTSTART:${startDate}`,
+            `DTEND:${endDate}`,
+            `SUMMARY:${party.title}`,
+            `DESCRIPTION:${party.description || `Meetup for Vibe: ${party.vibeTopic}`}`,
+            `LOCATION:${party.location}`,
+            'END:VEVENT',
+            'END:VCALENDAR'
+        ].join('\r\n');
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${party.title.replace(/[^a-z0-9]/gi, '_')}.ics`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <DialogContent className="max-w-md">
             <DialogHeader>
@@ -675,10 +712,19 @@ function MeetupDetailsDialog({ party, onUpdate }: { party: ClientParty, onUpdate
                     <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
                         <MapPin className="h-4 w-4" /> Location
                     </a>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <CalendarIcon className="h-4 w-4" />
-                        <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
-                    </div>
+                     <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button onClick={handleAddToCalendar} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+                                    <CalendarPlus className="h-4 w-4" />
+                                    <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Add to Calendar</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
                 {party.description && (
                     <DialogDescription className="pt-2">{party.description}</DialogDescription>
