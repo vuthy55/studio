@@ -897,7 +897,7 @@ function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsS
     };
 
     return (
-         <ScrollArea className="max-h-[60vh]">
+         <ScrollArea className="max-h-[60vh] p-1 border-2 border-red-500">
             <form onSubmit={handleSubmitRoom} className="space-y-4 pt-4 pr-6">
                     <div className="space-y-2">
                     <Label htmlFor="topic">Room Topic</Label>
