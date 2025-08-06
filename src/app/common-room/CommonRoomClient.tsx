@@ -116,7 +116,8 @@ function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { on
                     </Button>
                 </DialogFooter>
             </DialogContent>
-    )
+        </Dialog>
+    );
 }
 
 function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, isCalculatingDistance, locationStatus, debugLog }: { parties: ClientParty[], title: string, onSortByDistance: () => void, onSortByDate: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', debugLog: string[] }) {
