@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, ChevronRight, FileCode, HelpCircle } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
@@ -28,12 +28,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
 import { notificationSound } from '@/lib/sounds';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -95,20 +92,9 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="default" className="h-10 w-10 p-0 md:w-auto md:px-4 md:py-2">
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                 <span className="flex items-center">
-                                    <PlusCircle className="h-5 w-5 md:mr-2"/>
-                                    <span className="hidden md:inline">Start a Vibe</span>
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent className="md:hidden">
-                                <p>Start a Vibe</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                 <Button variant="default" className="h-10">
+                    <PlusCircle className="h-5 w-5 md:mr-2"/>
+                    <span className="hidden md:inline">Start a Vibe</span>
                 </Button>
             </DialogTrigger>
             <DialogContent>
@@ -228,7 +214,7 @@ export default function CommonRoomClient() {
     const [myParties, setMyParties] = useState<ClientParty[]>([]);
     
     const [isFetching, setIsFetching] = useState(true);
-    const [activeContent, setActiveContent] = useState<ActiveContentView>('public-meetups');
+    const [activeTab, setActiveTab] = useState<ActiveContentView>('public-meetups');
     
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
@@ -360,29 +346,6 @@ export default function CommonRoomClient() {
         return { publicVibes: publicV };
     }, [allVibes]);
 
-
-    const NavButton = ({ view, label, icon: Icon }: { view: ActiveContentView, label: string, icon: React.ElementType }) => (
-         <Button
-            variant={activeContent === view ? 'default' : 'outline'}
-            onClick={() => setActiveContent(view)}
-            className="h-10 w-10 p-0 md:w-auto md:px-4 md:py-2"
-        >
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                         <span className="flex items-center">
-                            <Icon className="h-5 w-5 md:mr-2"/>
-                            <span className="hidden md:inline">{label}</span>
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="md:hidden">
-                        <p>{label}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        </Button>
-    )
-
     return (
         <div className="space-y-6">
             <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers.">
@@ -396,12 +359,16 @@ export default function CommonRoomClient() {
 
             <Card>
                 <CardHeader>
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                       <CreateVibeDialog onVibeCreated={fetchData} />
-                       <NavButton view="public-meetups" label="Public Meetups" icon={Calendar} />
-                       <NavButton view="public-vibes" label="Public Vibes" icon={MessageSquare} />
-                       <NavButton view="my-meetups" label="My Meetups" icon={Calendar} />
-                       <NavButton view="my-vibes" label="My Vibes" icon={UserCircle} />
+                    <div className="flex flex-wrap items-center justify-start gap-2">
+                        <CreateVibeDialog onVibeCreated={fetchData} />
+                        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveContentView)}>
+                            <TabsList>
+                                <TabsTrigger value="public-meetups">Public Meetups</TabsTrigger>
+                                <TabsTrigger value="public-vibes">Public Vibes</TabsTrigger>
+                                <TabsTrigger value="my-meetups">My Meetups</TabsTrigger>
+                                <TabsTrigger value="my-vibes">My Vibes</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -411,10 +378,10 @@ export default function CommonRoomClient() {
                         </div>
                     ) : (
                         <div className="pt-4">
-                            {activeContent === 'public-meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                            {activeContent === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
-                            {activeContent === 'my-meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                            {activeContent === 'my-vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
+                            {activeTab === 'public-meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeTab === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
+                            {activeTab === 'my-meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeTab === 'my-vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
                         </div>
                     )}
                 </CardContent>
