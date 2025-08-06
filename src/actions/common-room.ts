@@ -311,23 +311,18 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
 
 export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
     try {
-        const partiesSnapshot = await db.collectionGroup('parties').get();
+        const now = new Date();
+        const partiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
+        
         if (partiesSnapshot.empty) {
             return [];
         }
 
-        const now = new Date();
         const publicParties: ClientParty[] = [];
 
         for (const doc of partiesSnapshot.docs) {
             const data = doc.data();
-            const startTime = (data.startTime as Timestamp)?.toDate();
             
-            // Filter out past parties first
-            if (!startTime || startTime < now) {
-                continue;
-            }
-
             // Check if parent vibe is public
             const vibeRef = doc.ref.parent.parent!;
             const vibeDoc = await vibeRef.get();
@@ -338,13 +333,12 @@ export async function getUpcomingPublicParties(): Promise<ClientParty[]> {
                     vibeId: vibeDoc.id,
                     vibeTopic: vibeDoc.data()?.topic || 'A Vibe',
                     ...data,
-                    startTime: startTime.toISOString(),
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
                 } as ClientParty);
             }
         }
         
-        // Sort remaining parties by start time
         publicParties.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         
         return publicParties;
