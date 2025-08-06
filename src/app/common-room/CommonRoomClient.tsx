@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Phone, Copy, UserMinus, UserCheck, ShieldCheck, ShieldX, XCircle, Crown, Edit, Trash2, CalendarPlus } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Phone, Copy, UserMinus, UserCheck, ShieldCheck, ShieldX, XCircle, Crown, Edit, Trash2, CalendarPlus, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties, rsvpToMeetup, updateHostStatus, removeParticipantFromVibe, editMeetup } from '@/actions/common-room';
@@ -32,13 +32,13 @@ import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { onSnapshot, doc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { sendFriendRequest } from '@/actions/friends';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
-import { ScrollArea } from '../ui/scroll-area';
-import { Textarea } from '../ui/textarea';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -391,7 +391,9 @@ function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { on
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            {children}
+            <DialogTrigger asChild>
+                {children}
+            </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Start a New Vibe</DialogTitle>
@@ -666,12 +668,12 @@ export default function CommonRoomClient() {
                     <div className="flex flex-wrap items-center justify-start gap-2">
                          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveContentView)}>
                             <TabsList className="grid w-full grid-cols-5 h-auto">
-                                <CreateVibeDialog onVibeCreated={fetchData}>
+                                 <CreateVibeDialog onVibeCreated={fetchData}>
                                     <TooltipProvider>
                                         <Tooltip>
                                             <DialogTrigger asChild>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                                     <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
                                                         <PlusCircle className="h-5 w-5" />
                                                         <span className="hidden md:inline">Start a Vibe</span>
                                                     </Button>
