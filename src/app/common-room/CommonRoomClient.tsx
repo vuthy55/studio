@@ -279,7 +279,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
             }
         }
     
-        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+        const regex = /@(-?\d+\.\d+),(-?\d+\.\d+/;
         const match = finalUrl.match(regex);
     
         if (match) {
