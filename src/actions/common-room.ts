@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
-import { getDocs } from 'firebase/firestore';
+import { getDocs, where as clientWhere, query as clientQuery, collection as clientCollection } from 'firebase/firestore';
 
 
 interface StartVibePayload {
@@ -264,17 +264,25 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
-        // --- Step 1: Fetch all vibes in a single query ---
-        const allVibesSnapshot = await db.collection('vibes').get();
-        const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
-        debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
+        const now = new Date();
 
-        // --- Step 2: Categorize vibes ---
+        // Fetch all vibes and all upcoming parties in parallel
+        const [vibesSnapshot, partiesSnapshot] = await Promise.all([
+            db.collection('vibes').get(),
+            db.collectionGroup('parties').where('startTime', '>=', now).get()
+        ]);
+        debugLog.push(`[INFO] Fetched ${vibesSnapshot.size} total vibes and ${partiesSnapshot.size} total upcoming parties.`);
+
+        // Process Vibes
         const myVibes: ClientVibe[] = [];
         const publicVibes: ClientVibe[] = [];
+        const vibeMap = new Map<string, Vibe>();
+        const myVibeIds = new Set<string>();
 
-        allVibes.forEach(vibe => {
-             // Convert Timestamps to ISO strings for serialization
+        vibesSnapshot.forEach(doc => {
+            const vibe = { id: doc.id, ...doc.data() } as Vibe;
+            vibeMap.set(doc.id, vibe);
+            
             const clientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
                 createdAt: (vibe.createdAt as Timestamp)?.toDate(),
@@ -284,54 +292,43 @@ export async function getCommonRoomData(userEmail: string): Promise<{
             const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
             if (isMember) {
                 myVibes.push(clientVibe);
+                myVibeIds.add(vibe.id);
             }
             if (vibe.isPublic) {
                  publicVibes.push(clientVibe);
             }
         });
-        
         debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
 
-        // --- Step 3: Fetch all upcoming meetups ---
-        const now = new Date();
-        const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
-        debugLog.push(`[INFO] Fetched ${allPartiesSnapshot.size} total upcoming parties.`);
-        
-        const allParties: ClientParty[] = allPartiesSnapshot.docs.map(doc => {
-            const data = doc.data() as Party;
-            const vibeRef = doc.ref.parent.parent!;
-            return {
-                id: doc.id,
-                vibeId: vibeRef.id,
-                ...data,
-                startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                endTime: (data.endTime as Timestamp).toDate().toISOString(),
-            } as ClientParty;
-        });
-
-        // --- Step 4: Map parties to their vibes and categorize them ---
-        const vibeMap = new Map(allVibes.map(v => [v.id, v]));
-        const myVibeIds = new Set(myVibes.map(v => v.id));
-
+        // Process Parties
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];
 
-        allParties.forEach(party => {
-            const parentVibe = vibeMap.get(party.vibeId);
-            if (!parentVibe) {
-                debugLog.push(`[WARN] Party ${party.id} has no parent vibe with ID ${party.vibeId}. Skipping.`);
-                return;
-            };
-            
-            party.vibeTopic = parentVibe.topic || 'A Vibe';
-            party.isPublic = parentVibe.isPublic;
+        partiesSnapshot.forEach(doc => {
+            const partyData = doc.data() as Party;
+            const vibeRef = doc.ref.parent.parent!;
+            const parentVibe = vibeMap.get(vibeRef.id);
 
-            if (myVibeIds.has(party.vibeId)) {
-                myMeetups.push(party);
+            if (!parentVibe) {
+                 debugLog.push(`[WARN] Party ${doc.id} has orphan vibe ID ${vibeRef.id}. Skipping.`);
+                return;
             }
-            
+
+            const clientParty: ClientParty = {
+                ...partyData,
+                id: doc.id,
+                vibeId: vibeRef.id,
+                startTime: (partyData.startTime as Timestamp).toDate().toISOString(),
+                endTime: (partyData.endTime as Timestamp).toDate().toISOString(),
+                vibeTopic: parentVibe.topic || 'A Vibe',
+                isPublic: parentVibe.isPublic,
+            };
+
+            if (myVibeIds.has(clientParty.vibeId)) {
+                myMeetups.push(clientParty);
+            }
             if (parentVibe.isPublic) {
-                publicMeetups.push(party);
+                publicMeetups.push(clientParty);
             }
         });
 
@@ -349,6 +346,7 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     } catch (error: any) {
         console.error("Error fetching common room data:", error);
         debugLog.push(`[CRITICAL] An error occurred: ${error.message}`);
+        // Ensure we always return a valid structure on error
         return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [], debugLog };
     }
 }

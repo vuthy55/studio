@@ -466,4 +466,3 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
         </div>
     );
 }
-
