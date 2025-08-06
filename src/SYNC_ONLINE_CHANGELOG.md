@@ -13,6 +13,9 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 
 ### Fixed
+- **`[FIX]`** Resolved a major performance bottleneck in the Common Room that caused slow load times, especially as the number of "Vibes" grew. The root cause was an N+1 query problem where the app made a separate database call for every Vibe to fetch its upcoming meetups. The definitive fix involved a two-part strategy:
+    1.  **Resilient Server-Side Query:** The data-fetching logic was re-architected to first attempt a high-performance `collectionGroup` query to get all meetups in a single call. Crucially, this is wrapped in a `try...catch` block. If the required database index is not yet ready, the system automatically falls back to the slower, but reliable, per-Vibe fetching method, ensuring the page always loads.
+    2.  **Client-Side Caching:** Implemented a browser-side caching layer using IndexedDB. The app now instantly loads data from the cache on repeat visits for a significantly faster user experience, while fetching fresh data in the background.
 - **`[FIX]`** Resolved a `TypeError: settings.tabManager._initialize is not a function` build error caused by an incorrect Firebase cache initialization. Replaced the deprecated `enableIndexedDbPersistence()` function with the modern `initializeFirestore()` and `persistentSingleTabManager`, ensuring the app builds correctly and uses the latest Firebase v11 API for offline data caching.
 - **`[FIX]`** Resolved a persistent and critical `npm ERESOLVE` dependency conflict that blocked all builds and installations. The root cause was an inability for `npm` to find a compatible version of key packages like `genkit` and `undici` that satisfied all peer dependency requirements throughout the complex dependency tree. This was exacerbated by transient dependencies (dependencies of dependencies) requesting non-existent or conflicting versions.
     - **Initial Problem:** Using caret (`^`) versioning for packages allowed `npm` to install newer minor versions, but this flexibility led to dependency tree conflicts where sub-dependencies had incompatible requirements.
@@ -41,6 +44,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
