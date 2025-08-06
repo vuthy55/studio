@@ -32,6 +32,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+
 
 const commonRoomTourSteps: TourStep[] = [
   {
@@ -92,9 +95,20 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button data-tour="cr-start-vibe-button">
-                    <PlusCircle className="mr-2 h-4 w-4"/>
-                    Start a Vibe
+                 <Button variant="outline" className="h-10 w-10 p-0 md:w-auto md:px-4 md:py-2">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                 <span className="flex items-center">
+                                    <PlusCircle className="h-5 w-5 md:mr-2"/>
+                                    <span className="hidden md:inline">Start a Vibe</span>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="md:hidden">
+                                <p>Start a Vibe</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </Button>
             </DialogTrigger>
             <DialogContent>
@@ -203,6 +217,7 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
     return R * c;
 }
 
+type ActiveContentView = 'public-meetups' | 'public-vibes' | 'my-meetups' | 'my-vibes';
 
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
@@ -210,12 +225,10 @@ export default function CommonRoomClient() {
     const { startTour } = useTour();
     const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
     const [publicParties, setPublicParties] = useState<ClientParty[]>([]);
-    const [myParties, setMyParties] = useState<ClientParty[]>([]); // New state for private meetups
+    const [myParties, setMyParties] = useState<ClientParty[]>([]);
     
     const [isFetching, setIsFetching] = useState(true);
-    const [activeTab, setActiveTab] = useState('discover');
-    const [activeDiscoverTab, setActiveDiscoverTab] = useState('meetups');
-    const [activeMySpaceTab, setActiveMySpaceTab] = useState('meetups');
+    const [activeContent, setActiveContent] = useState<ActiveContentView>('public-meetups');
     
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
@@ -316,7 +329,6 @@ export default function CommonRoomClient() {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-                // Process both public and private parties when location is available
                 processPartiesWithLocation(loc, publicParties, setPublicParties);
                 processPartiesWithLocation(loc, myParties, setMyParties);
             },
@@ -349,24 +361,48 @@ export default function CommonRoomClient() {
     }, [allVibes]);
 
 
+    const NavButton = ({ view, label, icon: Icon }: { view: ActiveContentView, label: string, icon: React.ElementType }) => (
+         <Button
+            variant={activeContent === view ? 'default' : 'outline'}
+            onClick={() => setActiveContent(view)}
+            className="h-10 w-10 p-0 md:w-auto md:px-4 md:py-2"
+        >
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                         <span className="flex items-center">
+                            <Icon className="h-5 w-5 md:mr-2"/>
+                            <span className="hidden md:inline">{label}</span>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="md:hidden">
+                        <p>{label}</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        </Button>
+    )
+
     return (
         <div className="space-y-6">
             <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers.">
                  <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => startTour(commonRoomTourSteps)}>
                         <HelpCircle className="mr-2 h-4 w-4"/>
-                        Take a Tour
+                        <span className="hidden md:inline">Take a Tour</span>
                     </Button>
-                    <CreateVibeDialog onVibeCreated={fetchData} />
                 </div>
             </MainHeader>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Welcome to the Common Room</CardTitle>
-                    <CardDescription>
-                        A place to connect with other travelers. Discover public discussions or check your private invites.
-                    </CardDescription>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                       <NavButton view="public-meetups" label="Public Meetups" icon={Calendar} />
+                       <NavButton view="public-vibes" label="Public Vibes" icon={MessageSquare} />
+                       <NavButton view="my-meetups" label="My Meetups" icon={Calendar} />
+                       <NavButton view="my-vibes" label="My Vibes" icon={UserCircle} />
+                       <CreateVibeDialog onVibeCreated={fetchData} />
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {isFetching ? (
@@ -374,56 +410,12 @@ export default function CommonRoomClient() {
                             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                         </div>
                     ) : (
-                        <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="discover" data-tour="cr-discover-tab"><Compass className="mr-2"/> Discover</TabsTrigger>
-                                <TabsTrigger value="my-space" data-tour="cr-my-space-tab"><UserCircle className="mr-2"/> My Space</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="discover" className="mt-4">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <Button 
-                                            variant={activeDiscoverTab === 'meetups' ? 'default' : 'outline'}
-                                            onClick={() => setActiveDiscoverTab('meetups')}
-                                        >
-                                            <Calendar className="mr-2"/> Public Meetups
-                                        </Button>
-                                         <Button 
-                                            variant={activeDiscoverTab === 'vibes' ? 'default' : 'outline'}
-                                            onClick={() => setActiveDiscoverTab('vibes')}
-                                        >
-                                            <MessageSquare className="mr-2"/> Public Vibes
-                                        </Button>
-                                    </div>
-                                    <div className="pt-4">
-                                        {activeDiscoverTab === 'meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
-                                    </div>
-                                </div>
-                            </TabsContent>
-                            <TabsContent value="my-space" className="mt-4">
-                               <div className="space-y-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <Button 
-                                            variant={activeMySpaceTab === 'meetups' ? 'default' : 'outline'}
-                                            onClick={() => setActiveMySpaceTab('meetups')}
-                                        >
-                                            <Calendar className="mr-2"/> My Meetups
-                                        </Button>
-                                         <Button 
-                                            variant={activeMySpaceTab === 'vibes' ? 'default' : 'outline'}
-                                            onClick={() => setActiveMySpaceTab('vibes')}
-                                        >
-                                            <MessageSquare className="mr-2"/> My Vibes
-                                        </Button>
-                                    </div>
-                                    <div className="pt-4">
-                                        {activeMySpaceTab === 'meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
-                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
-                                    </div>
-                                </div>
-                            </TabsContent>
-                        </Tabs>
+                        <div className="pt-4">
+                            {activeContent === 'public-meetups' && <PartyList parties={publicParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeContent === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" source="discover" />}
+                            {activeContent === 'my-meetups' && <PartyList parties={myParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={[]} />}
+                            {activeContent === 'my-vibes' && <VibeList vibes={allVibes} parties={myParties} title="My Vibes & Invites" source="my-space" />}
+                        </div>
                     )}
                 </CardContent>
             </Card>
