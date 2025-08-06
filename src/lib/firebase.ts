@@ -1,7 +1,8 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from "firebase/firestore";
+import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentTabManager } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -16,7 +17,12 @@ const firebaseConfig = {
 
 // Initialize Firebase for SSR
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+
+// New: Initialize Firestore with caching configuration
+const db = initializeFirestore(app, {
+  cache: persistentLocalCache({ tabManager: persistentTabManager() })
+});
+
 const auth = getAuth(app);
 const storage = getStorage(app);
 
@@ -27,30 +33,5 @@ if (process.env.NODE_ENV === 'development') {
     // connectFirestoreEmulator(db, "localhost", 8080);
     // connectStorageEmulator(storage, "localhost", 9199);
 }
-
-
-// Enable offline persistence
-if (typeof window !== 'undefined') {
-  try {
-    enableIndexedDbPersistence(db)
-      .then(() => {
-        if (process.env.NODE_ENV === 'development') {
-            console.log("[FIREBASE] Offline persistence enabled.");
-        }
-      })
-      .catch((err) => {
-        if (process.env.NODE_ENV === 'development') {
-            if (err.code == 'failed-precondition') {
-            console.warn("[FIREBASE] Multiple tabs open, persistence can only be enabled in one. Functionality may be limited.");
-            } else if (err.code == 'unimplemented') {
-            console.warn("[FIREBASE] The current browser does not support all of the features required for offline persistence.");
-            }
-        }
-      });
-  } catch (error) {
-    console.error("[FIREBASE] Error enabling offline persistence", error);
-  }
-}
-
 
 export { app, db, auth, storage };
