@@ -12,7 +12,13 @@ import {
   SidebarMenuItem, 
   SidebarMenuButton, 
   SidebarFooter,
-  useSidebar
+  useSidebar,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +31,7 @@ import React, { useState } from 'react';
 import { sendBuddyAlert } from '@/actions/friends';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 
 
 function BuddyAlertButton() {
@@ -178,14 +185,6 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
-                  <Link href="/common-room" onClick={closeSidebar}>
-                    <MessagesSquare />
-                    Common Room
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
                   <Link href="/infohub" onClick={closeSidebar}>
@@ -194,51 +193,55 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
+                  <Link href="/common-room" onClick={closeSidebar}>
+                    <MessagesSquare />
+                    Common Room
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+               <Collapsible asChild>
+                  <>
+                    <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                            <SidebarMenuButton asChild isActive={pathname === '/profile'}>
+                                <Link href="/profile" onClick={closeSidebar}>
+                                    <User />
+                                    My Account
+                                </Link>
+                            </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                    <CollapsibleContent asChild>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={pathname === '/stats'}>
+                                <Link href="/stats" onClick={closeSidebar}><BarChart/> My Stats</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                         <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={pathname === '/notifications'}>
+                                <Link href="/notifications" onClick={closeSidebar}><Bell/> Notifications</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </>
+              </Collapsible>
+              
               {userProfile?.role === 'admin' && (
-                <>
-                  <SidebarMenuItem>
+                <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
-                      <Link href="/admin" onClick={closeSidebar}>
+                        <Link href="/admin" onClick={closeSidebar}>
                         <Shield />
                         Admin
-                      </Link>
+                        </Link>
                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/test-search')}>
-                      <Link href="/test-search" onClick={closeSidebar}>
-                        <FlaskConical />
-                        AI Agent Test
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </>
-              )}
-               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/stats'}>
-                  <Link href="/stats" onClick={closeSidebar}>
-                    <BarChart />
-                    My Stats
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/notifications'}>
-                    <Link href="/notifications" onClick={closeSidebar}>
-                      <Bell />
-                      Notifications
-                    </Link>
-                  </SidebarMenuButton>
                 </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/profile'}>
-                  <Link href="/profile" onClick={closeSidebar}>
-                    <User />
-                    My Account
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
                   <LogOut />
                   Logout
