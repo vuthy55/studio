@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar as CalendarIcon, Users as UsersIcon, LocateFixed, HelpCircle, Eye, ChevronRight, Lock, UserCheck, UserX, Crown, Edit, Trash2, CalendarPlus, Copy, UserMinus, LogOut, Send } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar as CalendarIcon, Users as UsersIcon, LocateFixed, HelpCircle, Eye, ChevronRight, Lock, UserPlus, UserCheck, UserX, Crown, Edit, Trash2, CalendarPlus, Copy, UserMinus, LogOut, Send } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties, rsvpToMeetup, editMeetup, removeRsvp, startPrivateVibe } from '@/actions/common-room';
@@ -175,7 +175,19 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
                              <div className="flex items-start justify-between">
                                 <div className="flex-1 space-y-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="font-semibold">{party.title}</p>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button onClick={() => onSelectParty(party)} className="text-left font-semibold hover:underline">
+                                                        {party.title}
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Click to view details and RSVP</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+
                                         {!party.isPublic && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1"/>Private</Badge>}
                                         {typeof party.distance === 'number' && (
                                             <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
@@ -195,9 +207,6 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
                                     </a>
                                 </div>
                              </div>
-                              <div className="pt-3 mt-3 border-t">
-                                <Button onClick={() => onSelectParty(party)}>View Details & RSVP</Button>
-                            </div>
                          </div>
                     ))}
                  </div>
