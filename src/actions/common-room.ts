@@ -251,17 +251,24 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     myVibes: ClientVibe[],
     publicVibes: ClientVibe[],
     myMeetups: ClientParty[],
-    publicMeetups: ClientParty[]
+    publicMeetups: ClientParty[],
+    debugLog: string[]
 }> {
-    if (!userEmail) return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [] };
+    const debugLog: string[] = [];
+    
+    if (!userEmail) {
+        debugLog.push('[FAIL] userEmail not provided.');
+        return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [], debugLog };
+    }
+    debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
         // --- Step 1: Fetch all vibes in a single query ---
         const allVibesSnapshot = await db.collection('vibes').get();
         const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
+        debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
-        // --- Step 2: Categorize vibes and collect their IDs ---
-        const myVibeIds = new Set<string>();
+        // --- Step 2: Categorize vibes ---
         const myVibes: ClientVibe[] = [];
         const publicVibes: ClientVibe[] = [];
 
@@ -276,17 +283,19 @@ export async function getCommonRoomData(userEmail: string): Promise<{
             })) as ClientVibe;
             
             if (isMember) {
-                myVibeIds.add(vibe.id);
                 myVibes.push(clientVibe);
             }
             if (vibe.isPublic) {
                  publicVibes.push(clientVibe);
             }
         });
+        
+        debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
 
-        // --- Step 3: Fetch all meetups in a single query ---
+        // --- Step 3: Fetch all upcoming meetups ---
         const now = new Date();
         const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
+        debugLog.push(`[INFO] Fetched ${allPartiesSnapshot.size} total upcoming parties.`);
         
         const allParties: ClientParty[] = allPartiesSnapshot.docs.map(doc => {
             const data = doc.data();
@@ -302,12 +311,17 @@ export async function getCommonRoomData(userEmail: string): Promise<{
 
         // --- Step 4: Map parties to their vibes and categorize them ---
         const vibeMap = new Map(allVibes.map(v => [v.id, v]));
+        const myVibeIds = new Set(myVibes.map(v => v.id));
+
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];
 
         allParties.forEach(party => {
             const parentVibe = vibeMap.get(party.vibeId);
-            if (!parentVibe) return;
+            if (!parentVibe) {
+                debugLog.push(`[WARN] Party ${party.id} has no parent vibe with ID ${party.vibeId}. Skipping.`);
+                return;
+            };
 
             party.vibeTopic = parentVibe.topic || 'A Vibe';
             
@@ -319,17 +333,23 @@ export async function getCommonRoomData(userEmail: string): Promise<{
                 publicMeetups.push(party);
             }
         });
+
+        debugLog.push(`[INFO] Categorized into ${myMeetups.length} 'My Meetups' and ${publicMeetups.length} 'Public Meetups'.`);
         
+        // --- Step 5: Sort everything before returning ---
         myMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         publicMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         myVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
         publicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
 
-        return { myVibes, publicVibes, myMeetups, publicMeetups };
+        debugLog.push(`[SUCCESS] Data fetch and processing complete.`);
+        return { myVibes, publicVibes, myMeetups, publicMeetups, debugLog };
 
     } catch (error: any) {
         console.error("Error fetching common room data:", error);
-        return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [] };
+        debugLog.push(`[CRITICAL] An error occurred: ${error.message}`);
+        // Return a valid, empty object on failure to prevent client crashes
+        return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [], debugLog };
     }
 }
 

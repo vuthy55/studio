@@ -245,7 +245,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
             setPublicVibes(data.publicVibes);
             setMyMeetups(data.myMeetups);
             setPublicMeetups(data.publicMeetups);
-            setDebugLog(data.debugLog);
+            setDebugLog(data.debugLog || []); // Ensure debugLog is always an array
             setSortMode('date');
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
