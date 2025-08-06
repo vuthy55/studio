@@ -5,9 +5,9 @@ import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import type { ClientVibe, ClientParty } from '@/lib/types';
 
-const DB_NAME = 'CommonRoomCacheDB';
+const DB_NAME = 'VibeSyncCacheDB'; // Renamed for clarity
 const STORE_NAME = 'common-room-cache';
-const DB_VERSION = 1; // Increment this if you change the cache structure
+const DB_VERSION = 1; // Start with version 1
 const CACHE_KEY = 'main';
 
 export interface CommonRoomCache {
@@ -17,6 +17,7 @@ export interface CommonRoomCache {
     publicVibes: ClientVibe[];
     myMeetups: ClientParty[];
     publicMeetups: ClientParty[];
+    debugLog: string[];
 }
 
 async function getDb(): Promise<IDBPDatabase> {
