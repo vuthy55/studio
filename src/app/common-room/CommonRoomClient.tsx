@@ -296,19 +296,23 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
     const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }, targetParties: ClientParty[], setParties: React.Dispatch<React.SetStateAction<ClientParty[]>>) => {
         setIsProcessingLocation(true);
         try {
-            const partiesWithDistance = await Promise.all(targetParties.map(async (party) => {
+            // This is the critical change: wrap the map in Promise.all
+            const partiesWithDistancePromises = targetParties.map(async (party) => {
                 const coords = await extractCoordsFromUrl(party.location);
-                let distance;
-                if (coords) {
-                    distance = calculateDistance(location, coords);
-                }
+                const distance = coords ? calculateDistance(location, coords) : undefined;
                 return { ...party, distance };
-            }));
+            });
 
+            // Wait for all distance calculations to complete
+            const partiesWithDistance = await Promise.all(partiesWithDistancePromises);
+
+            // Now sort and update the state once
             partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
             setParties(partiesWithDistance);
+
             setSortMode('distance');
             setLocationStatus('success');
+
         } catch (error) {
             console.error("Error processing parties with location:", error);
             toast({ variant: 'destructive', title: 'Calculation Error', description: 'Could not calculate distances for meetups.' });
@@ -324,6 +328,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
+                // Call the corrected function for both lists
                 processPartiesWithLocation(loc, publicMeetups, setPublicMeetups);
                 processPartiesWithLocation(loc, myMeetups, setMyMeetups);
             },
