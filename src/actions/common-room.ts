@@ -275,16 +275,14 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         const myVibeIds = new Set<string>();
 
         allVibes.forEach(vibe => {
-            const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
-            
-             // Convert Timestamps to ISO strings for serialization
+             // Sanitize vibe by converting Timestamps to ISO strings
             const clientVibe: ClientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
-                createdAt: (vibe.createdAt as Timestamp)?.toDate(),
-                lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate(),
+                createdAt: (vibe.createdAt as Timestamp)?.toDate()?.toISOString(),
+                lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate()?.toISOString(),
             }));
-            
-            if (isMember) {
+
+            if (vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail) {
                 myVibesClient.push(clientVibe);
                 myVibeIds.add(vibe.id);
             }

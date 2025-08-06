@@ -160,7 +160,10 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                     <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
                                 )}
                                 <div className="flex justify-between items-start gap-2">
-                                    <h4 className="font-semibold flex-1">{party.title}</h4>
+                                    <h4 className="font-semibold flex-1 flex items-center gap-2">
+                                        {party.title}
+                                        {!party.isPublic && <Lock className="h-3 w-3 text-muted-foreground" title="Private Meetup"/>}
+                                    </h4>
                                     <div className="text-right flex-shrink-0">
                                          <p className="font-semibold text-sm whitespace-nowrap">{format(new Date(party.startTime), 'MMM d')}</p>
                                          <p className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(party.startTime), 'h:mm a')}</p>
@@ -169,7 +172,6 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                 <div className="flex justify-between items-center text-sm">
                                     <p className="text-muted-foreground flex items-center gap-2">
                                         From: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
-                                        {!party.isPublic && <Lock className="h-3 w-3 text-muted-foreground" title="Private Vibe"/>}
                                     </p>
                                     <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
                                         <MapPin className="h-4 w-4" />
@@ -427,7 +429,8 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
 function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'public-vibes' | 'my-vibes' }) {
     
     const getActiveMeetup = (vibe: ClientVibe) => {
-        return parties.find(p => p.vibeId === vibe.id);
+        const partyList = source === 'public-vibes' ? parties : parties.filter(p => p.vibeId === vibe.id);
+        return partyList.find(p => p.vibeId === vibe.id);
     }
     
     return (
