@@ -31,7 +31,7 @@ import { notificationSound } from '@/lib/sounds';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -118,7 +118,7 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
+    )
 }
 
 function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, isCalculatingDistance, locationStatus, debugLog }: { parties: ClientParty[], title: string, onSortByDistance: () => void, onSortByDate: () => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', debugLog: string[] }) {
@@ -365,12 +365,18 @@ export default function CommonRoomClient() {
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <CreateVibeDialog onVibeCreated={fetchData}>
-                                                <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
-                                                    <PlusCircle className="h-5 w-5" />
-                                                    <span className="hidden md:inline">Start a Vibe</span>
-                                                </Button>
-                                            </CreateVibeDialog>
+                                             <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                                        <PlusCircle className="h-5 w-5" />
+                                                        <span className="hidden md:inline">Start a Vibe</span>
+                                                    </Button>
+                                                </DialogTrigger>
+                                                <CreateVibeDialog onVibeCreated={fetchData}>
+                                                    {/* This seems to be a bug in ShadCN where the trigger needs a child, even if the content is in the parent */}
+                                                    <></>
+                                                </CreateVibeDialog>
+                                             </Dialog>
                                         </TooltipTrigger>
                                         <TooltipContent side="bottom" className="md:hidden"><p>Start a Vibe</p></TooltipContent>
                                     </Tooltip>

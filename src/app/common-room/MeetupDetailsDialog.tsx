@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { onSnapshot, doc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
+import { Vibe, Party, UserProfile, BlockedUser, FriendRequest, ClientParty } from '@/lib/types';
 import { LoaderCircle, UserPlus, ShieldCheck, ShieldX, UserMinus, MessageSquare, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -18,12 +18,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { sendFriendRequest } from '@/actions/friends';
 import { cn } from '@/lib/utils';
 import { MapPin } from 'lucide-react';
 
-export function MeetupDetailsDialog({ party, children }: { party: Party | ClientParty, children: React.ReactNode }) {
+export function MeetupDetailsDialog({ party, children }: { party: ClientParty, children: React.ReactNode }) {
     const { user, userProfile } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -43,7 +43,7 @@ export function MeetupDetailsDialog({ party, children }: { party: Party | Client
     }, [party]);
     
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || !vibeId) return;
         
         const vibeDocRef = doc(db, 'vibes', vibeId);
         const unsubscribe = onSnapshot(vibeDocRef, (doc) => {
