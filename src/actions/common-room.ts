@@ -233,6 +233,7 @@ interface PlanPartyPayload {
     vibeId: string;
     title: string;
     location: string;
+    description: string;
     startTime: string; // ISO string
     endTime: string; // ISO string
     creatorId: string;
@@ -415,6 +416,7 @@ export async function editMeetup(vibeId: string, partyId: string, updates: Parti
         
         const changeDescriptions = Object.keys(updates).map(key => {
             if (key === 'startTime' || key === 'endTime') return `the ${key.replace('Time', ' time')}`;
+            if (key === 'description') return `the description`;
             return `the ${key}`;
         }).join(', ');
 

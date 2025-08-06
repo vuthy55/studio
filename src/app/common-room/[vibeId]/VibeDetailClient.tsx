@@ -94,6 +94,35 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
         if (!user || !vibeData) return false;
         return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
     }, [user, vibeData]);
+    
+    const handleHostToggle = async (targetEmail: string, shouldBeHost: boolean) => {
+        if (!isCurrentUserHost) {
+            toast({ variant: 'destructive', title: 'Permission Denied', description: 'Only hosts can manage other hosts.' });
+            return;
+        }
+
+        const result = await updateHostStatus(vibeId, targetEmail, shouldBeHost);
+        if (result.success) {
+            toast({ title: 'Success', description: `Host status updated for ${targetEmail}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
+        }
+    };
+    
+    const handleRemoveUser = async (userToRemove: { id?: string, uid?: string, email: string, name: string }) => {
+        if (!isCurrentUserHost) return;
+        const uid = userToRemove.uid || userToRemove.id;
+        if (!uid) {
+             toast({ variant: 'destructive', title: 'Error', description: 'User ID not found.' });
+             return;
+        }
+        const result = await removeParticipantFromVibe(vibeId, { uid, email: userToRemove.email });
+         if (result.success) {
+            toast({ title: 'User Removed', description: `${userToRemove.name} has been removed and blocked from this Vibe.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
+        }
+    };
 
     const handleEdit = async () => {
         if (!user || !user.displayName) return;
@@ -157,6 +186,13 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                          )}
                     </DialogDescription>
                 </DialogHeader>
+                <div className="py-2">
+                    {isEditing ? (
+                         <Textarea placeholder="Event details and instructions..." value={editableMeetup.description} onChange={(e) => setEditableMeetup(p => ({...p, description: e.target.value}))} className="text-sm" />
+                    ) : (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{meetup.description || 'No description provided.'}</p>
+                    )}
+                </div>
                 <ScrollArea className="h-48 my-4">
                     <div className="pr-4">
                         <h4 className="font-semibold mb-2">Attendees ({meetup.rsvps?.length || 0})</h4>
@@ -166,14 +202,67 @@ function MeetupDetailsDialog({ vibeId, meetup }: { vibeId: string, meetup: Party
                             </div>
                         ) : attendees.length > 0 ? (
                             <div className="space-y-2">
-                                {attendees.map(attendee => (
-                                    <div key={attendee.id} className="flex items-center gap-2">
+                                {attendees.map(attendee => {
+                                    const isHost = vibeData?.hostEmails?.includes(attendee.email);
+                                    return (
+                                    <div key={attendee.id} className="flex items-center gap-2 group">
                                         <Avatar className="h-8 w-8">
                                             <AvatarFallback>{attendee.name.charAt(0).toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <span className="text-sm font-medium">{attendee.name}</span>
+                                        <span className={cn("text-sm font-medium flex-1", isHost && "text-primary")}>{attendee.name}</span>
+                                        {isHost && <Badge variant="secondary">Host</Badge>}
+
+                                        {isCurrentUserHost && user?.uid !== attendee.id && (
+                                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button 
+                                                                size="icon" 
+                                                                variant="ghost" 
+                                                                className="h-7 w-7"
+                                                                onClick={() => handleHostToggle(attendee.email, !isHost)}
+                                                            >
+                                                                {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <AlertDialog>
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <AlertDialogTrigger asChild>
+                                                                <TooltipTrigger asChild>
+                                                                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                                        <UserMinus className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                            </AlertDialogTrigger>
+                                                            <TooltipContent>Remove user</TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Remove {attendee.name}?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will permanently remove and block {attendee.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleRemoveUser(attendee)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                                Remove & Block
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <p className="text-sm text-muted-foreground">No one has RSVP'd yet.</p>
@@ -211,6 +300,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
     
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
+    const [description, setDescription] = useState('');
     const [startTime, setStartTime] = useState<Date | undefined>(() => {
         const d = new Date();
         d.setHours(d.getHours() + 1);
@@ -240,6 +330,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                 vibeId,
                 title,
                 location,
+                description,
                 startTime: startTime.toISOString(),
                 endTime: endTime.toISOString(),
                 creatorId: user.uid,
@@ -251,6 +342,7 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                 setIsOpen(false);
                 setTitle('');
                 setLocation('');
+                setDescription('');
             } else {
                 throw new Error(result.error);
             }
@@ -282,6 +374,10 @@ function PlanPartyDialog({ vibeId }: { vibeId: string }) {
                      <div className="space-y-2">
                         <Label htmlFor="party-location">Location (Google Maps or Waze Link)</Label>
                         <Input id="party-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="https://maps.app.goo.gl/..." />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="party-description">Description (Optional)</Label>
+                        <Textarea id="party-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Let's meet at the main entrance at 7pm sharp." />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">

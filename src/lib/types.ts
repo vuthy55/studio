@@ -119,6 +119,7 @@ export type Vibe = {
 export type Party = {
     id: string;
     title: string;
+    description?: string;
     location: string; // Google Maps URL
     startTime: any;
     endTime: any;
