@@ -904,6 +904,18 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Chat with {name}</p></TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7"><Phone className="h-4 w-4" /></Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Start voice call</p></TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
                                                             <Button 
                                                                 size="icon" 
                                                                 variant="ghost" 
