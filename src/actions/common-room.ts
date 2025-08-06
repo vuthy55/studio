@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
+import { getDocs } from 'firebase/firestore';
 
 
 interface StartVibePayload {
@@ -247,10 +248,6 @@ export async function rsvpToMeetup(vibeId: string, partyId: string, userId: stri
     }
 }
 
-/**
- * A robust, corrected function to fetch all necessary data for the Common Room.
- * This version avoids collectionGroup queries and fetches data in a more structured way.
- */
 export async function getCommonRoomData(userEmail: string): Promise<{
     myVibes: ClientVibe[],
     publicVibes: ClientVibe[],
@@ -272,15 +269,11 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
         debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
-        // --- Step 2: Categorize vibes and collect Vibe IDs for party queries ---
+        // --- Step 2: Categorize vibes ---
         const myVibes: ClientVibe[] = [];
         const publicVibes: ClientVibe[] = [];
-        const myVibeIds = new Set<string>();
-        const publicVibeIds = new Set<string>();
 
         allVibes.forEach(vibe => {
-            const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
-            
              // Convert Timestamps to ISO strings for serialization
             const clientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
@@ -288,45 +281,38 @@ export async function getCommonRoomData(userEmail: string): Promise<{
                 lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate(),
             })) as ClientVibe;
             
+            const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
             if (isMember) {
                 myVibes.push(clientVibe);
-                myVibeIds.add(vibe.id);
             }
             if (vibe.isPublic) {
                  publicVibes.push(clientVibe);
-                 publicVibeIds.add(vibe.id);
             }
         });
         
         debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
 
-        // --- Step 3: Fetch all upcoming parties from all vibes ---
-        // This is more reads but avoids the need for a composite index that might not be deployed.
+        // --- Step 3: Fetch all upcoming meetups ---
         const now = new Date();
-        const partyPromises = allVibes.map(vibe => 
-            db.collection('vibes').doc(vibe.id).collection('parties').where('startTime', '>=', now).get()
-        );
-        const partySnapshots = await Promise.all(partyPromises);
-        debugLog.push(`[INFO] Completed ${partySnapshots.length} parallel party queries.`);
+        const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
+        debugLog.push(`[INFO] Fetched ${allPartiesSnapshot.size} total upcoming parties.`);
         
-        const allParties: ClientParty[] = [];
-        partySnapshots.forEach(snapshot => {
-            snapshot.docs.forEach(doc => {
-                const data = doc.data() as Party;
-                const vibeRef = doc.ref.parent.parent!;
-                allParties.push({
-                    id: doc.id,
-                    vibeId: vibeRef.id,
-                    ...data,
-                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                } as ClientParty);
-            });
+        const allParties: ClientParty[] = allPartiesSnapshot.docs.map(doc => {
+            const data = doc.data() as Party;
+            const vibeRef = doc.ref.parent.parent!;
+            return {
+                id: doc.id,
+                vibeId: vibeRef.id,
+                ...data,
+                startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                endTime: (data.endTime as Timestamp).toDate().toISOString(),
+            } as ClientParty;
         });
-        debugLog.push(`[INFO] Fetched ${allParties.length} total upcoming parties from all vibes.`);
-        
-        // --- Step 4: Categorize parties based on their parent vibe's status ---
+
+        // --- Step 4: Map parties to their vibes and categorize them ---
         const vibeMap = new Map(allVibes.map(v => [v.id, v]));
+        const myVibeIds = new Set(myVibes.map(v => v.id));
+
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];
 
@@ -336,13 +322,15 @@ export async function getCommonRoomData(userEmail: string): Promise<{
                 debugLog.push(`[WARN] Party ${party.id} has no parent vibe with ID ${party.vibeId}. Skipping.`);
                 return;
             };
-
-            party.vibeTopic = parentVibe.topic || 'A Vibe';
             
+            party.vibeTopic = parentVibe.topic || 'A Vibe';
+            party.isPublic = parentVibe.isPublic;
+
             if (myVibeIds.has(party.vibeId)) {
                 myMeetups.push(party);
             }
-            if (publicVibeIds.has(party.vibeId)) {
+            
+            if (parentVibe.isPublic) {
                 publicMeetups.push(party);
             }
         });
@@ -361,7 +349,6 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     } catch (error: any) {
         console.error("Error fetching common room data:", error);
         debugLog.push(`[CRITICAL] An error occurred: ${error.message}`);
-        // Return a valid, empty object on failure to prevent client crashes
         return { myVibes: [], publicVibes: [], myMeetups: [], publicMeetups: [], debugLog };
     }
 }
@@ -485,5 +472,3 @@ export async function unblockParticipantFromVibe(vibeId: string, requesterEmail:
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
-
-    

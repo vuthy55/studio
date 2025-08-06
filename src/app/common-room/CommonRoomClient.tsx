@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData, startVibe } from '@/actions/common-room';
@@ -167,8 +167,9 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center text-sm">
-                                    <p className="text-muted-foreground">
+                                    <p className="text-muted-foreground flex items-center gap-2">
                                         From: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
+                                        {!party.isPublic && <Lock className="h-3 w-3 text-muted-foreground" title="Private Vibe"/>}
                                     </p>
                                     <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
                                         <MapPin className="h-4 w-4" />
@@ -466,4 +467,3 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
     );
 }
 
-    
