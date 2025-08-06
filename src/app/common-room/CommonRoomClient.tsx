@@ -31,6 +31,7 @@ import { notificationSound } from '@/lib/sounds';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 
 const commonRoomTourSteps: TourStep[] = [
@@ -50,7 +51,7 @@ const commonRoomTourSteps: TourStep[] = [
 ];
 
 
-function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
+function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { onVibeCreated: () => void, children: React.ReactNode, variant?: "default" | "primary" }) {
     const { user } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -92,10 +93,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="default" className="h-10">
-                    <PlusCircle className="h-5 w-5 md:mr-2"/>
-                    <span className="hidden md:inline">Start a Vibe</span>
-                </Button>
+                 {children}
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -360,13 +358,25 @@ export default function CommonRoomClient() {
             <Card>
                 <CardHeader>
                     <div className="flex flex-wrap items-center justify-start gap-2">
-                        <CreateVibeDialog onVibeCreated={fetchData} />
-                        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveContentView)}>
-                            <TabsList>
-                                <TabsTrigger value="public-meetups">Public Meetups</TabsTrigger>
-                                <TabsTrigger value="public-vibes">Public Vibes</TabsTrigger>
-                                <TabsTrigger value="my-meetups">My Meetups</TabsTrigger>
-                                <TabsTrigger value="my-vibes">My Vibes</TabsTrigger>
+                         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveContentView)}>
+                            <TabsList className="grid w-full grid-cols-5 h-auto">
+                                <CreateVibeDialog onVibeCreated={fetchData}>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                                    <PlusCircle className="h-5 w-5" />
+                                                    <span className="hidden md:inline">Start a Vibe</span>
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="md:hidden">Start a Vibe</TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </CreateVibeDialog>
+                                <TabsTrigger value="public-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Compass className="h-5 w-5" /><span className="hidden md:inline">Public Meetups</span></TabsTrigger>
+                                <TabsTrigger value="public-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><MessageSquare className="h-5 w-5" /><span className="hidden md:inline">Public Vibes</span></TabsTrigger>
+                                <TabsTrigger value="my-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Calendar className="h-5 w-5" /><span className="hidden md:inline">My Meetups</span></TabsTrigger>
+                                <TabsTrigger value="my-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><UserCircle className="h-5 w-5" /><span className="hidden md:inline">My Vibes</span></TabsTrigger>
                             </TabsList>
                         </Tabs>
                     </div>
