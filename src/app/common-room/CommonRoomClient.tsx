@@ -18,18 +18,30 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw, HelpCircle, Eye, ChevronRight, Lock } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar as CalendarIcon, Users as UsersIcon, LocateFixed, HelpCircle, Eye, ChevronRight, Lock, UserCheck, UserX, Crown, Edit, Trash2, CalendarPlus, Copy, UserMinus, LogOut, Send } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties } from '@/actions/common-room';
-import { ClientVibe, ClientParty } from '@/lib/types';
+import { getMyVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties, rsvpToMeetup, editMeetup, removeRsvp, startPrivateVibe } from '@/actions/common-room';
+import { ClientVibe, ClientParty, UserProfile, BlockedUser, Vibe, Party } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
-import { notificationSound } from '@/lib/sounds';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTour, TourStep } from '@/context/TourContext';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { onSnapshot, doc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { sendFriendRequest } from '@/actions/friends';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 const commonRoomTourSteps: TourStep[] = [
   {
@@ -130,14 +142,14 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     )
 }
 
-function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, tourId }: { parties: ClientParty[], title: string, onSortByDistance: (enabled: boolean) => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', tourId?: string }) {
+function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDistance, locationStatus, onSelectParty, tourId }: { parties: ClientParty[], title: string, onSortByDistance: (enabled: boolean) => void, sortMode: 'date' | 'distance', isCalculatingDistance: boolean, locationStatus: 'idle' | 'loading' | 'success' | 'error', onSelectParty: (party: ClientParty) => void, tourId?: string }) {
     return (
         <div className="space-y-4" data-tour={tourId}>
             <div className="flex justify-between items-center">
                  <h3 className="font-bold text-xl">{title}</h3>
                  <div className="flex items-center gap-2">
                     {sortMode === 'distance' ? (
-                        <Button variant="outline" size="sm" onClick={() => onSortByDistance(false)}><Calendar className="mr-2"/> Sort by Date</Button>
+                        <Button variant="outline" size="sm" onClick={() => onSortByDistance(false)}><CalendarIcon className="mr-2"/> Sort by Date</Button>
                     ) : (
                         <Button variant="outline" size="sm" onClick={() => onSortByDistance(true)} disabled={isCalculatingDistance}>
                             {isCalculatingDistance ? <LoaderCircle className="h-4 w-4 animate-spin mr-2"/> : <LocateFixed className="h-4 w-4 mr-2" />}
@@ -159,30 +171,32 @@ function PartyList({ parties, title, onSortByDistance, sortMode, isCalculatingDi
             ) : (
                  <div className="border rounded-lg">
                     {parties.map((party, index) => (
-                         <div key={party.id} className={`flex items-start p-4 hover:bg-muted/50 transition-colors ${index < parties.length - 1 ? 'border-b' : ''}`}>
-                             <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                     <p className="font-semibold">{party.title}</p>
-                                     {!party.isPublic && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1"/>Private</Badge>}
-                                     {typeof party.distance === 'number' && (
-                                        <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
-                                    )}
+                         <div key={party.id} className={`p-4 ${index < parties.length - 1 ? 'border-b' : ''}`}>
+                             <div className="flex items-start justify-between">
+                                <div className="flex-1 space-y-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-semibold">{party.title}</p>
+                                        {!party.isPublic && <Badge variant="secondary"><Lock className="h-3 w-3 mr-1"/>Private</Badge>}
+                                        {typeof party.distance === 'number' && (
+                                            <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        In Vibe: <Link href={`/common-room/${party.vibeId}?tab=my-vibes`} className="text-primary hover:underline">{party.vibeTopic}</Link>
+                                    </p>
                                 </div>
-                                <p className="text-sm text-muted-foreground">
-                                    In Vibe: <Link href={`/common-room/${party.vibeId}?tab=my-vibes`} className="text-primary hover:underline">{party.vibeTopic}</Link>
-                                </p>
-                                 {party.description && (
-                                    <p className="text-sm text-muted-foreground pt-1 italic">"{party.description}"</p>
-                                 )}
+                                 <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground ml-4">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarIcon className="h-4 w-4" />
+                                        <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                                    </div>
+                                    <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                        <MapPin className="h-4 w-4" /> View Map
+                                    </a>
+                                </div>
                              </div>
-                             <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground ml-4">
-                                <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
-                                </div>
-                                <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                    <MapPin className="h-4 w-4" /> View Map
-                                </a>
+                              <div className="pt-3 mt-3 border-t">
+                                <Button onClick={() => onSelectParty(party)}>View Details & RSVP</Button>
                             </div>
                          </div>
                     ))}
@@ -266,7 +280,7 @@ const useStableCallback = <T extends (...args: any[]) => any>(callback: T): T =>
 
 
 export default function CommonRoomClient() {
-    const { user, loading } = useUserData();
+    const { user, userProfile, loading } = useUserData();
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
@@ -287,6 +301,8 @@ export default function CommonRoomClient() {
     const [sortMode, setSortMode] = useState<'date' | 'distance'>('date');
     const [isProcessingLocation, setIsProcessingLocation] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    
+    const [selectedParty, setSelectedParty] = useState<ClientParty | null>(null);
 
     const handleTabChange = (value: string) => {
         setActiveTab(value);
@@ -451,49 +467,297 @@ export default function CommonRoomClient() {
      const locationStatus = isLocationLoading ? 'loading' : userLocation ? 'success' : 'idle';
 
     return (
-        <div className="space-y-6">
-             <Card data-tour="cr-welcome-card">
-                <CardHeader>
-                    <CardTitle>Welcome to the Common Room</CardTitle>
-                    <CardDescription>
-                        A place to connect with other travelers. Discover public discussions or check your private invites.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="flex justify-center gap-2">
-                    <CreateVibeDialog onVibeCreated={fetchData} />
-                    <Button onClick={() => startTour(commonRoomTourSteps)}>
-                        <HelpCircle className="mr-2 h-4 w-4" />
-                        Take a Tour
-                    </Button>
-                </CardContent>
-            </Card>
+         <Dialog open={!!selectedParty} onOpenChange={(open) => !open && setSelectedParty(null)}>
+            <div className="space-y-6">
+                <Card data-tour="cr-welcome-card">
+                    <CardHeader>
+                        <CardTitle>Welcome to the Common Room</CardTitle>
+                        <CardDescription>
+                            A place to connect with other travelers. Discover public discussions or check your private invites.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center gap-2">
+                        <CreateVibeDialog onVibeCreated={fetchData} />
+                        <Button onClick={() => startTour(commonRoomTourSteps)}>
+                            <HelpCircle className="mr-2 h-4 w-4" />
+                            Take a Tour
+                        </Button>
+                    </CardContent>
+                </Card>
 
-            {isLoading ? (
-                <div className="flex justify-center items-center py-8">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                {isLoading ? (
+                    <div className="flex justify-center items-center py-8">
+                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : (
+                    <Tabs value={activeTab} onValueChange={handleTabChange} data-tour="cr-tabs">
+                        <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="public-vibes" data-tour="cr-public-vibes-tab"><Eye className="mr-2"/> Public Vibes</TabsTrigger>
+                            <TabsTrigger value="public-meetups" data-tour="cr-public-meetups-tab"><MapPin className="mr-2"/> Public Meetups</TabsTrigger>
+                            <TabsTrigger value="my-vibes" data-tour="cr-my-vibes-tab"><MessageSquare className="mr-2"/> My Vibes</TabsTrigger>
+                            <TabsTrigger value="my-meetups" data-tour="cr-my-meetups-tab"><CalendarIcon className="mr-2"/> My Meetups</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="public-vibes" className="mt-4">
+                            <VibeList vibes={publicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
+                        </TabsContent>
+                        <TabsContent value="public-meetups" className="mt-4">
+                            <PartyList parties={upcomingPublicParties} title="All Public Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} onSelectParty={setSelectedParty} />
+                        </TabsContent>
+                        <TabsContent value="my-vibes" className="mt-4">
+                            <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
+                        </TabsContent>
+                        <TabsContent value="my-meetups" className="mt-4">
+                            <PartyList parties={upcomingMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} onSelectParty={setSelectedParty} />
+                        </TabsContent>
+                    </Tabs>
+                )}
+            </div>
+            {selectedParty && <MeetupDetailsDialog party={selectedParty} onUpdate={fetchData} />}
+        </Dialog>
+    )
+}
+
+function MeetupDetailsDialog({ party, onUpdate }: { party: ClientParty, onUpdate: () => void }) {
+    const { user, userProfile } = useUserData();
+    const { toast } = useToast();
+    const router = useRouter();
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>(party);
+    const [vibeData, setVibeData] = useState<Vibe | null>(null);
+
+    const [attendees, setAttendees] = useState<UserProfile[]>([]);
+    const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
+
+    useEffect(() => {
+        setEditableMeetup(party);
+    }, [party]);
+    
+    const fetchAttendees = useCallback(async () => {
+        if (!party.rsvps || party.rsvps.length === 0) {
+            setAttendees([]);
+            return;
+        }
+        setIsLoadingAttendees(true);
+        try {
+            const userIds = party.rsvps;
+            const usersRef = collection(db, 'users');
+            const chunks = [];
+            for (let i = 0; i < userIds.length; i += 30) {
+                chunks.push(userIds.slice(i, i + 30));
+            }
+            const attendeesData: UserProfile[] = [];
+            for (const chunk of chunks) {
+                const q = query(usersRef, where('__name__', 'in', chunk));
+                const snapshot = await getDocs(q);
+                snapshot.forEach(doc => attendeesData.push({ id: doc.id, ...doc.data() } as UserProfile));
+            }
+            setAttendees(attendeesData);
+        } catch (error) {
+            console.error("Error fetching attendees:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load attendee list.' });
+        } finally {
+            setIsLoadingAttendees(false);
+        }
+    }, [party.rsvps, toast]);
+
+    useEffect(() => {
+        const vibeDocRef = doc(db, 'vibes', party.vibeId);
+        const unsubscribe = onSnapshot(vibeDocRef, (doc) => {
+            setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : null);
+        });
+        
+        fetchAttendees();
+        
+        return () => unsubscribe();
+    }, [party.vibeId, fetchAttendees]);
+
+    const isCurrentUserHost = useMemo(() => {
+        if (!user || !vibeData) return false;
+        return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
+    }, [user, vibeData]);
+    
+    const handleRemoveAttendee = async (attendeeId: string) => {
+        if (!user) return;
+        const result = await removeRsvp(party.vibeId, party.id, user.uid, attendeeId);
+        if (result.success) {
+            toast({ title: 'Attendee Removed', description: 'Their RSVP has been canceled.' });
+            onUpdate();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove attendee.' });
+        }
+    }
+
+
+    const handleEdit = async () => {
+        if (!user || !user.displayName) return;
+        setIsSubmitting(true);
+        
+        try {
+            const payload = {
+                ...editableMeetup,
+                startTime: editableMeetup.startTime ? new Date(editableMeetup.startTime).toISOString() : undefined,
+                endTime: editableMeetup.endTime ? new Date(editableMeetup.endTime).toISOString() : undefined,
+            };
+
+            const result = await editMeetup(party.vibeId, party.id, payload, user.displayName);
+
+            if (result.success) {
+                toast({ title: 'Meetup Updated', description: 'Changes have been saved and announced in the chat.' });
+                setIsEditing(false);
+                onUpdate();
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update meetup.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const handleRsvp = async (isRsvping: boolean) => {
+        if (!user) return;
+        const result = await rsvpToMeetup(party.vibeId, party.id, user.uid, isRsvping);
+        if(!result.success) {
+            toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
+        }
+        onUpdate();
+    }
+
+     const handleStartPrivateChat = async (attendee: {id?: string, name: string, email: string}) => {
+        if (!user || !user.displayName || !user.email || !attendee.id) return;
+        
+        const result = await startPrivateVibe({
+            initiator: { uid: user.uid, name: user.displayName, email: user.email },
+            attendee: { uid: attendee.id, name: attendee.name, email: attendee.email }
+        });
+        
+        if (result.success && result.vibeId) {
+            toast({ title: 'Private Vibe Created!', description: `You can now chat privately with ${attendee.name}.` });
+            router.push(`/common-room/${result.vibeId}`);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not start private chat.' });
+        }
+    };
+    
+    const handleSendFriendRequest = async (attendee: {id?: string, name: string, email: string}) => {
+        if (!user || !user.displayName || !user.email) return;
+        const result = await sendFriendRequest({ uid: user.uid, name: user.displayName, email: user.email }, attendee.email);
+        if (result.success) {
+            toast({ title: 'Request Sent', description: `Friend request sent to ${attendee.name}.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
+    
+    const isUserRsvpd = user && party.rsvps?.includes(user.uid);
+
+    return (
+        <DialogContent className="max-w-md">
+            <DialogHeader>
+                {isEditing ? (
+                    <Input value={editableMeetup.title} onChange={(e) => setEditableMeetup(p => ({...p, title: e.target.value}))} className="text-lg font-semibold" />
+                ) : (
+                    <DialogTitle>{party.title}</DialogTitle>
+                )}
+                    <div className="space-y-1 pt-1">
+                    <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                        <MapPin className="h-4 w-4" /> Location
+                    </a>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <CalendarIcon className="h-4 w-4" />
+                        <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                    </div>
                 </div>
-            ) : (
-                <Tabs value={activeTab} onValueChange={handleTabChange} data-tour="cr-tabs">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="public-vibes" data-tour="cr-public-vibes-tab"><Eye className="mr-2"/> Public Vibes</TabsTrigger>
-                        <TabsTrigger value="public-meetups" data-tour="cr-public-meetups-tab"><MapPin className="mr-2"/> Public Meetups</TabsTrigger>
-                        <TabsTrigger value="my-vibes" data-tour="cr-my-vibes-tab"><MessageSquare className="mr-2"/> My Vibes</TabsTrigger>
-                        <TabsTrigger value="my-meetups" data-tour="cr-my-meetups-tab"><Calendar className="mr-2"/> My Meetups</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="public-vibes" className="mt-4">
-                        <VibeList vibes={publicVibes} title="Public Discussions" tourId="cr-public-vibes" onVibeClick={handleVibeClick} />
-                    </TabsContent>
-                    <TabsContent value="public-meetups" className="mt-4">
-                        <PartyList parties={upcomingPublicParties} title="All Public Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
-                    </TabsContent>
-                     <TabsContent value="my-vibes" className="mt-4">
-                         <VibeList vibes={allVibes} title="My Vibes & Invites" onVibeClick={handleVibeClick} />
-                    </TabsContent>
-                     <TabsContent value="my-meetups" className="mt-4">
-                        <PartyList parties={upcomingMyParties} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />
-                    </TabsContent>
-                </Tabs>
-            )}
-        </div>
+                {party.description && (
+                    <DialogDescription className="pt-2">{party.description}</DialogDescription>
+                )}
+            </DialogHeader>
+            <ScrollArea className="h-48 my-4">
+                <div className="pr-4">
+                    <h4 className="font-semibold mb-2">Attendees ({party.rsvps?.length || 0})</h4>
+                    {isLoadingAttendees ? (
+                        <div className="flex justify-center items-center">
+                            <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                    ) : attendees.length > 0 ? (
+                        <div className="space-y-2">
+                            {attendees.map(attendee => {
+                                const isHost = vibeData?.hostEmails?.includes(attendee.email);
+                                const isCurrentUser = attendee.id === user?.uid;
+                                const isAlreadyFriend = userProfile?.friends?.includes(attendee.id!);
+                                return (
+                                <div key={attendee.id} className="flex items-center gap-2 group">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarFallback>{attendee.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                        <span className="text-sm font-medium">{attendee.name}</span>
+                                        {isHost && <Badge variant="secondary" className="ml-2">Host</Badge>}
+                                    </div>
+                                    {!isCurrentUser && (
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartPrivateChat(attendee)}>
+                                                            <MessageSquare className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>Start private chat</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                                <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isAlreadyFriend} onClick={() => handleSendFriendRequest(attendee)}>
+                                                            <UserPlus className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p>{isAlreadyFriend ? 'Already friends' : 'Add friend'}</p></TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                                {isCurrentUserHost && (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveAttendee(attendee.id!)}>
+                                                                <UserX className="h-4 w-4 text-destructive" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent><p>Remove from RSVP</p></TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )})}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">No one has RSVP'd yet.</p>
+                    )}
+                </div>
+            </ScrollArea>
+            <DialogFooter className="sm:justify-between gap-2">
+                {isEditing ? (
+                        <>
+                        <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                        <Button onClick={handleEdit} disabled={isSubmitting}>
+                            {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null} Save Changes
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                            {isCurrentUserHost && <Button variant="secondary" onClick={() => setIsEditing(true)}>Edit</Button>}
+                            <Button onClick={() => handleRsvp(!isUserRsvpd)} variant={isUserRsvpd ? 'secondary' : 'default'} className="flex-1">
+                            {isUserRsvpd ? `I'm Out (${party.rsvps?.length || 0})` : `I'm In! (${party.rsvps?.length || 0})`}
+                            </Button>
+                    </>
+                )}
+            </DialogFooter>
+        </DialogContent>
     )
 }

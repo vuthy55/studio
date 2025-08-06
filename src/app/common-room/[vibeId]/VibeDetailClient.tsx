@@ -32,252 +32,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
-function MeetupDetailsDialog({ 
-    vibeId, 
-    meetup, 
-    onUpdate, 
-    userProfile,
-    onStartPrivateChat,
-    onSendFriendRequest
-}: { 
-    vibeId: string, 
-    meetup: Party, 
-    onUpdate: (meetupId: string) => void, 
-    userProfile: Partial<UserProfile> | null,
-    onStartPrivateChat: (attendee: UserProfile) => void;
-    onSendFriendRequest: (attendee: UserProfile) => void;
-}) {
-    const { user } = useUserData();
-    const { toast } = useToast();
-    const router = useRouter();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>({});
-    const [vibeData, setVibeData] = useState<Vibe | null>(null);
-
-    const [attendees, setAttendees] = useState<UserProfile[]>([]);
-    const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
-
-    useEffect(() => {
-        setEditableMeetup(meetup);
-    }, [meetup]);
-    
-    const fetchAttendees = useCallback(async () => {
-        if (!meetup.rsvps || meetup.rsvps.length === 0) {
-            setAttendees([]);
-            return;
-        }
-        setIsLoadingAttendees(true);
-        try {
-            const userIds = meetup.rsvps;
-            const usersRef = collection(db, 'users');
-            // Firestore 'in' queries are limited to 30 items. Chunk if necessary.
-            const chunks = [];
-            for (let i = 0; i < userIds.length; i += 30) {
-                chunks.push(userIds.slice(i, i + 30));
-            }
-            const attendeesData: UserProfile[] = [];
-            for (const chunk of chunks) {
-                const q = query(usersRef, where('__name__', 'in', chunk));
-                const snapshot = await getDocs(q);
-                snapshot.forEach(doc => attendeesData.push({ id: doc.id, ...doc.data() } as UserProfile));
-            }
-            setAttendees(attendeesData);
-        } catch (error) {
-            console.error("Error fetching attendees:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not load attendee list.' });
-        } finally {
-            setIsLoadingAttendees(false);
-        }
-    }, [meetup.rsvps, toast]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        
-        const vibeDocRef = doc(db, 'vibes', vibeId);
-        const unsubscribe = onSnapshot(vibeDocRef, (doc) => {
-            setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : null);
-        });
-        
-        fetchAttendees();
-        
-        return () => unsubscribe();
-    }, [vibeId, isOpen, fetchAttendees]);
-
-    const isCurrentUserHost = useMemo(() => {
-        if (!user || !vibeData) return false;
-        return (vibeData as Vibe)?.hostEmails?.includes(user.email!);
-    }, [user, vibeData]);
-    
-    const handleRemoveAttendee = async (attendeeId: string) => {
-        if (!user) return;
-        const result = await removeRsvp(vibeId, meetup.id, user.uid, attendeeId);
-        if (result.success) {
-            toast({ title: 'Attendee Removed', description: 'Their RSVP has been canceled.' });
-            onUpdate(meetup.id);
-            fetchAttendees(); // Re-fetch attendees for this dialog
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove attendee.' });
-        }
-    }
-
-
-    const handleEdit = async () => {
-        if (!user || !user.displayName) return;
-        setIsSubmitting(true);
-        
-        try {
-            // Convert dates to ISO strings before sending to the server action
-            const payload = {
-                ...editableMeetup,
-                startTime: editableMeetup.startTime ? new Date(editableMeetup.startTime).toISOString() : undefined,
-                endTime: editableMeetup.endTime ? new Date(editableMeetup.endTime).toISOString() : undefined,
-            };
-
-            const result = await editMeetup(vibeId, meetup.id, payload, user.displayName);
-
-            if (result.success) {
-                toast({ title: 'Meetup Updated', description: 'Changes have been saved and announced in the chat.' });
-                setIsEditing(false);
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update meetup.' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-    
-    const handleRsvp = async (partyId: string, isRsvping: boolean) => {
-        if (!user) return;
-        const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
-        if(!result.success) {
-            toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
-        }
-    }
-    
-    const isUserRsvpd = user && meetup.rsvps?.includes(user.uid);
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button variant="default">
-                    <CalendarPlus className="mr-2 h-4 w-4 shrink-0" />
-                    Meetup Details
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    {isEditing ? (
-                        <Input value={editableMeetup.title} onChange={(e) => setEditableMeetup(p => ({...p, title: e.target.value}))} className="text-lg font-semibold" />
-                    ) : (
-                        <DialogTitle>{meetup.title}</DialogTitle>
-                    )}
-                     <div className="space-y-1 pt-1">
-                        <a href={meetup.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                            <MapPin className="h-4 w-4" /> Location
-                        </a>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            <span>{format(new Date(meetup.startTime), 'MMM d, h:mm a')}</span>
-                        </div>
-                    </div>
-                    {meetup.description && (
-                        <DialogDescription className="pt-2">{meetup.description}</DialogDescription>
-                    )}
-                </DialogHeader>
-                <ScrollArea className="h-48 my-4">
-                    <div className="pr-4">
-                        <h4 className="font-semibold mb-2">Attendees ({meetup.rsvps?.length || 0})</h4>
-                        {isLoadingAttendees ? (
-                            <div className="flex justify-center items-center">
-                                <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
-                            </div>
-                        ) : attendees.length > 0 ? (
-                            <div className="space-y-2">
-                                {attendees.map(attendee => {
-                                    const isHost = vibeData?.hostEmails?.includes(attendee.email);
-                                    const isCurrentUser = attendee.id === user?.uid;
-                                    const isAlreadyFriend = userProfile?.friends?.includes(attendee.id!);
-                                    return (
-                                    <div key={attendee.id} className="flex items-center gap-2 group">
-                                        <Avatar className="h-8 w-8">
-                                            <AvatarFallback>{attendee.name.charAt(0).toUpperCase()}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1">
-                                            <span className="text-sm font-medium">{attendee.name}</span>
-                                            {isHost && <Badge variant="secondary" className="ml-2">Host</Badge>}
-                                        </div>
-                                        {!isCurrentUser && (
-                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onStartPrivateChat(attendee)}>
-                                                                <MessageSquare className="h-4 w-4" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Start private chat</p></TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                 <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isAlreadyFriend} onClick={() => onSendFriendRequest(attendee)}>
-                                                                <UserPlus className="h-4 w-4" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>{isAlreadyFriend ? 'Already friends' : 'Add friend'}</p></TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                                 {isCurrentUserHost && (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemoveAttendee(attendee.id!)}>
-                                                                    <UserX className="h-4 w-4 text-destructive" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Remove from RSVP</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )})}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">No one has RSVP'd yet.</p>
-                        )}
-                    </div>
-                </ScrollArea>
-                <DialogFooter className="sm:justify-between gap-2">
-                    {isEditing ? (
-                         <>
-                            <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
-                            <Button onClick={handleEdit} disabled={isSubmitting}>
-                                {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null} Save Changes
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                             {isCurrentUserHost && <Button variant="secondary" onClick={() => setIsEditing(true)}>Edit</Button>}
-                             <Button onClick={() => handleRsvp(meetup.id, !isUserRsvpd)} variant={isUserRsvpd ? 'secondary' : 'default'} className="flex-1">
-                                {isUserRsvpd ? `I'm Out (${meetup.rsvps?.length || 0})` : `I'm In! (${meetup.rsvps?.length || 0})`}
-                             </Button>
-                        </>
-                    )}
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-
 function PlanPartyDialog({ vibeId }: { vibeId: string }) {
     const { user } = useUserData();
     const { toast } = useToast();
@@ -580,38 +334,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const [activeMeetup, setActiveMeetup] = useState<Party | undefined>(undefined);
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
-    const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
-
+    
     const backLink = `/common-room?tab=${searchParams.get('tab') || 'public-vibes'}`;
-
-    const fetchActiveMeetup = useCallback(async (meetupId: string) => {
-        setActiveMeetupLoading(true);
-        const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, meetupId);
-        
-        const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
-            if (doc.exists()) {
-                 const data = doc.data();
-                 setActiveMeetup({
-                    id: doc.id,
-                    ...data,
-                    startTime: (data.startTime as Timestamp)?.toDate().toISOString(),
-                    endTime: (data.endTime as Timestamp)?.toDate().toISOString(),
-                } as Party);
-            } else {
-                setActiveMeetup(undefined);
-            }
-           
-            setActiveMeetupLoading(false);
-        }, (error) => {
-            console.error("Error fetching active meetup:", error);
-            setActiveMeetupError(error);
-            setActiveMeetupLoading(false);
-        });
-
-        return unsubscribe;
-
-    }, [vibeId]);
-
 
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
@@ -620,7 +344,22 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                 const data = { id: doc.id, ...doc.data() } as Vibe;
                 setVibeData(data);
                  if (data.activeMeetupId) {
-                    fetchActiveMeetup(data.activeMeetupId);
+                    const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, data.activeMeetupId);
+                    const unsubMeetup = onSnapshot(meetupDocRef, (meetupDoc) => {
+                         if (meetupDoc.exists()) {
+                            const meetupData = meetupDoc.data();
+                            setActiveMeetup({
+                                id: meetupDoc.id,
+                                ...meetupData,
+                                startTime: (meetupData.startTime as Timestamp)?.toDate().toISOString(),
+                                endTime: (meetupData.endTime as Timestamp)?.toDate().toISOString(),
+                            } as Party);
+                        } else {
+                            setActiveMeetup(undefined);
+                        }
+                        setActiveMeetupLoading(false);
+                    });
+                    return () => unsubMeetup();
                 } else {
                     setActiveMeetup(undefined);
                     setActiveMeetupLoading(false);
@@ -653,7 +392,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             unsubscribeVibe();
             unsubscribePosts();
         };
-    }, [vibeId, toast, fetchActiveMeetup]);
+    }, [vibeId, toast]);
 
 
     const [replyContent, setReplyContent] = useState('');
@@ -851,20 +590,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {vibeData.activeMeetupId ? (
+                    {activeMeetup ? (
                         activeMeetupLoading ? (
                             <div className="flex items-center gap-2 text-muted-foreground">
                                 <LoaderCircle className="h-5 w-5 animate-spin" />
                             </div>
-                        ) : activeMeetup ? (
-                            <MeetupDetailsDialog 
-                                vibeId={vibeId} 
-                                meetup={activeMeetup} 
-                                onUpdate={fetchActiveMeetup} 
-                                userProfile={userProfile} 
-                                onStartPrivateChat={handleStartPrivateChat}
-                                onSendFriendRequest={handleSendFriendRequest}
-                            />
                         ) : null
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} />
