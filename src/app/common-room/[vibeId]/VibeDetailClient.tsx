@@ -6,14 +6,14 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -31,6 +31,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { sendFriendRequest } from '@/actions/friends';
 import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
+import { languages as allLangs, type LanguageCode } from '@/lib/data';
 
 
 function PlanPartyDialog({ vibeId }: { vibeId: string }) {
@@ -337,6 +338,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
     const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
 
+    const [translatedPosts, setTranslatedPosts] = useState<Record<string, string>>({});
+    const [isTranslatingPost, setIsTranslatingPost] = useState<string | null>(null);
+
     const fromTab = searchParams.get('from') || 'discover';
     const backLink = fromTab === 'my-space' ? '/common-room?tab=my-space' : '/common-room';
 
@@ -563,6 +567,32 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not send friend request.' });
         }
     };
+
+    const handleTranslatePost = async (post: VibePost) => {
+        if (!user || !userProfile?.defaultLanguage) return;
+        setIsTranslatingPost(post.id);
+        const targetLanguageCode = allLangs.find(l => l.label.toLowerCase().includes(userProfile.defaultLanguage!.split('-')[0]))?.value;
+
+        if (!targetLanguageCode) {
+            toast({ variant: 'destructive', title: 'Language Error', description: 'Your default language is not supported for translation.' });
+            setIsTranslatingPost(null);
+            return;
+        }
+
+        const result = await translateVibePost({
+            text: post.content,
+            fromLanguage: 'english', // Assuming posts are in English for now
+            toLanguage: targetLanguageCode,
+            userId: user.uid,
+        });
+
+        if (result.translatedText) {
+            setTranslatedPosts(prev => ({ ...prev, [post.id]: result.translatedText }));
+        } else {
+            toast({ variant: 'destructive', title: 'Translation Failed', description: result.error });
+        }
+        setIsTranslatingPost(null);
+    }
     
     if (userLoading || vibeLoading) {
         return (
@@ -806,7 +836,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             )
                         }
                         return (
-                            <div key={post.id} className="flex items-start gap-4">
+                            <div key={post.id} className="flex items-start gap-4 group">
                                 <Avatar>
                                     <AvatarFallback>{post.authorName?.charAt(0) || 'U'}</AvatarFallback>
                                 </Avatar>
@@ -828,7 +858,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         )}
                                     </div>
                                     <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+                                    {translatedPosts[post.id] && (
+                                        <div className="mt-2 p-2 border-l-2 border-primary bg-muted/50 rounded-r-md">
+                                            <p className="text-sm text-muted-foreground">{translatedPosts[post.id]}</p>
+                                        </div>
+                                    )}
                                 </div>
+                                {user?.uid !== post.authorId && (
+                                    <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={() => handleTranslatePost(post)} disabled={!!isTranslatingPost}>
+                                        {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
+                                    </Button>
+                                )}
                             </div>
                         )
                     })
@@ -858,5 +898,3 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         </div>
     );
 }
-
-    

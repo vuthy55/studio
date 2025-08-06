@@ -6,6 +6,9 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 import { getDocs, where as clientWhere, query as clientQuery, collection as clientCollection } from 'firebase/firestore';
+import { getAppSettingsAction } from './settings';
+import { translateText } from '@/ai/flows/translate-flow';
+import type { LanguageCode } from '@/lib/data';
 
 
 interface StartVibePayload {
@@ -490,4 +493,53 @@ export async function unblockParticipantFromVibe(vibeId: string, requesterEmail:
         console.error("Error unblocking participant from Vibe:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
+}
+
+interface TranslatePostPayload {
+    text: string;
+    fromLanguage: LanguageCode;
+    toLanguage: LanguageCode;
+    userId: string;
+}
+
+export async function translateVibePost(payload: TranslatePostPayload): Promise<{ translatedText?: string; error?: string }> {
+  const { text, fromLanguage, toLanguage, userId } = payload;
+
+  try {
+    const settings = await getAppSettingsAction();
+    const cost = settings.translationCost || 1;
+    
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      return { error: "User not found." };
+    }
+
+    const userBalance = userDoc.data()?.tokenBalance || 0;
+    if (userBalance < cost) {
+      return { error: "Insufficient tokens for this translation." };
+    }
+
+    const translationResult = await translateText({ text, fromLanguage, toLanguage });
+    if (!translationResult.translatedText) {
+        return { error: 'Translation failed.' };
+    }
+
+    const batch = db.batch();
+    batch.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
+    const logRef = userRef.collection('transactionLogs').doc();
+    batch.set(logRef, {
+        actionType: 'translation_spend',
+        tokenChange: -cost,
+        timestamp: FieldValue.serverTimestamp(),
+        description: `Translated a Vibe post: "${text.substring(0, 30)}..."`,
+    });
+    await batch.commit();
+
+    return { translatedText: translationResult.translatedText };
+  } catch (error: any) {
+    console.error('Error translating Vibe post:', error);
+    return { error: 'An unexpected server error occurred.' };
+  }
 }
