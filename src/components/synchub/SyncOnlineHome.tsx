@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, ChevronDown } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, RadioTower } from 'lucide-react';
 import type { SyncRoom, TranslatedContent, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -644,7 +644,7 @@ function ManageRoomDialog({ room, user, onUpdate, onEdit }: { room: InvitedRoomC
 function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsScheduling }: { 
     onRoomSubmitted: () => void, 
     editingRoom: InvitedRoomClient | null, 
-    setEditingRoom: (room: InvitedRoomClient | null) => void,
+    setEditingRoom: (isEditing: InvitedRoomClient | null) => void,
     setIsScheduling: (isScheduling: boolean) => void,
 }) {
     const { user, userProfile, settings } = useUserData();
@@ -897,196 +897,198 @@ function ScheduleRoomForm({ onRoomSubmitted, editingRoom, setEditingRoom, setIsS
     };
 
     return (
-        <form onSubmit={handleSubmitRoom} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                <Label htmlFor="topic">Room Topic</Label>
-                <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
-            </div>
+         <ScrollArea className="max-h-[70vh]">
+            <form onSubmit={handleSubmitRoom} className="space-y-4 pt-4 pr-6">
+                    <div className="space-y-2">
+                    <Label htmlFor="topic">Room Topic</Label>
+                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                </div>
+                    {!isEditMode && (
+                    <div className="space-y-2">
+                        <Label htmlFor="language">Your Spoken Language</Label>
+                        <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                            <SelectTrigger id="language">
+                                <SelectValue placeholder="Select language..." />
+                            </SelectTrigger>
+                            <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                        </Select>
+                    </div>
+                )}
                 {!isEditMode && (
-                <div className="space-y-2">
-                    <Label htmlFor="language">Your Spoken Language</Label>
-                    <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                        <SelectTrigger id="language">
-                            <SelectValue placeholder="Select language..." />
-                        </SelectTrigger>
-                        <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
-                    </Select>
-                </div>
-            )}
-            {!isEditMode && (
-                <div className="flex items-center space-x-2 pt-2">
-                    <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
-                    <Label htmlFor="start-now">Start meeting immediately</Label>
-                </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="duration">Duration (minutes)</Label>
-                    <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
-                        <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
-                        <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
-                    </Select>
-                </div>
-                {!startNow && (
-                <div className="space-y-2">
-                    <Label>Date &amp; Time</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
-                            <div className="p-3 border-t border-border">
-                                <div className="flex items-center gap-2">
-                                    <Select
-                                        value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
-                                        onValueChange={(value) => {
-                                            setScheduledDate(d => {
-                                                const newDate = d ? new Date(d) : new Date();
-                                                newDate.setHours(parseInt(value));
-                                                return newDate;
-                                            });
-                                        }}
-                                    >
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent position="popper">
-                                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
-                                                <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    :
-                                    <Select
-                                            value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
-                                        onValueChange={(value) => {
-                                            setScheduledDate(d => {
-                                                const newDate = d ? new Date(d) : new Date();
-                                                newDate.setMinutes(parseInt(value));
-                                                return newDate;
-                                            });
-                                        }}
-                                    >
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent position="popper">
-                                            {['00', '15', '30', '45'].map(minute => (
-                                                <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                        <Label htmlFor="start-now">Start meeting immediately</Label>
+                    </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="duration">Duration (minutes)</Label>
+                        <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                            <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                            <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                        </Select>
+                    </div>
+                    {!startNow && (
+                    <div className="space-y-2">
+                        <Label>Date &amp; Time</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                <div className="p-3 border-t border-border">
+                                    <div className="flex items-center gap-2">
+                                        <Select
+                                            value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                            onValueChange={(value) => {
+                                                setScheduledDate(d => {
+                                                    const newDate = d ? new Date(d) : new Date();
+                                                    newDate.setHours(parseInt(value));
+                                                    return newDate;
+                                                });
+                                            }}
+                                        >
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent position="popper">
+                                                {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                    <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        :
+                                        <Select
+                                                value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                            onValueChange={(value) => {
+                                                setScheduledDate(d => {
+                                                    const newDate = d ? new Date(d) : new Date();
+                                                    newDate.setMinutes(parseInt(value));
+                                                    return newDate;
+                                                });
+                                            }}
+                                        >
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent position="popper">
+                                                {['00', '15', '30', '45'].map(minute => (
+                                                    <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                        )}
                 </div>
-                    )}
-            </div>
-            
-            <div className="space-y-2">
-                <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
-                <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
-            </div>
-                {friends.length > 0 && (
+                
                 <div className="space-y-2">
-                    <Label>Or Select Friends</Label>
-                    <ScrollArea className="max-h-32 border rounded-md">
-                        <div className="p-4 space-y-2">
-                            {friends.map(friend => (
-                                <div key={friend.id} className="flex items-center space-x-2">
+                    <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                    <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                </div>
+                    {friends.length > 0 && (
+                    <div className="space-y-2">
+                        <Label>Or Select Friends</Label>
+                        <ScrollArea className="max-h-32 border rounded-md">
+                            <div className="p-4 space-y-2">
+                                {friends.map(friend => (
+                                    <div key={friend.id} className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={`friend-${friend.id}`}
+                                            checked={parsedInviteeEmails.includes(friend.email)}
+                                            onCheckedChange={() => toggleFriendInvite(friend)}
+                                        />
+                                        <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
+                                            <span>{friend.name}</span>
+                                            <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </div>
+                )}
+                
+                <div className="space-y-3">
+                    <Separator/>
+                    <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
+                    <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                        {allInvitedEmailsForCalc.length > 0 ? (
+                            allInvitedEmailsForCalc.map(email => (
+                                <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                            ))
+                        ) : (
+                            <p>Just you so far!</p>
+                        )}
+                    </div></ScrollArea>
+                </div>
+
+                {allInvitedEmailsForCalc.length > 1 && (
+                    <div className="space-y-3">
+                        <Separator/>
+                        <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
+                        <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                            {allInvitedEmailsForCalc.map(email => (
+                                <div key={email} className="flex items-center space-x-2">
                                     <Checkbox 
-                                        id={`friend-${friend.id}`}
-                                        checked={parsedInviteeEmails.includes(friend.email)}
-                                        onCheckedChange={() => toggleFriendInvite(friend)}
+                                        id={email} 
+                                        checked={emceeEmails.includes(email)} 
+                                        onCheckedChange={() => toggleEmcee(email)}
+                                        disabled={email === user?.email}
                                     />
-                                    <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
-                                        <span>{friend.name}</span>
-                                        <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                    <Label htmlFor={email} className="font-normal w-full truncate">
+                                        {email} {email === user?.email && '(Creator)'}
                                     </Label>
                                 </div>
                             ))}
-                        </div>
-                    </ScrollArea>
-                </div>
-            )}
-            
-            <div className="space-y-3">
-                <Separator/>
-                <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
-                <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
-                    {allInvitedEmailsForCalc.length > 0 ? (
-                        allInvitedEmailsForCalc.map(email => (
-                            <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
-                        ))
-                    ) : (
-                        <p>Just you so far!</p>
-                    )}
-                </div></ScrollArea>
-            </div>
-
-            {allInvitedEmailsForCalc.length > 1 && (
-                <div className="space-y-3">
-                    <Separator/>
-                    <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
-                    <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
-                        {allInvitedEmailsForCalc.map(email => (
-                            <div key={email} className="flex items-center space-x-2">
-                                <Checkbox 
-                                    id={email} 
-                                    checked={emceeEmails.includes(email)} 
-                                    onCheckedChange={() => toggleEmcee(email)}
-                                    disabled={email === user?.email}
-                                />
-                                <Label htmlFor={email} className="font-normal w-full truncate">
-                                    {email} {email === user?.email && '(Creator)'}
-                                </Label>
-                            </div>
-                        ))}
-                    </div></ScrollArea>
-                </div>
-            )}
-            <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
-                {isEditMode ? (
-                    <>
-                        <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
-                        <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
-                        <Separator/>
-                        <div className="flex justify-between font-bold">
-                            <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
-                            <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
-                        </div>
-                    </>
-                ) : (
-                    <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                        </div></ScrollArea>
+                    </div>
                 )}
-                
-                <p className="text-xs text-muted-foreground">
-                    Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
-                </p>
-                <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
-                    {(userProfile?.tokenBalance || 0) < costDifference ? (
-                        <div className="flex flex-col items-end gap-2">
-                            <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                            <BuyTokens />
-                        </div>
+                <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                    {isEditMode ? (
+                        <>
+                            <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
+                            <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
+                            <Separator/>
+                            <div className="flex justify-between font-bold">
+                                <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
+                                <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                            </div>
+                        </>
                     ) : (
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                            }
-                        </Button>
+                        <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
                     )}
-                    <Button variant="outline" type="button" onClick={() => setIsScheduling(false)}>Cancel</Button>
-            </div>
-        </form>
+                    
+                    <p className="text-xs text-muted-foreground">
+                        Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                    </p>
+                    <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                </div>
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4">
+                        {(userProfile?.tokenBalance || 0) < costDifference ? (
+                            <div className="flex flex-col items-end gap-2">
+                                <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                <BuyTokens />
+                            </div>
+                        ) : (
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                    isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                }
+                            </Button>
+                        )}
+                        <Button variant="outline" type="button" onClick={() => setIsScheduling(false)}>Cancel</Button>
+                </div>
+            </form>
+        </ScrollArea>
     )
 }
 
@@ -1308,7 +1310,7 @@ export default function SyncOnlineHome() {
                                     {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
                                         <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
                                     )}
-
+                                    
                                     {room.summary && (
                                         <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
                                     )}
@@ -1384,15 +1386,24 @@ export default function SyncOnlineHome() {
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
                              <CollapsibleTrigger asChild>
                                 <Button data-tour="so-schedule-button" onClick={() => {
-                                    if (isScheduling) {
+                                    if (isScheduling && !isEditMode) {
                                         setIsScheduling(false);
                                     } else {
                                         setEditingRoom(null);
                                         setIsScheduling(true);
                                     }
                                 }}>
-                                    <PlusCircle className="mr-2 h-4 w-4" />
-                                    {isScheduling && !isEditMode ? 'Cancel' : (isEditMode ? 'Edit Room' : 'Schedule a Room')}
+                                    {isScheduling && !isEditMode ? (
+                                        <>
+                                            <XCircle className="mr-2 h-4 w-4" />
+                                            Cancel
+                                        </>
+                                    ) : (
+                                        <>
+                                            <PlusCircle className="mr-2 h-4 w-4" />
+                                            Schedule a Room
+                                        </>
+                                    )}
                                 </Button>
                              </CollapsibleTrigger>
                             <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg" variant="outline">
@@ -1424,9 +1435,18 @@ export default function SyncOnlineHome() {
                         ) : (
                             <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-3">
-                                    <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                    <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                                    <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                                    <TabsTrigger value="scheduled">
+                                        <CalendarIcon className="h-4 w-4 md:mr-2" />
+                                        <span className="hidden md:inline">Scheduled ({scheduled.length})</span>
+                                    </TabsTrigger>
+                                    <TabsTrigger value="active">
+                                        <RadioTower className="h-4 w-4 md:mr-2" />
+                                        <span className="hidden md:inline">Active ({active.length})</span>
+                                    </TabsTrigger>
+                                    <TabsTrigger value="closed">
+                                        <FileText className="h-4 w-4 md:mr-2" />
+                                        <span className="hidden md:inline">Closed ({closed.length})</span>
+                                    </TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="scheduled" className="mt-4">
                                     {renderRoomList(scheduled, 'scheduled')}
