@@ -22,7 +22,7 @@ import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass,
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getVibes, startVibe, getUpcomingPublicParties, getAllMyUpcomingParties, rsvpToMeetup, updateHostStatus, removeParticipantFromVibe, editMeetup } from '@/actions/common-room';
-import { ClientVibe, ClientParty, UserProfile, Vibe, Party, BlockedUser } from '@/lib/types';
+import { ClientVibe, ClientParty, UserProfile, Vibe, Party, BlockedUser, FriendRequest } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -391,32 +391,41 @@ function CreateVibeDialog({ onVibeCreated, children, variant = "default" }: { on
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                {children}
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Start a New Vibe</DialogTitle>
-                    <DialogDescription>Create a new discussion topic for the community.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="vibe-topic">Topic</Label>
-                        <Input id="vibe-topic" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g., Best street food in Bangkok?"/>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="vibe-public" checked={isPublic} onCheckedChange={(checked) => setIsPublic(!!checked)} />
-                        <Label htmlFor="vibe-public">Public (anyone can view and post)</Label>
-                    </div>
+        <TooltipProvider>
+            <Tooltip>
+                <DialogTrigger asChild>
+                     <TooltipTrigger asChild>
+                        {children}
+                    </TooltipTrigger>
+                </DialogTrigger>
+                <TooltipContent className="md:hidden">
+                    <p>Start a Vibe</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Start a New Vibe</DialogTitle>
+                <DialogDescription>Create a new discussion topic for the community.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="vibe-topic">Topic</Label>
+                    <Input id="vibe-topic" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g., Best street food in Bangkok?"/>
                 </div>
-                <DialogFooter>
-                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
-                    <Button onClick={handleCreateVibe} disabled={isSubmitting}>
-                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
-                        Create Vibe
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="vibe-public" checked={isPublic} onCheckedChange={(checked) => setIsPublic(!!checked)} />
+                    <Label htmlFor="vibe-public">Public (anyone can view and post)</Label>
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                <Button onClick={handleCreateVibe} disabled={isSubmitting}>
+                    {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
+                    Create Vibe
+                </Button>
+            </DialogFooter>
+        </DialogContent>
         </Dialog>
     );
 }
@@ -454,30 +463,28 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                         <DialogTrigger asChild>
                             <Card className="hover:border-primary/50 transition-colors cursor-pointer text-left">
                                 <CardContent className="p-4 space-y-2">
-                                    {typeof party.distance === 'number' && (
+                                     {typeof party.distance === 'number' && (
                                         <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
                                     )}
                                     <div className="flex justify-between items-start gap-2">
-                                        <div className="flex-1">
-                                            <h4 className="font-semibold">{party.title}</h4>
-                                            <p className="text-sm text-muted-foreground">
-                                                From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
-                                            </p>
-                                        </div>
-                                        <div className="text-right flex-shrink-0 flex flex-col items-end">
-                                            <p className="font-semibold text-sm whitespace-nowrap">{format(new Date(party.startTime), 'MMM d')}</p>
-                                            <p className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(party.startTime), 'h:mm a')}</p>
+                                        <h4 className="font-semibold flex-1">{party.title}</h4>
+                                        <div className="text-right flex-shrink-0">
+                                             <p className="font-semibold text-sm whitespace-nowrap">{format(new Date(party.startTime), 'MMM d')}</p>
+                                             <p className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(party.startTime), 'h:mm a')}</p>
                                         </div>
                                     </div>
-                                    <div className="text-sm text-muted-foreground pt-2 space-y-1">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <p className="text-muted-foreground">
+                                            From: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
+                                        </p>
                                         <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
                                             <MapPin className="h-4 w-4" />
-                                            View Location <ExternalLink className="h-3 w-3" />
+                                            Location
                                         </a>
-                                        {party.description && (
-                                            <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
-                                        )}
                                     </div>
+                                    {party.description && (
+                                        <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
+                                    )}
                                 </CardContent>
                             </Card>
                          </DialogTrigger>
@@ -666,20 +673,11 @@ export default function CommonRoomClient() {
                     <div className="flex flex-wrap items-center justify-start gap-2">
                          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveContentView)}>
                             <TabsList className="grid w-full grid-cols-5 h-auto">
-                                 <CreateVibeDialog onVibeCreated={fetchData}>
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <DialogTrigger asChild>
-                                                <TooltipTrigger asChild>
-                                                     <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
-                                                        <PlusCircle className="h-5 w-5" />
-                                                        <span className="hidden md:inline">Start a Vibe</span>
-                                                    </Button>
-                                                </TooltipTrigger>
-                                            </DialogTrigger>
-                                            <TooltipContent className="md:hidden">Start a Vibe</TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                <CreateVibeDialog onVibeCreated={fetchData}>
+                                    <Button variant="default" className="w-full h-full flex flex-col items-center justify-center gap-1 py-2 rounded-r-none md:flex-row md:gap-2 data-[state=active]:bg-primary">
+                                        <PlusCircle className="h-5 w-5" />
+                                        <span className="hidden md:inline">Start a Vibe</span>
+                                    </Button>
                                 </CreateVibeDialog>
                                 <TabsTrigger value="public-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Compass className="h-5 w-5" /><span className="hidden md:inline">Public Meetups</span></TabsTrigger>
                                 <TabsTrigger value="public-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><MessageSquare className="h-5 w-5" /><span className="hidden md:inline">Public Vibes</span></TabsTrigger>
