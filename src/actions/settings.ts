@@ -24,7 +24,7 @@ const AppSettingsSchema = z.object({
   infohubGlobalNewsSources: z.string().default('www.reuters.com, apnews.com, www.bbc.com/news'),
   vibeInactivityDays: z.number().default(10),
   vibeCommunityRules: z.string().default('1. Be respectful and kind.\n2. No hate speech, harassment, or bullying.\n3. Do not discuss or promote illegal activities, including drugs.\n4. No sexually explicit content.\n5. Keep discussions relevant to travel and culture.'),
-}).catchall(z.string()); // Allow dynamic region/local news keys
+}).catchall(z.any()); // Allow dynamic region/local news keys but also any other key
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
@@ -86,14 +86,18 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
       return { success: false, error: 'No settings provided to update.' };
     }
     
-    // Create a schema that allows all original fields plus dynamic keys for intel sources
-    const DynamicAppSettingsSchema = AppSettingsSchema.catchall(z.string());
-    const parsedSettings = DynamicAppSettingsSchema.partial().safeParse(newSettings);
+    // Use the base schema directly with .partial() to validate all known fields.
+    // .catchall(z.any()) will allow any extra fields to pass through without validation,
+    // which is needed for dynamic keys from the Intel tab.
+    const validationSchema = AppSettingsSchema.partial();
+    const parsedSettings = validationSchema.safeParse(newSettings);
 
     if (!parsedSettings.success) {
-      return { success: false, error: parsedSettings.error.flatten().fieldErrors.toString() };
+      // Return a stringified version of the Zod errors for better debugging.
+      return { success: false, error: JSON.stringify(parsedSettings.error.flatten().fieldErrors) };
     }
 
+    // Use the validated (and potentially transformed) data from the parser.
     await settingsDocRef.set(parsedSettings.data, { merge: true });
     return { success: true };
 
