@@ -27,6 +27,7 @@ import { getOfflineAudio } from './OfflineManager';
 import OfflineManager from './OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import { useTour, TourStep } from '@/context/TourContext';
+import { getLanguageAudioPack } from '@/actions/audio';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -77,7 +78,7 @@ const learnPageTourSteps: TourStep[] = [
 export default function LearnPageContent() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
+    const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks, loadSingleOfflinePack } = useUserData();
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
@@ -90,18 +91,50 @@ export default function LearnPageContent() {
     const [isOnline, setIsOnline] = useState(true);
 
     const { startTour } = useTour();
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    // This effect handles the automatic download of unlocked but not-yet-downloaded packs.
+    useEffect(() => {
+        if (!userProfile?.unlockedLanguages || isDownloading) return;
+
+        const checkAndDownload = async () => {
+            const missingPacks = userProfile.unlockedLanguages!.filter(
+                lang => !offlineAudioPacks[lang]
+            );
+
+            if (missingPacks.length > 0) {
+                setIsDownloading(true);
+                toast({ title: "Starting Free Pack Downloads", description: `Downloading audio for ${missingPacks.join(', ')}...`});
+                for (const lang of missingPacks) {
+                    try {
+                        const { audioPack, size } = await getLanguageAudioPack(lang);
+                        await loadSingleOfflinePack(lang, audioPack, size);
+                    } catch (error) {
+                        console.error(`Failed to auto-download ${lang}:`, error);
+                    }
+                }
+                toast({ title: "Downloads Complete!", description: "Your free language packs are ready for offline use."});
+                setIsDownloading(false);
+            }
+        };
+
+        checkAndDownload();
+    }, [userProfile?.unlockedLanguages, offlineAudioPacks, isDownloading, loadSingleOfflinePack, toast]);
+
 
     const availableLanguages = useMemo(() => {
-        if (!userProfile?.unlockedLanguages) return languages.filter(l => l.value === 'english');
-        return languages.filter(l => userProfile.unlockedLanguages?.includes(l.value));
-    }, [userProfile?.unlockedLanguages]);
+        // The languages available for practice are ONLY those that are downloaded.
+        const downloadedCodes = Object.keys(offlineAudioPacks) as LanguageCode[];
+        return languages.filter(l => downloadedCodes.includes(l.value));
+    }, [offlineAudioPacks]);
 
     useEffect(() => {
         // If the current 'from' or 'to' language is not in the available list, reset it.
-        if (!availableLanguages.some(l => l.value === fromLanguage)) {
+        const availableCodes = new Set(availableLanguages.map(l => l.value));
+        if (!availableCodes.has(fromLanguage)) {
             setFromLanguage(availableLanguages[0]?.value || 'english');
         }
-        if (!availableLanguages.some(l => l.value === toLanguage)) {
+        if (!availableCodes.has(toLanguage)) {
             setToLanguage(availableLanguages[1]?.value || availableLanguages[0]?.value || 'english');
         }
     }, [availableLanguages, fromLanguage, toLanguage, setFromLanguage, setToLanguage]);
@@ -115,7 +148,7 @@ export default function LearnPageContent() {
         }
 
         window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
+        window.removeEventListener('offline', handleOffline);
 
         return () => {
             window.removeEventListener('online', handleOnline);

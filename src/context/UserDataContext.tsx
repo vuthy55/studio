@@ -43,7 +43,7 @@ interface UserDataContextType {
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string, cost?: number) => boolean;
     updateSyncLiveUsage: (durationMs: number, usageType: 'live' | 'online') => number;
-    loadSingleOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
+    loadSingleOfflinePack: (lang: LanguageCode, audioPack: AudioPack, size: number) => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
 }
 
@@ -90,11 +90,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         getAppSettingsAction().then(setSettings);
     }, []);
     
-    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
-        const pack = await getOfflineAudio(lang);
-        if (pack) {
-            setOfflineAudioPacks(prev => ({ ...prev, [lang]: pack }));
-        }
+    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode, audioPack: AudioPack, size: number) => {
+        const db = await openDB(DB_NAME, 2);
+        await db.put(STORE_NAME, audioPack, lang);
+        
+        const metadata: PackMetadata = { id: lang, size };
+        await db.put(METADATA_STORE_NAME, metadata);
+
+        setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
     }, []);
     
      const removeOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {

@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -226,53 +227,4 @@ export async function setFreeLanguagePacks(codes: LanguageCode[]): Promise<{succ
         console.error("Error setting free language packs:", error);
         return { success: false, error: 'Failed to update free packs list.' };
     }
-}
-
-
-/**
- * Applies the currently configured free language packs to all existing users.
- * This will ONLY ADD new free languages. It will NOT remove languages that were previously free.
- * @returns Promise indicating success or failure.
- */
-export async function applyFreeLanguagesToAllUsers(): Promise<{ success: boolean; error?: string }> {
-  try {
-    const freePacks = await getFreeLanguagePacks();
-    if (freePacks.length === 0) {
-      return { success: false, error: "No free languages are configured. Please select at least one." };
-    }
-
-    const usersRef = db.collection('users');
-    const querySnapshot = await usersRef.get();
-
-    if (querySnapshot.empty) {
-      return { success: true }; // No users to update.
-    }
-
-    // Process in batches of 500 (Firestore's limit for a single batch)
-    const batchSize = 500;
-    const userDocs = querySnapshot.docs;
-    
-    for (let i = 0; i < userDocs.length; i += batchSize) {
-      const batch = db.batch();
-      const chunk = userDocs.slice(i, i + batchSize);
-      
-      chunk.forEach(doc => {
-        const userRef = usersRef.doc(doc.id);
-        const userData = doc.data();
-        const existingLangs = new Set(userData.unlockedLanguages || []);
-        freePacks.forEach(pack => existingLangs.add(pack));
-        
-        batch.update(userRef, { unlockedLanguages: Array.from(existingLangs) });
-      });
-      
-      await batch.commit();
-      console.log(`Updated languages for a batch of ${chunk.length} users.`);
-    }
-    
-    return { success: true };
-
-  } catch (error: any) {
-    console.error("Error applying free languages to all users:", error);
-    return { success: false, error: "An unexpected server error occurred during the bulk update." };
-  }
 }
