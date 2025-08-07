@@ -321,7 +321,7 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
 
 
 export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
-    const { user, userProfile, loading: userLoading } = useUserData();
+    const { user, userProfile, loading: userLoading, settings } = useUserData();
     const { toast } = useToast();
     const searchParams = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -329,47 +329,46 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const [vibeData, setVibeData] = useState<Vibe | undefined>(undefined);
     const [vibeLoading, setVibeLoading] = useState(true);
-    const [vibeError, setVibeError] = useState<any>(null);
-
+    
     const [posts, setPosts] = useState<VibePost[]>([]);
     const [postsLoading, setPostsLoading] = useState(true);
     
     const [activeMeetup, setActiveMeetup] = useState<Party | undefined>(undefined);
     const [activeMeetupLoading, setActiveMeetupLoading] = useState(true);
-    const [activeMeetupError, setActiveMeetupError] = useState<any>(null);
-
+    
     const [translatedPosts, setTranslatedPosts] = useState<Record<string, string>>({});
     const [isTranslatingPost, setIsTranslatingPost] = useState<string | null>(null);
 
     const fromTab = searchParams.get('from') || 'discover';
     const backLink = fromTab === 'my-space' ? '/common-room?tab=my-space' : '/common-room';
 
+    const vibeUnsubscribeRef = useRef<() => void | undefined>();
+    const postsUnsubscribeRef = useRef<() => void | undefined>();
+    const meetupUnsubscribeRef = useRef<() => void | undefined>();
+
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
-        const unsubscribeVibe = onSnapshot(vibeDocRef, (doc) => {
+        vibeUnsubscribeRef.current = onSnapshot(vibeDocRef, (doc) => {
             setVibeData(doc.exists() ? { id: doc.id, ...doc.data() } as Vibe : undefined);
             setVibeLoading(false);
         }, (error) => {
-            setVibeError(error);
+            console.error("Error fetching Vibe:", error);
             setVibeLoading(false);
         });
 
         const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
-        const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
+        postsUnsubscribeRef.current = onSnapshot(postsQuery, (snapshot) => {
             const newPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost));
             setPosts(newPosts);
             
-            // Update local state with any existing translations
             const existingTranslations: Record<string, string> = {};
-            if (userProfile?.defaultLanguage) {
-                const targetLang = allLangs.find(l => l.label.toLowerCase().includes(userProfile.defaultLanguage!.split('-')[0]))?.value;
-                if (targetLang) {
-                    newPosts.forEach(post => {
-                        if (post.translations && post.translations[targetLang]) {
-                            existingTranslations[post.id] = post.translations[targetLang];
-                        }
-                    });
-                }
+            const targetLang = allLangs.find(l => l.label.toLowerCase().includes((userProfile?.defaultLanguage || '').split('-')[0]))?.value;
+            if (targetLang) {
+                newPosts.forEach(post => {
+                    if (post.translations && post.translations[targetLang]) {
+                        existingTranslations[post.id] = post.translations[targetLang];
+                    }
+                });
             }
             setTranslatedPosts(prev => ({...prev, ...existingTranslations}));
 
@@ -386,13 +385,15 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         });
 
         return () => {
-            unsubscribeVibe();
-            unsubscribePosts();
+            vibeUnsubscribeRef.current?.();
+            postsUnsubscribeRef.current?.();
+            meetupUnsubscribeRef.current?.();
         };
     }, [vibeId, toast, userProfile?.defaultLanguage]);
 
     useEffect(() => {
         if (!vibeData) return;
+        if (meetupUnsubscribeRef.current) meetupUnsubscribeRef.current();
 
         if (!vibeData.activeMeetupId) {
             setActiveMeetup(undefined);
@@ -403,7 +404,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         setActiveMeetupLoading(true);
         const meetupDocRef = doc(db, `vibes/${vibeId}/parties`, vibeData.activeMeetupId);
         
-        const unsubscribe = onSnapshot(meetupDocRef, (doc) => {
+        meetupUnsubscribeRef.current = onSnapshot(meetupDocRef, (doc) => {
             if (doc.exists()) {
                  const data = doc.data();
                  setActiveMeetup({
@@ -415,15 +416,12 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             } else {
                 setActiveMeetup(undefined);
             }
-           
             setActiveMeetupLoading(false);
         }, (error) => {
             console.error("Error fetching active meetup:", error);
-            setActiveMeetupError(error);
             setActiveMeetupLoading(false);
         });
 
-        return () => unsubscribe();
     }, [vibeId, vibeData]);
 
     const [replyContent, setReplyContent] = useState('');
@@ -453,21 +451,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const hostEmails = new Set(vibeData.hostEmails || []);
         const blockedUserEmails = new Set((vibeData.blockedUsers || []).map(u => u.email.toLowerCase()));
     
-        // The creator is always present
         if (vibeData.creatorEmail && !blockedUserEmails.has(vibeData.creatorEmail.toLowerCase())) {
             emailToDetails.set(vibeData.creatorEmail.toLowerCase(), {
                 uid: vibeData.creatorId,
                 name: vibeData.creatorName,
-                isHost: true // The creator is always a host
+                isHost: true 
             });
         }
     
-        // Add participants from posts, ensuring they are not blocked
         posts.forEach(post => {
             if (post.authorEmail && post.authorId !== 'system') {
                 const lowerEmail = post.authorEmail.toLowerCase();
                 if (!blockedUserEmails.has(lowerEmail)) {
-                    if (!emailToDetails.has(lowerEmail)) { // Avoid overwriting creator details
+                    if (!emailToDetails.has(lowerEmail)) {
                         emailToDetails.set(lowerEmail, {
                             uid: post.authorId,
                             name: post.authorName,
@@ -584,9 +580,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
 
-    const handleTranslatePost = async (post: VibePost) => {
-        if (!user || !userProfile?.defaultLanguage) return;
-        if (translatedPosts[post.id]) return; // Already translated
+    const handleInitiateTranslation = async (post: VibePost) => {
+        if (!user || !userProfile?.defaultLanguage || !settings) return;
+        if (translatedPosts[post.id] || isTranslatingPost) return;
 
         setIsTranslatingPost(post.id);
         
@@ -600,6 +596,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
             if (result.translatedText) {
                 setTranslatedPosts(prev => ({ ...prev, [post.id]: result.translatedText! }));
+                toast({ title: 'Translation Successful!', description: 'The post has been translated.' });
             } else if (result.error) {
                 toast({ variant: 'destructive', title: 'Translation Failed', description: result.error });
             }
@@ -612,12 +609,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const handleDeleteVibe = async () => {
         if (!user) return;
+
+        // Detach listeners before performing the delete operation
+        vibeUnsubscribeRef.current?.();
+        postsUnsubscribeRef.current?.();
+        meetupUnsubscribeRef.current?.();
+        
         const result = await deleteVibe(vibeId, user.uid);
         if (result.success) {
             toast({ title: 'Vibe Deleted', description: 'This vibe and all its posts have been removed.' });
             router.push('/common-room');
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
+            // Re-attach listeners if deletion fails? For now, we assume success or user navigates away.
         }
     };
     
@@ -627,10 +631,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
             </div>
         );
-    }
-    
-    if (vibeError) {
-        return <p className="text-destructive">Error loading Vibe: {vibeError.message}</p>
     }
 
     if (!vibeData) {
@@ -913,9 +913,25 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                     )}
                                 </div>
                                 {user?.uid !== post.authorId && (
-                                    <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={() => handleTranslatePost(post)} disabled={!!isTranslatingPost || !!translatedPosts[post.id]}>
-                                        {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
-                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                             <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" disabled={!!isTranslatingPost || !!translatedPosts[post.id]}>
+                                                {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Translate Post?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 )}
                             </div>
                         )
