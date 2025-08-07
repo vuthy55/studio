@@ -33,11 +33,11 @@ export async function getReportsAdmin(): Promise<Report[]> {
 interface ResolveReportPayload {
     reportId: string;
     vibeId: string;
-    resolution: 'dismiss' | 'delete';
+    resolution: 'dismiss' | 'archive';
 }
 
 /**
- * Resolves a report by either dismissing it or deleting the associated Vibe.
+ * Resolves a report by either dismissing it or archiving the associated Vibe.
  * Creates notifications for the reporter and the Vibe creator.
  */
 export async function resolveReportAdmin(payload: ResolveReportPayload): Promise<{ success: boolean; error?: string }> {
@@ -61,19 +61,15 @@ export async function resolveReportAdmin(payload: ResolveReportPayload): Promise
         if (resolution === 'dismiss') {
             batch.update(vibeRef, { status: FieldValue.delete() }); // Removes the 'under_review' status
             batch.update(reportRef, { status: 'dismissed' });
-        } else if (resolution === 'delete') {
-            // Subcollections must be deleted before the document itself.
-            // This happens outside the batch.
-            await deleteCollection(`vibes/${vibeId}/posts`, 100);
-            await deleteCollection(`vibes/${vibeId}/parties`, 100);
-            batch.delete(vibeRef);
+        } else if (resolution === 'archive') {
+            batch.update(vibeRef, { status: 'archived' }); // Soft delete
             batch.update(reportRef, { status: 'resolved' });
         }
 
         const notificationType: NotificationType = 'report_resolved';
         const baseMessage = `The report for Vibe "${reportData.vibeTopic}" has been reviewed.`;
         const reporterMessage = `${baseMessage} ${resolution === 'dismiss' ? 'No violations were found.' : 'Appropriate action has been taken.'}`;
-        const creatorMessage = `${baseMessage} ${resolution === 'dismiss' ? 'Your Vibe has been reinstated.' : 'Your Vibe was found to be in violation of community guidelines and has been removed.'}`;
+        const creatorMessage = `${baseMessage} ${resolution === 'dismiss' ? 'Your Vibe has been reinstated.' : 'Your Vibe was found to be in violation of community guidelines and has been archived.'}`;
 
         // Notify Reporter
         const reporterNotificationRef = db.collection('notifications').doc();

@@ -290,8 +290,11 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         archiveThreshold.setDate(archiveThreshold.getDate() - inactivityDays);
         
         const allVibesSnapshot = await db.collection('vibes').get();
-        const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
-        debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
+        const allVibes: Vibe[] = allVibesSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Vibe))
+            .filter(vibe => vibe.status !== 'archived'); // Exclude archived vibes for all users
+
+        debugLog.push(`[INFO] Fetched ${allVibes.length} total active vibes from the database.`);
 
         const myVibes: ClientVibe[] = [];
         const publicVibes: ClientVibe[] = [];

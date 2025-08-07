@@ -448,7 +448,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
     const isAdmin = userProfile?.role === 'admin';
     const isModeratorView = isAdmin && fromTab === 'reports';
-    const isVibeLocked = vibeData?.status === 'under_review';
+    const isVibeLocked = vibeData?.status === 'under_review' || vibeData?.status === 'archived';
     
     // --- Moderation State ---
     const [isModerationActionLoading, setIsModerationActionLoading] = useState(false);
@@ -781,13 +781,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
 
-    const handleResolveReport = async (resolution: 'dismiss' | 'delete') => {
+    const handleResolveReport = async (resolution: 'dismiss' | 'archive') => {
         if (!isModeratorView || !reportId || !vibeData) return;
         setIsModerationActionLoading(true);
         try {
             const result = await resolveReportAdmin({ reportId, vibeId, resolution });
             if (result.success) {
-                toast({ title: 'Report Resolved', description: `The report has been ${resolution === 'dismiss' ? 'actioned' : 'deleted'}.` });
+                toast({ title: 'Report Resolved', description: `The report has been ${resolution === 'dismiss' ? 'actioned' : 'archived'}.` });
                 router.push('/admin?tab=reports');
             } else {
                 throw new Error(result.error || 'Failed to resolve report.');
@@ -820,9 +820,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         return (
              <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] text-center">
                 <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
-                <h1 className="text-2xl font-bold">Vibe Under Review</h1>
+                <h1 className="text-2xl font-bold">Vibe {vibeData?.status === 'archived' ? 'Archived' : 'Under Review'}</h1>
                 <p className="text-muted-foreground max-w-sm">
-                    This Vibe has been reported for a potential violation of community guidelines and is currently locked pending review by an administrator.
+                   This Vibe is currently not available.
                 </p>
                 <Button asChild className="mt-6">
                     <Link href={backLink}>
@@ -898,7 +898,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         const hasPendingRequest = userProfile?.friendRequests?.some(req => req.fromUid === p.uid);
 
                                         return (
-                                        <div key={p.email} className="flex items-center gap-2 p-2 rounded-md bg-muted group">
+                                        <div key={p.email} className="flex items-center gap-2 group p-2 rounded-md hover:bg-muted">
                                              <Avatar className="h-8 w-8">
                                                 <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
@@ -950,7 +950,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                     <TooltipProvider>
                                                          <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(p)}>
+                                                                 <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(p)}>
                                                                     <UserPlus className="h-4 w-4" />
                                                                 </Button>
                                                             </TooltipTrigger>
@@ -1066,35 +1066,41 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             
             {isModeratorView && (
                 <div className="p-4 border-b bg-amber-500/10">
-                    <h3 className="font-bold text-lg flex items-center gap-2 text-amber-700">Moderator Controls</h3>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        <Button size="sm" onClick={() => handleResolveReport('dismiss')} disabled={isModerationActionLoading}>Dismiss Report</Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleResolveReport('delete')} disabled={isModerationActionLoading}>Delete Vibe</Button>
-                        <Button size="sm" variant="secondary" onClick={handleRunAII} disabled={isInvestigating || isModerationActionLoading}>
-                            {isInvestigating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>}
-                            Run AII Investigator
-                        </Button>
-                         {aiiResult && (
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                     <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700">
-                                        <Info className="mr-2 h-4 w-4"/> View AII Analysis
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle className="flex items-center gap-2"><Bot /> AII Analysis</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="py-4 space-y-2">
-                                        <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
-                                        <div>
-                                            <p className="text-sm font-semibold mt-2">Reasoning:</p>
-                                            <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
-                                        </div>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
-                        )}
+                    <div className="flex justify-between items-center">
+                         <h3 className="font-bold text-lg flex items-center gap-2 text-amber-700">Moderator Controls</h3>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="destructive" size="sm">Moderate</Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={handleRunAII} disabled={isInvestigating || isModerationActionLoading}>
+                                     {isInvestigating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>}
+                                    Run AII Investigator
+                                </DropdownMenuItem>
+                                {aiiResult && (
+                                     <Dialog>
+                                        <DialogTrigger asChild>
+                                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                <Info className="mr-2 h-4 w-4"/> View AII Analysis
+                                            </DropdownMenuItem>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader><DialogTitle className="flex items-center gap-2"><Bot /> AII Analysis</DialogTitle></DialogHeader>
+                                            <div className="py-4 space-y-2">
+                                                <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
+                                                <div>
+                                                    <p className="text-sm font-semibold mt-2">Reasoning:</p>
+                                                    <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
+                                                </div>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleResolveReport('dismiss')} disabled={isModerationActionLoading}>Dismiss Report</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleResolveReport('archive')} disabled={isModerationActionLoading} className="text-destructive">Archive Vibe</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
             )}
@@ -1192,7 +1198,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 <div className="flex items-center shrink-0">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                             <Button variant="ghost" size="icon" className="h-8 w-8">
+                                             <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100">
                                                 <MoreVertical className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>

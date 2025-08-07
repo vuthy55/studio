@@ -116,7 +116,7 @@ export type Vibe = {
     activeMeetupId?: string | null;
     blockedUsers?: BlockedUser[];
     pinnedPostId?: string | null;
-    status?: 'under_review';
+    status?: 'under_review' | 'archived';
 };
 
 export type Party = {
