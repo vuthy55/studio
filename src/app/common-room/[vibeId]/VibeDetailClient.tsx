@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report, AppSettings } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Flag, MoreVertical, Info } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Flag, MoreVertical, Info, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -775,12 +775,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         );
     }
 
-    if (!vibeData) {
-        return <p>Vibe not found.</p>
-    }
-    
-    if (vibeData.status === 'under_review') {
-        return (
+    if (!vibeData || (vibeData.status === 'under_review' && userProfile?.role !== 'admin')) {
+         return (
             <div className="flex flex-col h-[calc(100vh-4rem)] items-center justify-center text-center p-4">
                  <header className="absolute top-0 left-0 p-4 border-b flex justify-between items-center w-full">
                      <Button variant="ghost" asChild>
@@ -791,7 +787,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     </Button>
                  </header>
                 <div className="max-w-md space-y-4">
-                    <Flag className="h-16 w-16 mx-auto text-amber-500" />
+                    <ShieldAlert className="h-16 w-16 mx-auto text-amber-500" />
                     <h1 className="text-2xl font-bold">This Vibe is Under Review</h1>
                     <p className="text-muted-foreground">
                         This Vibe has been reported and is currently being reviewed by our moderation team. All activity has been temporarily paused. Please check back later.
@@ -811,7 +807,10 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             Back to Common Room
                         </Link>
                     </Button>
-                    <h1 className="text-2xl font-bold mt-2">{vibeData.topic}</h1>
+                    <h1 className="text-2xl font-bold mt-2 flex items-center gap-2">
+                        {vibeData.topic}
+                        {vibeData.status === 'under_review' && <Badge variant="destructive">Under Review</Badge>}
+                    </h1>
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1162,7 +1161,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle>Translate Post?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
+                                                                This will translate the post into your default language. This translation is permanent and will be visible to all other users.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>

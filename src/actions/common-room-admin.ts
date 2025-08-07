@@ -2,14 +2,14 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import type { ClientVibe, Report } from '@/lib/types';
+import type { Report } from '@/lib/types';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { deleteCollection } from '@/lib/firestore-utils';
 
 /**
  * Fetches all vibes from Firestore for the admin dashboard, bypassing security rules.
  */
-export async function getAllVibesAdmin(): Promise<ClientVibe[]> {
+export async function getAllVibesAdmin(): Promise<any[]> {
     try {
         const snapshot = await db.collection('vibes').orderBy('createdAt', 'desc').get();
         if (snapshot.empty) {
@@ -30,7 +30,7 @@ export async function getAllVibesAdmin(): Promise<ClientVibe[]> {
                 }
             }
 
-            return sanitizedData as ClientVibe;
+            return sanitizedData;
         });
         
         return vibes;
@@ -76,6 +76,7 @@ export async function deleteVibesAdmin(vibeIds: string[]): Promise<{success: boo
 
 
 export type ClientReport = Omit<Report, 'reportedAt'> & {
+    id: string; // Ensure ID is part of the client type
     reportedAt: string; // ISO string
 };
 
@@ -89,14 +90,18 @@ export async function getReports(): Promise<ClientReport[]> {
             return [];
         }
 
-        return snapshot.docs.map(doc => {
+        const reports = snapshot.docs.map(doc => {
             const data = doc.data() as Report;
             return {
                 ...data,
                 id: doc.id,
-                reportedAt: (data.reportedAt as Timestamp).toDate().toISOString()
+                reportedAt: (data.reportedAt as Timestamp)?.toDate().toISOString() || new Date().toISOString()
             }
         });
+        
+        // Sorting is now done on the client-side
+        return reports;
+
     } catch (error) {
         console.error("Error fetching reports:", error);
         return [];
@@ -151,14 +156,13 @@ interface ResolvePayload {
 
 export async function resolveReportAndDeleteContent({ report, adminNotes }: ResolvePayload): Promise<{success: boolean, error?: string}> {
      try {
-        const { reportId, contentType, contentId, vibeId, vibeTopic, reporter } = report;
+        const { id: reportId, contentType, contentId, vibeId, vibeTopic, reporter } = report;
         const batch = db.batch();
         
-        const reportRef = db.collection('reports').doc(report.id);
+        const reportRef = db.collection('reports').doc(reportId);
         batch.update(reportRef, { status: 'resolved', adminNotes });
 
         if (contentType === 'vibe') {
-            // Deletion of a vibe and its subcollections is handled here directly to ensure atomicity with the report update.
             const vibeRef = db.collection('vibes').doc(vibeId);
             await deleteCollection(`vibes/${vibeId}/posts`, 100);
             await deleteCollection(`vibes/${vibeId}/parties`, 100);

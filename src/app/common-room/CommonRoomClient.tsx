@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock, Search, Tag } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock, Search, Tag, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData, startVibe } from '@/actions/common-room';
@@ -228,7 +228,7 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
 type ActiveContentView = 'public-meetups' | 'public-vibes' | 'my-meetups' | 'my-vibes';
 
 export default function CommonRoomClient({ initialTab }: { initialTab: string }) {
-    const { user, loading } = useUserData();
+    const { user, userProfile, loading } = useUserData();
     const { toast } = useToast();
     const { startTour } = useTour();
 
@@ -460,12 +460,35 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
 }
 
 function VibeList({ vibes, parties, title, source, searchTerm, setSearchTerm }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'public-vibes' | 'my-vibes', searchTerm: string, setSearchTerm: (term: string) => void }) {
+    const { userProfile } = useUserData();
     
     const getActiveMeetup = (vibe: ClientVibe) => {
         const partyList = source === 'public-vibes' ? parties : parties.filter(p => p.vibeId === vibe.id);
         return partyList.find(p => p.vibeId === vibe.id);
     }
     
+    const VibeLink = ({ vibe, children }: { vibe: ClientVibe, children: React.ReactNode }) => {
+        const isUnderReview = vibe.status === 'under_review';
+        const isAdmin = userProfile?.role === 'admin';
+        
+        if (isUnderReview && !isAdmin) {
+            return (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                             <div className="relative w-full opacity-50 cursor-not-allowed">{children}</div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>This Vibe is under review and cannot be accessed.</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )
+        }
+        
+        return <Link href={`/common-room/${vibe.id}?from=${source}`} className="block">{children}</Link>
+    }
+
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -490,12 +513,19 @@ function VibeList({ vibes, parties, title, source, searchTerm, setSearchTerm }: 
                  <div className="border rounded-lg">
                     {vibes.map((vibe, index) => {
                         const activeMeetup = getActiveMeetup(vibe);
+                        const isUnderReview = vibe.status === 'under_review';
+                        
                         return (
-                            <Link href={`/common-room/${vibe.id}?from=${source}`} key={vibe.id} className="block">
-                                <div className={`flex items-start p-4 hover:bg-muted/50 transition-colors ${index < vibes.length - 1 ? 'border-b' : ''}`}>
+                            <VibeLink vibe={vibe} key={vibe.id}>
+                                <div className={cn(
+                                    `flex items-start p-4 hover:bg-muted/50 transition-colors`, 
+                                    index < vibes.length - 1 ? 'border-b' : '',
+                                    isUnderReview && 'bg-amber-100/50 dark:bg-amber-900/20'
+                                )}>
                                     <div className="flex-1 space-y-1">
                                         <div className="flex items-center gap-2">
                                             <p className="font-semibold">{vibe.topic}</p>
+                                            {isUnderReview && <Badge variant="destructive"><ShieldAlert className="h-3 w-3 mr-1"/>Under Review</Badge>}
                                             {activeMeetup && <Badge variant="secondary">[Meetup]</Badge>}
                                         </div>
                                         <div className="flex items-center gap-2 flex-wrap">
@@ -512,7 +542,7 @@ function VibeList({ vibes, parties, title, source, searchTerm, setSearchTerm }: 
                                     </div>
                                     <ChevronRight className="h-5 w-5 text-muted-foreground mt-1"/>
                                 </div>
-                            </Link>
+                            </VibeLink>
                         )
                     })}
                 </div>

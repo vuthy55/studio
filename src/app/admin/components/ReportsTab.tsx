@@ -34,7 +34,6 @@ export default function ReportsTab() {
         setIsLoading(true);
         try {
             const reportData = await getReports();
-            // Sort reports by date on the client side
             const sortedReports = reportData.sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
             setReports(sortedReports);
         } catch (error) {
@@ -45,17 +44,18 @@ export default function ReportsTab() {
         }
     }, [toast]);
     
-    // Auto-fetch on component mount
     useEffect(() => {
-        fetchReports();
-    }, [fetchReports]);
+        if(!hasFetched) {
+            fetchReports();
+        }
+    }, [hasFetched, fetchReports]);
 
-    const handleDismissReport = async (reportId: string) => {
-        setIsActionLoading(reportId);
-        const result = await dismissReport(reportId);
+    const handleDismissReport = async (report: ClientReport) => {
+        setIsActionLoading(report.id);
+        const result = await dismissReport(report);
         if (result.success) {
             toast({ title: "Report Dismissed" });
-            setReports(prev => prev.filter(r => r.id !== reportId));
+            setReports(prev => prev.filter(r => r.id !== report.id));
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -65,10 +65,8 @@ export default function ReportsTab() {
     const handleDeleteContent = async (report: ClientReport) => {
         setIsActionLoading(report.id);
         const result = await resolveReportAndDeleteContent({
-            reportId: report.id,
-            contentType: report.type,
-            contentId: report.contentId,
-            vibeId: report.vibeId,
+            report,
+            adminNotes: 'Content deleted by admin following a user report.'
         });
 
         if (result.success) {
@@ -115,7 +113,7 @@ export default function ReportsTab() {
                                                 </CardDescription>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Button size="sm" variant="outline" onClick={() => handleDismissReport(report.id)} disabled={!!isActionLoading}>
+                                                <Button size="sm" variant="outline" onClick={() => handleDismissReport(report)} disabled={!!isActionLoading}>
                                                     {isActionLoading === report.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4"/>}
                                                     <span className="ml-2">Dismiss</span>
                                                 </Button>
