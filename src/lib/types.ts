@@ -292,6 +292,26 @@ export interface CountryIntelData {
     lastBuildAt?: string; // Changed from FieldValue to string for serialization
 }
 
+export interface Report {
+    id: string;
+    type: 'post' | 'vibe';
+    contentId: string; // postId or vibeId
+    vibeId: string;
+    reason: string;
+    reporter: {
+        uid: string;
+        name: string;
+        email: string;
+    };
+    contentAuthor: {
+        uid: string;
+        name: string;
+        email: string;
+    };
+    reportedAt: Timestamp;
+    status: 'pending' | 'dismissed' | 'resolved';
+}
+
 // ClientVibe is a version of Vibe that is safe to pass to client components
 export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
     id: string;

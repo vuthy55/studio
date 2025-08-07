@@ -6,10 +6,13 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Implemented Phase 2 of the "Common Room / Vibes" feature enhancement.
+    - **Post Pinning:** Vibe hosts can now "pin" a specific post to the top of the chat, making important announcements or rules easily visible to all participants.
+    - **Vibe Archiving:** Vibe creators can now "archive" a Vibe. This removes it from the active lists but preserves the content in a new "Archived" tab within their "My Space", allowing them to declutter their view without permanent deletion.
 - **`[IMPROVEMENT]`** Implemented Phase 1 of the "Common Room / Vibes" feature enhancement. This major update significantly improves usability and management.
     - **Post Translation:** Users can now translate any post in a Vibe into their default language for a small token fee. Translations are permanently saved to the post, so the community only pays once per language.
     - **Automatic Language Detection:** The translation feature now automatically detects the source language of a post instead of assuming it is English.
-    - **Vibe Search:** A search bar has been added to the Common Room, allowing users to quickly find public Vibes by keywords in their topics.
+    - **Vibe Search & Tagging:** A search bar has been added to the Common Room, allowing users to quickly find public Vibes by keywords in their topics or by new, creator-added tags (e.g., #food, #planning). This greatly improves discoverability.
     - **Creator Deletion:** Vibe creators now have the ability to permanently delete their own Vibes and all associated content.
     - **Auto-Subscription:** When a user posts a reply in a public Vibe for the first time, they are automatically "subscribed" to it, causing the Vibe to appear in their personalized "My Vibes" list for easy follow-up.
 - **`[IMPROVEMENT]`** Enhanced the user login flow for non-registered users. Instead of displaying a generic error message, the system now detects a failed login, presents a user-friendly toast notification explaining the issue, and provides a one-click action to switch to the sign-up form with the user's email pre-filled, streamlining the registration process.
@@ -26,6 +29,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** To enhance user trust and transparency, a confirmation dialog was added before a user spends tokens to translate a Vibe post. The dialog clearly states the action and its token cost, requiring the user to explicitly approve the transaction before it proceeds.
 
 ### Fixed
+- **`[FIX]`** Resolved an issue where a user's own posts were missing the "delete" button. The button is now correctly rendered, allowing users to delete their own content as intended.
 - **`[FIX]`** Resolved a race condition that could cause a `permission-denied` error when a creator deleted their own Vibe. The logic now mirrors other successful fixes in the app by ensuring all client-side Firestore listeners for the Vibe and its posts are detached *before* the server action to delete the Vibe is called, preventing the client from trying to access a document that no longer exists.
 - **`[FIX]`** Resolved an issue where language packs that were purchased and then deleted by the user would not reappear in the "Available for Download" list. The logic now ensures that any unlocked language pack is always available for a free re-download, correctly respecting the user's purchase history.
 - **`[FIX]`** Resolved a critical page rendering failure across multiple pages (including `/infohub`, `/stats`, and `/profile`) that caused `504 Gateway Timeout` errors or browser freezes in an infinite loop. The root cause was a race condition where client-side components attempted to fetch user-specific data before the application had confirmed the user's authentication status. This was definitively resolved by enforcing a standard pattern across all pages to conditionally render page content only *after* the `useUserData` hook confirms an active user session, preventing any unauthenticated server calls from being made.

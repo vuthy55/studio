@@ -50,7 +50,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
  * Adds a new post to a Vibe and updates the Vibe's metadata.
  * If the vibe is public, it also adds the poster to the invited list on their first post.
  */
-export async function postReply(vibeId: string, content: string, author: { uid: string, name: string, email: string }, type: 'user_post' | 'host_announcement' = 'user_post'): Promise<{ success: boolean; error?: string }> {
+export async function postReply(vibeId: string, content: string, author: { uid: string, name: string, email: string }): Promise<{ success: boolean; error?: string }> {
     if (!vibeId || !content.trim() || !author) {
         return { success: false, error: 'Missing required information.' };
     }
@@ -72,7 +72,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
             authorName: author.name,
             authorEmail: author.email,
             createdAt: FieldValue.serverTimestamp(),
-            type: type,
+            type: 'user_post',
             translations: {},
         });
 
@@ -663,5 +663,61 @@ export async function deletePost(vibeId: string, postId: string, userId: string)
     } catch (error: any) {
         console.error("Error deleting post:", error);
         return { success: false, error: 'An unexpected server error occurred while deleting the post.' };
+    }
+}
+
+interface ReportPayload {
+    type: 'post' | 'vibe';
+    contentId: string;
+    vibeId: string;
+    reason: string;
+    reporter: {
+        uid: string;
+        name: string;
+        email: string;
+    }
+}
+
+export async function reportContent(payload: ReportPayload): Promise<{success: boolean, error?: string}> {
+    try {
+        const reportRef = db.collection('reports').doc();
+
+        let contentAuthor = {
+            uid: 'unknown',
+            name: 'Unknown',
+            email: 'unknown'
+        };
+
+        if (payload.type === 'vibe') {
+            const vibeRef = db.collection('vibes').doc(payload.vibeId);
+            const vibeDoc = await vibeRef.get();
+            if(vibeDoc.exists) {
+                const vibeData = vibeDoc.data();
+                contentAuthor.uid = vibeData?.creatorId;
+                contentAuthor.name = vibeData?.creatorName;
+                contentAuthor.email = vibeData?.creatorEmail;
+            }
+        } else if (payload.type === 'post') {
+            const postRef = db.collection('vibes').doc(payload.vibeId).collection('posts').doc(payload.contentId);
+            const postDoc = await postRef.get();
+             if(postDoc.exists) {
+                const postData = postDoc.data();
+                contentAuthor.uid = postData?.authorId;
+                contentAuthor.name = postData?.authorName;
+                contentAuthor.email = postData?.authorEmail;
+            }
+        }
+
+        await reportRef.set({
+            ...payload,
+            contentAuthor,
+            reportedAt: FieldValue.serverTimestamp(),
+            status: 'pending'
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error submitting report:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
