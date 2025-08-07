@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock, Search } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData, startVibe } from '@/actions/common-room';
@@ -176,16 +176,14 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                     <p className="text-muted-foreground flex items-center gap-2">
                                         From: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
                                     </p>
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-1 font-medium">
-                                            <UsersIcon className="h-4 w-4"/>
-                                            <span>{(party.rsvps || []).length}</span>
-                                        </div>
-                                        <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
-                                            <MapPin className="h-4 w-4" />
-                                            Location
-                                        </a>
+                                    <div className="flex items-center gap-1 font-medium">
+                                        <UsersIcon className="h-4 w-4"/>
+                                        <span>{(party.rsvps || []).length}</span>
                                     </div>
+                                    <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
+                                        <MapPin className="h-4 w-4" />
+                                        Location
+                                    </a>
                                 </div>
                                 {party.description && (
                                     <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
@@ -239,6 +237,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
     const [isProcessingLocation, setIsProcessingLocation] = useState(false);
     
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
@@ -246,34 +245,28 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
             return;
         }
 
-        // --- Caching Logic ---
         const cachedData = await getCommonRoomCache();
         if (cachedData) {
             setMyVibes(cachedData.myVibes);
             setPublicVibes(cachedData.publicVibes);
             setMyMeetups(cachedData.myMeetups);
             setPublicMeetups(cachedData.publicMeetups);
-            setIsFetching(false); // We have data, so stop initial loading spinner
+            setIsFetching(false); 
         } else {
-            setIsFetching(true); // No cache, so show main loading spinner
+            setIsFetching(true); 
         }
 
         try {
             const serverData = await getCommonRoomData(user.email);
-            
-            // This ensures we have the latest data and updates the UI
             setMyVibes(serverData.myVibes);
             setPublicVibes(serverData.publicVibes);
             setMyMeetups(serverData.myMeetups);
             setPublicMeetups(serverData.publicMeetups);
             setDebugLog(serverData.debugLog || []);
-            
-            // Update the cache with the fresh data
             await setCommonRoomCache(serverData);
-
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
-            if (!cachedData) { // Only show error if we couldn't even show cached data
+            if (!cachedData) {
                 toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
             }
         } finally {
@@ -372,6 +365,11 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
         }
     }, [loading, user, fetchData]);
 
+    const filteredPublicVibes = useMemo(() => {
+        if (!searchTerm) return publicVibes;
+        return publicVibes.filter(vibe => vibe.topic.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [publicVibes, searchTerm]);
+
     return (
         <div className="space-y-6">
             <MainHeader title="The Common Room" description="Share stories, ask questions, and connect with fellow travelers." />
@@ -416,9 +414,9 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
                     ) : (
                         <div className="pt-4">
                             {activeTab === 'public-meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
-                            {activeTab === 'public-vibes' && <VibeList vibes={publicVibes} parties={publicMeetups} title="Public Vibes" source="public-vibes" />}
+                            {activeTab === 'public-vibes' && <VibeList vibes={filteredPublicVibes} parties={publicMeetups} title="Public Vibes" source="public-vibes" searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
                             {activeTab === 'my-meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
-                            {activeTab === 'my-vibes' && <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes & Invites" source="my-vibes" />}
+                            {activeTab === 'my-vibes' && <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes & Invites" source="my-vibes" searchTerm="" setSearchTerm={() => {}} />}
                         </div>
                     )}
                 </CardContent>
@@ -448,7 +446,7 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
     )
 }
 
-function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'public-vibes' | 'my-vibes' }) {
+function VibeList({ vibes, parties, title, source, searchTerm, setSearchTerm }: { vibes: ClientVibe[], parties: ClientParty[], title: string, source: 'public-vibes' | 'my-vibes', searchTerm: string, setSearchTerm: (term: string) => void }) {
     
     const getActiveMeetup = (vibe: ClientVibe) => {
         const partyList = source === 'public-vibes' ? parties : parties.filter(p => p.vibeId === vibe.id);
@@ -457,10 +455,23 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
     
     return (
         <div className="space-y-4">
-            <h3 className="font-bold text-xl">{title}</h3>
+            <div className="flex justify-between items-center">
+                 <h3 className="font-bold text-xl">{title}</h3>
+                 {source === 'public-vibes' && (
+                    <div className="relative w-full max-w-xs">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Search public vibes..."
+                            className="pl-10"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                 )}
+            </div>
             {vibes.length === 0 ? (
                 <div className="text-muted-foreground text-sm text-center py-8">
-                    <p>No vibes found here.</p>
+                    <p>{searchTerm ? 'No vibes match your search.' : 'No vibes found here.'}</p>
                 </div>
             ) : (
                  <div className="border rounded-lg">
@@ -491,5 +502,3 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
         </div>
     );
 }
-
-    

@@ -151,6 +151,7 @@ export type VibePost = {
         location: string;
         startTime: string; // ISO string
     };
+    translations?: Record<string, string>;
 };
 
 

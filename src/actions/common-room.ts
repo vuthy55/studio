@@ -2,12 +2,13 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
+import { FieldValue, Timestamp, getDoc } from 'firebase-admin/firestore';
+import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 import { getAppSettingsAction } from './settings';
 import { translateText } from '@/ai/flows/translate-flow';
 import type { LanguageCode } from '@/lib/data';
+import { detectLanguage } from '@/ai/flows/detect-language-flow';
 
 
 interface StartVibePayload {
@@ -64,6 +65,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
             authorEmail: author.email,
             createdAt: FieldValue.serverTimestamp(),
             type: 'user_post',
+            translations: {},
         });
 
         // 2. Update the parent Vibe metadata
@@ -266,20 +268,17 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
-        // --- Step 1: Fetch all vibes in a single query ---
         const allVibesSnapshot = await db.collection('vibes').get();
         const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
         debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
-        // --- Step 2: Categorize vibes ---
         const myVibes: ClientVibe[] = [];
         const publicVibes: ClientVibe[] = [];
 
         allVibes.forEach(vibe => {
             const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
             
-             // Convert Timestamps to ISO strings for serialization
-            const clientVibe = JSON.parse(JSON.stringify({
+             const clientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
                 createdAt: (vibe.createdAt as Timestamp)?.toDate(),
                 lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate(),
@@ -295,34 +294,46 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         
         debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
         
-        // --- Step 3: Fetch all upcoming meetups using the resilient sequential method ---
-        const now = new Date();
-        const partyPromises = allVibes.map(vibe => 
-            db.collection('vibes').doc(vibe.id).collection('parties').where('startTime', '>=', now).get()
-        );
-        
-        debugLog.push(`[INFO] Fetching parties for ${allVibes.length} vibes sequentially...`);
-        const partySnapshots = await Promise.all(partyPromises);
-        debugLog.push(`[SUCCESS] Fetched all party data.`);
-
-        const allParties: ClientParty[] = [];
-        partySnapshots.forEach((snapshot, index) => {
-            const vibeId = allVibes[index].id;
-            snapshot.forEach(doc => {
-                 const data = doc.data();
-                 allParties.push({
+        let allParties: ClientParty[] = [];
+        try {
+            const now = new Date();
+            const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
+            debugLog.push(`[INFO] Fetched ${allPartiesSnapshot.size} total upcoming parties via collectionGroup query.`);
+            
+            allParties = allPartiesSnapshot.docs.map(doc => {
+                const data = doc.data();
+                const vibeRef = doc.ref.parent.parent!;
+                return {
                     id: doc.id,
-                    vibeId: vibeId,
+                    vibeId: vibeRef.id,
                     ...data,
                     startTime: (data.startTime as Timestamp).toDate().toISOString(),
                     endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                } as ClientParty);
+                } as ClientParty;
             });
-        });
-        
-        debugLog.push(`[INFO] Found ${allParties.length} total upcoming parties.`);
+        } catch (e: any) {
+             debugLog.push(`[WARN] collectionGroup query failed: ${e.message}. Falling back to sequential queries.`);
+             const now = new Date();
+             const partyPromises = allVibes.map(vibe => 
+                db.collection('vibes').doc(vibe.id).collection('parties').where('startTime', '>=', now).get()
+            );
+            const partySnapshots = await Promise.all(partyPromises);
+            partySnapshots.forEach((snapshot, index) => {
+                const vibeId = allVibes[index].id;
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    allParties.push({
+                        id: doc.id,
+                        vibeId: vibeId,
+                        ...data,
+                        startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                        endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                    } as ClientParty);
+                });
+            });
+            debugLog.push(`[SUCCESS] Fallback fetch complete. Found ${allParties.length} parties.`);
+        }
 
-        // --- Step 4: Map parties to their vibes and categorize them ---
         const vibeMap = new Map(allVibes.map(v => [v.id, v]));
         const myVibeIds = new Set(myVibes.map(v => v.id));
 
@@ -337,6 +348,7 @@ export async function getCommonRoomData(userEmail: string): Promise<{
             };
 
             party.vibeTopic = parentVibe.topic || 'A Vibe';
+            party.isPublic = parentVibe.isPublic;
             
             if (myVibeIds.has(party.vibeId)) {
                 myMeetups.push(party);
@@ -349,7 +361,6 @@ export async function getCommonRoomData(userEmail: string): Promise<{
 
         debugLog.push(`[INFO] Categorized into ${myMeetups.length} 'My Meetups' and ${publicMeetups.length} 'Public Meetups'.`);
         
-        // --- Step 5: Sort everything before returning ---
         myMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         publicMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         myVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
@@ -486,16 +497,24 @@ export async function unblockParticipantFromVibe(vibeId: string, requesterEmail:
 }
 
 interface TranslatePostPayload {
-    text: string;
-    fromLanguage: LanguageCode;
-    toLanguage: LanguageCode;
+    postId: string;
+    vibeId: string;
     userId: string;
+    targetLanguage: string;
 }
 
 export async function translateVibePost(payload: TranslatePostPayload): Promise<{ translatedText?: string; error?: string }> {
-  const { text, fromLanguage, toLanguage, userId } = payload;
+  const { postId, vibeId, userId, targetLanguage } = payload;
 
   try {
+    const postRef = db.collection('vibes').doc(vibeId).collection('posts').doc(postId);
+    const postDoc = await postRef.get();
+    if (!postDoc.exists) {
+        return { error: "Post not found." };
+    }
+    const postData = postDoc.data() as VibePost;
+    const fromLanguage = await detectLanguage({ text: postData.content });
+
     const settings = await getAppSettingsAction();
     const cost = settings.translationCost || 1;
     
@@ -511,7 +530,7 @@ export async function translateVibePost(payload: TranslatePostPayload): Promise<
       return { error: "Insufficient tokens for this translation." };
     }
 
-    const translationResult = await translateText({ text, fromLanguage, toLanguage });
+    const translationResult = await translateText({ text: postData.content, fromLanguage: fromLanguage.language, toLanguage: targetLanguage });
     if (!translationResult.translatedText) {
         return { error: 'Translation failed.' };
     }
@@ -523,8 +542,14 @@ export async function translateVibePost(payload: TranslatePostPayload): Promise<
         actionType: 'translation_spend',
         tokenChange: -cost,
         timestamp: FieldValue.serverTimestamp(),
-        description: `Translated a Vibe post: "${text.substring(0, 30)}..."`,
+        description: `Translated a Vibe post: "${postData.content.substring(0, 30)}..."`,
     });
+
+    // Save the translation to the post document
+    batch.update(postRef, {
+        [`translations.${targetLanguage}`]: translationResult.translatedText
+    });
+
     await batch.commit();
 
     return { translatedText: translationResult.translatedText };
@@ -532,4 +557,32 @@ export async function translateVibePost(payload: TranslatePostPayload): Promise<
     console.error('Error translating Vibe post:', error);
     return { error: 'An unexpected server error occurred.' };
   }
+}
+
+export async function deleteVibe(vibeId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const vibeDoc = await vibeRef.get();
+
+        if (!vibeDoc.exists) {
+            return { success: true }; // Already deleted
+        }
+
+        const vibeData = vibeDoc.data() as Vibe;
+        if (vibeData.creatorId !== userId) {
+            return { success: false, error: 'You are not the creator of this Vibe.' };
+        }
+
+        // It's safer to use the admin SDK for cross-collection deletes,
+        // so we'll just delete the main doc for now. Sub-collections can be cleaned up later.
+        await vibeRef.delete();
+        
+        // A more robust solution would be to call a Cloud Function to delete subcollections.
+        // For now, this provides the core functionality.
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error deleting vibe:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
 }

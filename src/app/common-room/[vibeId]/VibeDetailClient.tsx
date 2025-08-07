@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs } from 'firebase/firestore';
+import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
 import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages } from 'lucide-react';
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -356,7 +356,23 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
         const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
         const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
-            setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost)));
+            const newPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost));
+            setPosts(newPosts);
+            
+            // Update local state with any existing translations
+            const existingTranslations: Record<string, string> = {};
+            if (userProfile?.defaultLanguage) {
+                const targetLang = allLangs.find(l => l.label.toLowerCase().includes(userProfile.defaultLanguage!.split('-')[0]))?.value;
+                if (targetLang) {
+                    newPosts.forEach(post => {
+                        if (post.translations && post.translations[targetLang]) {
+                            existingTranslations[post.id] = post.translations[targetLang];
+                        }
+                    });
+                }
+            }
+            setTranslatedPosts(prev => ({...prev, ...existingTranslations}));
+
             setPostsLoading(false);
         }, (error) => {
             if (error.code === 'permission-denied') {
@@ -373,7 +389,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             unsubscribeVibe();
             unsubscribePosts();
         };
-    }, [vibeId, toast]);
+    }, [vibeId, toast, userProfile?.defaultLanguage]);
 
     useEffect(() => {
         if (!vibeData) return;
@@ -464,6 +480,10 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     
         const presentEmails = new Set(Array.from(emailToDetails.keys()));
     
+        const invitedList = (vibeData.invitedEmails || [])
+            .map((e: string) => e.toLowerCase())
+            .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
+        
         const presentList = Array.from(presentEmails).map(email => ({
             email: email,
             ...emailToDetails.get(email)!
@@ -471,10 +491,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
             return a.name.localeCompare(b.name);
         });
-    
-        const invitedList = (vibeData.invitedEmails || [])
-            .map((e: string) => e.toLowerCase())
-            .filter((email: string) => !presentEmails.has(email) && !blockedUserEmails.has(email));
     
         return { 
             presentParticipants: presentList, 
@@ -570,29 +586,40 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
     const handleTranslatePost = async (post: VibePost) => {
         if (!user || !userProfile?.defaultLanguage) return;
+        if (translatedPosts[post.id]) return; // Already translated
+
         setIsTranslatingPost(post.id);
-        const targetLanguageCode = allLangs.find(l => l.label.toLowerCase().includes(userProfile.defaultLanguage!.split('-')[0]))?.value;
+        
+        try {
+            const result = await translateVibePost({
+                postId: post.id,
+                vibeId,
+                userId: user.uid,
+                targetLanguage: userProfile.defaultLanguage
+            });
 
-        if (!targetLanguageCode) {
-            toast({ variant: 'destructive', title: 'Language Error', description: 'Your default language is not supported for translation.' });
+            if (result.translatedText) {
+                setTranslatedPosts(prev => ({ ...prev, [post.id]: result.translatedText! }));
+            } else if (result.error) {
+                toast({ variant: 'destructive', title: 'Translation Failed', description: result.error });
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to translate post.' });
+        } finally {
             setIsTranslatingPost(null);
-            return;
         }
-
-        const result = await translateVibePost({
-            text: post.content,
-            fromLanguage: 'english', // Assuming posts are in English for now
-            toLanguage: targetLanguageCode,
-            userId: user.uid,
-        });
-
-        if (result.translatedText) {
-            setTranslatedPosts(prev => ({ ...prev, [post.id]: result.translatedText }));
-        } else {
-            toast({ variant: 'destructive', title: 'Translation Failed', description: result.error });
-        }
-        setIsTranslatingPost(null);
     }
+    
+    const handleDeleteVibe = async () => {
+        if (!user) return;
+        const result = await deleteVibe(vibeId, user.uid);
+        if (result.success) {
+            toast({ title: 'Vibe Deleted', description: 'This vibe and all its posts have been removed.' });
+            router.push('/common-room');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
     
     if (userLoading || vibeLoading) {
         return (
@@ -775,13 +802,34 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 )}
                             </div>
                             </ScrollArea>
-                            {user?.email !== vibeData.creatorEmail && (
-                                <div className="mt-auto border-t pt-4">
-                                     <AlertDialog>
+                            <div className="mt-auto border-t pt-4 space-y-2">
+                                {user?.uid === vibeData.creatorId ? (
+                                    <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="destructive" className="w-full">
-                                                <LogOut className="mr-2 h-4 w-4" />
-                                                Leave Vibe
+                                                <Trash2 className="mr-2 h-4 w-4" /> Delete Vibe
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete this Vibe?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently delete "{vibeData.topic}" and all of its posts. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleDeleteVibe} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                    Confirm & Delete
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                ) : (
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" className="w-full">
+                                                <LogOut className="mr-2 h-4 w-4" /> Leave Vibe
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
@@ -799,8 +847,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </SheetContent>
                     </Sheet>
                 </div>
@@ -865,7 +913,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                     )}
                                 </div>
                                 {user?.uid !== post.authorId && (
-                                    <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={() => handleTranslatePost(post)} disabled={!!isTranslatingPost}>
+                                    <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" onClick={() => handleTranslatePost(post)} disabled={!!isTranslatingPost || !!translatedPosts[post.id]}>
                                         {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
                                     </Button>
                                 )}
