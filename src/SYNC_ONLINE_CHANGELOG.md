@@ -6,6 +6,10 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Implemented a major performance refactoring of the Admin Dashboard to address extremely slow Hot Module Replacement (HMR) times, which were taking up to 30 seconds for minor changes.
+    - **Problem:** The application's development performance had degraded significantly, violating the core principle of a "fast and simple" architecture.
+    - **Root Cause:** The `AdminPageV2.tsx` component had become a monolithic file containing the logic for all admin tabs. This forced the build system (Turbopack) to re-process the entire large component and its dependency graph on every minor change.
+    - **Solution:** The monolithic component was broken down into smaller, independent modules. Each tab's content (e.g., `UsersTab`, `SettingsTab`) was extracted into its own file within a new `src/app/admin/components/` directory. The main `AdminPageV2.tsx` now acts as a lightweight shell, simply importing and assembling these modular pieces. This architectural change restored HMR performance, reducing rebuild times from tens of seconds to a few hundred milliseconds.
 - **`[IMPROVEMENT]`** Improved the Common Room layout by centering the main navigation tabs on mobile devices and repositioning the "Take a Tour" button for better visibility.
 - **`[IMPROVEMENT]`** Redesigned the "InfoHub Management" section in the Admin Dashboard for clarity and control. The new interface separates AI source configuration from the country database view into distinct tabs. It also introduces a powerful "Build/Update Database" feature, allowing administrators to selectively research and add countries by region, rather than being forced to build the entire world database at once. The database view itself has been overhauled into an accordion layout for improved readability and easier editing of individual country data.
 - **`[IMPROVEMENT]`** Confirmed and documented the stability of the Sync Live billing logic. The system operates on a real-time, pay-as-you-go model where users first consume a free monthly minute allowance. Once the free minutes are exhausted, the `UserDataContext` correctly deducts tokens on a per-minute basis for any subsequent usage, ensuring accurate and immediate transaction handling.
@@ -45,6 +49,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
