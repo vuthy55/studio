@@ -102,12 +102,22 @@ export default function OfflineManager() {
         ]);
         
         const packCost = settings?.languageUnlockCost ?? 100;
+        const unlockedLangsSet = new Set(userProfile?.unlockedLanguages || []);
+
         const completePacks: AvailablePack[] = metadata
-            .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id] && !userProfile?.unlockedLanguages?.includes(meta.id as LanguageCode))
-            .map(meta => ({
-                ...meta,
-                cost: freePacks.includes(meta.id as LanguageCode) ? 'Free' : packCost
-            }));
+            .filter(meta => meta.generatedCount === meta.totalCount && meta.totalCount > 0 && !downloadedPacks[meta.id])
+            .map(meta => {
+                const langCode = meta.id as LanguageCode;
+                let cost: number | 'Free' = packCost;
+                
+                if (unlockedLangsSet.has(langCode)) {
+                    cost = 'Free';
+                } else if (freePacks.includes(langCode)) {
+                    cost = 'Free';
+                }
+
+                return { ...meta, cost };
+            });
         
         setAvailableForDownload(completePacks);
     } catch(e) {
@@ -222,13 +232,8 @@ export default function OfflineManager() {
     try {
         await removeOfflinePack(lang);
         
-        // Also remove from user's unlocked list on the server so it doesn't get re-downloaded.
-        if (lang !== SAVED_PHRASES_KEY && user) {
-            const userDocRef = doc(firestoreDb, 'users', user.uid);
-            await updateDoc(userDocRef, {
-                unlockedLanguages: arrayRemove(lang)
-            });
-        }
+        // When deleting, we only remove the local copy. We DO NOT remove it from `unlockedLanguages`.
+        // This ensures they can re-download it for free later.
         
         const langLabel = lang === SAVED_PHRASES_KEY
             ? 'Your Saved Phrases'
@@ -236,7 +241,7 @@ export default function OfflineManager() {
 
         toast({
             title: 'Offline Data Removed',
-            description: `Removed offline audio for ${langLabel}.`
+            description: `Removed offline audio for ${langLabel}. It can be re-downloaded from the 'Available' list.`
         });
         setDownloadedPacks(prev => {
             const newPacks = { ...prev };
