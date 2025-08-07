@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -70,7 +70,7 @@ export default function SettingsTab() {
                 <CardDescription>Manage the token economy and other application-wide settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
                     {/* Column 1: Rewards & Costs */}
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Costs</h3>
@@ -84,15 +84,25 @@ export default function SettingsTab() {
 
                     {/* Column 2: Limits & Timers */}
                     <div className="space-y-6">
-                         <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Limits & Timers</h3>
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Feature Costs</h3>
+                         <Separator />
+                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
+                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person/min)', 'Token cost for each person in a room for each minute of usage.')}
+                        {renderInput('translationCost', 'Live Translation Cost', 'Token cost for a single translation in the Live Translation tool.')}
+                        {renderInput('languageUnlockCost', 'Language Pack Unlock Cost', 'One-time token cost for a user to unlock a non-free language pack.')}
+                        {renderInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
+                    </div>
+
+                    <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Timer className="text-primary"/> Time & Inactivity</h3>
                          <Separator />
                         {renderInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.')}
-                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
                         {renderInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.')}
-                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person, per minute)', 'Token cost for each person in a room for each minute of usage.')}
                         {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.')}
                         {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
+                        {renderInput('vibeInactivityDays', 'Vibe Inactivity Days', 'Days a Vibe can be inactive before being moved to the bottom of the list.')}
                     </div>
+
                  </div>
 
                  <div className="flex justify-end pt-4">

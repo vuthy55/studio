@@ -32,6 +32,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             creatorName,
             creatorEmail: creatorEmail,
             createdAt: FieldValue.serverTimestamp(),
+            lastPostAt: FieldValue.serverTimestamp(), // Initialize with creation date
             invitedEmails: isPublic ? [] : [creatorEmail], // Only add creator to private vibes
             hostEmails: [creatorEmail],
             postsCount: 0,
@@ -283,12 +284,22 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
+        const settings = await getAppSettingsAction();
+        const inactivityDays = settings.vibeInactivityDays || 10;
+        const archiveThreshold = new Date();
+        archiveThreshold.setDate(archiveThreshold.getDate() - inactivityDays);
+        
         const allVibesSnapshot = await db.collection('vibes').get();
         const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
         debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
         const myVibes: ClientVibe[] = [];
         const publicVibes: ClientVibe[] = [];
+
+        const activeMyVibes: ClientVibe[] = [];
+        const inactiveMyVibes: ClientVibe[] = [];
+        const activePublicVibes: ClientVibe[] = [];
+        const inactivePublicVibes: ClientVibe[] = [];
 
         allVibes.forEach(vibe => {
             const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
@@ -299,13 +310,32 @@ export async function getCommonRoomData(userEmail: string): Promise<{
                 lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate(),
             })) as ClientVibe;
             
+            const lastPostDate = clientVibe.lastPostAt ? new Date(clientVibe.lastPostAt) : new Date(clientVibe.createdAt);
+            const isInactive = lastPostDate < archiveThreshold;
+
             if (isMember) {
-                myVibes.push(clientVibe);
+                if (isInactive) {
+                    inactiveMyVibes.push(clientVibe);
+                } else {
+                    activeMyVibes.push(clientVibe);
+                }
             }
             if (vibe.isPublic) {
-                 publicVibes.push(clientVibe);
+                 if (isInactive) {
+                    inactivePublicVibes.push(clientVibe);
+                 } else {
+                    activePublicVibes.push(clientVibe);
+                 }
             }
         });
+        
+        activeMyVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        inactiveMyVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        activePublicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        inactivePublicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        
+        const sortedMyVibes = [...activeMyVibes, ...inactiveMyVibes];
+        const sortedPublicVibes = [...activePublicVibes, ...inactivePublicVibes];
         
         debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
         
@@ -378,11 +408,9 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         
         myMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         publicMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        myVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
-        publicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
 
         debugLog.push(`[SUCCESS] Data fetch and processing complete.`);
-        return { myVibes, publicVibes, myMeetups, publicMeetups, debugLog };
+        return { myVibes: sortedMyVibes, publicVibes: sortedPublicVibes, myMeetups, publicMeetups, debugLog };
 
     } catch (error: any) {
         console.error("Error fetching common room data:", error);
