@@ -107,7 +107,7 @@ export default function ReportsTab() {
                                             <div>
                                                 <CardTitle className="text-lg flex items-center gap-2">
                                                      {report.type === 'vibe' ? <MessageSquare className="h-5 w-5"/> : <Flag className="h-5 w-5"/>}
-                                                     Reported {report.type === 'vibe' ? 'Vibe' : 'Post'}
+                                                     Reported {report.type === 'vibe' ? 'Vibe' : 'Post'}: "{report.vibeTopic}"
                                                      <Badge variant="secondary" className="capitalize">{report.status}</Badge>
                                                 </CardTitle>
                                                 <CardDescription>

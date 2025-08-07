@@ -681,6 +681,12 @@ interface ReportPayload {
 export async function reportContent(payload: ReportPayload): Promise<{success: boolean, error?: string}> {
     try {
         const reportRef = db.collection('reports').doc();
+        const vibeRef = db.collection('vibes').doc(payload.vibeId);
+        const vibeDoc = await vibeRef.get();
+        if (!vibeDoc.exists) {
+            return { success: false, error: "Cannot report content from a non-existent Vibe." };
+        }
+        const vibeData = vibeDoc.data() as Vibe;
 
         let contentAuthor = {
             uid: 'unknown',
@@ -689,16 +695,11 @@ export async function reportContent(payload: ReportPayload): Promise<{success: b
         };
 
         if (payload.type === 'vibe') {
-            const vibeRef = db.collection('vibes').doc(payload.vibeId);
-            const vibeDoc = await vibeRef.get();
-            if(vibeDoc.exists) {
-                const vibeData = vibeDoc.data();
-                contentAuthor.uid = vibeData?.creatorId;
-                contentAuthor.name = vibeData?.creatorName;
-                contentAuthor.email = vibeData?.creatorEmail;
-            }
+            contentAuthor.uid = vibeData.creatorId;
+            contentAuthor.name = vibeData.creatorName;
+            contentAuthor.email = vibeData.creatorEmail;
         } else if (payload.type === 'post') {
-            const postRef = db.collection('vibes').doc(payload.vibeId).collection('posts').doc(payload.contentId);
+            const postRef = vibeRef.collection('posts').doc(payload.contentId);
             const postDoc = await postRef.get();
              if(postDoc.exists) {
                 const postData = postDoc.data();
@@ -710,6 +711,7 @@ export async function reportContent(payload: ReportPayload): Promise<{success: b
 
         await reportRef.set({
             ...payload,
+            vibeTopic: vibeData.topic, // Denormalize the topic for easier display
             contentAuthor,
             reportedAt: FieldValue.serverTimestamp(),
             status: 'pending'

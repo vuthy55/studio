@@ -297,6 +297,7 @@ export interface Report {
     type: 'post' | 'vibe';
     contentId: string; // postId or vibeId
     vibeId: string;
+    vibeTopic: string; // Denormalized for easier display
     reason: string;
     reporter: {
         uid: string;
