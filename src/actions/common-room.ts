@@ -294,23 +294,33 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         });
         
         debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
-
-        // --- Step 3: Fetch all upcoming meetups ---
-        const now = new Date();
-        const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
-        debugLog.push(`[INFO] Fetched ${allPartiesSnapshot.size} total upcoming parties.`);
         
-        const allParties: ClientParty[] = allPartiesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            const vibeRef = doc.ref.parent.parent!;
-            return {
-                id: doc.id,
-                vibeId: vibeRef.id,
-                ...data,
-                startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                endTime: (data.endTime as Timestamp).toDate().toISOString(),
-            } as ClientParty;
+        // --- Step 3: Fetch all upcoming meetups using the resilient sequential method ---
+        const now = new Date();
+        const partyPromises = allVibes.map(vibe => 
+            db.collection('vibes').doc(vibe.id).collection('parties').where('startTime', '>=', now).get()
+        );
+        
+        debugLog.push(`[INFO] Fetching parties for ${allVibes.length} vibes sequentially...`);
+        const partySnapshots = await Promise.all(partyPromises);
+        debugLog.push(`[SUCCESS] Fetched all party data.`);
+
+        const allParties: ClientParty[] = [];
+        partySnapshots.forEach((snapshot, index) => {
+            const vibeId = allVibes[index].id;
+            snapshot.forEach(doc => {
+                 const data = doc.data();
+                 allParties.push({
+                    id: doc.id,
+                    vibeId: vibeId,
+                    ...data,
+                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
+                } as ClientParty);
+            });
         });
+        
+        debugLog.push(`[INFO] Found ${allParties.length} total upcoming parties.`);
 
         // --- Step 4: Map parties to their vibes and categorize them ---
         const vibeMap = new Map(allVibes.map(v => [v.id, v]));
