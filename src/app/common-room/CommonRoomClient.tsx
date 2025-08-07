@@ -157,9 +157,15 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                     <MeetupDetailsDialog key={party.id} party={party}>
                         <Card className="hover:border-primary/50 transition-colors cursor-pointer text-left">
                             <CardContent className="p-4 space-y-2">
-                                 {typeof party.distance === 'number' && (
-                                    <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
-                                )}
+                                <div className="flex items-center justify-between">
+                                    {typeof party.distance === 'number' && (
+                                        <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                                    )}
+                                    <div className="flex items-center gap-1 text-sm font-medium ml-auto">
+                                        <UsersIcon className="h-4 w-4"/>
+                                        <span>{(party.rsvps || []).length}</span>
+                                    </div>
+                                </div>
                                 <div className="flex justify-between items-start gap-2">
                                     <h4 className="font-semibold flex-1 flex items-center gap-2">
                                         {party.title}
@@ -483,3 +489,5 @@ function VibeList({ vibes, parties, title, source }: { vibes: ClientVibe[], part
         </div>
     );
 }
+
+    
