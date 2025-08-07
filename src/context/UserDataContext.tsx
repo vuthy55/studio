@@ -145,35 +145,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             const userDocRef = doc(db, 'users', user.uid);
             
             // --- Listen for profile changes ---
-            profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
+            profileUnsubscribe.current = onSnapshot(userDocRef, (docSnap) => {
                 if (isLoggingOut.current) return;
 
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
-
-                    const systemFreePacks = await getFreeLanguagePacks();
-                    const userUnlocked = profileData.unlockedLanguages || [];
-                    
-                    const db = await openDB(DB_NAME, 2);
-                    const downloadedPackIds = await db.getAllKeys(STORE_NAME);
-
-                    const packsToDownload = userUnlocked.filter(lang => !downloadedPackIds.includes(lang));
-
-                    if (packsToDownload.length > 0) {
-                         for (const langCode of packsToDownload) {
-                            try {
-                                const { audioPack, size } = await getLanguageAudioPack(langCode);
-                                await db.put(STORE_NAME, audioPack, langCode);
-                                const metadata: PackMetadata = { id: langCode, size };
-                                await db.put(METADATA_STORE_NAME, metadata);
-                                loadSingleOfflinePack(langCode);
-                            } catch (e) {
-                                console.error(`[Auto-Download] Failed to download pack for ${langCode}:`, e);
-                            }
-                        }
-                    }
                 } else {
                     setUserProfile({});
                 }
@@ -204,7 +182,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (profileUnsubscribe.current) profileUnsubscribe.current();
             if (historyUnsubscribe.current) historyUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState, loadSingleOfflinePack, removeOfflinePack]);
+    }, [user, authLoading, clearLocalState]);
     
 
     // --- Firestore Synchronization Logic ---

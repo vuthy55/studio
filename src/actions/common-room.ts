@@ -5,7 +5,6 @@ import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
-import { getDocs, where as clientWhere, query as clientQuery, collection as clientCollection } from 'firebase/firestore';
 import { getAppSettingsAction } from './settings';
 import { translateText } from '@/ai/flows/translate-flow';
 import type { LanguageCode } from '@/lib/data';
@@ -267,106 +266,87 @@ export async function getCommonRoomData(userEmail: string): Promise<{
     debugLog.push(`[INFO] Starting data fetch for user: ${userEmail}`);
 
     try {
-        const now = new Date();
-        
         // --- Step 1: Fetch all vibes in a single query ---
-        const vibesSnapshot = await db.collection('vibes').get();
-        const allVibes: Vibe[] = vibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
+        const allVibesSnapshot = await db.collection('vibes').get();
+        const allVibes: Vibe[] = allVibesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibe));
         debugLog.push(`[INFO] Fetched ${allVibes.length} total vibes from the database.`);
 
-        // --- Step 2: Categorize vibes and prepare maps for efficient lookup ---
-        const myVibesClient: ClientVibe[] = [];
-        const publicVibesClient: ClientVibe[] = [];
-        const myVibeIds = new Set<string>();
-        const vibeMap = new Map<string, Vibe>();
+        // --- Step 2: Categorize vibes ---
+        const myVibes: ClientVibe[] = [];
+        const publicVibes: ClientVibe[] = [];
 
         allVibes.forEach(vibe => {
-            vibeMap.set(vibe.id, vibe);
-            const clientVibe: ClientVibe = JSON.parse(JSON.stringify({
+            const isMember = vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail;
+            
+             // Convert Timestamps to ISO strings for serialization
+            const clientVibe = JSON.parse(JSON.stringify({
                 ...vibe,
-                createdAt: (vibe.createdAt as Timestamp)?.toDate()?.toISOString(),
-                lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate()?.toISOString(),
-            }));
-
-            if (vibe.invitedEmails.includes(userEmail) || vibe.creatorEmail === userEmail) {
-                myVibesClient.push(clientVibe);
-                myVibeIds.add(vibe.id);
+                createdAt: (vibe.createdAt as Timestamp)?.toDate(),
+                lastPostAt: (vibe.lastPostAt as Timestamp)?.toDate(),
+            })) as ClientVibe;
+            
+            if (isMember) {
+                myVibes.push(clientVibe);
             }
             if (vibe.isPublic) {
-                 publicVibesClient.push(clientVibe);
+                 publicVibes.push(clientVibe);
             }
         });
-        debugLog.push(`[INFO] Categorized into ${myVibesClient.length} 'My Vibes' and ${publicVibesClient.length} 'Public Vibes'.`);
-
-        // --- Step 3: Fetch all upcoming parties using an efficient collectionGroup query ---
-        let allParties: ClientParty[] = [];
         
-        try {
-            debugLog.push('[INFO] Attempting high-performance collectionGroup query for parties...');
-            const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
-            allParties = allPartiesSnapshot.docs.map(doc => {
-                const data = doc.data();
-                const vibeRef = doc.ref.parent.parent!;
-                const parentVibe = vibeMap.get(vibeRef.id);
-                return {
-                    id: doc.id,
-                    vibeId: vibeRef.id,
-                    ...data,
-                    startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                    endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                    vibeTopic: parentVibe?.topic || 'A Vibe',
-                    isPublic: parentVibe?.isPublic || false,
-                } as ClientParty;
-            });
-            debugLog.push(`[SUCCESS] Fetched ${allParties.length} parties via collectionGroup query.`);
-        } catch (error: any) {
-            debugLog.push(`[WARN] collectionGroup query failed: ${error.message}.`);
-            debugLog.push('[INFO] Falling back to slower, per-vibe query method.');
+        debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
 
-            // Fallback Logic: Iterate through vibes if the collectionGroup query fails
-            for (const vibe of allVibes) {
-                const partiesRef = db.collection('vibes').doc(vibe.id).collection('parties');
-                const q = partiesRef.where('startTime', '>=', now);
-                const partiesSnapshot = await q.get();
+        // --- Step 3: Fetch all upcoming meetups ---
+        const now = new Date();
+        const allPartiesSnapshot = await db.collectionGroup('parties').where('startTime', '>=', now).get();
+        debugLog.push(`[INFO] Fetched ${allPartiesSnapshot.size} total upcoming parties.`);
+        
+        const allParties: ClientParty[] = allPartiesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const vibeRef = doc.ref.parent.parent!;
+            return {
+                id: doc.id,
+                vibeId: vibeRef.id,
+                ...data,
+                startTime: (data.startTime as Timestamp).toDate().toISOString(),
+                endTime: (data.endTime as Timestamp).toDate().toISOString(),
+            } as ClientParty;
+        });
 
-                partiesSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    allParties.push({
-                        id: doc.id,
-                        vibeId: vibe.id,
-                        ...data,
-                        startTime: (data.startTime as Timestamp).toDate().toISOString(),
-                        endTime: (data.endTime as Timestamp).toDate().toISOString(),
-                        vibeTopic: vibe.topic || 'A Vibe',
-                        isPublic: vibe.isPublic,
-                    } as ClientParty);
-                });
-            }
-            debugLog.push(`[SUCCESS] Fetched ${allParties.length} parties via fallback method.`);
-        }
+        // --- Step 4: Map parties to their vibes and categorize them ---
+        const vibeMap = new Map(allVibes.map(v => [v.id, v]));
+        const myVibeIds = new Set(myVibes.map(v => v.id));
 
-        // --- Step 4: Categorize meetups ---
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];
 
         allParties.forEach(party => {
+            const parentVibe = vibeMap.get(party.vibeId);
+            if (!parentVibe) {
+                debugLog.push(`[WARN] Party ${party.id} has no parent vibe with ID ${party.vibeId}. Skipping.`);
+                return;
+            };
+
+            party.vibeTopic = parentVibe.topic || 'A Vibe';
+            
             if (myVibeIds.has(party.vibeId)) {
                 myMeetups.push(party);
             }
-            if (party.isPublic) {
+            
+            if (parentVibe.isPublic) {
                 publicMeetups.push(party);
             }
         });
+
         debugLog.push(`[INFO] Categorized into ${myMeetups.length} 'My Meetups' and ${publicMeetups.length} 'Public Meetups'.`);
         
         // --- Step 5: Sort everything before returning ---
         myMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         publicMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        myVibesClient.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
-        publicVibesClient.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        myVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
+        publicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
 
         debugLog.push(`[SUCCESS] Data fetch and processing complete.`);
-        return { myVibes: myVibesClient, publicVibes: publicVibesClient, myMeetups, publicMeetups, debugLog };
+        return { myVibes, publicVibes, myMeetups, publicMeetups, debugLog };
 
     } catch (error: any) {
         console.error("Error fetching common room data:", error);
