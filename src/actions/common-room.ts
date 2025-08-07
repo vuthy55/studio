@@ -17,10 +17,11 @@ interface StartVibePayload {
     creatorId: string;
     creatorName: string;
     creatorEmail: string;
+    tags?: string[];
 }
 
 export async function startVibe(payload: StartVibePayload): Promise<{ success: boolean, vibeId?: string, error?: string }> {
-    const { topic, isPublic, creatorId, creatorName, creatorEmail } = payload;
+    const { topic, isPublic, creatorId, creatorName, creatorEmail, tags } = payload;
     try {
         const newVibeRef = db.collection('vibes').doc();
         const vibeData: Omit<Vibe, 'id' | 'createdAt' | 'lastPostAt'> = {
@@ -34,6 +35,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             hostEmails: [creatorEmail],
             postsCount: 0,
             activeMeetupId: null,
+            tags: tags || [],
         };
         await newVibeRef.set(vibeData);
         return { success: true, vibeId: newVibeRef.id };

@@ -116,6 +116,7 @@ export type Vibe = {
     blockedUsers?: BlockedUser[];
     pinnedPostId?: string | null;
     isArchived?: boolean;
+    tags?: string[];
 };
 
 export type Party = {
