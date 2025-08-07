@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { LoaderCircle, RefreshCw, Flag, MessageSquare, Shield, Check, Trash2, ExternalLink } from "lucide-react";
@@ -34,7 +34,9 @@ export default function ReportsTab() {
         setIsLoading(true);
         try {
             const reportData = await getReports();
-            setReports(reportData);
+            // Sort reports by date on the client side
+            const sortedReports = reportData.sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
+            setReports(sortedReports);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load reports.' });
         } finally {
@@ -42,6 +44,11 @@ export default function ReportsTab() {
             setHasFetched(true);
         }
     }, [toast]);
+    
+    // Auto-fetch on component mount
+    useEffect(() => {
+        fetchReports();
+    }, [fetchReports]);
 
     const handleDismissReport = async (reportId: string) => {
         setIsActionLoading(reportId);

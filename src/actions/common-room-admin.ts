@@ -81,9 +81,9 @@ export type ClientReport = Omit<Report, 'reportedAt'> & {
 
 export async function getReports(): Promise<ClientReport[]> {
     try {
+        // Query simplified to filter by status. Sorting will be handled client-side.
         const snapshot = await db.collection('reports')
             .where('status', '==', 'pending')
-            .orderBy('reportedAt', 'desc')
             .get();
         
         if (snapshot.empty) {
