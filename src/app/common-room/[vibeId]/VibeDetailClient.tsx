@@ -14,7 +14,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost, reportContent } from '@/actions/common-room';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -905,8 +905,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             <span className={`font-medium text-sm flex-1 ${p.isHost ? 'text-primary' : ''}`}>{p.name}</span>
                                             {p.isHost && <Badge variant="secondary">Host</Badge>}
 
-                                             {isCurrentUserHost && user?.uid !== p.uid && (
-                                                <div className="flex items-center">
+                                            <div className="flex items-center">
+                                                {user?.uid !== p.uid && (
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button></TooltipTrigger>
@@ -916,44 +916,49 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                             <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7"><Phone className="h-4 w-4" /></Button></TooltipTrigger>
                                                             <TooltipContent><p>Start voice call</p></TooltipContent>
                                                         </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+
+                                                {isCurrentUserHost && user?.uid !== p.uid && (
+                                                    <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleHostToggle(p.email, !p.isHost)}>{p.isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}</Button></TooltipTrigger>
                                                             <TooltipContent><p>{p.isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
                                                         </Tooltip>
-                                                    </TooltipProvider>
-                                                    <AlertDialog>
-                                                        <TooltipProvider>
+                                                         <AlertDialog>
                                                             <Tooltip>
-                                                                <AlertDialogTrigger asChild><TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"><UserMinus className="h-4 w-4" /></Button></TooltipTrigger></AlertDialogTrigger>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"><UserMinus className="h-4 w-4" /></Button></TooltipTrigger>
+                                                                </AlertDialogTrigger>
                                                                 <TooltipContent>Remove user</TooltipContent>
                                                             </Tooltip>
-                                                        </TooltipProvider>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
-                                                                <AlertDialogDescription>This will permanently remove and block {p.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.</AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                <AlertDialogAction onClick={() => handleRemoveUser(p)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Remove & Block</AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </div>
-                                            )}
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Remove {p.name}?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>This will permanently remove and block {p.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.</AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleRemoveUser(p)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Remove & Block</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </TooltipProvider>
+                                                )}
 
-                                            {user?.uid !== p.uid && !isFriend && !hasPendingRequest && (
-                                                <TooltipProvider>
-                                                     <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(p)}>
-                                                                <UserPlus className="h-4 w-4" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent><p>Add Friend</p></TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            )}
+                                                {user?.uid !== p.uid && !isFriend && !hasPendingRequest && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(p)}>
+                                                                    <UserPlus className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Add Friend</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+                                            </div>
                                         </div>
                                     )})}
                                 </div>
@@ -1175,7 +1180,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center shrink-0 transition-opacity">
+                                <div className="flex items-center shrink-0">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                              <Button variant="ghost" size="icon" className="h-8 w-8">
