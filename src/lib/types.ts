@@ -114,6 +114,8 @@ export type Vibe = {
     lastPostBy?: string;
     activeMeetupId?: string | null;
     blockedUsers?: BlockedUser[];
+    pinnedPostId?: string | null;
+    isArchived?: boolean;
 };
 
 export type Party = {
@@ -145,7 +147,7 @@ export type VibePost = {
     authorName: string;
     authorEmail: string;
     createdAt: Timestamp;
-    type?: 'user_post' | 'meetup_announcement' | 'system_message';
+    type?: 'user_post' | 'meetup_announcement' | 'system_message' | 'host_announcement';
     meetupDetails?: {
         title: string;
         location: string;
