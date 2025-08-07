@@ -6,6 +6,20 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Implemented a comprehensive reporting and moderation system for the Common Room. This feature empowers the community and administrators to maintain a safe and respectful environment.
+    - **User Reporting:** Any user can now report a Vibe that they believe violates community guidelines. The report action is available in the Vibe's participant list.
+    - **Automated Workflow:** When a report is submitted, the system automatically:
+        1.  Creates a formal report document in the database for admin review.
+        2.  Places the reported Vibe "under review," making its content temporarily inaccessible to non-admin users to prevent further issues.
+        3.  Sends in-app notifications to all system administrators, alerting them to the new report.
+        4.  Sends a private notification to the creator of the Vibe, informing them that their content is under review.
+        5.  Sends a confirmation to the reporter that their submission was received.
+    - **Admin Moderation Panel:** A new "Reports" tab is available in the Admin Dashboard, which lists all pending and resolved reports for easy tracking.
+    - **In-Context Review:** Admins can click on any report to navigate directly to the Vibe's conversation, allowing them to see the reported content in its original context.
+    - **AI Investigator (AII):** A new AI-powered tool is available to admins within the reported Vibe. The AII analyzes the entire conversation against the established community rules, provides a summary judgment, and highlights specific posts that may be in violation, dramatically speeding up the review process.
+    - **Moderation Actions & Soft Deletion:** From the Vibe view, admins can take action via a streamlined dropdown menu:
+        - **Dismiss:** If no violation is found, the report is dismissed, the Vibe is reactivated, and both the reporter and creator are notified.
+        - **Archive (Soft Delete):** If a violation is found, the admin can "Archive" the Vibe. This is a soft delete that makes the Vibe permanently inaccessible to all regular users but preserves the content in the database for administrative records and future reference. The reporter and creator are notified of the action taken.
 - **`[IMPROVEMENT]`** Implemented Phase 1 of the "Common Room / Vibes" feature enhancement. This major update significantly improves usability and management.
     - **Post Translation:** Users can now translate any post in a Vibe into their default language for a small token fee. Translations are permanently saved to the post, so the community only pays once per language.
     - **Automatic Language Detection:** The translation feature now automatically detects the source language of a post instead of assuming it is English.
@@ -61,3 +75,4 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
