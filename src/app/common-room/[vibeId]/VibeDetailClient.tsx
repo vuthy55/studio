@@ -6,14 +6,14 @@ import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -624,6 +624,22 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             // Re-attach listeners if deletion fails? For now, we assume success or user navigates away.
         }
     };
+
+    const handlePinPost = async (postId: string) => {
+        if (!isCurrentUserHost) return;
+        const isCurrentlyPinned = vibeData?.pinnedPostId === postId;
+        const result = await pinPost(vibeId, isCurrentlyPinned ? null : postId);
+        if (result.success) {
+            toast({ title: 'Success', description: isCurrentlyPinned ? 'Post unpinned.' : 'Post pinned to the top.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
+
+    const PinnedPost = useMemo(() => {
+        if (!vibeData?.pinnedPostId || posts.length === 0) return null;
+        return posts.find(p => p.id === vibeData.pinnedPostId);
+    }, [vibeData?.pinnedPostId, posts]);
     
     if (userLoading || vibeLoading) {
         return (
@@ -855,10 +871,40 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             </header>
 
             <div className="flex-grow overflow-y-auto p-4 space-y-6">
+                {PinnedPost && (
+                    <div className="border-l-4 border-amber-500 bg-amber-500/10 p-4 rounded-r-lg">
+                        <div className="flex justify-between items-start">
+                             <div className="flex items-center gap-2 mb-2">
+                                <Pin className="h-4 w-4 text-amber-600" />
+                                <h4 className="font-bold text-amber-700">Pinned Post</h4>
+                            </div>
+                            {isCurrentUserHost && (
+                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handlePinPost(PinnedPost!.id)}>
+                                     <PinOff className="h-4 w-4" />
+                                 </Button>
+                            )}
+                        </div>
+                        <div className="flex items-start gap-4">
+                             <Avatar className="h-8 w-8">
+                                <AvatarFallback>{PinnedPost.authorName?.charAt(0) || 'U'}</AvatarFallback>
+                            </Avatar>
+                             <div className="flex-grow">
+                                <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-sm">{PinnedPost.authorName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {PinnedPost.createdAt ? formatDistanceToNow((PinnedPost.createdAt as Timestamp).toDate(), { addSuffix: true }) : ''}
+                                    </p>
+                                </div>
+                                <p className="text-sm">{PinnedPost.content}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {postsLoading ? (
                     <LoaderCircle className="animate-spin mx-auto"/>
                 ) : (
                     posts.map(post => {
+                        if (post.id === vibeData.pinnedPostId) return null; // Don't render pinned post in the main feed
                         if (post.type === 'meetup_announcement' && post.meetupDetails && activeMeetup) {
                             const isUserRsvpdInPost = user && activeMeetup?.rsvps?.includes(user.uid);
                             return (
@@ -883,6 +929,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 </div>
                             )
                         }
+                        const isPinned = post.id === vibeData.pinnedPostId;
                         return (
                             <div key={post.id} className="flex items-start gap-4 group">
                                 <Avatar>
@@ -912,27 +959,41 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         </div>
                                     )}
                                 </div>
-                                {user?.uid !== post.authorId && (
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                             <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100" disabled={!!isTranslatingPost || !!translatedPosts[post.id]}>
-                                                {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Translate Post?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                )}
+                                <div className="flex items-center shrink-0">
+                                     {isCurrentUserHost && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button size="icon" variant="ghost" onClick={() => handlePinPost(post.id)}>
+                                                        {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent><p>{isPinned ? 'Unpin Post' : 'Pin Post'}</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+                                    {user?.uid !== post.authorId && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="icon" variant="ghost" disabled={!!isTranslatingPost || !!translatedPosts[post.id]}>
+                                                    {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Translate Post?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+                                </div>
                             </div>
                         )
                     })
