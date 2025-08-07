@@ -14,14 +14,14 @@ function CommonRoomPageContent() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const initialTab = searchParams.get('tab') || 'public-meetups';
+    const initialTab = searchParams.get('tab') || 'public-vibes';
 
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.push('/login');
         }
-    }, [user, authLoading]);
+    }, [user, authLoading, router]);
 
     if (authLoading || !user) {
         return (
