@@ -630,22 +630,6 @@ export async function deleteVibe(vibeId: string, userId: string): Promise<{ succ
     }
 }
 
-export async function archiveVibe(vibeId: string, isArchived: boolean): Promise<{ success: boolean; error?: string }> {
-    if (!vibeId) {
-        return { success: false, error: 'Vibe ID is required.' };
-    }
-    try {
-        const vibeRef = db.collection('vibes').doc(vibeId);
-        await vibeRef.update({
-            isArchived: isArchived
-        });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error archiving vibe:", error);
-        return { success: false, error: 'An unexpected server error occurred.' };
-    }
-}
-
 export async function pinPost(vibeId: string, postId: string | null): Promise<{ success: boolean; error?: string }> {
     if (!vibeId) {
         return { success: false, error: 'Vibe ID is required.' };

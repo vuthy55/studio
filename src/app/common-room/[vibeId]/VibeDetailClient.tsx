@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, archiveVibe, deletePost } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -658,17 +658,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
     };
-    
-    const handleArchiveVibe = async () => {
-        if (user?.uid !== vibeData?.creatorId) return;
-
-        const result = await archiveVibe(vibeId, !vibeData?.isArchived);
-        if (result.success) {
-            toast({ title: 'Success!', description: `Vibe has been ${vibeData?.isArchived ? 'unarchived' : 'archived'}.` });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    };
 
     const PinnedPost = useMemo(() => {
         if (!vibeData?.pinnedPostId || posts.length === 0) return null;
@@ -854,32 +843,27 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             </ScrollArea>
                             <div className="mt-auto border-t pt-4 space-y-2">
                                 {user?.uid === vibeData.creatorId ? (
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="outline" className="w-full">
-                                                    <Trash2 className="mr-2 h-4 w-4 text-destructive" /> Delete Vibe
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Delete this Vibe?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This will permanently delete "{vibeData.topic}" and all of its posts. This action cannot be undone.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={handleDeleteVibe} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                                        Confirm & Delete
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                        <Button variant="outline" className="w-full" onClick={handleArchiveVibe}>
-                                            {vibeData.isArchived ? 'Unarchive' : 'Archive'} Vibe
-                                        </Button>
-                                    </div>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" className="w-full">
+                                                <Trash2 className="mr-2 h-4 w-4" /> Delete Vibe
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete this Vibe?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently delete "{vibeData.topic}" and all of its posts. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleDeleteVibe} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                    Confirm & Delete
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 ) : (
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
