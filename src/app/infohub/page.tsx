@@ -142,8 +142,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 function InfoHubContent() {
-    const { user, loading: authLoading, userProfile, settings, spendTokensForTranslation } = useUserData();
-    const router = useRouter();
+    const { userProfile, settings, spendTokensForTranslation } = useUserData();
     const { toast } = useToast();
     
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
@@ -236,14 +235,6 @@ function InfoHubContent() {
         }
         return dateString;
     };
-    
-    if (authLoading || !user) {
-        return (
-            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
-                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
-            </div>
-        );
-    }
     
     return (
         <div className="space-y-8">
@@ -455,6 +446,23 @@ function InfoHubContent() {
 }
 
 export default function InfoHubPage() {
+    const { user, loading: authLoading } = useUserData();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
+
+    if (authLoading || !user) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
+
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
             <InfoHubContent />
