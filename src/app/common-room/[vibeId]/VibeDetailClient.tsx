@@ -103,7 +103,8 @@ function ReportDialog({ contentId, contentType, vibeId, children }: { contentId:
                     </Button>
                 </DialogFooter>
             </DialogContent>
-        );
+        </Dialog>
+    );
 }
 
 
