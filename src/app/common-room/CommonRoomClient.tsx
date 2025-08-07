@@ -161,10 +161,6 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                     {typeof party.distance === 'number' && (
                                         <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
                                     )}
-                                    <div className="flex items-center gap-1 text-sm font-medium ml-auto">
-                                        <UsersIcon className="h-4 w-4"/>
-                                        <span>{(party.rsvps || []).length}</span>
-                                    </div>
                                 </div>
                                 <div className="flex justify-between items-start gap-2">
                                     <h4 className="font-semibold flex-1 flex items-center gap-2">
@@ -180,10 +176,16 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                     <p className="text-muted-foreground flex items-center gap-2">
                                         From: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
                                     </p>
-                                    <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
-                                        <MapPin className="h-4 w-4" />
-                                        Location
-                                    </a>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-1 font-medium">
+                                            <UsersIcon className="h-4 w-4"/>
+                                            <span>{(party.rsvps || []).length}</span>
+                                        </div>
+                                        <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
+                                            <MapPin className="h-4 w-4" />
+                                            Location
+                                        </a>
+                                    </div>
                                 </div>
                                 {party.description && (
                                     <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
