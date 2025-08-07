@@ -947,7 +947,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                 )}
                             </div>
                             </ScrollArea>
-                            <div className="mt-auto border-t pt-4 space-y-2">
+                             <div className="mt-auto border-t pt-4 space-y-2">
                                 {user?.uid !== vibeData.creatorId && (
                                      <ReportVibeDialog vibe={vibeData}>
                                         <Button variant="outline" className="w-full">
