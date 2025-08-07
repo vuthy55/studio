@@ -5,15 +5,15 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff } from 'lucide-react';
+import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report } from '@/lib/types';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Flag, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, archiveVibe, deletePost } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, archiveVibe, deletePost, reportContent } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -32,6 +32,79 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { sendFriendRequest } from '@/actions/friends';
 import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
 import { languages as allLangs, type LanguageCode } from '@/lib/data';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+
+
+function ReportDialog({ contentId, contentType, vibeId, children }: { contentId: string, contentType: 'post' | 'vibe', vibeId: string, children: React.ReactNode }) {
+    const { user } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [reason, setReason] = useState('');
+
+    const handleSubmitReport = async () => {
+        if (!user || !user.displayName || !user.email) {
+            toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to report content.' });
+            return;
+        }
+        if (!reason.trim()) {
+            toast({ variant: 'destructive', title: 'Reason Required', description: 'Please provide a reason for your report.' });
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            const result = await reportContent({
+                type: contentType,
+                contentId,
+                vibeId,
+                reason,
+                reporter: {
+                    uid: user.uid,
+                    name: user.displayName,
+                    email: user.email,
+                },
+            });
+            if (result.success) {
+                toast({ title: 'Report Submitted', description: 'Thank you. Our moderation team will review it shortly.' });
+                setIsOpen(false);
+                setReason('');
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to submit report.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Report {contentType === 'post' ? 'a Post' : 'this Vibe'}</DialogTitle>
+                    <DialogDescription>Please provide a reason for the report. This will be sent to the administrators for review.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-2">
+                    <Label htmlFor="report-reason">Reason</Label>
+                    <Textarea 
+                        id="report-reason" 
+                        value={reason} 
+                        onChange={(e) => setReason(e.target.value)} 
+                        placeholder="e.g., This post contains inappropriate content." 
+                    />
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <Button onClick={handleSubmitReport} disabled={isSubmitting}>
+                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Submit Report
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        );
+}
 
 
 function PlanPartyDialog({ vibeId }: { vibeId: string }) {
@@ -431,11 +504,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [posts]);
 
-    const handlePostReply = async (isAnnouncement: boolean) => {
+    const handlePostReply = async () => {
         if (!replyContent.trim() || !user || !user.displayName || !user.email) return;
         setIsSubmitting(true);
         try {
-            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email }, isAnnouncement ? 'host_announcement' : 'user_post');
+            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email });
             setReplyContent('');
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to post reply.' });
@@ -610,7 +683,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const handleDeleteVibe = async () => {
         if (!user) return;
 
-        // Detach listeners before performing the delete operation
         vibeUnsubscribeRef.current?.();
         postsUnsubscribeRef.current?.();
         meetupUnsubscribeRef.current?.();
@@ -621,23 +693,19 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             router.push('/common-room');
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
-            // Re-attach listeners if deletion fails? For now, we assume success or user navigates away.
         }
     };
     
     const handleDeletePost = async (postId: string) => {
         if (!user) return;
 
-        // Detach listener to prevent permission errors
         postsUnsubscribeRef.current?.();
         
         const result = await deletePost(vibeId, postId, user.uid);
         if (result.success) {
-            // Update local state and re-attach listener
             setPosts(prev => prev.filter(p => p.id !== postId));
             toast({ title: 'Post Deleted', description: 'Your post has been removed.' });
 
-            // Re-attach the listener after the local state is updated
             const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
             postsUnsubscribeRef.current = onSnapshot(postsQuery, (snapshot) => {
                 const newPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost));
@@ -853,6 +921,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             </div>
                             </ScrollArea>
                             <div className="mt-auto border-t pt-4 space-y-2">
+                                <ReportDialog contentType="vibe" contentId={vibeId} vibeId={vibeId}>
+                                    <Button variant="outline" className="w-full text-destructive border-destructive/50 hover:bg-destructive/10 hover:text-destructive">
+                                        <Flag className="mr-2 h-4 w-4"/> Report Vibe
+                                    </Button>
+                                </ReportDialog>
                                 {user?.uid === vibeData.creatorId ? (
                                     <div className="grid grid-cols-2 gap-2">
                                         <AlertDialog>
@@ -943,8 +1016,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <LoaderCircle className="animate-spin mx-auto"/>
                 ) : (
                     posts.map(post => {
-                        if (post.id === vibeData.pinnedPostId) return null; // Don't render pinned post in the main feed
-                        const isAnnouncement = post.type === 'host_announcement';
+                        if (post.id === vibeData.pinnedPostId) return null;
                         if (post.type === 'meetup_announcement' && post.meetupDetails && activeMeetup) {
                             const isUserRsvpdInPost = user && activeMeetup?.rsvps?.includes(user.uid);
                             return (
@@ -971,7 +1043,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         }
                         const isPinned = post.id === vibeData.pinnedPostId;
                         return (
-                            <div key={post.id} className={cn("flex items-start gap-4 group p-2 rounded-lg", isAnnouncement && "bg-blue-500/10 border-l-4 border-blue-500")}>
+                            <div key={post.id} className={cn("flex items-start gap-4 group p-2 rounded-lg")}>
                                 <Avatar>
                                     <AvatarFallback>{post.authorName?.charAt(0) || 'U'}</AvatarFallback>
                                 </Avatar>
@@ -999,57 +1071,71 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center shrink-0">
-                                     {isCurrentUserHost && (
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button size="icon" variant="ghost" onClick={() => handlePinPost(post.id)}>
-                                                        {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent><p>{isPinned ? 'Unpin Post' : 'Pin Post'}</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    )}
-                                    {user?.uid === post.authorId && (
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Delete this post?</AlertDialogTitle>
-                                                    <AlertDialogDescription>This action is permanent and cannot be undone.</AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeletePost(post.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    )}
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                             <Button size="icon" variant="ghost" disabled={!!isTranslatingPost || !!translatedPosts[post.id] || user?.uid === post.authorId}>
-                                                {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
+                                <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                             <Button size="icon" variant="ghost">
+                                                <MoreVertical className="h-4 w-4" />
                                             </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Translate Post?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            {isCurrentUserHost && (
+                                                 <DropdownMenuItem onClick={() => handlePinPost(post.id)}>
+                                                    {isPinned ? <PinOff className="mr-2 h-4 w-4"/> : <Pin className="mr-2 h-4 w-4"/>}
+                                                    {isPinned ? 'Unpin' : 'Pin'}
+                                                </DropdownMenuItem>
+                                            )}
+                                             {user?.uid === post.authorId && (
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                     <AlertDialog>
+                                                        <AlertDialogTrigger className="w-full flex items-center">
+                                                           <Trash2 className="mr-2 h-4 w-4 text-destructive"/> Delete
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Delete this post?</AlertDialogTitle>
+                                                                <AlertDialogDescription>This action is permanent and cannot be undone.</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeletePost(post.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <button className="w-full flex items-center" disabled={!!isTranslatingPost || !!translatedPosts[post.id] || user?.uid === post.authorId}>
+                                                            <Languages className="mr-2 h-4 w-4"/> Translate
+                                                        </button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Translate Post?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuItem>
+                                            {user?.uid !== post.authorId && (
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                    <ReportDialog contentId={post.id} contentType="post" vibeId={vibeId}>
+                                                        <span className="w-full flex items-center text-destructive">
+                                                            <Flag className="mr-2 h-4 w-4"/> Report Post
+                                                        </span>
+                                                    </ReportDialog>
+                                                </DropdownMenuItem>
+                                            )}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </div>
                         )
@@ -1068,21 +1154,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
-                                handlePostReply(false);
+                                handlePostReply();
                             }
                         }}
                     />
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button disabled={isSubmitting || !replyContent.trim()}><Send className="h-4 w-4"/></Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <div className="flex flex-col">
-                                <Button variant="ghost" onClick={() => handlePostReply(false)}>Send as Message</Button>
-                                {isCurrentUserHost && <><Separator /><Button variant="ghost" onClick={() => handlePostReply(true)}>Send as Announcement</Button></>}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                    <Button disabled={isSubmitting || !replyContent.trim()} onClick={handlePostReply}>
+                        <Send className="h-4 w-4"/>
+                    </Button>
                 </div>
             </footer>
         </div>

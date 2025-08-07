@@ -10,17 +10,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MainHeader from '@/components/layout/MainHeader';
 
 // Import the new modular components
-import RoomsTab from './components/RoomsTab';
-import UsersTab from './components/UsersTab';
-import FeedbackTab from './components/FeedbackTab';
-import SettingsTab from './components/SettingsTab';
-import IntelTab from './components/IntelTab';
-import FinancialTab from './components/FinancialTab';
-import TokensTab from './components/TokensTab';
-import LanguagePacksTab from './components/LanguagePacksTab';
-import BulkActionsTab from './components/BulkActionsTab';
-import MessagingTab from './components/MessagingTab';
-import ReportsTab from './components/ReportsTab';
+import RoomsTab from './RoomsTab';
+import UsersTab from './UsersTab';
+import FeedbackTab from './FeedbackTab';
+import SettingsTab from './SettingsTab';
+import IntelTab from './IntelTab';
+import FinancialTab from './FinancialTab';
+import TokensTab from './TokensTab';
+import LanguagePacksTab from './LanguagePacksTab';
+import BulkActionsTab from './BulkActionsTab';
+import MessagingTab from './MessagingTab';
+import ReportsTab from './ReportsTab';
 
 
 export default function AdminPageV2() {

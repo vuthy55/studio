@@ -148,7 +148,7 @@ export type VibePost = {
     authorName: string;
     authorEmail: string;
     createdAt: Timestamp;
-    type?: 'user_post' | 'meetup_announcement' | 'system_message' | 'host_announcement';
+    type?: 'user_post' | 'meetup_announcement' | 'system_message';
     meetupDetails?: {
         title: string;
         location: string;

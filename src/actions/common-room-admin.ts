@@ -2,8 +2,8 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import type { ClientVibe } from '@/lib/types';
-import { Timestamp } from 'firebase-admin/firestore';
+import type { ClientVibe, Report } from '@/lib/types';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { deleteCollection } from '@/lib/firestore-utils';
 
 /**
@@ -71,5 +71,81 @@ export async function deleteVibesAdmin(vibeIds: string[]): Promise<{success: boo
     } catch (error: any) {
         console.error("Error deleting vibes:", error);
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
+
+
+export type ClientReport = Omit<Report, 'reportedAt'> & {
+    reportedAt: string; // ISO string
+};
+
+export async function getReports(): Promise<ClientReport[]> {
+    try {
+        const snapshot = await db.collection('reports')
+            .where('status', '==', 'pending')
+            .orderBy('reportedAt', 'desc')
+            .get();
+        
+        if (snapshot.empty) {
+            return [];
+        }
+
+        return snapshot.docs.map(doc => {
+            const data = doc.data() as Report;
+            return {
+                ...data,
+                id: doc.id,
+                reportedAt: (data.reportedAt as Timestamp).toDate().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error("Error fetching reports:", error);
+        return [];
+    }
+}
+
+export async function dismissReport(reportId: string): Promise<{success: boolean, error?: string}> {
+    try {
+        await db.collection('reports').doc(reportId).update({ status: 'dismissed' });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: 'Failed to dismiss report.' };
+    }
+}
+
+
+interface ResolvePayload {
+    reportId: string;
+    contentType: 'post' | 'vibe';
+    contentId: string;
+    vibeId: string;
+}
+
+export async function resolveReportAndDeleteContent(payload: ResolvePayload): Promise<{success: boolean, error?: string}> {
+     try {
+        const { reportId, contentType, contentId, vibeId } = payload;
+        const batch = db.batch();
+        
+        // Mark the report as resolved
+        const reportRef = db.collection('reports').doc(reportId);
+        batch.update(reportRef, { status: 'resolved' });
+
+        if (contentType === 'vibe') {
+            await deleteVibesAdmin([vibeId]); // Use existing robust deletion logic
+        } else { // It's a post
+            const postRef = db.collection('vibes').doc(vibeId).collection('posts').doc(contentId);
+            batch.delete(postRef);
+
+            // Decrement post count
+            const vibeRef = db.collection('vibes').doc(vibeId);
+            batch.update(vibeRef, { postsCount: FieldValue.increment(-1) });
+        }
+        
+        await batch.commit();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error resolving report:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
