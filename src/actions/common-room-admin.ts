@@ -132,8 +132,8 @@ export async function dismissReport(report: ClientReport): Promise<{success: boo
         // 1. Update the report status to 'dismissed'
         batch.update(reportRef, { status: 'dismissed', adminNotes: 'Dismissed by admin.' });
         
-        // 2. Un-freeze the Vibe by removing the status field
-        batch.update(vibeRef, { status: FieldValue.delete() });
+        // 2. Un-freeze the Vibe by explicitly setting the status to an empty string.
+        batch.update(vibeRef, { status: '' });
         
         await batch.commit();
         
