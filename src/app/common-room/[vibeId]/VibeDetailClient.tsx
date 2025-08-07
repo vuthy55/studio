@@ -5,8 +5,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Flag, MoreVertical } from 'lucide-react';
+import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report, AppSettings } from '@/lib/types';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Flag, MoreVertical, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -102,6 +102,29 @@ function ReportDialog({ contentId, contentType, vibeId, children }: { contentId:
                         Submit Report
                     </Button>
                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function RulesAndCostsDialog({ settings }: { settings: AppSettings | null }) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon">
+                    <Info className="h-5 w-5" />
+                    <span className="sr-only">Rules and Info</span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Community Rules & Feature Costs</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="prose prose-sm dark:prose-invert whitespace-pre-wrap">
+                        {settings?.communityRulesAndCosts || 'Loading rules...'}
+                    </div>
+                </ScrollArea>
             </DialogContent>
         </Dialog>
     );
@@ -755,6 +778,28 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     if (!vibeData) {
         return <p>Vibe not found.</p>
     }
+    
+    if (vibeData.status === 'under_review') {
+        return (
+            <div className="flex flex-col h-[calc(100vh-4rem)] items-center justify-center text-center p-4">
+                 <header className="absolute top-0 left-0 p-4 border-b flex justify-between items-center w-full">
+                     <Button variant="ghost" asChild>
+                        <Link href={backLink}>
+                            <ArrowLeft className="mr-2 h-4 w-4"/>
+                            Back to Common Room
+                        </Link>
+                    </Button>
+                 </header>
+                <div className="max-w-md space-y-4">
+                    <Flag className="h-16 w-16 mx-auto text-amber-500" />
+                    <h1 className="text-2xl font-bold">This Vibe is Under Review</h1>
+                    <p className="text-muted-foreground">
+                        This Vibe has been reported and is currently being reviewed by our moderation team. All activity has been temporarily paused. Please check back later.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -770,6 +815,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <RulesAndCostsDialog settings={settings} />
                     {vibeData.activeMeetupId ? (
                         activeMeetupLoading ? (
                             <div className="flex items-center gap-2 text-muted-foreground">

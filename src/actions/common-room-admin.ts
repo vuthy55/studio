@@ -81,7 +81,6 @@ export type ClientReport = Omit<Report, 'reportedAt'> & {
 
 export async function getReports(): Promise<ClientReport[]> {
     try {
-        // Query simplified to filter by status. Sorting will be handled client-side.
         const snapshot = await db.collection('reports')
             .where('status', '==', 'pending')
             .get();
@@ -104,9 +103,40 @@ export async function getReports(): Promise<ClientReport[]> {
     }
 }
 
-export async function dismissReport(reportId: string): Promise<{success: boolean, error?: string}> {
+async function notifyReporter(reporterId: string, vibeTopic: string, actionTaken: 'dismissed' | 'content_removed') {
+    if (!reporterId) return;
+
+    const message = actionTaken === 'dismissed'
+        ? `Your report concerning the Vibe "${vibeTopic}" has been reviewed and closed. No action was taken.`
+        : `Thank you for your report on the Vibe "${vibeTopic}". We have reviewed it and taken appropriate action.`;
+    
+    await db.collection('notifications').add({
+        userId: reporterId,
+        type: 'report_resolved',
+        message,
+        createdAt: FieldValue.serverTimestamp(),
+        read: false,
+    });
+}
+
+export async function dismissReport(report: ClientReport): Promise<{success: boolean, error?: string}> {
     try {
-        await db.collection('reports').doc(reportId).update({ status: 'dismissed' });
+        const batch = db.batch();
+
+        const reportRef = db.collection('reports').doc(report.id);
+        batch.update(reportRef, { status: 'dismissed', adminNotes: 'Dismissed by admin.' });
+        
+        // Unfreeze the vibe if it was a vibe report
+        if (report.type === 'vibe') {
+            const vibeRef = db.collection('vibes').doc(report.vibeId);
+            batch.update(vibeRef, { status: 'active' });
+        }
+        
+        await batch.commit();
+
+        // Notify the user who reported it
+        await notifyReporter(report.reporter.uid, report.vibeTopic, 'dismissed');
+
         return { success: true };
     } catch (error: any) {
         return { success: false, error: 'Failed to dismiss report.' };
@@ -115,33 +145,35 @@ export async function dismissReport(reportId: string): Promise<{success: boolean
 
 
 interface ResolvePayload {
-    reportId: string;
-    contentType: 'post' | 'vibe';
-    contentId: string;
-    vibeId: string;
+    report: ClientReport;
+    adminNotes: string;
 }
 
-export async function resolveReportAndDeleteContent(payload: ResolvePayload): Promise<{success: boolean, error?: string}> {
+export async function resolveReportAndDeleteContent({ report, adminNotes }: ResolvePayload): Promise<{success: boolean, error?: string}> {
      try {
-        const { reportId, contentType, contentId, vibeId } = payload;
+        const { reportId, contentType, contentId, vibeId, vibeTopic, reporter } = report;
         const batch = db.batch();
         
-        // Mark the report as resolved
-        const reportRef = db.collection('reports').doc(reportId);
-        batch.update(reportRef, { status: 'resolved' });
+        const reportRef = db.collection('reports').doc(report.id);
+        batch.update(reportRef, { status: 'resolved', adminNotes });
 
         if (contentType === 'vibe') {
-            await deleteVibesAdmin([vibeId]); // Use existing robust deletion logic
+            // Deletion of a vibe and its subcollections is handled here directly to ensure atomicity with the report update.
+            const vibeRef = db.collection('vibes').doc(vibeId);
+            await deleteCollection(`vibes/${vibeId}/posts`, 100);
+            await deleteCollection(`vibes/${vibeId}/parties`, 100);
+            batch.delete(vibeRef);
         } else { // It's a post
             const postRef = db.collection('vibes').doc(vibeId).collection('posts').doc(contentId);
             batch.delete(postRef);
-
-            // Decrement post count
+            
             const vibeRef = db.collection('vibes').doc(vibeId);
             batch.update(vibeRef, { postsCount: FieldValue.increment(-1) });
         }
         
         await batch.commit();
+        
+        await notifyReporter(reporter.uid, vibeTopic, 'content_removed');
 
         return { success: true };
     } catch (error: any) {

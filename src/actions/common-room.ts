@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp, getDoc } from 'firebase-admin/firestore';
-import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost } from '@/lib/types';
+import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost, Report } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 import { getAppSettingsAction } from './settings';
 import { translateText } from '@/ai/flows/translate-flow';
@@ -31,11 +31,12 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             creatorName,
             creatorEmail: creatorEmail,
             createdAt: FieldValue.serverTimestamp(),
-            invitedEmails: isPublic ? [] : [creatorEmail], // Only add creator to private vibes
+            invitedEmails: isPublic ? [] : [creatorEmail],
             hostEmails: [creatorEmail],
             postsCount: 0,
             activeMeetupId: null,
             tags: tags || [],
+            status: 'active',
         };
         await newVibeRef.set(vibeData);
         return { success: true, vibeId: newVibeRef.id };
@@ -678,10 +679,17 @@ interface ReportPayload {
     }
 }
 
+async function getAdminUids(): Promise<string[]> {
+    const adminsQuery = db.collection('users').where('role', '==', 'admin');
+    const snapshot = await adminsQuery.get();
+    return snapshot.docs.map(doc => doc.id);
+}
+
 export async function reportContent(payload: ReportPayload): Promise<{success: boolean, error?: string}> {
     try {
         const reportRef = db.collection('reports').doc();
         const vibeRef = db.collection('vibes').doc(payload.vibeId);
+        
         const vibeDoc = await vibeRef.get();
         if (!vibeDoc.exists) {
             return { success: false, error: "Cannot report content from a non-existent Vibe." };
@@ -709,13 +717,34 @@ export async function reportContent(payload: ReportPayload): Promise<{success: b
             }
         }
 
-        await reportRef.set({
+        const batch = db.batch();
+
+        batch.set(reportRef, {
             ...payload,
             vibeTopic: vibeData.topic, // Denormalize the topic for easier display
             contentAuthor,
             reportedAt: FieldValue.serverTimestamp(),
             status: 'pending'
         });
+
+        if (payload.type === 'vibe') {
+            batch.update(vibeRef, { status: 'under_review' });
+        }
+        
+        const adminUids = await getAdminUids();
+        adminUids.forEach(adminId => {
+            const notificationRef = db.collection('notifications').doc();
+            batch.set(notificationRef, {
+                userId: adminId,
+                type: 'vibe_invite', // Re-using a generic type for now.
+                message: `New report submitted for Vibe: "${vibeData.topic}"`,
+                vibeId: payload.vibeId,
+                createdAt: FieldValue.serverTimestamp(),
+                read: false,
+            });
+        });
+
+        await batch.commit();
 
         return { success: true };
     } catch (error: any) {

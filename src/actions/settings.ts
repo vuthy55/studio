@@ -22,6 +22,7 @@ const AppSettingsSchema = z.object({
   infohubAiCost: z.number().default(10),
   infohubGovernmentAdvisorySources: z.string().default('travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au'),
   infohubGlobalNewsSources: z.string().default('www.reuters.com, apnews.com, www.bbc.com/news'),
+  communityRulesAndCosts: z.string().default('Be respectful. No harassment, spam, or illegal content. Translation costs tokens. All rules are subject to admin enforcement.'),
 }).catchall(z.string()); // Allow dynamic region/local news keys
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
@@ -50,6 +51,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
     infohubAiCost: 10,
     infohubGovernmentAdvisorySources: 'travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au',
     infohubGlobalNewsSources: 'www.reuters.com, apnews.com, www.bbc.com/news',
+    communityRulesAndCosts: 'Be respectful. No harassment, spam, or illegal content. Translation costs tokens. All rules are subject to admin enforcement.',
   };
 
   try {

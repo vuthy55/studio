@@ -6,10 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function SettingsTab() {
     const { toast } = useToast();
@@ -92,6 +93,22 @@ export default function SettingsTab() {
                         {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person, per minute)', 'Token cost for each person in a room for each minute of usage.')}
                         {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.')}
                         {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
+                    </div>
+                 </div>
+                 
+                 <div className="space-y-6">
+                    <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="text-primary"/> Community Rules & Information</h3>
+                    <Separator />
+                     <div className="space-y-2">
+                        <Label htmlFor="communityRulesAndCosts">Rules & Feature Costs Text</Label>
+                        <Textarea 
+                            id="communityRulesAndCosts"
+                            value={settings.communityRulesAndCosts || ''}
+                            onChange={handleInputChange}
+                            rows={10}
+                            placeholder="Enter community guidelines and information about token costs..."
+                        />
+                         <p className="text-sm text-muted-foreground">This content will be displayed to users when they click the 'Info' icon in a Vibe. Use it to explain rules and feature costs.</p>
                     </div>
                  </div>
 

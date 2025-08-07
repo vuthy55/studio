@@ -117,6 +117,7 @@ export type Vibe = {
     pinnedPostId?: string | null;
     isArchived?: boolean;
     tags?: string[];
+    status: 'active' | 'under_review';
 };
 
 export type Party = {
@@ -212,7 +213,7 @@ export interface UserProfile {
   immediateBuddyAlert?: boolean;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite';
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite' | 'report_resolved';
 
 export type Notification = {
     id: string;
@@ -311,6 +312,7 @@ export interface Report {
     };
     reportedAt: Timestamp;
     status: 'pending' | 'dismissed' | 'resolved';
+    adminNotes?: string;
 }
 
 // ClientVibe is a version of Vibe that is safe to pass to client components
