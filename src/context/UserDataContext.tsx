@@ -11,7 +11,7 @@ import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
-import { getOfflineAudio } from '@/components/synchub/OfflineManager';
+import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
 import { getLanguageAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
@@ -43,24 +43,13 @@ interface UserDataContextType {
     getTopicStats: (topicId: string, lang: LanguageCode) => { correct: number; tokensEarned: number };
     spendTokensForTranslation: (description: string, cost?: number) => boolean;
     updateSyncLiveUsage: (durationMs: number, usageType: 'live' | 'online') => number;
-    loadSingleOfflinePack: (lang: LanguageCode, audioPack: AudioPack, size: number) => Promise<void>;
+    loadSingleOfflinePack: (lang: LanguageCode) => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
 }
 
 // --- Context ---
 
 const UserDataContext = createContext<UserDataContextType | undefined>(undefined);
-
-const DB_NAME = 'VibeSync-Offline';
-const STORE_NAME = 'AudioPacks';
-const METADATA_STORE_NAME = 'AudioPackMetadata';
-
-interface PackMetadata {
-  id: string;
-  phraseCount?: number;
-  size: number;
-}
-
 
 // --- Provider ---
 
@@ -90,20 +79,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         getAppSettingsAction().then(setSettings);
     }, []);
     
-    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode, audioPack: AudioPack, size: number) => {
-        const db = await openDB(DB_NAME, 2);
-        await db.put(STORE_NAME, audioPack, lang);
-        
-        const metadata: PackMetadata = { id: lang, size };
-        await db.put(METADATA_STORE_NAME, metadata);
-
+    const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
+        const { audioPack, size } = await getLanguageAudioPack(lang);
+        await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
     }, []);
     
      const removeOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
-        const db = await openDB(DB_NAME, 2);
-        await db.delete(STORE_NAME, lang);
-        await db.delete(METADATA_STORE_NAME, lang);
+        await removePackFromDB(lang);
         setOfflineAudioPacks(prev => {
             const newState = { ...prev };
             delete newState[lang];

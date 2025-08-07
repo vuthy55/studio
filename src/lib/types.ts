@@ -204,6 +204,7 @@ export interface UserProfile {
   friendRequests?: FriendRequest[];
   referredBy?: string;
   unlockedLanguages?: LanguageCode[];
+  downloadedPacks?: LanguageCode[];
   immediateBuddyAlert?: boolean;
 }
 

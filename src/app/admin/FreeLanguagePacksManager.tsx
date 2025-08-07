@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { languages, type LanguageCode } from '@/lib/data';
-import { getFreeLanguagePacks, setFreeLanguagePacks, getGenerationMetadata, LanguagePackGenerationMetadata, applyFreeLanguagesToAllUsers } from '@/actions/audiopack-admin';
+import { getFreeLanguagePacks, setFreeLanguagePacks, getGenerationMetadata, type LanguagePackGenerationMetadata, applyFreeLanguagesToAllUsers } from '@/actions/audiopack-admin';
 import { LoaderCircle, Check, Save, Users } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';

@@ -7,7 +7,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
-import type { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, type Timestamp } from 'firebase-admin/firestore';
 
 interface AudioPackResult {
   language: LanguageCode;
@@ -226,5 +226,45 @@ export async function setFreeLanguagePacks(codes: LanguageCode[]): Promise<{succ
     } catch (error: any) {
         console.error("Error setting free language packs:", error);
         return { success: false, error: 'Failed to update free packs list.' };
+    }
+}
+
+export async function applyFreeLanguagesToAllUsers(): Promise<{success: boolean, error?: string}> {
+    try {
+        const freePacks = await getFreeLanguagePacks();
+        if (freePacks.length === 0) {
+            return { success: true }; // Nothing to do
+        }
+        
+        const usersRef = db.collection('users');
+        const usersSnapshot = await usersRef.get();
+        
+        const batchPromises = [];
+        let batch = db.batch();
+        let count = 0;
+
+        for (const userDoc of usersSnapshot.docs) {
+            batch.update(userDoc.ref, {
+                unlockedLanguages: FieldValue.arrayUnion(...freePacks),
+                downloadedPacks: FieldValue.arrayUnion(...freePacks),
+            });
+            count++;
+            if (count === 499) {
+                batchPromises.push(batch.commit());
+                batch = db.batch();
+                count = 0;
+            }
+        }
+
+        if (count > 0) {
+            batchPromises.push(batch.commit());
+        }
+
+        await Promise.all(batchPromises);
+        
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error applying free languages to all users:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
