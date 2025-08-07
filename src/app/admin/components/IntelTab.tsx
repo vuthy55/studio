@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { LoaderCircle, Save, Link as LinkIcon, Bot, CheckCircle2, AlertTriangle, Database } from "lucide-react";
+import { LoaderCircle, Save, Link as LinkIcon, Bot, CheckCircle2, AlertTriangle, Database, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
