@@ -27,6 +27,8 @@ export default function SettingsTab() {
 
     const handleSave = async () => {
         setIsSaving(true);
+        // This save action should submit all settings managed by this tab.
+        // It correctly passes the entire 'settings' object.
         try {
             const result = await updateAppSettingsAction(settings);
             if (result.success) {

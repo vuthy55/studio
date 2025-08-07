@@ -66,11 +66,12 @@ export default function IntelTab() {
 
     const handleSettingsSave = async () => {
         setIsSettingsSaving(true);
-        const sourceSettings = {
+        // This function should ONLY save the intel-related settings.
+        const intelSettings = {
             infohubGovernmentAdvisorySources: settings.infohubGovernmentAdvisorySources,
             infohubGlobalNewsSources: settings.infohubGlobalNewsSources,
         };
-        const result = await updateAppSettingsAction(sourceSettings);
+        const result = await updateAppSettingsAction(intelSettings);
         if (result.success) {
             toast({ title: "Success", description: "AI sources have been updated." });
         } else {
