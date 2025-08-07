@@ -1127,7 +1127,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</Cancel></AlertDialogCancel>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                             <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
