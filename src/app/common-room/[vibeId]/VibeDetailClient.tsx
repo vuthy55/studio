@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, archiveVibe } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -366,7 +366,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             if (targetLang) {
                 newPosts.forEach(post => {
                     if (post.translations && post.translations[targetLang]) {
-                        existingTranslations[post.id] = post.translations[targetLang];
+                        existingTranslations[post.id] = post.translations[post.id];
                     }
                 });
             }
@@ -431,11 +431,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [posts]);
 
-    const handlePostReply = async () => {
+    const handlePostReply = async (isAnnouncement: boolean) => {
         if (!replyContent.trim() || !user || !user.displayName || !user.email) return;
         setIsSubmitting(true);
         try {
-            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email });
+            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email }, isAnnouncement ? 'host_announcement' : 'user_post');
             setReplyContent('');
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to post reply.' });
@@ -724,7 +724,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             {p.isHost && <Badge variant="secondary">Host</Badge>}
 
                                              {isCurrentUserHost && user?.uid !== p.uid && (
-                                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center">
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button></TooltipTrigger>
@@ -762,9 +762,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
                                             {user?.uid !== p.uid && !isFriend && !hasPendingRequest && (
                                                 <TooltipProvider>
-                                                    <Tooltip>
+                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(p)}>
+                                                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(p)}>
                                                                 <UserPlus className="h-4 w-4" />
                                                             </Button>
                                                         </TooltipTrigger>
@@ -791,7 +791,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                                 <Button 
                                                                     size="icon" 
                                                                     variant="ghost" 
-                                                                    className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                                                    className="h-7 w-7"
                                                                     onClick={() => handleCopyInviteLink(email)}
                                                                 >
                                                                     <Copy className="h-4 w-4 text-primary" />
@@ -905,6 +905,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                 ) : (
                     posts.map(post => {
                         if (post.id === vibeData.pinnedPostId) return null; // Don't render pinned post in the main feed
+                        const isAnnouncement = post.type === 'host_announcement';
                         if (post.type === 'meetup_announcement' && post.meetupDetails && activeMeetup) {
                             const isUserRsvpdInPost = user && activeMeetup?.rsvps?.includes(user.uid);
                             return (
@@ -931,7 +932,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         }
                         const isPinned = post.id === vibeData.pinnedPostId;
                         return (
-                            <div key={post.id} className="flex items-start gap-4 group">
+                            <div key={post.id} className={cn("flex items-start gap-4 group p-2 rounded-lg", isAnnouncement && "bg-blue-500/10 border-l-4 border-blue-500")}>
                                 <Avatar>
                                     <AvatarFallback>{post.authorName?.charAt(0) || 'U'}</AvatarFallback>
                                 </Avatar>
@@ -972,27 +973,25 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             </Tooltip>
                                         </TooltipProvider>
                                     )}
-                                    {user?.uid !== post.authorId && (
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button size="icon" variant="ghost" disabled={!!isTranslatingPost || !!translatedPosts[post.id]}>
-                                                    {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Translate Post?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    )}
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                             <Button size="icon" variant="ghost" disabled={!!isTranslatingPost || !!translatedPosts[post.id] || user?.uid === post.authorId}>
+                                                {isTranslatingPost === post.id ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Languages className="h-4 w-4"/>}
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Translate Post?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will translate the post into your default language for a cost of <strong>{settings?.translationCost || 1} token(s)</strong>. This translation is permanent and will be visible to all other users.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleInitiateTranslation(post)}>Confirm & Translate</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             </div>
                         )
@@ -1011,13 +1010,28 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
-                                handlePostReply();
+                                handlePostReply(false);
                             }
                         }}
                     />
-                    <Button onClick={handlePostReply} disabled={isSubmitting || !replyContent.trim()}>
-                        <Send className="h-4 w-4"/>
-                    </Button>
+                    {isCurrentUserHost ? (
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button disabled={isSubmitting || !replyContent.trim()}><Send className="h-4 w-4"/></Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                                <div className="flex flex-col">
+                                    <Button variant="ghost" onClick={() => handlePostReply(false)}>Send as Message</Button>
+                                    <Separator />
+                                    <Button variant="ghost" onClick={() => handlePostReply(true)}>Send as Announcement</Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    ) : (
+                         <Button onClick={() => handlePostReply(false)} disabled={isSubmitting || !replyContent.trim()}>
+                            <Send className="h-4 w-4"/>
+                        </Button>
+                    )}
                 </div>
             </footer>
         </div>
