@@ -256,13 +256,14 @@ function InfoHubContent() {
                                     How "Latest Intel" Works
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="max-w-2xl">
                                 <DialogHeader>
                                     <DialogTitle>How "Latest Intel" Works</DialogTitle>
                                      <DialogDescription>
                                         Our AI analyst provides a real-time risk assessment for travelers. Here's our robust research process.
                                     </DialogDescription>
                                 </DialogHeader>
+                                <ScrollArea className="max-h-[60vh] pr-4">
                                 <div className="space-y-4 text-sm py-4">
                                      <p className="text-destructive font-semibold">Disclaimer: While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.</p>
                                     <p><strong>1. Dual-Tiered Data Gathering:</strong> The agent first performs targeted Google searches against official government sites and reputable news outlets. If a critical web search (like for a travel advisory) fails to return recent, relevant results, the agent initiates a fallback: it directly scrapes the content from the primary government source. This ensures we always have the most critical data.</p>
@@ -270,6 +271,7 @@ function InfoHubContent() {
                                     <p><strong>3. Scoring and Analysis:</strong> The AI analyzes the verified content to assign a 0-10 severity score to each category (e.g., Political Stability, Health). "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score for maximum caution.</p>
                                     <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a list of the key articles it used for its analysis.</p>
                                 </div>
+                                </ScrollArea>
                             </DialogContent>
                         </Dialog>
                     </div>
