@@ -99,7 +99,6 @@ export async function getReports(): Promise<ClientReport[]> {
             }
         });
         
-        // Sorting is now done on the client-side
         return reports.sort((a,b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
 
     } catch (error) {
@@ -126,13 +125,23 @@ async function notifyReporter(reporterId: string, vibeTopic: string, actionTaken
 
 export async function dismissReport(report: ClientReport): Promise<{success: boolean, error?: string}> {
     try {
+        const batch = db.batch();
         const reportRef = db.collection('reports').doc(report.id);
-        await reportRef.update({ status: 'dismissed', adminNotes: 'Dismissed by admin.' });
+        const vibeRef = db.collection('vibes').doc(report.vibeId);
+
+        // 1. Update the report status to 'dismissed'
+        batch.update(reportRef, { status: 'dismissed', adminNotes: 'Dismissed by admin.' });
+        
+        // 2. Un-freeze the Vibe by removing the status field
+        batch.update(vibeRef, { status: FieldValue.delete() });
+        
+        await batch.commit();
         
         await notifyReporter(report.reporter.uid, report.vibeTopic, 'dismissed');
 
         return { success: true };
     } catch (error: any) {
+        console.error("Error dismissing report:", error);
         return { success: false, error: 'Failed to dismiss report.' };
     }
 }
