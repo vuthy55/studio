@@ -453,7 +453,7 @@ export default function InfoHubPage() {
         if (!authLoading && !user) {
             router.push('/login');
         }
-    }, [user, authLoading]);
+    }, [user, authLoading, router]);
 
     if (authLoading || !user) {
         return (
