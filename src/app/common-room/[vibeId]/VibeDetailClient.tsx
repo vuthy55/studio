@@ -14,7 +14,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost, reportContent } from '@/actions/common-room';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -948,9 +948,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
                                                 {user?.uid !== p.uid && !isFriend && !hasPendingRequest && (
                                                     <TooltipProvider>
-                                                        <Tooltip>
+                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(p)}>
+                                                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(p)}>
                                                                     <UserPlus className="h-4 w-4" />
                                                                 </Button>
                                                             </TooltipTrigger>
