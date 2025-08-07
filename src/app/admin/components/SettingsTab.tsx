@@ -1,0 +1,107 @@
+
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { LoaderCircle, Save, Award, DollarSign } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
+import { Separator } from '@/components/ui/separator';
+
+export default function SettingsTab() {
+    const { toast } = useToast();
+    const [settings, setSettings] = useState<Partial<AppSettings>>({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        getAppSettingsAction().then(data => {
+            setSettings(data);
+            setIsLoading(false);
+        });
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const result = await updateAppSettingsAction(settings);
+            if (result.success) {
+                toast({ title: "Success", description: "Application settings have been updated." });
+            } else {
+                toast({ variant: "destructive", title: "Error", description: result.error || "Could not save settings." });
+            }
+        } catch (error: any) {
+            
+            toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { id, value, type } = e.target;
+        const isNumeric = type === 'number';
+        setSettings(prev => ({...prev, [id]: isNumeric ? Number(value) : value }));
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    const renderInput = (key: string, label: string, description: string) => (
+        <div className="space-y-2" key={key}>
+            <Label htmlFor={key}>{label}</Label>
+            <Input id={key as keyof AppSettings} type="number" value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+    );
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>App Settings</CardTitle>
+                <CardDescription>Manage the token economy and other application-wide settings.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {/* Column 1: Rewards & Costs */}
+                    <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Costs</h3>
+                         <Separator />
+                        {renderInput('signupBonus', 'Signup Bonus', 'Tokens a new user gets on signup.')}
+                        {renderInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.')}
+                        {renderInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
+                        {renderInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
+                        {renderInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
+                    </div>
+
+                    {/* Column 2: Limits & Timers */}
+                    <div className="space-y-6">
+                         <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Limits & Timers</h3>
+                         <Separator />
+                        {renderInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.')}
+                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
+                        {renderInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.')}
+                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person, per minute)', 'Token cost for each person in a room for each minute of usage.')}
+                        {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.')}
+                        {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
+                    </div>
+                 </div>
+
+                 <div className="flex justify-end pt-4">
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Settings
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
