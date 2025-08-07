@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Enhanced the user login flow for non-registered users. Instead of displaying a generic error message, the system now detects a failed login, presents a user-friendly toast notification explaining the issue, and provides a one-click action to switch to the sign-up form with the user's email pre-filled, streamlining the registration process.
 - **`[IMPROVEMENT]`** Implemented a major performance refactoring of the Admin Dashboard to address extremely slow Hot Module Replacement (HMR) times, which were taking up to 30 seconds for minor changes.
     - **Problem:** The application's development performance had degraded significantly, violating the core principle of a "fast and simple" architecture.
     - **Root Cause:** The `AdminPageV2.tsx` component had become a monolithic file containing the logic for all admin tabs. This forced the build system (Turbopack) to re-process the entire large component and its dependency graph on every minor change.
@@ -50,6 +51,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
