@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -322,13 +323,19 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
     );
 }
 
-function CommunityRulesDialog({ rules }: { rules?: string }) {
+function CommunityRulesDialog({ rules, isHeaderButton = false }: { rules?: string; isHeaderButton?: boolean }) {
     return (
          <Dialog>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="icon">
-                    <Info className="h-5 w-5" />
-                </Button>
+                {isHeaderButton ? (
+                    <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10 hover:text-primary">
+                        <Info className="h-6 w-6" />
+                    </Button>
+                ) : (
+                    <Button variant="link" size="sm" className="gap-1.5 text-xs text-muted-foreground p-0 h-auto">
+                        <Info className="h-4 w-4" /> View Community Rules
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader><DialogTitle>Community Rules</DialogTitle></DialogHeader>
@@ -343,7 +350,7 @@ function CommunityRulesDialog({ rules }: { rules?: string }) {
 }
 
 function ReportVibeDialog({ vibe, children }: { vibe: Vibe; children: React.ReactNode }) {
-    const { user } = useUserData();
+    const { user, settings } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -391,6 +398,7 @@ function ReportVibeDialog({ vibe, children }: { vibe: Vibe; children: React.Reac
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
+                    <CommunityRulesDialog rules={settings?.vibeCommunityRules} />
                     <div className="space-y-2">
                         <Label htmlFor="report-reason">Reason for Report</Label>
                         <Textarea id="report-reason" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g., This Vibe contains harassment towards other users." />
@@ -793,8 +801,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             Back to Common Room
                         </Link>
                     </Button>
-                    <h1 className="text-2xl font-bold mt-2">{vibeData.topic}</h1>
-                    <p className="text-sm text-muted-foreground">Started by {vibeData.creatorName}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                        <CommunityRulesDialog rules={settings?.vibeCommunityRules} isHeaderButton={true} />
+                        <h1 className="text-2xl font-bold">{vibeData.topic}</h1>
+                    </div>
+                    <p className="text-sm text-muted-foreground ml-10">Started by {vibeData.creatorName}</p>
                 </div>
                 <div className="flex items-center gap-1 md:gap-2">
                     {vibeData.activeMeetupId ? (
@@ -813,9 +824,6 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     ) : (
                         canPlanParty && <PlanPartyDialog vibeId={vibeId} />
                     )}
-
-                    <CommunityRulesDialog rules={settings?.vibeCommunityRules} />
-
                     <Sheet>
                         <SheetTrigger asChild>
                              <Button variant="outline" className="w-full md:w-auto">
@@ -1189,6 +1197,5 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     </Popover>
                 </div>
             </footer>
-        </div>
-    );
+        </div>);
 }
