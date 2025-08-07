@@ -5,15 +5,15 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff } from 'lucide-react';
+import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report } from '@/lib/types';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost, reportContent } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -319,6 +319,89 @@ function InviteDialog({ vibeId, vibeTopic, creatorName }: { vibeId: string, vibe
     );
 }
 
+function ReportVibeDialog({ vibe, children }: { vibe: Vibe; children: React.ReactNode }) {
+    const { user, settings } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [reason, setReason] = useState('');
+
+    const handleSubmitReport = async () => {
+        if (!reason.trim()) {
+            toast({ variant: 'destructive', title: 'Reason Required', description: 'Please provide a reason for your report.' });
+            return;
+        }
+        if (!user || !user.email || !user.displayName) {
+            toast({ variant: 'destructive', title: 'Authentication Error', description: 'You must be logged in to submit a report.' });
+            return;
+        }
+        
+        setIsSubmitting(true);
+        try {
+            const result = await reportContent({
+                vibeId: vibe.id,
+                reason: reason,
+                reporter: { uid: user.uid, name: user.displayName, email: user.email },
+            });
+            if (result.success) {
+                toast({ title: 'Report Submitted', description: 'Thank you. Our moderators will review this Vibe.' });
+                setIsOpen(false);
+                setReason('');
+            } else {
+                throw new Error(result.error || 'Failed to submit report.');
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Report Vibe: "{vibe.topic}"</DialogTitle>
+                    <DialogDescription>
+                        Reporting this Vibe will lock it for review by administrators. Please provide a clear reason for your report.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="flex justify-end">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="link" size="sm" className="p-0 h-auto">
+                                    <Info className="mr-2 h-4 w-4" /> View Community Rules
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader><DialogTitle>Community Rules</DialogTitle></DialogHeader>
+                                <ScrollArea className="max-h-60 mt-4">
+                                    <div className="prose prose-sm whitespace-pre-wrap p-1">
+                                        {settings?.vibeCommunityRules}
+                                    </div>
+                                </ScrollArea>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="report-reason">Reason for Report</Label>
+                        <Textarea id="report-reason" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g., This Vibe contains harassment towards other users." />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <Button onClick={handleSubmitReport} disabled={isSubmitting} variant="destructive">
+                        {isSubmitting && <LoaderCircle className="animate-spin mr-2" />} Submit Report
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
 
 export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const { user, userProfile, loading: userLoading, settings } = useUserData();
@@ -345,6 +428,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const vibeUnsubscribeRef = useRef<() => void | undefined>();
     const postsUnsubscribeRef = useRef<() => void | undefined>();
     const meetupUnsubscribeRef = useRef<() => void | undefined>();
+    
+    const isAdmin = userProfile?.role === 'admin';
+    const isVibeLocked = vibeData?.status === 'under_review';
 
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
@@ -375,11 +461,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             setPostsLoading(false);
         }, (error) => {
             if (error.code === 'permission-denied') {
-                toast({
-                    variant: 'destructive',
-                    title: 'Permission Denied',
-                    description: 'You do not have access to view posts in this private Vibe.',
-                });
+                if (!isAdmin) {
+                     toast({
+                        variant: 'destructive',
+                        title: 'Permission Denied',
+                        description: 'You do not have access to view posts in this private Vibe.',
+                    });
+                }
             }
             setPostsLoading(false);
         });
@@ -389,7 +477,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             postsUnsubscribeRef.current?.();
             meetupUnsubscribeRef.current?.();
         };
-    }, [vibeId, toast, userProfile?.defaultLanguage]);
+    }, [vibeId, toast, userProfile?.defaultLanguage, isAdmin]);
 
     useEffect(() => {
         if (!vibeData) return;
@@ -675,6 +763,24 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     if (!vibeData) {
         return <p>Vibe not found.</p>
     }
+    
+    if (isVibeLocked && !isAdmin) {
+        return (
+             <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] text-center">
+                <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                <h1 className="text-2xl font-bold">Vibe Under Review</h1>
+                <p className="text-muted-foreground max-w-sm">
+                    This Vibe has been reported for a potential violation of community guidelines and is currently locked pending review by an administrator.
+                </p>
+                <Button asChild className="mt-6">
+                    <Link href={backLink}>
+                        <ArrowLeft className="mr-2 h-4 w-4"/>
+                        Back to Common Room
+                    </Link>
+                </Button>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -842,6 +948,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             </div>
                             </ScrollArea>
                             <div className="mt-auto border-t pt-4 space-y-2">
+                                {user?.uid !== vibeData.creatorId && (
+                                     <ReportVibeDialog vibe={vibeData}>
+                                        <Button variant="outline" className="w-full">
+                                            <AlertTriangle className="mr-2 h-4 w-4" /> Report Vibe
+                                        </Button>
+                                    </ReportVibeDialog>
+                                )}
                                 {user?.uid === vibeData.creatorId ? (
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
