@@ -100,7 +100,7 @@ export async function getReports(): Promise<ClientReport[]> {
         });
         
         // Sorting is now done on the client-side
-        return reports;
+        return reports.sort((a,b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
 
     } catch (error) {
         console.error("Error fetching reports:", error);
