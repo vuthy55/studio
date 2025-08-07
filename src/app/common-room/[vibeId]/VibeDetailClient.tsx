@@ -845,7 +845,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         </Link>
                     </Button>
                     <div className="flex items-center gap-2 mt-2">
-                        <CommunityRulesDialog rules={settings?.vibeCommunityRules} isHeaderButton={true} />
+                         <CommunityRulesDialog rules={settings?.vibeCommunityRules} isHeaderButton />
                         <h1 className="text-2xl font-bold">{vibeData.topic}</h1>
                     </div>
                     <p className="text-sm text-muted-foreground ml-10">Started by {vibeData.creatorName}</p>
@@ -1077,28 +1077,52 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                      {isInvestigating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>}
                                     Run AII Investigator
                                 </DropdownMenuItem>
-                                {aiiResult && (
-                                     <Dialog>
-                                        <DialogTrigger asChild>
-                                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                <Info className="mr-2 h-4 w-4"/> View AII Analysis
-                                            </DropdownMenuItem>
-                                        </DialogTrigger>
-                                        <DialogContent>
-                                            <DialogHeader><DialogTitle className="flex items-center gap-2"><Bot /> AII Analysis</DialogTitle></DialogHeader>
-                                            <div className="py-4 space-y-2">
-                                                <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
-                                                <div>
-                                                    <p className="text-sm font-semibold mt-2">Reasoning:</p>
-                                                    <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
+                                
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={!aiiResult}>
+                                            <Info className="mr-2 h-4 w-4"/> View AII Analysis
+                                        </DropdownMenuItem>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader><DialogTitle className="flex items-center gap-2"><Bot /> AII Analysis</DialogTitle></DialogHeader>
+                                        {aiiResult && (
+                                            <ScrollArea className="max-h-[60vh]">
+                                                <div className="py-4 space-y-4 pr-4">
+                                                    <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
+                                                    <div>
+                                                        <p className="text-sm font-semibold mt-2">Reasoning:</p>
+                                                        <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
+                                                    </div>
+                                                    {aiiResult.flaggedPostIds.length > 0 && (
+                                                        <div className="pt-2">
+                                                            <p className="text-sm font-semibold mt-2">Flagged Posts:</p>
+                                                            <div className="space-y-2">
+                                                                {aiiResult.flaggedPostIds.map(postId => {
+                                                                    const post = posts.find(p => p.id === postId);
+                                                                    if (!post) return null;
+                                                                    return (
+                                                                        <div key={postId} className="text-sm p-2 border rounded-md bg-muted">
+                                                                            <p className="font-semibold">{post.authorName} <span className="text-xs text-muted-foreground font-normal">on {format(post.createdAt.toDate(), 'PP')}</span></p>
+                                                                            <p className="italic">"{post.content}"</p>
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        </DialogContent>
-                                    </Dialog>
-                                )}
+                                            </ScrollArea>
+                                        )}
+                                        <DialogFooter>
+                                            <DialogClose asChild><Button>Close</Button></DialogClose>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleResolveReport('dismiss')} disabled={isModerationActionLoading}>Dismiss Report</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleResolveReport('archive')} disabled={isModerationActionLoading} className="text-destructive">Archive Vibe</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleResolveReport('archive')} disabled={isModerationActionLoading} className="text-destructive focus:bg-destructive/10 focus:text-destructive">Archive Vibe</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
