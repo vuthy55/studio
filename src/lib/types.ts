@@ -102,6 +102,7 @@ export type RoomMessage = {
 export type Vibe = {
     id: string;
     topic: string;
+    tags: string[]; // Added for tagging feature
     isPublic: boolean;
     creatorId: string;
     creatorName: string;
@@ -116,6 +117,7 @@ export type Vibe = {
     blockedUsers?: BlockedUser[];
     pinnedPostId?: string | null;
     isArchived?: boolean;
+    status?: 'under_review';
 };
 
 export type Party = {
@@ -211,7 +213,22 @@ export interface UserProfile {
   immediateBuddyAlert?: boolean;
 }
 
-export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite';
+export type Report = {
+  id: string;
+  vibeId: string;
+  vibeTopic: string;
+  reason: string;
+  reporterId: string;
+  reporterName: string;
+  reporterEmail: string;
+  contentAuthorId: string;
+  contentAuthorName: string;
+  contentAuthorEmail: string;
+  createdAt: Timestamp;
+  status: 'pending' | 'resolved' | 'dismissed';
+}
+
+export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite' | 'new_report' | 'report_resolved';
 
 export type Notification = {
     id: string;
@@ -222,6 +239,7 @@ export type Notification = {
     amount?: number;
     roomId?: string;
     vibeId?: string;
+    reportId?: string;
     createdAt: Timestamp;
     read: boolean;
 };

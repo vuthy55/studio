@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock, Search } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw, ChevronRight, HelpCircle, Lock, Search, Tags } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData, startVibe } from '@/actions/common-room';
@@ -60,6 +60,7 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [topic, setTopic] = useState('');
+    const [tags, setTags] = useState('');
     const [isPublic, setIsPublic] = useState(true);
 
     const handleCreateVibe = async () => {
@@ -74,16 +75,19 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
 
         setIsSubmitting(true);
         try {
+            const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean);
             await startVibe({ 
                 topic, 
                 isPublic, 
                 creatorId: user.uid, 
                 creatorName: user.displayName || user.email,
                 creatorEmail: user.email,
+                tags: tagArray,
             });
             toast({ title: 'Vibe Created!', description: 'Your new common room is ready.' });
             setIsOpen(false);
             setTopic('');
+            setTags('');
             setIsPublic(true);
             onVibeCreated();
         } catch (error: any) {
@@ -107,6 +111,10 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
                     <div className="space-y-2">
                         <Label htmlFor="vibe-topic">Topic</Label>
                         <Input id="vibe-topic" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g., Best street food in Bangkok?"/>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="vibe-tags">Tags (comma-separated)</Label>
+                        <Input id="vibe-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g., food, thailand, budget" />
                     </div>
                     <div className="flex items-center space-x-2">
                         <Checkbox id="vibe-public" checked={isPublic} onCheckedChange={(checked) => setIsPublic(!!checked)} />
@@ -367,7 +375,11 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
 
     const filteredPublicVibes = useMemo(() => {
         if (!searchTerm) return publicVibes;
-        return publicVibes.filter(vibe => vibe.topic.toLowerCase().includes(searchTerm.toLowerCase()));
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return publicVibes.filter(vibe => 
+            vibe.topic.toLowerCase().includes(lowercasedTerm) || 
+            vibe.tags?.some(tag => tag.toLowerCase().includes(lowercasedTerm))
+        );
     }, [publicVibes, searchTerm]);
 
     return (
@@ -461,7 +473,7 @@ function VibeList({ vibes, parties, title, source, searchTerm, setSearchTerm }: 
                     <div className="relative w-full max-w-xs">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input 
-                            placeholder="Search public vibes..."
+                            placeholder="Search public vibes by topic or tag..."
                             className="pl-10"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -480,10 +492,18 @@ function VibeList({ vibes, parties, title, source, searchTerm, setSearchTerm }: 
                         return (
                             <Link href={`/common-room/${vibe.id}?from=${source}`} key={vibe.id} className="block">
                                 <div className={`flex items-center p-4 hover:bg-muted/50 transition-colors ${index < vibes.length - 1 ? 'border-b' : ''}`}>
-                                    <div className="flex-1">
+                                    <div className="flex-1 space-y-1">
                                         <div className="flex items-center gap-2">
                                             <p className="font-semibold">{vibe.topic}</p>
                                             {activeMeetup && <Badge variant="secondary">[Meetup]</Badge>}
+                                        </div>
+                                         <div className="flex items-center gap-2">
+                                            {vibe.tags?.map(tag => (
+                                                <Badge key={tag} variant="outline" className="flex items-center gap-1">
+                                                    <Tags className="h-3 w-3" />
+                                                    {tag}
+                                                </Badge>
+                                            ))}
                                         </div>
                                         <p className="text-sm text-muted-foreground">
                                             {vibe.postsCount} posts

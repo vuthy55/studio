@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp, getDoc } from 'firebase-admin/firestore';
-import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost } from '@/lib/types';
+import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost, Report, NotificationType } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 import { getAppSettingsAction } from './settings';
 import { translateText } from '@/ai/flows/translate-flow';
@@ -17,14 +17,16 @@ interface StartVibePayload {
     creatorId: string;
     creatorName: string;
     creatorEmail: string;
+    tags: string[];
 }
 
 export async function startVibe(payload: StartVibePayload): Promise<{ success: boolean, vibeId?: string, error?: string }> {
-    const { topic, isPublic, creatorId, creatorName, creatorEmail } = payload;
+    const { topic, isPublic, creatorId, creatorName, creatorEmail, tags } = payload;
     try {
         const newVibeRef = db.collection('vibes').doc();
         const vibeData: Omit<Vibe, 'id' | 'createdAt' | 'lastPostAt'> = {
             topic,
+            tags: tags || [],
             isPublic,
             creatorId,
             creatorName,
@@ -661,5 +663,77 @@ export async function deletePost(vibeId: string, postId: string, userId: string)
     } catch (error: any) {
         console.error("Error deleting post:", error);
         return { success: false, error: 'An unexpected server error occurred while deleting the post.' };
+    }
+}
+
+
+interface ReportContentPayload {
+    vibeId: string;
+    reason: string;
+    reporter: { uid: string; name: string; email: string };
+}
+
+async function getAdminUids(): Promise<string[]> {
+    const adminsQuery = db.collection('users').where('role', '==', 'admin');
+    const snapshot = await adminsQuery.get();
+    if (snapshot.empty) return [];
+    return snapshot.docs.map(doc => doc.id);
+}
+
+export async function reportContent(payload: ReportContentPayload): Promise<{ success: boolean; error?: string }> {
+    const { vibeId, reason, reporter } = payload;
+    if (!vibeId || !reason || !reporter) {
+        return { success: false, error: 'Missing required information.' };
+    }
+
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const vibeDoc = await vibeRef.get();
+        if (!vibeDoc.exists) {
+            return { success: false, error: 'Vibe not found.' };
+        }
+        const vibeData = vibeDoc.data() as Vibe;
+
+        const reportRef = db.collection('reports').doc();
+        const batch = db.batch();
+
+        const reportData: Omit<Report, 'id'> = {
+            vibeId,
+            vibeTopic: vibeData.topic,
+            reason,
+            reporterId: reporter.uid,
+            reporterName: reporter.name,
+            reporterEmail: reporter.email,
+            contentAuthorId: vibeData.creatorId,
+            contentAuthorName: vibeData.creatorName,
+            contentAuthorEmail: vibeData.creatorEmail,
+            createdAt: Timestamp.now(),
+            status: 'pending',
+        };
+        batch.set(reportRef, reportData);
+
+        const adminUids = await getAdminUids();
+        const notificationMessage = `A Vibe has been reported: "${vibeData.topic}"`;
+        const notificationType: NotificationType = 'new_report';
+
+        adminUids.forEach(adminId => {
+            const notificationRef = db.collection('notifications').doc();
+            batch.set(notificationRef, {
+                userId: adminId,
+                type: notificationType,
+                message: notificationMessage,
+                vibeId,
+                reportId: reportRef.id,
+                createdAt: FieldValue.serverTimestamp(),
+                read: false,
+            });
+        });
+        
+        await batch.commit();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error reporting content:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
