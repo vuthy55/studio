@@ -48,7 +48,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
  * Adds a new post to a Vibe and updates the Vibe's metadata.
  * If the vibe is public, it also adds the poster to the invited list on their first post.
  */
-export async function postReply(vibeId: string, content: string, author: { uid: string, name: string, email: string }): Promise<{ success: boolean; error?: string }> {
+export async function postReply(vibeId: string, content: string, author: { uid: string, name: string, email: string }, type: 'user_post' | 'host_announcement' = 'user_post'): Promise<{ success: boolean; error?: string }> {
     if (!vibeId || !content.trim() || !author) {
         return { success: false, error: 'Missing required information.' };
     }
@@ -70,7 +70,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
             authorName: author.name,
             authorEmail: author.email,
             createdAt: FieldValue.serverTimestamp(),
-            type: 'user_post',
+            type: type,
             translations: {},
         });
 
@@ -81,7 +81,7 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
         };
 
         // 2. If it's a public vibe, add the user to invitedEmails on their first post to "subscribe" them.
-        if (vibeData.isPublic) {
+        if (vibeData.isPublic && !vibeData.invitedEmails.includes(author.email)) {
             updateData.invitedEmails = FieldValue.arrayUnion(author.email);
         }
         
@@ -596,6 +596,38 @@ export async function deleteVibe(vibeId: string, userId: string): Promise<{ succ
         return { success: true };
     } catch (error: any) {
         console.error("Error deleting vibe:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+export async function archiveVibe(vibeId: string, isArchived: boolean): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId) {
+        return { success: false, error: 'Vibe ID is required.' };
+    }
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        await vibeRef.update({
+            isArchived: isArchived
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error archiving vibe:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+export async function pinPost(vibeId: string, postId: string | null): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId) {
+        return { success: false, error: 'Vibe ID is required.' };
+    }
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        await vibeRef.update({
+            pinnedPostId: postId 
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error pinning post:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
