@@ -30,8 +30,10 @@ import { signUpUser } from '@/actions/auth';
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   const { user, loading: authLoading } = useUserData();
+
+  const [activeTab, setActiveTab] = useState('login');
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -160,8 +162,25 @@ function LoginPageContent() {
       toast({ title: "Success", description: "Logged in successfully." });
       // The useEffect will handle the redirect
     } catch (error: any) {
-      console.error("Email login error", error);
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      if (error.code === 'auth/invalid-credential') {
+        const { id: toastId } = toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: "Incorrect email or password. If you don't have an account, you can sign up now.",
+          action: (
+            <Button variant="secondary" onClick={() => {
+              setActiveTab('signup');
+              setSignupEmail(loginEmail);
+              dismiss(toastId);
+            }}>
+              Sign Up
+            </Button>
+          ),
+          duration: 10000,
+        });
+      } else {
+        toast({ variant: "destructive", title: "Error", description: error.message });
+      }
     } finally {
       setIsEmailLoading(false);
     }
@@ -182,7 +201,7 @@ function LoginPageContent() {
         </header>
 
         <div className="flex justify-center items-center">
-            <Tabs defaultValue="login" className="w-full max-w-md">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-md">
                 <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -258,7 +277,7 @@ function LoginPageContent() {
                                     <SelectValue placeholder="Select your country" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {countryOptions.map(country => (
+                                    {countryOptions.map((country: any) => (
                                         <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
                                     ))}
                                 </SelectContent>
