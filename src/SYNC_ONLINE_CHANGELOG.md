@@ -23,8 +23,10 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Implemented a fully responsive, mobile-first design for the Sync Online room interface. On desktop, the layout features a persistent two-panel view with the participant list on the left and the main chat area on the right. On mobile devices, the interface collapses into a single view where the chat area is primary, and the participant list becomes a slide-in "sheet" accessible via an icon button in the header. This ensures an optimal and intuitive user experience across all screen sizes.
 - **`[IMPROVEMENT]`** Refined the session timer logic in Sync Online rooms. The timer now starts only upon the first microphone press by any participant, ensuring that billing and usage tracking are based purely on active conversation time rather than time spent idle in the room. This provides a more fair and accurate measure of session duration.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
+- **`[IMPROVEMENT]`** To enhance user trust and transparency, a confirmation dialog was added before a user spends tokens to translate a Vibe post. The dialog clearly states the action and its token cost, requiring the user to explicitly approve the transaction before it proceeds.
 
 ### Fixed
+- **`[FIX]`** Resolved a race condition that could cause a `permission-denied` error when a creator deleted their own Vibe. The logic now mirrors other successful fixes in the app by ensuring all client-side Firestore listeners for the Vibe and its posts are detached *before* the server action to delete the Vibe is called, preventing the client from trying to access a document that no longer exists.
 - **`[FIX]`** Resolved an issue where language packs that were purchased and then deleted by the user would not reappear in the "Available for Download" list. The logic now ensures that any unlocked language pack is always available for a free re-download, correctly respecting the user's purchase history.
 - **`[FIX]`** Resolved a critical page rendering failure across multiple pages (including `/infohub`, `/stats`, and `/profile`) that caused `504 Gateway Timeout` errors or browser freezes in an infinite loop. The root cause was a race condition where client-side components attempted to fetch user-specific data before the application had confirmed the user's authentication status. This was definitively resolved by enforcing a standard pattern across all pages to conditionally render page content only *after* the `useUserData` hook confirms an active user session, preventing any unauthenticated server calls from being made.
 - **`[FIX]`** Resolved a major performance bottleneck in the Common Room that caused slow load times, especially as the number of "Vibes" grew. The root cause was an N+1 query problem where the app made a separate database call for every Vibe to fetch its upcoming meetups. The definitive fix involved a two-part strategy:
@@ -58,20 +60,3 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
