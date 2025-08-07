@@ -6,6 +6,12 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Implemented Phase 1 of the "Common Room / Vibes" feature enhancement. This major update significantly improves usability and management.
+    - **Post Translation:** Users can now translate any post in a Vibe into their default language for a small token fee. Translations are permanently saved to the post, so the community only pays once per language.
+    - **Automatic Language Detection:** The translation feature now automatically detects the source language of a post instead of assuming it is English.
+    - **Vibe Search:** A search bar has been added to the Common Room, allowing users to quickly find public Vibes by keywords in their topics.
+    - **Creator Deletion:** Vibe creators now have the ability to permanently delete their own Vibes and all associated content.
+    - **Auto-Subscription:** When a user posts a reply in a public Vibe for the first time, they are automatically "subscribed" to it, causing the Vibe to appear in their personalized "My Vibes" list for easy follow-up.
 - **`[IMPROVEMENT]`** Enhanced the user login flow for non-registered users. Instead of displaying a generic error message, the system now detects a failed login, presents a user-friendly toast notification explaining the issue, and provides a one-click action to switch to the sign-up form with the user's email pre-filled, streamlining the registration process.
 - **`[IMPROVEMENT]`** Implemented a major performance refactoring of the Admin Dashboard to address extremely slow Hot Module Replacement (HMR) times, which were taking up to 30 seconds for minor changes.
     - **Problem:** The application's development performance had degraded significantly, violating the core principle of a "fast and simple" architecture.
@@ -52,6 +58,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
