@@ -46,6 +46,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
 
 /**
  * Adds a new post to a Vibe and updates the Vibe's metadata.
+ * If the vibe is public, it also adds the poster to the invited list on their first post.
  */
 export async function postReply(vibeId: string, content: string, author: { uid: string, name: string, email: string }): Promise<{ success: boolean; error?: string }> {
     if (!vibeId || !content.trim() || !author) {
@@ -54,6 +55,11 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
     try {
         const vibeRef = db.collection('vibes').doc(vibeId);
         const postRef = vibeRef.collection('posts').doc();
+        const vibeDoc = await vibeRef.get();
+        if (!vibeDoc.exists) {
+            return { success: false, error: 'Vibe not found.' };
+        }
+        const vibeData = vibeDoc.data() as Vibe;
 
         const batch = db.batch();
 
@@ -68,12 +74,19 @@ export async function postReply(vibeId: string, content: string, author: { uid: 
             translations: {},
         });
 
-        // 2. Update the parent Vibe metadata
-        batch.update(vibeRef, {
+        const updateData: Record<string, any> = {
             postsCount: FieldValue.increment(1),
             lastPostAt: FieldValue.serverTimestamp(),
             lastPostBy: author.name,
-        });
+        };
+
+        // 2. If it's a public vibe, add the user to invitedEmails on their first post to "subscribe" them.
+        if (vibeData.isPublic) {
+            updateData.invitedEmails = FieldValue.arrayUnion(author.email);
+        }
+        
+        // 3. Update the parent Vibe metadata
+        batch.update(vibeRef, updateData);
 
         await batch.commit();
         
