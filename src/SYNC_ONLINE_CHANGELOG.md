@@ -19,6 +19,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 
 ### Fixed
+- **`[FIX]`** Resolved an issue where language packs that were purchased and then deleted by the user would not reappear in the "Available for Download" list. The logic now ensures that any unlocked language pack is always available for a free re-download, correctly respecting the user's purchase history.
 - **`[FIX]`** Resolved a critical page rendering failure across multiple pages (including `/infohub`, `/stats`, and `/profile`) that caused `504 Gateway Timeout` errors or browser freezes in an infinite loop. The root cause was a race condition where client-side components attempted to fetch user-specific data before the application had confirmed the user's authentication status. This was definitively resolved by enforcing a standard pattern across all pages to conditionally render page content only *after* the `useUserData` hook confirms an active user session, preventing any unauthenticated server calls from being made.
 - **`[FIX]`** Resolved a major performance bottleneck in the Common Room that caused slow load times, especially as the number of "Vibes" grew. The root cause was an N+1 query problem where the app made a separate database call for every Vibe to fetch its upcoming meetups. The definitive fix involved a two-part strategy:
     1.  **Resilient Server-Side Query:** The data-fetching logic was re-architected to first attempt a high-performance `collectionGroup` query to get all meetups in a single call. Crucially, this is wrapped in a `try...catch` block. If the required database index is not yet ready, the system automatically falls back to the slower, but reliable, per-Vibe fetching method, ensuring the page always loads.
@@ -51,6 +52,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
 
