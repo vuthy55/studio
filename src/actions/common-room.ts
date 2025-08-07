@@ -724,21 +724,37 @@ export async function reportContent(payload: ReportContentPayload): Promise<{ su
         };
         batch.set(reportRef, reportData);
 
+        // Set the vibe status to under_review
+        batch.update(vibeRef, { status: 'under_review' });
+
+        // Notify Admins
         const adminUids = await getAdminUids();
-        const notificationMessage = `A Vibe has been reported: "${vibeData.topic}"`;
-        const notificationType: NotificationType = 'new_report';
+        const adminNotificationMessage = `A Vibe has been reported: "${vibeData.topic}"`;
+        const adminNotificationType: NotificationType = 'new_report';
 
         adminUids.forEach(adminId => {
             const notificationRef = db.collection('notifications').doc();
             batch.set(notificationRef, {
                 userId: adminId,
-                type: notificationType,
-                message: notificationMessage,
+                type: adminNotificationType,
+                message: adminNotificationMessage,
                 vibeId,
                 reportId: reportRef.id,
                 createdAt: FieldValue.serverTimestamp(),
                 read: false,
             });
+        });
+
+        // Notify Reporter
+        const reporterNotificationRef = db.collection('notifications').doc();
+        batch.set(reporterNotificationRef, {
+            userId: reporter.uid,
+            type: 'new_report', // Re-using for simplicity, client can differentiate
+            message: `Your report for Vibe "${vibeData.topic}" has been submitted.`,
+            vibeId,
+            reportId: reportRef.id,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
         });
         
         await batch.commit();

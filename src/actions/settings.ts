@@ -23,6 +23,7 @@ const AppSettingsSchema = z.object({
   infohubGovernmentAdvisorySources: z.string().default('travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au'),
   infohubGlobalNewsSources: z.string().default('www.reuters.com, apnews.com, www.bbc.com/news'),
   vibeInactivityDays: z.number().default(10),
+  vibeCommunityRules: z.string().default('1. Be respectful and kind.\n2. No hate speech, harassment, or bullying.\n3. Do not discuss or promote illegal activities, including drugs.\n4. No sexually explicit content.\n5. Keep discussions relevant to travel and culture.'),
 }).catchall(z.string()); // Allow dynamic region/local news keys
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
@@ -52,6 +53,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
     infohubGovernmentAdvisorySources: 'travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au',
     infohubGlobalNewsSources: 'www.reuters.com, apnews.com, www.bbc.com/news',
     vibeInactivityDays: 10,
+    vibeCommunityRules: '1. Be respectful and kind.\n2. No hate speech, harassment, or bullying.\n3. Do not discuss or promote illegal activities, including drugs.\n4. No sexually explicit content.\n5. Keep discussions relevant to travel and culture.',
   };
 
   try {
