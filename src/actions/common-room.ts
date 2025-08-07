@@ -631,3 +631,35 @@ export async function pinPost(vibeId: string, postId: string | null): Promise<{ 
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
+
+export async function deletePost(vibeId: string, postId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    if (!vibeId || !postId || !userId) {
+        return { success: false, error: 'Missing required information.' };
+    }
+
+    try {
+        const vibeRef = db.collection('vibes').doc(vibeId);
+        const postRef = vibeRef.collection('posts').doc(postId);
+
+        const postDoc = await postRef.get();
+        if (!postDoc.exists) {
+            return { success: true }; // Already deleted
+        }
+
+        const postData = postDoc.data();
+        if (postData?.authorId !== userId) {
+            return { success: false, error: 'Permission denied. You can only delete your own posts.' };
+        }
+
+        const batch = db.batch();
+        batch.delete(postRef);
+        batch.update(vibeRef, { postsCount: FieldValue.increment(-1) });
+        
+        await batch.commit();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error deleting post:", error);
+        return { success: false, error: 'An unexpected server error occurred while deleting the post.' };
+    }
+}

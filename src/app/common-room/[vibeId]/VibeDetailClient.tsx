@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, archiveVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, archiveVibe, deletePost } from '@/actions/common-room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -624,6 +624,29 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             // Re-attach listeners if deletion fails? For now, we assume success or user navigates away.
         }
     };
+    
+    const handleDeletePost = async (postId: string) => {
+        if (!user) return;
+
+        // Detach listener to prevent permission errors
+        postsUnsubscribeRef.current?.();
+        
+        const result = await deletePost(vibeId, postId, user.uid);
+        if (result.success) {
+            // Update local state and re-attach listener
+            setPosts(prev => prev.filter(p => p.id !== postId));
+            toast({ title: 'Post Deleted', description: 'Your post has been removed.' });
+
+            // Re-attach the listener after the local state is updated
+            const postsQuery = query(collection(db, `vibes/${vibeId}/posts`), orderBy('createdAt', 'asc'));
+            postsUnsubscribeRef.current = onSnapshot(postsQuery, (snapshot) => {
+                const newPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VibePost));
+                setPosts(newPosts);
+            });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
 
     const handlePinPost = async (postId: string) => {
         if (!isCurrentUserHost) return;
@@ -631,6 +654,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const result = await pinPost(vibeId, isCurrentlyPinned ? null : postId);
         if (result.success) {
             toast({ title: 'Success', description: isCurrentlyPinned ? 'Post unpinned.' : 'Post pinned to the top.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    };
+    
+    const handleArchiveVibe = async () => {
+        if (user?.uid !== vibeData?.creatorId) return;
+
+        const result = await archiveVibe(vibeId, !vibeData?.isArchived);
+        if (result.success) {
+            toast({ title: 'Success!', description: `Vibe has been ${vibeData?.isArchived ? 'unarchived' : 'archived'}.` });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -820,27 +854,32 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             </ScrollArea>
                             <div className="mt-auto border-t pt-4 space-y-2">
                                 {user?.uid === vibeData.creatorId ? (
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" className="w-full">
-                                                <Trash2 className="mr-2 h-4 w-4" /> Delete Vibe
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Delete this Vibe?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will permanently delete "{vibeData.topic}" and all of its posts. This action cannot be undone.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={handleDeleteVibe} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                                    Confirm & Delete
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="outline" className="w-full">
+                                                    <Trash2 className="mr-2 h-4 w-4 text-destructive" /> Delete Vibe
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete this Vibe?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This will permanently delete "{vibeData.topic}" and all of its posts. This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={handleDeleteVibe} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                        Confirm & Delete
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <Button variant="outline" className="w-full" onClick={handleArchiveVibe}>
+                                            {vibeData.isArchived ? 'Unarchive' : 'Archive'} Vibe
+                                        </Button>
+                                    </div>
                                 ) : (
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
@@ -973,6 +1012,25 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                             </Tooltip>
                                         </TooltipProvider>
                                     )}
+                                    {user?.uid === post.authorId && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete this post?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This action is permanent and cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeletePost(post.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                              <Button size="icon" variant="ghost" disabled={!!isTranslatingPost || !!translatedPosts[post.id] || user?.uid === post.authorId}>
@@ -1014,24 +1072,17 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             }
                         }}
                     />
-                    {isCurrentUserHost ? (
-                         <Popover>
-                            <PopoverTrigger asChild>
-                                <Button disabled={isSubmitting || !replyContent.trim()}><Send className="h-4 w-4"/></Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                                <div className="flex flex-col">
-                                    <Button variant="ghost" onClick={() => handlePostReply(false)}>Send as Message</Button>
-                                    <Separator />
-                                    <Button variant="ghost" onClick={() => handlePostReply(true)}>Send as Announcement</Button>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    ) : (
-                         <Button onClick={() => handlePostReply(false)} disabled={isSubmitting || !replyContent.trim()}>
-                            <Send className="h-4 w-4"/>
-                        </Button>
-                    )}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button disabled={isSubmitting || !replyContent.trim()}><Send className="h-4 w-4"/></Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <div className="flex flex-col">
+                                <Button variant="ghost" onClick={() => handlePostReply(false)}>Send as Message</Button>
+                                {isCurrentUserHost && <><Separator /><Button variant="ghost" onClick={() => handlePostReply(true)}>Send as Announcement</Button></>}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                 </div>
             </footer>
         </div>
