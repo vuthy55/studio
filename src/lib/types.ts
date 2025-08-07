@@ -117,7 +117,6 @@ export type Vibe = {
     pinnedPostId?: string | null;
     isArchived?: boolean;
     tags?: string[];
-    status: 'active' | 'under_review';
 };
 
 export type Party = {

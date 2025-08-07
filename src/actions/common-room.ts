@@ -36,7 +36,6 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             postsCount: 0,
             activeMeetupId: null,
             tags: tags || [],
-            status: 'active',
         };
         await newVibeRef.set(vibeData);
         return { success: true, vibeId: newVibeRef.id };
@@ -726,10 +725,6 @@ export async function reportContent(payload: ReportPayload): Promise<{success: b
             reportedAt: FieldValue.serverTimestamp(),
             status: 'pending'
         });
-
-        if (payload.type === 'vibe') {
-            batch.update(vibeRef, { status: 'under_review' });
-        }
         
         const adminUids = await getAdminUids();
         adminUids.forEach(adminId => {

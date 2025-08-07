@@ -34,8 +34,7 @@ export default function ReportsTab() {
         setIsLoading(true);
         try {
             const reportData = await getReports();
-            const sortedReports = reportData.sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
-            setReports(sortedReports);
+            setReports(reportData);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load reports.' });
         } finally {

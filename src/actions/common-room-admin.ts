@@ -126,20 +126,9 @@ async function notifyReporter(reporterId: string, vibeTopic: string, actionTaken
 
 export async function dismissReport(report: ClientReport): Promise<{success: boolean, error?: string}> {
     try {
-        const batch = db.batch();
-
         const reportRef = db.collection('reports').doc(report.id);
-        batch.update(reportRef, { status: 'dismissed', adminNotes: 'Dismissed by admin.' });
+        await reportRef.update({ status: 'dismissed', adminNotes: 'Dismissed by admin.' });
         
-        // Unfreeze the vibe if it was a vibe report
-        if (report.type === 'vibe') {
-            const vibeRef = db.collection('vibes').doc(report.vibeId);
-            batch.update(vibeRef, { status: 'active' });
-        }
-        
-        await batch.commit();
-
-        // Notify the user who reported it
         await notifyReporter(report.reporter.uid, report.vibeTopic, 'dismissed');
 
         return { success: true };
