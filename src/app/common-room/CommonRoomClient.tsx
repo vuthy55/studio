@@ -410,10 +410,10 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
                                         <TooltipContent side="bottom" className="md:hidden"><p>Start a Vibe</p></TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
-                                <TabsTrigger value="public-meetups" data-tour="cr-discover-tab" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Compass className="h-5 w-5" /><span className="hidden md:inline">Public Meetups</span></TabsTrigger>
-                                <TabsTrigger value="public-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><MessageSquare className="h-5 w-5" /><span className="hidden md:inline">Public Vibes</span></TabsTrigger>
-                                <TabsTrigger value="my-meetups" data-tour="cr-my-space-tab" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Calendar className="h-5 w-5" /><span className="hidden md:inline">My Meetups</span></TabsTrigger>
-                                <TabsTrigger value="my-vibes" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><UserCircle className="h-5 w-5" /><span className="hidden md:inline">My Vibes</span></TabsTrigger>
+                                <TabsTrigger value="public-vibes" data-tour="cr-discover-tab" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Compass className="h-5 w-5" /><span className="hidden md:inline">Public Vibes</span></TabsTrigger>
+                                <TabsTrigger value="public-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><Calendar className="h-5 w-5" /><span className="hidden md:inline">Public Meetups</span></TabsTrigger>
+                                <TabsTrigger value="my-vibes" data-tour="cr-my-space-tab" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><MessageSquare className="h-5 w-5" /><span className="hidden md:inline">My Vibes</span></TabsTrigger>
+                                <TabsTrigger value="my-meetups" className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2"><UserCircle className="h-5 w-5" /><span className="hidden md:inline">My Meetups</span></TabsTrigger>
                             </TabsList>
                         </Tabs>
                     </div>
@@ -425,10 +425,10 @@ export default function CommonRoomClient({ initialTab }: { initialTab: string })
                         </div>
                     ) : (
                         <div className="pt-4">
-                            {activeTab === 'public-meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
                             {activeTab === 'public-vibes' && <VibeList vibes={filteredPublicVibes} parties={publicMeetups} title="Public Vibes" source="public-vibes" searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
-                            {activeTab === 'my-meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
+                            {activeTab === 'public-meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
                             {activeTab === 'my-vibes' && <VibeList vibes={myVibes} parties={myMeetups} title="My Vibes & Invites" source="my-vibes" searchTerm="" setSearchTerm={() => {}} />}
+                            {activeTab === 'my-meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} debugLog={debugLog} />}
                         </div>
                     )}
                 </CardContent>
