@@ -3,10 +3,10 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
-import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc } from 'firebase/firestore';
+import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report } from '@/lib/types';
-import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Info, AlertTriangle, MoreVertical } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Info, AlertTriangle, MoreVertical, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -33,6 +33,8 @@ import { sendFriendRequest } from '@/actions/friends';
 import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
 import { languages as allLangs, type LanguageCode } from '@/lib/data';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { investigateVibe, type VibeInvestigation } from '@/ai/flows/investigate-vibe-flow';
+import { resolveReportAdmin } from '@/actions/reports-admin';
 
 
 function PlanPartyDialog({ vibeId }: { vibeId: string }) {
@@ -436,7 +438,8 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const [translatedPosts, setTranslatedPosts] = useState<Record<string, string>>({});
     const [isTranslatingPost, setIsTranslatingPost] = useState<string | null>(null);
 
-    const fromTab = searchParams.get('from') || 'discover';
+    const fromTab = searchParams.get('from');
+    const reportId = searchParams.get('reportId');
     const backLink = fromTab === 'my-space' ? '/common-room?tab=my-space' : '/common-room';
 
     const vibeUnsubscribeRef = useRef<() => void | undefined>();
@@ -444,7 +447,13 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
     const meetupUnsubscribeRef = useRef<() => void | undefined>();
     
     const isAdmin = userProfile?.role === 'admin';
+    const isModeratorView = isAdmin && fromTab === 'reports';
     const isVibeLocked = vibeData?.status === 'under_review';
+    
+    // --- Moderation State ---
+    const [isModerationActionLoading, setIsModerationActionLoading] = useState(false);
+    const [aiiResult, setAiiResult] = useState<VibeInvestigation | null>(null);
+    const [isInvestigating, setIsInvestigating] = useState(false);
 
     useEffect(() => {
         const vibeDocRef = doc(db, 'vibes', vibeId);
@@ -755,6 +764,40 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
     };
+    
+    const handleRunAII = async () => {
+        if (!isModeratorView || !vibeData || !settings) return;
+        setIsInvestigating(true);
+        setAiiResult(null);
+        try {
+            const allContent = posts.map(p => `${p.authorName}: ${p.content}`).join('\n\n');
+            const result = await investigateVibe({ content: allContent, rules: settings.vibeCommunityRules });
+            setAiiResult(result);
+            toast({ title: 'AII Analysis Complete', description: 'The AI has reviewed the conversation.' });
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'AII Failed', description: error.message || 'The AI investigator could not complete the analysis.' });
+        } finally {
+            setIsInvestigating(false);
+        }
+    };
+
+    const handleResolveReport = async (resolution: 'dismiss' | 'delete') => {
+        if (!isModeratorView || !reportId || !vibeData) return;
+        setIsModerationActionLoading(true);
+        try {
+            const result = await resolveReportAdmin({ reportId, vibeId, resolution });
+            if (result.success) {
+                toast({ title: 'Report Resolved', description: `The report has been ${resolution === 'dismiss' ? 'dismissed' : 'actioned'}.` });
+                router.push('/admin?tab=reports');
+            } else {
+                throw new Error(result.error || 'Failed to resolve report.');
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Action Failed', description: error.message });
+        } finally {
+            setIsModerationActionLoading(false);
+        }
+    };
 
     const PinnedPost = useMemo(() => {
         if (!vibeData?.pinnedPostId || posts.length === 0) return null;
@@ -796,9 +839,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             <header className="p-4 border-b flex justify-between items-start gap-4">
                 <div className="flex-1">
                     <Button variant="ghost" asChild>
-                        <Link href={backLink}>
+                        <Link href={isModeratorView ? '/admin?tab=reports' : backLink}>
                             <ArrowLeft className="mr-2 h-4 w-4"/>
-                            Back to Common Room
+                            Back to {isModeratorView ? 'Reports' : 'Common Room'}
                         </Link>
                     </Button>
                     <div className="flex items-center gap-2 mt-2">
@@ -1015,6 +1058,32 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                     </Sheet>
                 </div>
             </header>
+            
+            {isModeratorView && (
+                <div className="p-4 border-b bg-amber-500/10">
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-amber-700">Moderator Controls</h3>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        <Button size="sm" onClick={() => handleResolveReport('dismiss')} disabled={isModerationActionLoading}>Dismiss Report</Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleResolveReport('delete')} disabled={isModerationActionLoading}>Delete Vibe</Button>
+                        <Button size="sm" variant="secondary" onClick={handleRunAII} disabled={isInvestigating || isModerationActionLoading}>
+                            {isInvestigating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>}
+                            Run AII Investigator
+                        </Button>
+                    </div>
+                    {aiiResult && (
+                        <Card className="mt-4">
+                             <CardHeader className="pb-2">
+                                <CardTitle className="text-base flex items-center gap-2"><Bot /> AII Analysis</CardTitle>
+                             </CardHeader>
+                            <CardContent>
+                                <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
+                                <p className="text-sm font-semibold mt-2">Reasoning:</p>
+                                <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+            )}
 
             <div className="flex-grow overflow-y-auto p-4 space-y-6">
                 {PinnedPost && (
@@ -1078,7 +1147,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         }
                         const isPinned = post.id === vibeData.pinnedPostId;
                         return (
-                            <div key={post.id} className={cn("flex items-start gap-4 group p-2 rounded-lg", isAnnouncement && "bg-blue-500/10 border-l-4 border-blue-500")}>
+                            <div key={post.id} className={cn("flex items-start gap-4 group p-2 rounded-lg", isAnnouncement && "bg-blue-500/10 border-l-4 border-blue-500", aiiResult?.flaggedPostIds?.includes(post.id) && "bg-destructive/20 border-l-4 border-destructive")}>
                                 <Avatar>
                                     <AvatarFallback>{post.authorName?.charAt(0) || 'U'}</AvatarFallback>
                                 </Avatar>

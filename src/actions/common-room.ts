@@ -756,6 +756,18 @@ export async function reportContent(payload: ReportContentPayload): Promise<{ su
             createdAt: FieldValue.serverTimestamp(),
             read: false,
         });
+
+        // Notify Vibe Creator
+        const creatorNotificationRef = db.collection('notifications').doc();
+        batch.set(creatorNotificationRef, {
+            userId: vibeData.creatorId,
+            type: 'new_report', // Re-using for simplicity
+            message: `Your Vibe "${vibeData.topic}" has been reported and is under review.`,
+            vibeId,
+            reportId: reportRef.id,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+        });
         
         await batch.commit();
 

@@ -20,6 +20,7 @@ import TokensTab from './components/TokensTab';
 import LanguagePacksTab from './components/LanguagePacksTab';
 import BulkActionsTab from './components/BulkActionsTab';
 import MessagingTab from './components/MessagingTab';
+import ReportsTab from './components/ReportsTab';
 
 
 export default function AdminPageV2() {
@@ -42,6 +43,7 @@ export default function AdminPageV2() {
     const adminTabs = [
         { value: 'rooms', label: 'Rooms', icon: RadioTower },
         { value: 'users', label: 'Users', icon: Users },
+        { value: 'reports', label: 'Reports', icon: AlertTriangle },
         { value: 'feedback', label: 'Feedback', icon: LifeBuoy },
         { value: 'settings', label: 'App Settings', icon: Settings },
         { value: 'intel', label: 'Intel', icon: Globe },
@@ -57,7 +59,7 @@ export default function AdminPageV2() {
             <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-5 md:grid-cols-10 h-auto">
+                <TabsList className="grid w-full grid-cols-5 md:grid-cols-11 h-auto">
                     {adminTabs.map(tab => (
                         <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full">
                             <tab.icon className="h-5 w-5" />
@@ -69,6 +71,7 @@ export default function AdminPageV2() {
                 <div className="mt-6">
                     <TabsContent value="rooms"><RoomsTab /></TabsContent>
                     <TabsContent value="users"><UsersTab /></TabsContent>
+                    <TabsContent value="reports"><ReportsTab /></TabsContent>
                     <TabsContent value="feedback"><FeedbackTab /></TabsContent>
                     <TabsContent value="settings"><SettingsTab /></TabsContent>
                     <TabsContent value="intel"><IntelTab /></TabsContent>
