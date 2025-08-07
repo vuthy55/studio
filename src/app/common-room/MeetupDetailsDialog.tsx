@@ -5,12 +5,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { onSnapshot, doc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vibe, Party, UserProfile, BlockedUser, FriendRequest, ClientParty } from '@/lib/types';
-import { LoaderCircle, UserPlus, ShieldCheck, ShieldX, UserMinus, MessageSquare, Phone } from 'lucide-react';
+import { LoaderCircle, UserPlus, ShieldCheck, ShieldX, UserMinus, MessageSquare, Phone, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe } from '@/actions/common-room';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -23,24 +23,83 @@ import { sendFriendRequest } from '@/actions/friends';
 import { cn } from '@/lib/utils';
 import { MapPin } from 'lucide-react';
 
+function EditMeetupDialog({ party, vibeId, onUpdate, children }: { party: ClientParty; vibeId: string; onUpdate: () => void; children: React.ReactNode; }) {
+    const { user } = useUserData();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>({});
+
+    useEffect(() => {
+        setEditableMeetup(party);
+    }, [party]);
+
+    const handleEdit = async () => {
+        if (!user || !user.displayName) return;
+        setIsSubmitting(true);
+        
+        try {
+            const payload = { ...editableMeetup };
+            const result = await editMeetup(vibeId, party.id, payload, user.displayName);
+
+            if (result.success) {
+                toast({ title: 'Meetup Updated', description: 'Changes have been saved and announced in the chat.' });
+                setIsOpen(false);
+                onUpdate(); // This will close the parent dialog
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update meetup.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit Meetup</DialogTitle>
+                    <DialogDescription>Update the details for this event.</DialogDescription>
+                </DialogHeader>
+                 <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-title">Title</Label>
+                        <Input id="edit-title" value={editableMeetup.title || ''} onChange={(e) => setEditableMeetup(p => ({...p, title: e.target.value}))} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="edit-location">Location (URL)</Label>
+                        <Input id="edit-location" value={editableMeetup.location || ''} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="edit-description">Description</Label>
+                        <Textarea id="edit-description" value={editableMeetup.description || ''} onChange={(e) => setEditableMeetup(p => ({...p, description: e.target.value}))} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <Button onClick={handleEdit} disabled={isSubmitting}>
+                        {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null} Save Changes
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
 export function MeetupDetailsDialog({ party, children }: { party: ClientParty, children: React.ReactNode }) {
     const { user, userProfile } = useUserData();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const [editableMeetup, setEditableMeetup] = useState<Partial<Party>>({});
     const [vibeData, setVibeData] = useState<Vibe | null>(null);
 
     const [attendees, setAttendees] = useState<UserProfile[]>([]);
     const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
     
     const vibeId = party.vibeId;
-
-    useEffect(() => {
-        setEditableMeetup(party);
-    }, [party]);
     
     useEffect(() => {
         if (!isOpen || !vibeId) return;
@@ -116,32 +175,6 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
         }
     };
-
-    const handleEdit = async () => {
-        if (!user || !user.displayName) return;
-        setIsSubmitting(true);
-        
-        try {
-            const payload = {
-                ...editableMeetup,
-                startTime: editableMeetup.startTime ? new Date(editableMeetup.startTime).toISOString() : undefined,
-                endTime: editableMeetup.endTime ? new Date(editableMeetup.endTime).toISOString() : undefined,
-            };
-
-            const result = await editMeetup(vibeId, party.id, payload, user.displayName);
-
-            if (result.success) {
-                toast({ title: 'Meetup Updated', description: 'Changes have been saved and announced in the chat.' });
-                setIsEditing(false);
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update meetup.' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
     
     const handleRsvp = async (partyId: string, isRsvping: boolean) => {
         if (!user) return;
@@ -173,27 +206,15 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
             </DialogTrigger>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    {isEditing ? (
-                        <Input value={editableMeetup.title} onChange={(e) => setEditableMeetup(p => ({...p, title: e.target.value}))} className="text-lg font-semibold" />
-                    ) : (
-                        <DialogTitle>{party.title}</DialogTitle>
-                    )}
+                    <DialogTitle>{party.title}</DialogTitle>
                     <DialogDescription>
-                         {isEditing ? (
-                            <Input value={editableMeetup.location} onChange={(e) => setEditableMeetup(p => ({...p, location: e.target.value}))} />
-                         ) : (
-                            <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                                <MapPin className="h-4 w-4" /> Location
-                            </a>
-                         )}
+                        <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                            <MapPin className="h-4 w-4" /> Location
+                        </a>
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-2">
-                    {isEditing ? (
-                         <Textarea placeholder="Event details and instructions..." value={editableMeetup.description} onChange={(e) => setEditableMeetup(p => ({...p, description: e.target.value}))} className="text-sm" />
-                    ) : (
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{party.description || 'No description provided.'}</p>
-                    )}
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{party.description || 'No description provided.'}</p>
                 </div>
                 <ScrollArea className="h-48 my-4">
                     <div className="pr-4">
@@ -299,21 +320,14 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
                     </div>
                 </ScrollArea>
                 <div className="flex items-center justify-end gap-2 pt-2 border-t">
-                    {isEditing ? (
-                         <>
-                            <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
-                            <Button onClick={handleEdit} disabled={isSubmitting}>
-                                {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null} Save Changes
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                             {isCurrentUserHost && <Button variant="secondary" onClick={() => setIsEditing(true)}>Edit</Button>}
-                             <Button onClick={() => handleRsvp(party.id, !isUserRsvpd)} variant={isUserRsvpd ? 'secondary' : 'default'} className="flex-1">
-                                {isUserRsvpd ? `I'm Out (${party.rsvps?.length || 0})` : `I'm In! (${party.rsvps?.length || 0})`}
-                             </Button>
-                        </>
+                    {isCurrentUserHost && (
+                        <EditMeetupDialog party={party} vibeId={vibeId} onUpdate={() => setIsOpen(false)}>
+                            <Button variant="secondary"><Edit className="h-4 w-4 mr-2" />Edit</Button>
+                        </EditMeetupDialog>
                     )}
+                    <Button onClick={() => handleRsvp(party.id, !isUserRsvpd)} variant={isUserRsvpd ? 'secondary' : 'default'} className="flex-1">
+                        {isUserRsvpd ? `I'm Out (${party.rsvps?.length || 0})` : `I'm In! (${party.rsvps?.length || 0})`}
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>
