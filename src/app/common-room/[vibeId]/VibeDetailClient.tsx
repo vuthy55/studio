@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -770,7 +770,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         setIsInvestigating(true);
         setAiiResult(null);
         try {
-            const allContent = posts.map(p => `${p.authorName}: ${p.content}`).join('\n\n');
+            const allContent = posts.map(p => `POSTID::${p.id}::${p.authorName}: ${p.content}`).join('\n\n');
             const result = await investigateVibe({ content: allContent, rules: settings.vibeCommunityRules });
             setAiiResult(result);
             toast({ title: 'AII Analysis Complete', description: 'The AI has reviewed the conversation.' });
@@ -787,7 +787,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         try {
             const result = await resolveReportAdmin({ reportId, vibeId, resolution });
             if (result.success) {
-                toast({ title: 'Report Resolved', description: `The report has been ${resolution === 'dismiss' ? 'dismissed' : 'actioned'}.` });
+                toast({ title: 'Report Resolved', description: `The report has been ${resolution === 'dismiss' ? 'actioned' : 'deleted'}.` });
                 router.push('/admin?tab=reports');
             } else {
                 throw new Error(result.error || 'Failed to resolve report.');
@@ -1074,19 +1074,28 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             {isInvestigating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>}
                             Run AII Investigator
                         </Button>
+                         {aiiResult && (
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                     <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700">
+                                        <Info className="mr-2 h-4 w-4"/> View AII Analysis
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle className="flex items-center gap-2"><Bot /> AII Analysis</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="py-4 space-y-2">
+                                        <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
+                                        <div>
+                                            <p className="text-sm font-semibold mt-2">Reasoning:</p>
+                                            <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
+                                        </div>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                     </div>
-                    {aiiResult && (
-                        <Card className="mt-4">
-                             <CardHeader className="pb-2">
-                                <CardTitle className="text-base flex items-center gap-2"><Bot /> AII Analysis</CardTitle>
-                             </CardHeader>
-                            <CardContent>
-                                <p className="text-sm font-semibold">Judgment: <span className="font-normal">{aiiResult.judgment}</span></p>
-                                <p className="text-sm font-semibold mt-2">Reasoning:</p>
-                                <p className="text-sm whitespace-pre-wrap">{aiiResult.reasoning}</p>
-                            </CardContent>
-                        </Card>
-                    )}
                 </div>
             )}
 
