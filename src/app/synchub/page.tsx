@@ -81,7 +81,7 @@ export default function SyncHubPage() {
         if (!authLoading && !user) {
             router.push('/login');
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading]);
 
     if (authLoading || !user) {
         return (

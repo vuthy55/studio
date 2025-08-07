@@ -55,7 +55,7 @@ export default function NotificationsPage() {
         });
 
         return () => unsubscribe();
-    }, [user, loading, router]);
+    }, [user, loading]);
     
     const handleMarkAllAsRead = async () => {
         if (!user) return;

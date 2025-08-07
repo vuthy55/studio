@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { Suspense } from 'react';
@@ -24,7 +23,7 @@ export default function AdminPage() {
         if (!user) {
             router.push('/login');
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading]);
     
     if (authLoading || !isClient) {
         return (

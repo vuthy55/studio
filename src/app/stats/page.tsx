@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -30,10 +29,9 @@ export default function StatsPage() {
 
     useEffect(() => {
         if (!loading && !user) {
-            setDetailedHistoryForDialog([]);
             router.push('/login');
         }
-    }, [user, loading, router]);
+    }, [user, loading]);
     
     const getTranslation = (textObj: Phrase | { english: string; translations: Partial<Record<LanguageCode, string>>; pronunciations?: Partial<Record<LanguageCode, string>> }, lang: LanguageCode) => {
         if (lang === 'english') {
