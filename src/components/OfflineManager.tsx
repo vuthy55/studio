@@ -132,14 +132,14 @@ export default function OfflineManager() {
             <Label htmlFor="select-all-packs">Select all available for download</Label>
           </div>
           <ScrollArea className="h-72">
-            <div className="space-y-2 pr-4">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
               {downloadablePacks.map(pack => {
                 const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
                 const cost = isUnlocked ? 0 : 100; // Example cost
                 
                 return (
-                    <div key={pack.code} className="grid grid-cols-[1fr_auto] items-center p-2 rounded-md border gap-2">
-                        <div className="flex items-center gap-2">
+                    <div key={pack.code} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2">
+                        <div className="flex items-center gap-2 flex-grow">
                             {pack.code !== 'user_saved_phrases' ? (
                                 <Checkbox 
                                 id={pack.code}
@@ -150,21 +150,23 @@ export default function OfflineManager() {
                                 disabled={pack.isDownloaded}
                                 />
                             ) : (
-                                <Bookmark className="h-4 w-4 mx-2 text-primary" />
+                                <Bookmark className="h-4 w-4 mx-2 text-primary flex-shrink-0" />
                             )}
                             <div className="flex flex-col">
                                 <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
-                                {pack.phraseCount !== undefined && (
-                                    <span className="text-xs text-muted-foreground">{pack.phraseCount} phrases</span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {pack.phraseCount !== undefined && (
+                                      <span className="text-xs text-muted-foreground">{pack.phraseCount} phrases</span>
+                                  )}
+                                  {pack.isDownloaded && <Badge variant="secondary">Downloaded</Badge>}
+                                </div>
                             </div>
-                            {pack.isDownloaded && <Badge variant="secondary">Downloaded</Badge>}
                         </div>
 
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 flex-shrink-0">
                             {pack.code === 'user_saved_phrases' ? (
                                 <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : 'Re-sync'}
+                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : 'Re-sync'}
                                 </Button>
                             ) : (
                                 <p className="text-sm text-muted-foreground">{cost === 0 ? 'Free' : `${cost} tokens`}</p>
@@ -174,6 +176,7 @@ export default function OfflineManager() {
                                 <Button 
                                 variant="ghost" 
                                 size="icon"
+                                className="h-8 w-8"
                                 onClick={() => handleRemove(pack.code)}
                                 disabled={isProcessing[pack.code]}
                                 >
@@ -187,7 +190,7 @@ export default function OfflineManager() {
                                     onClick={() => handleDownload(pack.code as LanguageCode)}
                                     disabled={!isUnlocked || isProcessing[pack.code]}
                                 >
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Download className="h-4 w-4" />}
+                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
                                 </Button>
                                 )
                             )}
