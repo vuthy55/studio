@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -246,7 +247,7 @@ export default function IntelTab() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>InfoHub Management</CardTitle>
+                <CardTitle>Intel Management</CardTitle>
                 <CardDescription>Configure AI data sources and manage the country intelligence database.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -276,7 +277,7 @@ export default function IntelTab() {
                     <TabsContent value="database" className="mt-4">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                               <p className="text-sm text-muted-foreground">This is the central database of curated news sources for the InfoHub feature.</p>
+                               <p className="text-sm text-muted-foreground">This is the central database of curated news sources for the Intel feature.</p>
                             </div>
                             <Dialog open={isBuildDialogOpen} onOpenChange={setIsBuildDialogOpen}>
                                 <DialogTrigger asChild>

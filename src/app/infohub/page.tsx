@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
@@ -9,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
-import { getCountryIntelData } from '@/actions/intel-admin';
+import { getCountryIntelData } from '@/actions/intel'; // <-- CORRECTED IMPORT
 import type { CountryIntelData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -238,7 +239,7 @@ function InfoHubContent() {
     
     return (
         <div className="space-y-8">
-            <MainHeader title="InfoHub" description="Your source for global travel intelligence." />
+            <MainHeader title="Intel" description="Your source for global travel intelligence." />
             
             <Card>
                 <CardHeader>
@@ -447,7 +448,7 @@ function InfoHubContent() {
     );
 }
 
-export default function InfoHubPage() {
+export default function IntelPage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
 
@@ -467,9 +468,7 @@ export default function InfoHubPage() {
 
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <InfoHubContent />
+            <IntelContent />
         </Suspense>
     );
 }
-
-    
