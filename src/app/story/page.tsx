@@ -12,9 +12,9 @@ import { useUserData } from '@/context/UserDataContext';
 export default function StoryPage() {
   const { user } = useUserData();
   
-  const prepVibeLink = user ? "/learn" : "/login";
-  const syncLiveLink = user ? "/converse" : "/login";
-  const syncOnlineLink = user ? "/connect?tab=voice-rooms" : "/login";
+  const learnLink = user ? "/learn" : "/login";
+  const converseLink = user ? "/converse" : "/login";
+  const connectLink = user ? "/connect" : "/login";
   const adventureLink = user ? "/connect" : "/login";
 
   return (
@@ -34,27 +34,40 @@ export default function StoryPage() {
                   Alex lands in Siem Reap. The energy is epic, but the language barrier is a brick wall. How do you even ask for a bottle of water? Pointing and smiling only gets you so far. The feeling of being totally alone starts to creep in.
               </p>
           </div>
-          <div className="flex items-center justify-center bg-muted rounded-lg shadow-xl aspect-[3/2]">
-            <span className="text-9xl font-bold text-primary opacity-20">?</span>
+          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
+            <Image 
+                src="https://images.unsplash.com/photo-1534323382794-4b5b34149e91?q=80&w=2070&auto=format&fit=crop"
+                alt="A solo male backpacker looking lost in a bustling Asian market"
+                width={600}
+                height={400}
+                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+                unoptimized
+                data-ai-hint="backpacker market"
+            />
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="md:order-1">
+          <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                <div className="text-center">
-                <div className="text-5xl font-bold text-primary opacity-50">អរគុណ</div>
-                <div className="text-2xl font-semibold text-primary/80 mt-1">(Arkoun)</div>
-                </div>
+                 <Image 
+                    src="https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop"
+                    alt="Traveler confidently ordering street food"
+                    width={600}
+                    height={400}
+                    className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+                    unoptimized
+                    data-ai-hint="ordering food"
+                />
             </div>
           </div>
-          <div className="md:order-2 space-y-4">
+          <div className="md:order-1 space-y-4">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
               <p className="text-muted-foreground">
-                  Back at the hostel, Alex finds VibeSync. The "Prep Your Vibe" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
+                  Back at the hostel, Alex finds VibeSync. The "Learn" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                  <Link href={prepVibeLink}>Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Link href={learnLink}>Try the Learn Feature <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
         </div>
@@ -63,34 +76,46 @@ export default function StoryPage() {
           <div className="space-y-4">
               <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
               <p className="text-muted-foreground">
-                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Later, they add each other as buddies in the app. A quick tap on the Buddy Alert button lets everyone share their location instantly, making it easy to regroup after exploring different parts of the temple complex.
+                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Converse," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Later, they add each other as buddies in the app for an extra layer of safety.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                   <Link href={syncLiveLink}>Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                   <Link href={converseLink}>Check out Converse <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-            <div className="text-center">
-              <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Sync Live</div>
-            </div>
+             <Image 
+                src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
+                alt="A diverse group of young friends laughing together at a landmark"
+                width={600}
+                height={400}
+                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+                unoptimized
+                data-ai-hint="diverse friends"
+            />
           </div>
         </div>
 
          <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                <div className="text-center">
-                <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Sync Online</div>
-                </div>
+                 <Image 
+                    src="https://images.unsplash.com/photo-1516589178581-6e3a4f611413a?q=80&w=2070&auto=format&fit=crop"
+                    alt="A group of people looking at a phone together and planning"
+                    width={600}
+                    height={400}
+                    className="rounded-lg shadow-xl object-cover aspect-[3/2]"
+                    unoptimized
+                    data-ai-hint="friends phone"
+                />
             </div>
           </div>
           <div className="space-y-4 md:order-1">
-              <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
+              <h2 className="text-3xl font-bold">The Community: Finding Your People</h2>
               <p className="text-muted-foreground">
-                  The trip ends, but the friendship doesn't. Using "Sync Online," the group chats from different countries. Aisha speaks Malay, Linh speaks Vietnamese, but everyone hears the conversation in their own language. They're planning their next adventure, already.
+                  The trip continues, but now Alex isn't just a tourist; they're part of a community. Using the "Connect" feature, they join multi-lingual "Chatz" to swap tips about secret waterfalls, and even find a "Meetup" with other VibeSync users for a night market tour in the next city. The app isn't just for translation; it's for finding your crew on the road.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                   <Link href={syncOnlineLink}>See how Sync Online works <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                   <Link href={connectLink}>Explore the Connect Hub <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
         </div>
