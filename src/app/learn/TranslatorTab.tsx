@@ -11,7 +11,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
-import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
 import type { SavedPhrase } from '@/lib/types';
@@ -25,6 +24,9 @@ import { generateSpeech } from '@/services/tts';
 import { useTour, TourStep } from '@/context/TourContext';
 import { openDB } from 'idb';
 import type { AudioPack } from '@/lib/types';
+import { collection, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -71,20 +73,19 @@ async function getDb() {
 export default function TranslatorTab() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation, offlineAudioPacks } = useUserData();
+    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation, offlineAudioPacks, savedPhrases } = useUserData();
     
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
-    const [savedPhrases, setSavedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
     
     const [isOnline, setIsOnline] = useState(true);
@@ -125,7 +126,7 @@ export default function TranslatorTab() {
         }
 
         window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
+        window.removeEventListener('offline', handleOffline);
 
         return () => {
             window.removeEventListener('online', handleOnline);
@@ -195,7 +196,7 @@ export default function TranslatorTab() {
         try {
             const description = `Translated: "${inputText.substring(0, 50)}..."`;
             
-            const spendSuccess = spendTokensForTranslation(description);
+            const spendSuccess = spendTokensForTranslation(description, settings.translationCost);
             
             if (!spendSuccess) {
                 toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens for this translation.' });
@@ -316,68 +317,41 @@ export default function TranslatorTab() {
 
         setIsSaving(true);
         try {
-            // 1. Generate audio first
-            const toLocale = languageToLocaleMap[toLanguage];
-            if (!toLocale) throw new Error("Unsupported language for audio generation.");
-            const { audioDataUri } = await generateSpeech({ text: translatedText, lang: toLocale, voice: selectedVoice });
-
-            // 2. Charge user only on successful audio generation
             const description = `Saved phrase for offline: "${inputText.substring(0, 30)}..."`;
             const spendSuccess = spendTokensForTranslation(description);
 
             if (!spendSuccess) {
-                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens to save this phrase.' });
+                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens to save this phrase.' });
                 setIsSaving(false);
                 return;
             }
 
-            // 3. Save text and audio locally
-            const newPhrase: SavedPhrase = {
-                id: `saved_${new Date().getTime()}`,
+            // Save to Firestore
+            const savedPhrasesRef = collection(db, 'users', user.uid, 'savedPhrases');
+            const newPhraseDoc = {
                 fromLang: fromLanguage,
                 toLang: toLanguage,
                 fromText: inputText,
                 toText: translatedText,
+                createdAt: serverTimestamp(),
             };
+            await addDoc(savedPhrasesRef, newPhraseDoc);
 
-            const db = await getDb();
-            const tx = db.transaction('AudioPacks', 'readwrite');
-            const store = tx.objectStore('AudioPacks');
-            let audioPack = await store.get('user_saved_phrases') as AudioPack | undefined;
-            if (!audioPack) audioPack = {};
-            audioPack[newPhrase.id] = audioDataUri;
-            await store.put(audioPack, 'user_saved_phrases');
-            await tx.done;
+            toast({ title: "Phrase Saved", description: "This phrase is now available in your practice list across all devices." });
 
-            setSavedPhrases([newPhrase, ...savedPhrases]);
-            toast({ title: "Phrase Saved Offline", description: "Audio is now available for offline practice." });
-            
         } catch (error: any) {
             console.error("Error saving phrase:", error);
-            toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the phrase and its audio." });
+            toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the phrase." });
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleRemovePhrase = async (idToRemove: string) => {
-        setSavedPhrases(savedPhrases.filter(p => p.id !== idToRemove));
-        
-        try {
-            const db = await getDb();
-            const tx = db.transaction('AudioPacks', 'readwrite');
-            const store = tx.objectStore('AudioPacks');
-            const audioPack = await store.get('user_saved_phrases') as AudioPack | undefined;
-            if (audioPack && audioPack[idToRemove]) {
-                delete audioPack[idToRemove];
-                await store.put(audioPack, 'user_saved_phrases');
-            }
-            await tx.done;
-            toast({ title: "Phrase Removed", description: "Removed from your practice list." });
-        } catch (error) {
-            console.error("Error removing audio from IndexedDB:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not remove offline audio." });
-        }
+        if (!user) return;
+        const phraseRef = doc(db, 'users', user.uid, 'savedPhrases', idToRemove);
+        await deleteDoc(phraseRef);
+        toast({ title: "Phrase Removed", description: "Removed from your practice list." });
     }
 
     return (

@@ -8,7 +8,7 @@ import { languages as allLanguages, offlineAudioPackLanguages, type LanguageCode
 import { getLanguageAudioPack } from '@/actions/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LoaderCircle, Download, Trash2, WifiOff } from 'lucide-react';
+import { LoaderCircle, Download, Trash2, WifiOff, Bookmark } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -17,35 +17,43 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface DownloadablePack {
-  code: LanguageCode;
+  code: LanguageCode | 'user_saved_phrases';
   label: string;
   isDownloaded: boolean;
   size?: number;
+  phraseCount?: number;
 }
 
 export default function OfflineManager() {
-  const { userProfile, offlineAudioPacks, loadSingleOfflinePack, removeOfflinePack } = useUserData();
+  const { userProfile, offlineAudioPacks, loadSingleOfflinePack, removeOfflinePack, savedPhrases, resyncSavedPhrasesAudio } = useUserData();
   const { toast } = useToast();
   const [downloadablePacks, setDownloadablePacks] = useState<DownloadablePack[]>([]);
   const [isProcessing, setIsProcessing] = useState<Record<string, boolean>>({});
   const [selectedPacks, setSelectedPacks] = useState<LanguageCode[]>([]);
-  const [totalSize, setTotalSize] = useState(0);
 
   useEffect(() => {
-    const packs: DownloadablePack[] = offlineAudioPackLanguages.map(langCode => {
+    const languagePacks: DownloadablePack[] = offlineAudioPackLanguages.map(langCode => {
       const lang = allLanguages.find(l => l.value === langCode);
-      const isDownloaded = !!offlineAudioPacks[langCode];
+      const pack = offlineAudioPacks[langCode];
       return {
         code: langCode,
         label: lang?.label || langCode,
-        isDownloaded,
+        isDownloaded: !!pack,
+        size: pack?.size
       };
     });
-    setDownloadablePacks(packs);
 
-    const size = Object.values(offlineAudioPacks).reduce((acc, pack) => acc + (pack.size || 0), 0);
-    setTotalSize(size);
-  }, [offlineAudioPacks]);
+    const savedPhrasesPack = offlineAudioPacks['user_saved_phrases'];
+    const savedPhrasesEntry: DownloadablePack = {
+        code: 'user_saved_phrases',
+        label: 'My Saved Phrases',
+        isDownloaded: !!savedPhrasesPack,
+        size: savedPhrasesPack?.size,
+        phraseCount: savedPhrases.length
+    };
+    
+    setDownloadablePacks([savedPhrasesEntry, ...languagePacks]);
+  }, [offlineAudioPacks, savedPhrases.length]);
 
   const handleDownload = async (langCode: LanguageCode) => {
     setIsProcessing(prev => ({...prev, [langCode]: true }));
@@ -70,11 +78,12 @@ export default function OfflineManager() {
     setSelectedPacks([]);
   };
 
-  const handleRemove = async (langCode: LanguageCode) => {
+  const handleRemove = async (langCode: LanguageCode | 'user_saved_phrases') => {
     setIsProcessing(prev => ({...prev, [langCode]: true }));
     try {
       await removeOfflinePack(langCode);
-      toast({ title: 'Pack Removed', description: `${allLanguages.find(l=>l.value === langCode)?.label} audio has been removed.`});
+      const label = downloadablePacks.find(p => p.code === langCode)?.label || 'Pack';
+      toast({ title: 'Pack Removed', description: `${label} audio has been removed.`});
     } catch (error: any) {
       console.error(`Error removing ${langCode}:`, error);
       toast({ variant: 'destructive', title: 'Removal Failed', description: error.message });
@@ -82,6 +91,18 @@ export default function OfflineManager() {
       setIsProcessing(prev => ({...prev, [langCode]: false }));
     }
   };
+  
+  const handleResync = async () => {
+    setIsProcessing(prev => ({...prev, user_saved_phrases: true }));
+    try {
+        await resyncSavedPhrasesAudio();
+        toast({ title: "Re-sync Complete", description: "Your saved phrases audio is now up-to-date for offline use."});
+    } catch (error: any) {
+         toast({ variant: 'destructive', title: 'Sync Failed', description: 'Could not re-sync saved phrases audio.' });
+    } finally {
+        setIsProcessing(prev => ({...prev, user_saved_phrases: false }));
+    }
+  }
 
   return (
     <Dialog>
@@ -101,7 +122,8 @@ export default function OfflineManager() {
                 id="select-all-packs"
                 onCheckedChange={(checked) => {
                     if (checked) {
-                        setSelectedPacks(downloadablePacks.filter(p => !p.isDownloaded).map(p => p.code));
+                        const allDownloadable = downloadablePacks.filter(p => !p.isDownloaded && p.code !== 'user_saved_phrases').map(p => p.code as LanguageCode);
+                        setSelectedPacks(allDownloadable);
                     } else {
                         setSelectedPacks([]);
                     }
@@ -112,25 +134,41 @@ export default function OfflineManager() {
           <ScrollArea className="h-72">
             <div className="space-y-2 pr-4">
               {downloadablePacks.map(pack => {
-                const isUnlocked = userProfile?.unlockedLanguages?.includes(pack.code) ?? false;
+                const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
                 const cost = isUnlocked ? 0 : 100; // Example cost
                 
                 return (
                   <div key={pack.code} className="flex items-center justify-between p-2 rounded-md border">
                     <div className="flex items-center gap-2">
-                      <Checkbox 
-                        id={pack.code}
-                        checked={selectedPacks.includes(pack.code)}
-                        onCheckedChange={(checked) => {
-                            setSelectedPacks(prev => checked ? [...prev, pack.code] : prev.filter(c => c !== pack.code));
-                        }}
-                        disabled={pack.isDownloaded}
-                      />
-                      <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
+                      {pack.code !== 'user_saved_phrases' ? (
+                        <Checkbox 
+                          id={pack.code}
+                          checked={selectedPacks.includes(pack.code as LanguageCode)}
+                          onCheckedChange={(checked) => {
+                              setSelectedPacks(prev => checked ? [...prev, pack.code as LanguageCode] : prev.filter(c => c !== pack.code));
+                          }}
+                          disabled={pack.isDownloaded}
+                        />
+                      ) : (
+                         <Bookmark className="h-4 w-4 mx-2 text-primary" />
+                      )}
+                      <div className="flex flex-col">
+                        <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
+                        {pack.phraseCount !== undefined && (
+                            <span className="text-xs text-muted-foreground">{pack.phraseCount} phrases</span>
+                        )}
+                      </div>
                       {pack.isDownloaded && <Badge variant="secondary">Downloaded</Badge>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm text-muted-foreground">{cost === 0 ? 'Free' : `${cost} tokens`}</p>
+                        {pack.code === 'user_saved_phrases' ? (
+                            <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
+                                 {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : 'Re-sync'}
+                            </Button>
+                        ) : (
+                             <p className="text-sm text-muted-foreground">{cost === 0 ? 'Free' : `${cost} tokens`}</p>
+                        )}
+                      
                       {pack.isDownloaded ? (
                         <Button 
                           variant="ghost" 
@@ -141,14 +179,16 @@ export default function OfflineManager() {
                           {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                         </Button>
                       ) : (
+                        pack.code !== 'user_saved_phrases' && (
                          <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleDownload(pack.code)}
+                          onClick={() => handleDownload(pack.code as LanguageCode)}
                           disabled={!isUnlocked || isProcessing[pack.code]}
                         >
                           {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Download className="h-4 w-4" />}
                         </Button>
+                        )
                       )}
                     </div>
                   </div>

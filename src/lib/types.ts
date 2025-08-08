@@ -272,6 +272,7 @@ export type SavedPhrase = {
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
+  size?: number; // Add optional size property
 };
 
 export interface FeedbackSubmission {
