@@ -10,7 +10,7 @@ import { TourProvider } from '@/context/TourContext';
 import Tour from '@/components/tour/Tour';
 
 
-function ConversePageContainer() {
+function ConversePageContent() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
 
@@ -41,7 +41,7 @@ export default function ConversePage() {
      return (
         <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
             <TourProvider>
-                <ConversePageContainer />
+                <ConversePageContent />
                 <Tour />
             </TourProvider>
         </Suspense>
