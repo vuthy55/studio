@@ -4,205 +4,169 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions
+    function isUserAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
     function isAdmin() {
-      // Safe check for admin role, reusable by all rules.
-      // Ensures the user is authenticated and their document exists with role 'admin'.
-      return request.auth != null &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // User Profiles: Users can manage their own profile. Admins can manage any.
+    // --- User Profiles ---
     match /users/{userId} {
-      function isOwner() {
-        return request.auth != null && request.auth.uid == userId;
-      }
+      // Users can read their own profile. Admins can read any profile.
+      allow read: if isOwner(userId) || isAdmin();
       
-      // Allow any authenticated user to read profiles (needed for buddy search).
-      // Allow admins to list all users.
-      allow read: if request.auth != null;
-      allow list: if isAdmin();
-
-      // Allow a user to update their own profile, or an admin to update any profile.
-      allow update: if isOwner() || isAdmin();
+      // Users can only create their own profile document.
+      allow create: if isOwner(userId);
       
-      // Allow a user to create their own user document during signup.
-      allow create: if isOwner();
+      // Users can update their own profile. Admins can update any profile.
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Users can delete their own profile (for account deletion). Admins can delete any.
+      allow delete: if isOwner(userId) || isAdmin();
 
-      // Transaction Logs: A user can read and create their own logs.
+      // --- User Subcollections ---
       match /transactionLogs/{logId} {
-        allow read, create: if isOwner() || isAdmin();
-        allow update, delete: if false; // Protect logs from modification
+        // Users can only read their own transaction history. Admins can read any.
+        allow read: if isOwner(userId) || isAdmin();
+        // Transactions are created by the server, not directly by the client.
+        allow write: if false; 
       }
-
-      // Payment History: A user can read their own logs. Admins can also read.
+      
       match /paymentHistory/{paymentId} {
-        allow read: if isOwner() || isAdmin();
-        allow create, update, delete: if false; // Immutable logs, created by server.
+        // Users can only read their own payment history. Admins can read any.
+        allow read: if isOwner(userId) || isAdmin();
+         // Payment history is created by the server.
+        allow write: if false;
+      }
+      
+      match /practiceHistory/{phraseId} {
+        // Users can read and write to their own practice history.
+        allow read, write: if isOwner(userId);
       }
 
-      // Practice History: A user can read and write their own practice history. Admins can read.
-      match /practiceHistory/{historyId} {
-        allow list, read: if isOwner() || isAdmin();
-        allow write: if isOwner();
+      match /savedPhrases/{phraseId} {
+        // Users can read and write their own saved phrases.
+        allow read, write: if isOwner(userId);
       }
     }
-    
-    // --- RULES FOR ADMIN DASHBOARD ---
-    
-    // Financial Ledger: Only admins can read or create entries.
-    match /financialLedger/{ledgerId} {
-      allow read, create: if isAdmin();
-      allow update, delete: if false;
-    }
-    
-    // Transaction Logs Collection Group: Allow admins to query across all users' logs.
-    // This is necessary for the main token ledger view in the admin panel.
-    match /{path=**}/transactionLogs/{logId} {
-      allow read: if isAdmin();
-    }
-    
-    // Referrals Log: Admins can read the central referrals log. Server actions create.
-    match /referrals/{referralId} {
-      allow read: if isAdmin();
-      allow create, update, delete: if false;
-    }
-    
-    // --- END ADMIN RULES ---
 
-    // App Settings: Only admins can read and write application-wide settings.
-    match /settings/{settingId} {
-      allow read, write: if isAdmin();
-    }
-
-    // Sync Rooms: Handles creation, reading, and updates for rooms.
+    // --- Rooms ---
     match /syncRooms/{roomId} {
-      function isInvited() {
-        // request.resource is null on read, must use resource
-        return request.auth != null && resource.data.invitedEmails.hasAny([request.auth.token.email]);
-      }
-      function isEmcee() {
-        // request.resource is null on read, must use resource
-        return request.auth != null && resource.data.emceeEmails.hasAny([request.auth.token.email]);
-      }
-      function isCreator() {
-         // request.resource is null on read, must use resource
-        return request.auth != null && request.auth.uid == resource.data.creatorUid;
-      }
-      function isOnlyChangingSpeaker() {
-        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeSpeakerUid']);
-      }
+        // Allow read if the user is on the invited list or an admin.
+        allow read: if request.auth.uid in resource.data.invitedEmails || isAdmin();
+        // Allow create if the user is authenticated (server action will verify cost).
+        allow create: if isUserAuthenticated();
+        // Allow update if the user is an emcee or an admin.
+        allow update: if request.auth.email in resource.data.emceeEmails || isAdmin();
+        // Only the creator or an admin can delete a room.
+        allow delete: if isOwner(resource.data.creatorUid) || isAdmin();
 
-      allow create: if request.auth != null && request.resource.data.creatorUid == request.auth.uid;
-      allow read: if isInvited();
-      allow update: if isEmcee() || (isInvited() && isOnlyChangingSpeaker());
-      allow delete: if isCreator();
-
-      // Participants sub-collection: Rules for joining and management.
-      match /participants/{participantId} {
-        function roomData() {
-          return get(/databases/$(database)/documents/syncRooms/$(roomId)).data;
-        }
-        function roomExists() {
-          return exists(/databases/$(database)/documents/syncRooms/$(roomId));
-        }
-        function isInvitedToRoom() {
-          return roomExists() && request.auth != null && roomData().invitedEmails.hasAny([request.auth.token.email]);
-        }
-        function isEmceeInRoom() {
-          return roomExists() && request.auth != null && roomData().emceeEmails.hasAny([request.auth.token.email]);
-        }
-        function isRoomCreator() {
-          return roomExists() && request.auth != null && request.auth.uid == roomData().creatorUid;
-        }
-        function isSelf() {
-            return request.auth != null && request.auth.uid == participantId;
+        // --- Room Subcollections ---
+        match /participants/{participantId} {
+            // Read allowed if on the main room's invite list.
+            allow read: if request.auth.uid in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.invitedEmails || isAdmin();
+            // Write allowed if they are the participant or an emcee.
+            allow write: if isOwner(participantId) || request.auth.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.emceeEmails;
+            allow delete: if isOwner(participantId) || request.auth.email in get(/databases/$(database)/documents/syncRooms/$(roomId)).data.emceeEmails;
         }
 
-        allow list, read: if isInvitedToRoom();
-        allow create: if isSelf() && request.resource.data.uid == request.auth.uid;
-        allow update: if isEmceeInRoom() || isSelf();
-        allow delete: if isRoomCreator() || isSelf();
-      }
-      
-      // Messages sub-collection: Rules for sending and reading messages.
-      match /messages/{messageId} {
-          function isParticipant() {
-              return exists(/databases/$(database)/documents/syncRooms/$(roomId)/participants/$(request.auth.uid));
-          }
-          function isRoomCreator() {
-            return exists(/databases/$(database)/documents/syncRooms/$(roomId)) &&
-                   request.auth != null &&
-                   get(/databases/$(database)/documents/syncRooms/$(roomId)).data.creatorUid == request.auth.uid;
-          }
+        match /messages/{messageId} {
+            // Read is the same as the parent room.
+            allow read: if request.auth.uid in resource.data.invitedEmails || isAdmin();
+            // Create is allowed if they are a participant in the subcollection.
+            allow create: if exists(/databases/$(database)/documents/syncRooms/$(roomId)/participants/$(request.auth.uid));
+        }
+    }
 
-          allow list, read: if isParticipant();
-          allow create: if isParticipant() && request.resource.data.speakerUid == request.auth.uid;
-          allow delete: if isRoomCreator();
-      }
+    // --- General Collections ---
+    match /feedback/{feedbackId} {
+        // Only admins can read feedback.
+        allow read: if isAdmin();
+        // Any authenticated user can submit feedback.
+        allow create: if isUserAuthenticated();
     }
     
-    // --- RULES FOR COMMON ROOMS (VIBES) ---
-    match /vibes/{vibeId} {
-      function isVibeCreator() {
-        // Use resource.data for read/get/list, request.resource.data for write
-        return request.auth != null && resource.data.creatorId == request.auth.uid;
-      }
-      function isVibeHost() {
-        return request.auth != null && resource.data.hostEmails.hasAny([request.auth.token.email]);
-      }
-      
-      function getVibeData() {
-          return get(/databases/$(database)/documents/vibes/$(vibeId)).data;
-      }
-      
-      function isVibeMember() {
-          return request.auth != null && getVibeData().invitedEmails.hasAny([request.auth.token.email]);
-      }
-
-      // Allow anyone to read the top-level Vibe doc. This is required for the join page to work
-      // for new users. The sensitive content is in the subcollections.
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if isVibeCreator() || isVibeHost();
-      allow delete: if isVibeCreator();
-
-      // Secure the 'posts' subcollection
-      match /posts/{postId} {
-        // Allow read if the vibe is public OR if the user is an invited member.
-        allow read: if getVibeData().isPublic == true || isVibeMember();
-        // Allow create only if the user is an invited member.
-        allow create: if isVibeMember();
-        // Allow update/delete only by the creator or a host.
-        allow update, delete: if isVibeCreator() || isVibeHost();
-      }
-      
-      // Secure the 'parties' (meetups) subcollection
-      match /parties/{partyId} {
-        // Allow read if the vibe is public OR if the user is an invited member.
-        allow read: if getVibeData().isPublic == true || isVibeMember();
-        // Allow write access only to hosts
-        allow write: if isVibeHost();
-      }
+    match /referrals/{referralId} {
+        // Only the referrer or an admin can read a referral document.
+        allow read: if isOwner(resource.data.referrerId) || isAdmin();
+        // Referrals are created by the server.
+        allow write: if false;
     }
     
-    // PayPal temporary orders: Only allow creation from server-side action
-    match /paypalOrders/{orderId} {
-        allow read, write: if false; // Client should not access this at all
+     match /invitations/{invitationId} {
+        // Only the inviter or an admin can read an invitation.
+        allow read: if isOwner(resource.data.inviterId) || isAdmin();
+        // Invitations are created by server actions.
+        allow write: if false;
     }
 
-    // Notifications: Users can read and update (mark as read) their own notifications.
+    match /settings/{docId} {
+        // All authenticated users can read settings.
+        allow read: if isUserAuthenticated();
+        // Only admins can write settings.
+        allow write: if isAdmin();
+    }
+    
+    // Allow admins to read the country intel cache.
+    match /countryIntelCache/{countryId} {
+        allow read: if isUserAuthenticated(); // All users need this for the InfoHub
+        allow write: if isAdmin();
+    }
+
     match /notifications/{notificationId} {
-      allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
-      // Server creates notifications, client can request deletion via server action.
-      allow create, delete: if false; 
+        allow read, write: if isOwner(resource.data.userId) || isAdmin();
     }
     
-    // Invitations: Users can read invitations they have sent.
-    match /invitations/{invitationId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.inviterId;
-      // Server creates invitations, client-side reads only.
-      allow create, update, delete: if false;
+    // --- Vibes (Common Room) ---
+    match /vibes/{vibeId} {
+      function isVibeMember() {
+        return request.auth.uid in resource.data.invitedEmails || request.auth.email in resource.data.invitedEmails || resource.data.creatorEmail == request.auth.email;
+      }
+      
+      function isVibeHost() {
+        return request.auth.email in resource.data.hostEmails;
+      }
+
+      function isNotBlocked() {
+        return !(request.auth.uid in resource.data.blockedUsers);
+      }
+
+      // Read is allowed if the vibe is public, or if the user is a member, and not blocked. Admins can read all.
+      allow read: if (resource.data.isPublic || isVibeMember()) && isNotBlocked() || isAdmin();
+      
+      // Any authenticated user can create a vibe.
+      allow create: if isUserAuthenticated();
+      
+      // Update allowed if user is a host and not blocked.
+      allow update: if isVibeHost() && isNotBlocked() || isAdmin();
+      
+      // Delete allowed only for the original creator or an admin.
+      allow delete: if isOwner(resource.data.creatorId) || isAdmin();
+      
+      match /posts/{postId} {
+        // Read posts follows the same logic as reading the parent vibe.
+        allow read: if (get(/databases/$(database)/documents/vibes/$(vibeId)).data.isPublic || request.auth.uid in get(/databases/$(database)/documents/vibes/$(vibeId)).data.invitedEmails) && !(request.auth.uid in get(/databases/$(database)/documents/vibes/$(vibeId)).data.blockedUsers) || isAdmin();
+        // Create posts allowed if vibe is public or they are a member, and not blocked.
+        allow create: if (get(/databases/$(database)/documents/vibes/$(vibeId)).data.isPublic || isVibeMember()) && isNotBlocked() || isAdmin();
+        // Users can only delete their own posts. Hosts can delete any post.
+        allow delete: if (isOwner(resource.data.authorId) || isVibeHost()) || isAdmin();
+        // Only hosts can update posts (e.g., to add translations).
+        allow update: if isVibeHost() || isAdmin();
+      }
+      
+       match /parties/{partyId} {
+        // Permissions for parties mirror the parent Vibe.
+        allow read: if (get(/databases/$(database)/documents/vibes/$(vibeId)).data.isPublic || isVibeMember()) && isNotBlocked() || isAdmin();
+        allow create, update: if isVibeHost() && isNotBlocked() || isAdmin();
+        allow delete: if isVibeHost() || isAdmin();
+      }
     }
   }
 }
