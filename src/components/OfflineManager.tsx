@@ -107,7 +107,10 @@ export default function OfflineManager() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline"><WifiOff className="mr-2 h-4 w-4" /> Offline Audio</Button>
+        <Button variant="outline">
+            <WifiOff className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">Offline Audio</span>
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>

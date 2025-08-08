@@ -282,9 +282,9 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                 <div data-tour="offline-manager">
                     <OfflineManager />
                 </div>
-                 <Button onClick={() => startTour(learnPageTourSteps)} variant="outline">
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    Take a Tour
+                <Button onClick={() => startTour(learnPageTourSteps)} variant="outline">
+                    <HelpCircle className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline">Take a Tour</span>
                 </Button>
             </div>
             
