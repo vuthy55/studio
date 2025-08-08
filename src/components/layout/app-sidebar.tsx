@@ -155,7 +155,6 @@ export function AppSidebar() {
 
   const userNavLinks = [
     { href: "/profile", icon: User, label: "My Profile", activePath: "/profile" },
-    { href: "/notifications", icon: Bell, label: "Notifications", activePath: "/notifications" },
   ];
   
   return (

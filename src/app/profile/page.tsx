@@ -4,24 +4,25 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useUserData } from '@/context/UserDataContext';
-import { LoaderCircle, User as UserIcon, Wallet, CreditCard, Users, MessageSquareHeart } from 'lucide-react';
+import { LoaderCircle, User as UserIcon, Wallet, CreditCard, Users, MessageSquareHeart, BarChart } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MainHeader from '@/components/layout/MainHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Import the new modular components
+// Import the modular components
 import ProfileSection from './components/ProfileSection';
 import BuddiesSection from './components/BuddiesSection';
 import WalletTab from './components/WalletTab';
 import BillingTab from './components/BillingTab';
 import ReferralsTab from './components/ReferralsTab';
+import StatsTab from './components/StatsTab';
 
 
 function ProfilePageContent() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState('profile');
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
 
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -45,6 +46,7 @@ function ProfilePageContent() {
 
     const profileTabs = [
         { value: 'profile', label: 'Profile', icon: UserIcon },
+        { value: 'stats', label: 'Stats', icon: BarChart },
         { value: 'buddies', label: 'Buddies', icon: Users },
         { value: 'wallet', label: 'Token Wallet', icon: Wallet },
         { value: 'billing', label: 'Payment History', icon: CreditCard },
@@ -53,11 +55,11 @@ function ProfilePageContent() {
 
     return (
         <div className="space-y-8">
-            <MainHeader title="My Account" description="Manage settings and track your history." />
+            <MainHeader title="My Profile" description="Manage settings and track your history." />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <div className="grid w-full grid-cols-5">
-                    <TabsList className="col-span-5 grid h-auto w-full grid-cols-5">
+                <div className="grid w-full grid-cols-6">
+                    <TabsList className="col-span-6 grid h-auto w-full grid-cols-6">
                         {profileTabs.map((tab) => (
                            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center justify-center gap-1 py-2 h-full md:flex-row md:gap-2">
                                <TooltipProvider delayDuration={0}>
@@ -78,6 +80,9 @@ function ProfilePageContent() {
                 
                 <TabsContent value="profile" className="mt-6">
                     <ProfileSection />
+                </TabsContent>
+                <TabsContent value="stats" className="mt-6">
+                    <StatsTab />
                 </TabsContent>
                 <TabsContent value="buddies" className="mt-6">
                     <BuddiesSection />
