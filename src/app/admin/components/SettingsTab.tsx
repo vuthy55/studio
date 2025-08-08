@@ -91,6 +91,7 @@ export default function SettingsTab() {
                         {renderNumberInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
                         {renderNumberInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
                         {renderNumberInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
+                        {renderNumberInput('freeSavedPhrasesLimit', 'Free Saved Phrases Limit', 'Number of phrases a user can save for offline practice for free.')}
                     </div>
 
                     {/* Column 2: Limits & Timers */}
@@ -100,6 +101,7 @@ export default function SettingsTab() {
                         {renderNumberInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
                         {renderNumberInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person/min)', 'Token cost for each person in a room for each minute of usage.')}
                         {renderNumberInput('translationCost', 'Live Translation Cost', 'Token cost for a single translation in the Live Translation tool.')}
+                        {renderNumberInput('liveTranslationSavePhraseCost', 'Save Phrase Cost', 'Tokens to save a phrase for offline practice (after free limit).')}
                         {renderNumberInput('languageUnlockCost', 'Language Pack Unlock Cost', 'One-time token cost for a user to unlock a non-free language pack.')}
                         {renderNumberInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
                     </div>

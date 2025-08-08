@@ -385,8 +385,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (description.includes("Saved phrase")) {
             actionType = 'save_phrase_spend';
             const downloadedCount = userProfile.downloadedPhraseCount || 0;
-            if (downloadedCount < 100) {
-                 transactionCost = 0; // Free for the first 100
+            if (downloadedCount < (settings.freeSavedPhrasesLimit || 100)) {
+                 transactionCost = 0; // Free for the first N phrases
             } else {
                 transactionCost = settings.liveTranslationSavePhraseCost || 1;
             }
