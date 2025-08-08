@@ -24,6 +24,10 @@ const AppSettingsSchema = z.object({
   infohubGlobalNewsSources: z.string().default('www.reuters.com, apnews.com, www.bbc.com/news'),
   vibeInactivityDays: z.number().default(10),
   vibeCommunityRules: z.string().default('1. Be respectful and kind.\n2. No hate speech, harassment, or bullying.\n3. Do not discuss or promote illegal activities, including drugs.\n4. No sexually explicit content.\n5. Keep discussions relevant to travel and culture.'),
+  storyPageImage1: z.string().url().optional().default('https://images.unsplash.com/photo-1534323382794-4b5b34149e91?q=80&w=2070&auto=format&fit=crop'),
+  storyPageImage2: z.string().url().optional().default('https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop'),
+  storyPageImage3: z.string().url().optional().default('https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop'),
+  storyPageImage4: z.string().url().optional().default('https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop'),
 });
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
@@ -54,6 +58,10 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
     infohubGlobalNewsSources: 'www.reuters.com, apnews.com, www.bbc.com/news',
     vibeInactivityDays: 10,
     vibeCommunityRules: '1. Be respectful and kind.\n2. No hate speech, harassment, or bullying.\n3. Do not discuss or promote illegal activities, including drugs.\n4. No sexually explicit content.\n5. Keep discussions relevant to travel and culture.',
+    storyPageImage1: 'https://images.unsplash.com/photo-1534323382794-4b5b34149e91?q=80&w=2070&auto=format&fit=crop',
+    storyPageImage2: 'https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop',
+    storyPageImage3: 'https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop',
+    storyPageImage4: 'https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop',
   };
 
   try {
@@ -102,5 +110,3 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
     return { success: false, error: 'Failed to update settings on the server.' };
   }
 }
-
-    

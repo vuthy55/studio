@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -58,10 +58,18 @@ export default function SettingsTab() {
         );
     }
     
-    const renderInput = (key: string, label: string, description: string) => (
+    const renderNumberInput = (key: string, label: string, description: string) => (
         <div className="space-y-2" key={key}>
             <Label htmlFor={key}>{label}</Label>
             <Input id={key as keyof AppSettings} type="number" value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+    );
+
+    const renderTextInput = (key: string, label: string, description: string) => (
+        <div className="space-y-2" key={key}>
+            <Label htmlFor={key}>{label}</Label>
+            <Input id={key as keyof AppSettings} type="text" value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
             <p className="text-sm text-muted-foreground">{description}</p>
         </div>
     );
@@ -78,34 +86,46 @@ export default function SettingsTab() {
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><Award className="text-primary"/> Rewards & Costs</h3>
                          <Separator />
-                        {renderInput('signupBonus', 'Signup Bonus', 'Tokens a new user gets on signup.')}
-                        {renderInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.')}
-                        {renderInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
-                        {renderInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
-                        {renderInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
+                        {renderNumberInput('signupBonus', 'Signup Bonus', 'Tokens a new user gets on signup.')}
+                        {renderNumberInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.')}
+                        {renderNumberInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
+                        {renderNumberInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
+                        {renderNumberInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
                     </div>
 
                     {/* Column 2: Limits & Timers */}
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><DollarSign className="text-primary"/> Feature Costs</h3>
                          <Separator />
-                        {renderInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
-                        {renderInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person/min)', 'Token cost for each person in a room for each minute of usage.')}
-                        {renderInput('translationCost', 'Live Translation Cost', 'Token cost for a single translation in the Live Translation tool.')}
-                        {renderInput('languageUnlockCost', 'Language Pack Unlock Cost', 'One-time token cost for a user to unlock a non-free language pack.')}
-                        {renderInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
+                        {renderNumberInput('costPerSyncLiveMinute', 'Sync Live Cost (per minute)', 'Tokens per minute for the 1-on-1 Sync Live feature.')}
+                        {renderNumberInput('costPerSyncOnlineMinute', 'Sync Online Cost (per person/min)', 'Token cost for each person in a room for each minute of usage.')}
+                        {renderNumberInput('translationCost', 'Live Translation Cost', 'Token cost for a single translation in the Live Translation tool.')}
+                        {renderNumberInput('languageUnlockCost', 'Language Pack Unlock Cost', 'One-time token cost for a user to unlock a non-free language pack.')}
+                        {renderNumberInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
                     </div>
 
                     <div className="space-y-6">
                          <h3 className="text-lg font-semibold flex items-center gap-2"><Timer className="text-primary"/> Time & Inactivity</h3>
                          <Separator />
-                        {renderInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.')}
-                        {renderInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.')}
-                        {renderInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.')}
-                        {renderInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
-                        {renderInput('vibeInactivityDays', 'Vibe Inactivity Days', 'Days a Vibe can be inactive before being moved to the bottom of the list.')}
+                        {renderNumberInput('freeSyncLiveMinutes', 'Free Sync Live Minutes', 'Free monthly minutes for Sync Live.')}
+                        {renderNumberInput('freeSyncOnlineMinutes', 'Free Sync Online Minutes', 'Free monthly minutes for Sync Online.')}
+                        {renderNumberInput('maxUsersPerRoom', 'Max Users per Sync Room', 'Max users in a Sync Online room.')}
+                        {renderNumberInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
+                        {renderNumberInput('vibeInactivityDays', 'Vibe Inactivity Days', 'Days a Vibe can be inactive before being moved to the bottom of the list.')}
                     </div>
                  </div>
+                 
+                 <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><ImageIcon className="text-primary"/> Story Page Images</h3>
+                    <Separator />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        {renderTextInput('storyPageImage1', 'Image 1 (Backpacker)', 'URL for the first image on the story page.')}
+                        {renderTextInput('storyPageImage2', 'Image 2 (Ordering Food)', 'URL for the second image on the story page.')}
+                        {renderTextInput('storyPageImage3', 'Image 3 (Diverse Friends)', 'URL for the third image on the story page.')}
+                        {renderTextInput('storyPageImage4', 'Image 4 (Friends with Phone)', 'URL for the fourth image on the story page.')}
+                     </div>
+                 </div>
+
 
                  <div>
                     <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><MessageSquareHeart className="text-primary"/> Community</h3>

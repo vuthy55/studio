@@ -10,7 +10,7 @@ import MainHeader from '@/components/layout/MainHeader';
 import { useUserData } from '@/context/UserDataContext';
 
 export default function StoryPage() {
-  const { user } = useUserData();
+  const { user, settings } = useUserData();
   
   const learnLink = user ? "/learn" : "/login";
   const converseLink = user ? "/converse" : "/login";
@@ -36,7 +36,7 @@ export default function StoryPage() {
           </div>
           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
             <Image 
-                src="https://images.unsplash.com/photo-1534323382794-4b5b34149e91?q=80&w=2070&auto=format&fit=crop"
+                src={settings?.storyPageImage1 || 'https://placehold.co/600x400.png'}
                 alt="A solo male backpacker looking lost in a bustling Asian market"
                 width={600}
                 height={400}
@@ -51,7 +51,7 @@ export default function StoryPage() {
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
                  <Image 
-                    src="https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop"
+                    src={settings?.storyPageImage2 || 'https://placehold.co/600x400.png'}
                     alt="Traveler confidently ordering street food"
                     width={600}
                     height={400}
@@ -84,7 +84,7 @@ export default function StoryPage() {
           </div>
            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
              <Image 
-                src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
+                src={settings?.storyPageImage3 || 'https://placehold.co/600x400.png'}
                 alt="A diverse group of young friends laughing together at a landmark"
                 width={600}
                 height={400}
@@ -99,7 +99,7 @@ export default function StoryPage() {
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
                  <Image 
-                    src="https://images.unsplash.com/photo-1516589178581-6e3a4f611413a?q=80&w=2070&auto=format&fit=crop"
+                    src={settings?.storyPageImage4 || 'https://placehold.co/600x400.png'}
                     alt="A group of people looking at a phone together and planning"
                     width={600}
                     height={400}
