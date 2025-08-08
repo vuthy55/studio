@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
@@ -141,7 +140,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
 
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
-function InfoHubContent() {
+function IntelContent() {
     const { userProfile, settings, spendTokensForTranslation } = useUserData();
     const { toast } = useToast();
     
@@ -238,7 +237,7 @@ function InfoHubContent() {
     
     return (
         <div className="space-y-8">
-            <MainHeader title="InfoHub" description="Your source for global travel intelligence." />
+            <MainHeader title="Intel" description="Your source for global travel intelligence." />
             
             <Card>
                 <CardHeader>
@@ -447,7 +446,7 @@ function InfoHubContent() {
     );
 }
 
-export default function InfoHubPage() {
+export default function IntelPage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
 
@@ -467,7 +466,7 @@ export default function InfoHubPage() {
 
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <InfoHubContent />
+            <IntelContent />
         </Suspense>
     );
 }
