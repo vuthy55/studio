@@ -43,6 +43,8 @@ function TokenHistoryDialog() {
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
             case 'language_pack_download': return 'Language Pack Download';
+            case 'infohub_intel': return 'InfoHub Intel';
+            case 'save_phrase_spend': return 'Saved Phrases for Offline';
             default: return 'Prep Your Vibe';
         }
     }

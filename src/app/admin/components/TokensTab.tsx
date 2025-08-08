@@ -141,6 +141,7 @@ export default function TokensTab() {
             case 'p2p_transfer': return 'Peer Transfer';
             case 'sync_online_refund': return 'Sync Online Refund';
             case 'language_pack_download': return 'Language Pack Download';
+            case 'save_phrase_spend': return 'Saved Phrases for Offline';
             default: return 'Prep Your Vibe';
         }
     };
