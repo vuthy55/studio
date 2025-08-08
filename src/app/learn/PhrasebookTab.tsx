@@ -24,7 +24,7 @@ import type { AppSettings } from '@/actions/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { getOfflineAudio } from '@/services/offline';
-import OfflineManager from '@/components/synchub/OfflineManager';
+import OfflineManager from '@/components/OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import { useTour, TourStep } from '@/context/TourContext';
 import { getLanguageAudioPack } from '@/actions/audio';
