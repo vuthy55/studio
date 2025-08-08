@@ -57,7 +57,7 @@ function LoginPageContent() {
       if (redirectUrl) {
         router.push(redirectUrl);
       } else {
-        router.push('/synchub');
+        router.push('/learn');
       }
     }
   }, [user, authLoading, router, redirectUrl]);
@@ -321,3 +321,5 @@ export default function LoginPage() {
         </Suspense>
     );
 }
+
+    

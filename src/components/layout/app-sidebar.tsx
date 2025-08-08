@@ -1,5 +1,4 @@
 
-
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -125,11 +124,13 @@ export function AppSidebar() {
   const { user, loading, userProfile, logout } = useUserData();
   const { toast } = useToast();
   const { setOpenMobile } = useSidebar();
+  const router = useRouter();
   
   const handleLogout = async () => {
     try {
       await logout();
       toast({ title: 'Success', description: 'You have been logged out.' });
+      router.push('/'); // Redirect to homepage on logout
       setOpenMobile(false);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to log out.' });
