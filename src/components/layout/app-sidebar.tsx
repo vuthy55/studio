@@ -1,8 +1,9 @@
 
+
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -143,6 +144,18 @@ export function AppSidebar() {
   };
   
   const closeSidebar = () => setOpenMobile(false);
+
+  const mainNavLinks = [
+    { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
+    { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
+    { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
+    { href: "/infohub", icon: Compass, label: "InfoHub", activePath: "/infohub" },
+  ];
+
+  const userNavLinks = [
+    { href: "/profile", icon: User, label: "My Profile", activePath: "/profile" },
+    { href: "/notifications", icon: Bell, label: "Notifications", activePath: "/notifications" },
+  ];
   
   return (
     <Sidebar>
@@ -163,62 +176,35 @@ export function AppSidebar() {
             </SidebarMenuItem>
            ) : user ? (
             <>
-               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/'}>
-                  <Link href="/" onClick={closeSidebar}>
-                    <Info />
-                    Homepage
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith('/learn')}>
-                  <Link href="/learn" onClick={closeSidebar}>
-                    <Languages />
-                    Learn
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
-                  <Link href="/infohub" onClick={closeSidebar}>
-                    <Compass />
-                    InfoHub
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith('/common-room')}>
-                  <Link href="/common-room" onClick={closeSidebar}>
-                    <MessagesSquare />
-                    Common Room
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith('/profile')}>
-                      <Link href="/profile" onClick={closeSidebar}>
-                          <User />
-                          My Profile
+              {mainNavLinks.map(link => (
+                 <SidebarMenuItem key={link.href}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(link.activePath)}>
+                      <Link href={link.href} onClick={closeSidebar}>
+                        <link.icon />
+                        {link.label}
                       </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+              ))}
+              
+              <SidebarSeparator />
+
+              {userNavLinks.map(link => (
+                <SidebarMenuItem key={link.href}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(link.activePath)}>
+                    <Link href={link.href} onClick={closeSidebar}>
+                      <link.icon />
+                      {link.label}
+                    </Link>
                   </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/stats'}>
-                      <Link href="/stats" onClick={closeSidebar}><BarChart/> My Stats</Link>
-                  </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/notifications'}>
-                      <Link href="/notifications" onClick={closeSidebar}><Bell/> Notifications</Link>
-                  </SidebarMenuButton>
-              </SidebarMenuItem>
+                </SidebarMenuItem>
+              ))}
               
               {userProfile?.role === 'admin' && (
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
                         <Link href="/admin" onClick={closeSidebar}>
-                        <Shield />
+                        <Settings />
                         Admin
                         </Link>
                     </SidebarMenuButton>
@@ -233,43 +219,21 @@ export function AppSidebar() {
             </>
           ) : (
              <>
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/'}>
-                        <Link href="/" onClick={closeSidebar}>
-                            <Info />
-                            Homepage
+                {mainNavLinks.slice(0, 1).map(link => (
+                    <SidebarMenuItem key={link.href}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(link.activePath)}>
+                        <Link href={link.href} onClick={closeSidebar}>
+                            <link.icon />
+                            {link.label}
                         </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/learn')}>
-                        <Link href="/learn" onClick={closeSidebar}>
-                            <Languages />
-                            Learn
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/infohub'}>
-                      <Link href="/infohub" onClick={closeSidebar}>
-                        <Compass />
-                        InfoHub
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/common-room')}>
-                    <Link href="/common-room" onClick={closeSidebar}>
-                        <MessagesSquare />
-                        Common Room
-                    </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ))}
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/login'}>
                     <Link href="/login" onClick={closeSidebar}>
                         <LogIn />
-                        Login
+                        Login / Sign Up
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>

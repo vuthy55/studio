@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -18,8 +17,8 @@ import { generateSpeech } from '@/services/tts';
 import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
-import { Separator } from '../ui/separator';
 import { useTour, TourStep } from '@/context/TourContext';
+import MainHeader from '@/components/layout/MainHeader';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
@@ -46,7 +45,7 @@ const syncLiveTourSteps: TourStep[] = [
 ];
 
 
-export default function SyncLiveContent() {
+export default function ConversePage() {
   const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
   const [selectedLanguages, setSelectedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'th-TH']);
   const [status, setStatus] = useState<ConversationStatus>('idle');
@@ -78,7 +77,7 @@ export default function SyncLiveContent() {
 
   const startConversationTurn = async () => {
     if (!user || !settings) {
-        toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use Sync Live.' });
+        toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use this feature.' });
         return;
     }
     
@@ -205,31 +204,23 @@ export default function SyncLiveContent() {
 
   return (
     <div className="space-y-6">
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    Sync Live
-                </CardTitle>
-                <CardDescription>
-                    Tap the mic to talk. Your speech will be translated and spoken aloud for the group. This is a 1-to-many solo translation feature.
-                </CardDescription>
-            </CardHeader>
-             <CardContent>
-                <div className="flex flex-col items-center gap-4 text-center">
-                    <Button onClick={() => startTour(syncLiveTourSteps)} size="lg">
-                        <HelpCircle className="mr-2" />
-                        Take a Tour
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
+        <MainHeader title="Live Conversation" description="Speak into your device and have it translated aloud." />
 
         <Card className="shadow-lg w-full max-w-2xl mx-auto">
             <CardHeader>
                 <CardTitle className="flex items-center gap-3 text-2xl">
                     <Users className="h-7 w-7 text-primary"/>
-                    Live Conversation
+                    1-on-1 Conversation
                 </CardTitle>
+                <CardDescription>
+                    Tap the mic to talk. Your speech will be translated and spoken aloud for the group.
+                </CardDescription>
+                <div className="flex flex-col items-center gap-4 text-center pt-4">
+                    <Button onClick={() => startTour(syncLiveTourSteps)} size="lg">
+                        <HelpCircle className="mr-2" />
+                        How does this work?
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
                 
