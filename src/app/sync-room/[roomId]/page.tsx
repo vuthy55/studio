@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -92,7 +93,7 @@ function SetupScreen({ user, room, roomId, onJoinSuccess }: { user: any; room: S
     };
     
     const handleCancel = () => {
-        router.push('/synchub?tab=sync-online');
+        router.push('/connect?tab=voice-rooms');
     }
 
     return (        
@@ -436,7 +437,7 @@ export default function SyncRoomPage() {
         
         await handleParticipantExit(roomId, user.uid);
         
-        router.push('/synchub?tab=sync-online');
+        router.push('/connect?tab=voice-rooms');
     }, [user, roomId, router]);
 
     // This hook now only handles the visual session timer, and runs for everyone.
@@ -773,7 +774,7 @@ export default function SyncRoomPage() {
             await sendRoomInviteEmail({
                 to: emails,
                 roomTopic: roomData.topic,
-                creatorName: user.displayName || 'A user',
+                fromName: user.displayName || 'A user',
                 scheduledAt: scheduledAtDate,
                 joinUrl: `${window.location.origin}/join/${roomId}?ref=${roomData.creatorUid}`
             });
@@ -902,7 +903,7 @@ export default function SyncRoomPage() {
 
     if (roomError) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load room data.' });
-        router.push('/synchub?tab=sync-online');
+        router.push('/connect?tab=voice-rooms');
         return null;
     }
 
