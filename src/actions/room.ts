@@ -5,7 +5,7 @@ import { db, auth } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
 import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
 import { getAppSettingsAction } from './settings';
-import { sendRoomEndingSoonEmail } from './email';
+import { sendRoomEndingSoonEmail, sendRoomInviteEmail } from './email';
 import { deleteCollection } from '@/lib/firestore-utils';
 
 
@@ -533,3 +533,73 @@ export async function extendMeeting(roomId: string, creatorId: string): Promise<
     }
 }
     
+interface CreatePrivateSyncOnlineRoomPayload {
+    initiator: Participant;
+    invitee: { email: string; };
+}
+
+export async function createPrivateSyncOnlineRoom(payload: CreatePrivateSyncOnlineRoomPayload): Promise<{ success: boolean; roomId?: string; error?: string }> {
+    const { initiator, invitee } = payload;
+    const settings = await getAppSettingsAction();
+    const duration = 15; // Default to 15 minutes for 1-on-1 calls
+    const costPerMinute = settings.costPerSyncOnlineMinute || 1;
+    const calculatedCost = duration * 2 * costPerMinute; // 2 participants
+
+    const userRef = db.collection('users').doc(initiator.uid);
+
+    try {
+        const userDoc = await userRef.get();
+        if (!userDoc.exists || (userDoc.data()?.tokenBalance || 0) < calculatedCost) {
+            return { success: false, error: `Insufficient tokens. You need ${calculatedCost} tokens to make this call.` };
+        }
+
+        const newRoomRef = db.collection('syncRooms').doc();
+        const batch = db.batch();
+
+        const roomData: Omit<SyncRoom, 'id'> = {
+            topic: `Call with ${initiator.name}`,
+            creatorUid: initiator.uid,
+            creatorName: initiator.name,
+            createdAt: FieldValue.serverTimestamp(),
+            status: 'active',
+            invitedEmails: [initiator.email, invitee.email],
+            emceeEmails: [initiator.email],
+            scheduledAt: FieldValue.serverTimestamp(),
+            durationMinutes: duration,
+            initialCost: calculatedCost,
+            hasStarted: true,
+            reminderMinutes: settings.roomReminderMinutes
+        };
+        batch.set(newRoomRef, roomData);
+
+        // Deduct cost
+        batch.update(userRef, { tokenBalance: FieldValue.increment(-calculatedCost) });
+
+        // Log transaction
+        const logRef = userRef.collection('transactionLogs').doc();
+        batch.set(logRef, {
+            actionType: 'live_sync_online_spend',
+            tokenChange: -calculatedCost,
+            timestamp: FieldValue.serverTimestamp(),
+            description: `Started a 1-on-1 call with ${invitee.email}`
+        });
+
+        await batch.commit();
+
+        // Send notification to invitee
+        await sendRoomInviteEmail({
+            to: [invitee.email],
+            roomTopic: roomData.topic,
+            fromName: initiator.name,
+            roomId: newRoomRef.id,
+            scheduledAt: new Date(),
+            joinUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/join/${newRoomRef.id}`
+        });
+
+        return { success: true, roomId: newRoomRef.id };
+
+    } catch (error: any) {
+        console.error("Error creating private sync online room:", error);
+        return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}

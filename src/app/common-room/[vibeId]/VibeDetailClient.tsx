@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUserData } from '@/context/UserDataContext';
 import { onSnapshot, doc, collection, query, orderBy, Timestamp, where, getDocs, updateDoc, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report } from '@/lib/types';
+import { Vibe, VibePost, Party, UserProfile, BlockedUser, FriendRequest, Report, Participant as VibeParticipant } from '@/lib/types';
 import { ArrowLeft, LoaderCircle, Send, Users, CalendarPlus, UserPlus, UserCheck, UserX, ShieldCheck, ShieldX, Crown, Edit, Trash2, MapPin, Copy, UserMinus, LogOut, MessageSquare, Phone, Languages, Pin, PinOff, Info, AlertTriangle, MoreVertical, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -13,7 +13,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost, reportContent } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, translateVibePost, deleteVibe, pinPost, deletePost, reportContent, createPrivateVibe } from '@/actions/common-room';
+import { createPrivateSyncOnlineRoom } from '@/actions/room';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -799,6 +800,35 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         }
     };
 
+    const handleStartChat = async (targetUser: { uid: string, name: string, email: string }) => {
+        if (!user || !user.email || !user.displayName) return;
+        const result = await createPrivateVibe({
+            userA: { uid: user.uid, name: user.displayName, email: user.email },
+            userB: targetUser
+        });
+
+        if (result.success && result.vibeId) {
+            router.push(`/common-room/${result.vibeId}`);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not start private chat.' });
+        }
+    };
+
+    const handleStartCall = async (targetUser: { uid: string, name: string, email: string }) => {
+        if (!user || !user.email || !user.displayName) return;
+
+        const result = await createPrivateSyncOnlineRoom({
+            initiator: { uid: user.uid, name: user.displayName, email: user.email, selectedLanguage: userProfile?.defaultLanguage || 'en-US' },
+            invitee: targetUser,
+        });
+
+        if (result.success && result.roomId) {
+            router.push(`/sync-room/${result.roomId}`);
+        } else {
+            toast({ variant: 'destructive', title: 'Call Failed', description: result.error || 'Could not start voice call.' });
+        }
+    };
+
     const PinnedPost = useMemo(() => {
         if (!vibeData?.pinnedPostId || posts.length === 0) return null;
         return posts.find(p => p.id === vibeData.pinnedPostId);
@@ -909,13 +939,30 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                                                 {user?.uid !== p.uid && (
                                                     <TooltipProvider>
                                                         <Tooltip>
-                                                            <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button></TooltipTrigger>
+                                                            <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartChat(p)}>
+                                                                    <MessageSquare className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
                                                             <TooltipContent><p>Chat with {p.name}</p></TooltipContent>
                                                         </Tooltip>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7"><Phone className="h-4 w-4" /></Button></TooltipTrigger>
-                                                            <TooltipContent><p>Start voice call</p></TooltipContent>
-                                                        </Tooltip>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7"><Phone className="h-4 w-4" /></Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Start Voice Call?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        This will start a new Sync Online room with {p.name}. Standard token costs will apply based on the call duration. Are you sure?
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleStartCall(p)}>Confirm & Call</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
                                                     </TooltipProvider>
                                                 )}
 

@@ -379,7 +379,7 @@ export async function getCommonRoomData(userEmail: string): Promise<{
                     } as ClientParty);
                 });
             });
-            debugLog.push(`[SUCCESS] Fallback fetch complete. Found ${allParties.length} parties.`);
+            debugLog.push(`[SUCCESS] Fallback complete. Found ${allParties.length} parties.`);
         }
 
         const vibeMap = new Map(allVibes.map(v => [v.id, v]));
@@ -778,5 +778,59 @@ export async function reportContent(payload: ReportContentPayload): Promise<{ su
     } catch (error: any) {
         console.error("Error reporting content:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+interface CreatePrivateVibePayload {
+    userA: { uid: string; name: string; email: string };
+    userB: { uid: string; name: string; email: string };
+}
+
+export async function createPrivateVibe(payload: CreatePrivateVibePayload): Promise<{ success: boolean; vibeId?: string; error?: string }> {
+    const { userA, userB } = payload;
+    const userEmails = [userA.email, userB.email].sort();
+
+    const vibesRef = db.collection('vibes');
+    const q = vibesRef
+        .where('isPublic', '==', false)
+        .where('invitedEmails', '==', userEmails);
+    
+    const existingVibe = await q.limit(1).get();
+
+    if (!existingVibe.empty) {
+        return { success: true, vibeId: existingVibe.docs[0].id };
+    }
+
+    try {
+        const newVibeRef = db.collection('vibes').doc();
+        const vibeData: Partial<Vibe> = {
+            topic: `Chat with ${userB.name}`,
+            isPublic: false,
+            creatorId: userA.uid,
+            creatorName: userA.name,
+            creatorEmail: userA.email,
+            createdAt: FieldValue.serverTimestamp(),
+            lastPostAt: FieldValue.serverTimestamp(),
+            invitedEmails: userEmails,
+            hostEmails: userEmails, // Both users are hosts in a private chat
+            postsCount: 0,
+        };
+        await newVibeRef.set(vibeData);
+        
+        // Notify user B
+        const notificationRef = db.collection('notifications').doc();
+        await notificationRef.set({
+            userId: userB.uid,
+            type: 'vibe_invite',
+            message: `${userA.name} has started a private chat with you.`,
+            vibeId: newVibeRef.id,
+            createdAt: FieldValue.serverTimestamp(),
+            read: false,
+        });
+
+        return { success: true, vibeId: newVibeRef.id };
+    } catch (error: any) {
+        console.error("Error creating private vibe:", error);
+        return { success: false, error: 'Failed to create private chat.' };
     }
 }
