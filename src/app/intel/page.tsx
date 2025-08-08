@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
-import { getCountryIntelData } from '@/actions/intel-admin';
+import { getCountryIntelData } from '@/actions/intel'; // <-- CORRECTED IMPORT
 import type { CountryIntelData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
