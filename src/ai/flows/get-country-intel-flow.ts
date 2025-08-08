@@ -10,7 +10,8 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { getAppSettingsAction } from '@/actions/settings';
-import { getCountryIntelData, getNeighborIntelData } from '@/actions/intel-admin';
+import { getCountryIntelData } from '@/actions/intel';
+import { getNeighborIntelData } from '@/actions/intel-admin';
 import type { CountryIntelData } from '@/lib/types';
 import { subDays, parseISO } from 'date-fns';
 import { scrapeUrlAction } from '@/actions/scraper';
@@ -349,3 +350,5 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
+
+    
