@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion, arrayRemove, Timestamp, query, orderBy } from 'firebase/firestore';
 import type { UserProfile, SavedPhrase } from '@/lib/types';
 import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
