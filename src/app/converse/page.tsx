@@ -47,7 +47,10 @@ const syncLiveTourSteps: TourStep[] = [
 
 export default function ConversePage() {
   const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
-  const [selectedLanguages, setSelectedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'th-TH']);
+  const [persistedLanguages, setPersistedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'th-TH']);
+  const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
+  const [isClient, setIsClient] = useState(false);
+  
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState(0);
@@ -62,6 +65,12 @@ export default function ConversePage() {
 
   const costPerMinute = settings?.costPerSyncLiveMinute || 1;
   const freeMinutesMs = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000;
+  
+  useEffect(() => {
+    setIsClient(true);
+    setSelectedLanguages(persistedLanguages);
+  }, [persistedLanguages]);
+
 
   useEffect(() => {
     return () => {
@@ -167,7 +176,7 @@ export default function ConversePage() {
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
     if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
-      setSelectedLanguages(prev => [...prev, lang]);
+      setPersistedLanguages(prev => [...prev, lang]);
     } else if (selectedLanguages.length >= 4) {
       toast({ variant: 'destructive', title: 'Limit Reached', description: 'You can select a maximum of 4 languages.' });
     }
@@ -175,7 +184,7 @@ export default function ConversePage() {
 
   const removeLanguage = (langToRemove: AzureLanguageCode) => {
     if (selectedLanguages.length > 2) {
-      setSelectedLanguages(prev => prev.filter(lang => lang !== langToRemove));
+      setPersistedLanguages(prev => prev.filter(lang => lang !== langToRemove));
     } else {
       toast({ variant: 'destructive', title: 'Minimum Required', description: 'You need at least 2 languages for a conversation.' });
     }
@@ -200,6 +209,14 @@ export default function ConversePage() {
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
       }
   }, [status, syncLiveUsage, userProfile?.tokenBalance, calculateCostForDuration, freeMinutesMs, toast, costPerMinute]);
+  
+  if (!isClient) {
+      return (
+        <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+          <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      );
+  }
 
 
   return (

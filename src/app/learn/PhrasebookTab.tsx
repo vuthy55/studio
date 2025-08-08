@@ -107,7 +107,6 @@ export default function PhrasebookTab() {
                 toast({ title: "Starting Free Pack Downloads", description: `Downloading audio for ${missingPacks.join(', ')}...`});
                 for (const lang of missingPacks) {
                     try {
-                        const { audioPack, size } = await getLanguageAudioPack(lang);
                         await loadSingleOfflinePack(lang);
                     } catch (error) {
                         console.error(`Failed to auto-download ${lang}:`, error);
@@ -130,6 +129,7 @@ export default function PhrasebookTab() {
 
     useEffect(() => {
         // If the current 'from' or 'to' language is not in the available list, reset it.
+        if (availableLanguages.length === 0) return;
         const availableCodes = new Set(availableLanguages.map(l => l.value));
         if (!availableCodes.has(fromLanguage)) {
             setFromLanguage(availableLanguages[0]?.value || 'english');
