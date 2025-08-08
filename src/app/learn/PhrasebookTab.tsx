@@ -23,8 +23,8 @@ import { cn } from '@/lib/utils';
 import type { AppSettings } from '@/actions/settings';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
-import { getOfflineAudio } from './OfflineManager';
-import OfflineManager from './OfflineManager';
+import { getOfflineAudio } from '@/services/offline';
+import OfflineManager from '@/components/synchub/OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import { useTour, TourStep } from '@/context/TourContext';
 import { getLanguageAudioPack } from '@/actions/audio';
@@ -75,7 +75,7 @@ const learnPageTourSteps: TourStep[] = [
 ];
 
 
-export default function LearnPageContent() {
+export default function PhrasebookTab() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks, loadSingleOfflinePack } = useUserData();
@@ -108,7 +108,7 @@ export default function LearnPageContent() {
                 for (const lang of missingPacks) {
                     try {
                         const { audioPack, size } = await getLanguageAudioPack(lang);
-                        await loadSingleOfflinePack(lang, audioPack, size);
+                        await loadSingleOfflinePack(lang);
                     } catch (error) {
                         console.error(`Failed to auto-download ${lang}:`, error);
                     }
@@ -278,25 +278,6 @@ export default function LearnPageContent() {
 
     return (
         <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        Prep Your Vibe
-                    </CardTitle>
-                    <CardDescription>
-                        Learn essential phrases and practice your pronunciation before you travel.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour(learnPageTourSteps)} size="lg">
-                            <HelpCircle className="mr-2" />
-                            Take a Tour
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
             <div data-tour="offline-manager">
                 <OfflineManager />
             </div>

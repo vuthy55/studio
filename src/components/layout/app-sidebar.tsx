@@ -2,23 +2,17 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
-  SidebarHeader, 
   SidebarContent, 
+  SidebarFooter,
+  SidebarHeader,
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton, 
-  SidebarFooter,
-  useSidebar,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent
+  useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -178,10 +172,10 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
-                  <Link href="/synchub" onClick={closeSidebar}>
-                    <Share2 />
-                    SyncHub
+                <SidebarMenuButton asChild isActive={pathname.startsWith('/learn')}>
+                  <Link href="/learn" onClick={closeSidebar}>
+                    <Languages />
+                    Learn
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -194,7 +188,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
+                <SidebarMenuButton asChild isActive={pathname.startsWith('/common-room')}>
                   <Link href="/common-room" onClick={closeSidebar}>
                     <MessagesSquare />
                     Common Room
@@ -202,10 +196,10 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === '/profile'}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith('/profile')}>
                       <Link href="/profile" onClick={closeSidebar}>
                           <User />
-                          My Account
+                          My Profile
                       </Link>
                   </SidebarMenuButton>
               </SidebarMenuItem>
@@ -248,10 +242,10 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
-                        <Link href="/synchub" onClick={closeSidebar}>
-                            <Share2 />
-                            SyncHub
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/learn')}>
+                        <Link href="/learn" onClick={closeSidebar}>
+                            <Languages />
+                            Learn
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -264,7 +258,7 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/common-room'}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/common-room')}>
                     <Link href="/common-room" onClick={closeSidebar}>
                         <MessagesSquare />
                         Common Room

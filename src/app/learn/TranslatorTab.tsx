@@ -15,7 +15,7 @@ import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
 import type { SavedPhrase } from '@/lib/types';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { languageToLocaleMap } from '@/lib/utils';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
 import { recognizeFromMic, abortRecognition, assessPronunciationFromMic } from '@/services/speech';
@@ -68,7 +68,7 @@ async function getDb() {
   return openDB('VibeSync-Offline', 2);
 }
 
-export default function LiveTranslationContent() {
+export default function TranslatorTab() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation, offlineAudioPacks } = useUserData();
@@ -382,25 +382,6 @@ export default function LiveTranslationContent() {
 
     return (
         <div className="space-y-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        Live Translation
-                    </CardTitle>
-                    <CardDescription>
-                        A simple utility for translating typed or spoken text from a source to a target language.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour(liveTranslationTourSteps)} size="lg">
-                            <HelpCircle className="mr-2" />
-                            Take a Tour
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
             <Card className="shadow-lg">
                 <CardContent className="space-y-6 pt-6">
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6" data-tour="lt-language-selectors">
