@@ -7,7 +7,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, Download } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -56,6 +56,7 @@ const learnPageTourSteps: TourStep[] = [
   {
     selector: '[data-tour="topic-selector"]',
     content: "Step 4: Pick a topic to practice. Icons represent different categories like greetings, food, and directions.",
+    position: 'bottom',
   },
   {
     selector: '[data-tour="phrase-item-0"]',
@@ -278,7 +279,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+             <div className="flex justify-between items-center" >
                 <div data-tour="language-pack-manager">
                     <OfflineManager />
                 </div>
