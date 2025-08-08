@@ -41,16 +41,21 @@ type AssessmentResult = {
 
 const learnPageTourSteps: TourStep[] = [
   {
+    selector: '[data-tour="language-pack-manager"]',
+    content: "Step 1: Download a language pack. This makes its audio available for offline practice and adds the language to the 'From' and 'To' selectors below.",
+    position: 'bottom',
+  },
+  {
     selector: '[data-tour="language-selectors"]',
-    content: "First, select the language you want to learn FROM and the language you want to learn TO. You can swap them anytime with the arrow button.",
+    content: "Step 2: Select the language you want to learn FROM and the language you want to learn TO. You can swap them anytime with the arrow button.",
   },
   {
     selector: '[data-tour="voice-selector"]',
-    content: "Choose a voice for the audio playback. 'Default' uses the standard voice for the selected language.",
+    content: "Step 3: Choose a voice for the audio playback. 'Default' uses the standard voice for the selected language.",
   },
   {
     selector: '[data-tour="topic-selector"]',
-    content: "Next, pick a topic to practice. Icons represent different categories like greetings, food, and directions.",
+    content: "Step 4: Pick a topic to practice. Icons represent different categories like greetings, food, and directions.",
   },
   {
     selector: '[data-tour="phrase-item-0"]',
@@ -59,18 +64,13 @@ const learnPageTourSteps: TourStep[] = [
   },
   {
     selector: '[data-tour="listen-button-0"]',
-    content: "Click the speaker icon to listen to the pronunciation of the phrase. You can listen as many times as you need.",
+    content: "Step 5: Click the speaker icon to listen to the pronunciation of the phrase. You can listen as many times as you need.",
     position: 'bottom',
   },
   {
     selector: '[data-tour="practice-button-0"]',
-    content: "Click the microphone icon to practice your own pronunciation. After you speak, you'll get a score and a chance to earn tokens!",
+    content: "Step 6: Click the microphone icon to practice your own pronunciation. After you speak, you'll get a score and a chance to earn tokens!",
     position: 'bottom',
-  },
-  {
-    selector: '[data-tour="offline-manager"]',
-    content: "Finally, you can download language packs here for offline access to audio, which is great for when you're traveling without an internet connection.",
-    position: 'top',
   },
 ];
 
@@ -279,7 +279,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <div data-tour="offline-manager">
+                <div data-tour="language-pack-manager">
                     <OfflineManager />
                 </div>
                 <Button onClick={() => startTour(learnPageTourSteps)} variant="outline">
