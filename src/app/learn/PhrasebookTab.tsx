@@ -278,8 +278,14 @@ const PhrasebookTab = memo(function PhrasebookTab() {
 
     return (
         <div className="space-y-6">
-            <div data-tour="offline-manager">
-                <OfflineManager />
+            <div className="flex justify-between items-center">
+                <div data-tour="offline-manager">
+                    <OfflineManager />
+                </div>
+                 <Button onClick={() => startTour(learnPageTourSteps)} variant="outline">
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Take a Tour
+                </Button>
             </div>
             
             <Card className="shadow-lg">
