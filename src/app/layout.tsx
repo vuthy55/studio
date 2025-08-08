@@ -7,6 +7,7 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { UserDataProvider } from '@/context/UserDataContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { TourProvider } from '@/context/TourContext';
+import Tour from '@/components/tour/Tour';
 
 export const metadata: Metadata = {
   title: 'VibeSync',
@@ -40,6 +41,7 @@ export default function RootLayout({
                   </main>
                 </SidebarInset>
                 <Toaster />
+                <Tour />
               </SidebarProvider>
             </TourProvider>
           </LanguageProvider>
