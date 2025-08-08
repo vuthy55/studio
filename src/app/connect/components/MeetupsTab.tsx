@@ -6,7 +6,7 @@ import { useUserData } from '@/context/UserDataContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, MapPin, ExternalLink, Calendar, LocateFixed, LocateOff } from 'lucide-react';
+import { LoaderCircle, MapPin, ExternalLink, Calendar, LocateFixed, Users as UsersIcon, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData } from '@/actions/common-room';
@@ -49,23 +49,37 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                     <MeetupDetailsDialog key={party.id} party={party}>
                         <Card className="hover:border-primary/50 transition-colors cursor-pointer text-left">
                             <CardContent className="p-4 space-y-2">
-                                {typeof party.distance === 'number' && (
-                                    <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
-                                )}
-                                <h4 className="font-semibold">{party.title}</h4>
-                                <div className="text-sm text-muted-foreground mt-2 space-y-1">
-                                    <p>From Vibe: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={e => e.stopPropagation()}>{party.vibeTopic}</Link></p>
-                                    <div className="flex items-center gap-2">
-                                        <MapPin className="h-4 w-4" />
-                                        <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                            View Location <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold">When:</span>
-                                        <span>{format(new Date(party.startTime), 'MMM d, h:mm a')}</span>
+                                <div className="flex items-center justify-between">
+                                    {typeof party.distance === 'number' && (
+                                        <Badge variant="outline">{party.distance.toFixed(1)} km away</Badge>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-start gap-2">
+                                    <h4 className="font-semibold flex-1 flex items-center gap-2">
+                                        {party.title}
+                                        {!party.isPublic && <Lock className="h-3 w-3 text-muted-foreground" title="Private Meetup"/>}
+                                    </h4>
+                                    <div className="text-right flex-shrink-0">
+                                         <p className="font-semibold text-sm whitespace-nowrap">{format(new Date(party.startTime), 'MMM d')}</p>
+                                         <p className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(party.startTime), 'h:mm a')}</p>
                                     </div>
                                 </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <p className="text-muted-foreground flex items-center gap-2">
+                                        From: <Link href={`/common-room/${party.vibeId}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{party.vibeTopic}</Link>
+                                    </p>
+                                    <div className="flex items-center gap-1 font-medium">
+                                        <UsersIcon className="h-4 w-4"/>
+                                        <span>{(party.rsvps || []).length}</span>
+                                    </div>
+                                    <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 w-fit" onClick={(e) => e.stopPropagation()}>
+                                        <MapPin className="h-4 w-4" />
+                                        Location
+                                    </a>
+                                </div>
+                                {party.description && (
+                                    <p className="text-xs text-muted-foreground truncate pt-1">{party.description}</p>
+                                )}
                             </CardContent>
                         </Card>
                     </MeetupDetailsDialog>
@@ -247,4 +261,3 @@ export default function MeetupsTab() {
         </Tabs>
     );
 }
-

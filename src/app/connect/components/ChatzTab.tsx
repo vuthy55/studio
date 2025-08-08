@@ -22,30 +22,11 @@ import { LoaderCircle, PlusCircle, MessageSquare, Lock, Search, Tags, ChevronRig
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData, startVibe } from '@/actions/common-room';
-import { ClientVibe, ClientParty } from '@/lib/types';
+import { ClientVibe } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useTour, TourStep } from '@/context/TourContext';
-import { cn } from '@/lib/utils';
 import { getCommonRoomCache, setCommonRoomCache } from '@/services/cache';
-
-const chatzTourSteps: TourStep[] = [
-  {
-    selector: '[data-tour="chatz-community-tab"]',
-    content: "The 'Community' tab is where you can find all public chats (called 'Vibes'). Join any that interest you!",
-  },
-  {
-    selector: '[data-tour="chatz-private-tab"]',
-    content: "The 'Private' tab shows all the invite-only chats you're a member of. Think of it as your personal inbox.",
-  },
-  {
-    selector: '[data-tour="chatz-start-vibe-button"]',
-    content: "Ready to start your own conversation? Click here to create a new Vibe. You can make it public for everyone or private for a select group.",
-    position: 'bottom',
-  },
-];
-
 
 function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => void, children: React.ReactNode }) {
     const { user } = useUserData();
@@ -130,7 +111,6 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
 export default function ChatzTab() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
-    const { startTour } = useTour();
 
     const [myVibes, setMyVibes] = useState<ClientVibe[]>([]);
     const [publicVibes, setPublicVibes] = useState<ClientVibe[]>([]);
@@ -280,4 +260,3 @@ function VibeList({ vibes, title, searchTerm, setSearchTerm }: { vibes: ClientVi
         </div>
     );
 }
-

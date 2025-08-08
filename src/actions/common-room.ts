@@ -340,7 +340,7 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         const sortedMyVibes = [...activeMyVibes, ...inactiveMyVibes];
         const sortedPublicVibes = [...activePublicVibes, ...inactivePublicVibes];
         
-        debugLog.push(`[INFO] Categorized into ${myVibes.length} 'My Vibes' and ${publicVibes.length} 'Public Vibes'.`);
+        debugLog.push(`[INFO] Categorized into ${sortedMyVibes.length} 'My Vibes' and ${sortedPublicVibes.length} 'Public Vibes'.`);
         
         let allParties: ClientParty[] = [];
         try {
@@ -383,7 +383,7 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         }
 
         const vibeMap = new Map(allVibes.map(v => [v.id, v]));
-        const myVibeIds = new Set(myVibes.map(v => v.id));
+        const myVibeIds = new Set(sortedMyVibes.map(v => v.id));
 
         const myMeetups: ClientParty[] = [];
         const publicMeetups: ClientParty[] = [];

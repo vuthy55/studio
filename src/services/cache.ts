@@ -5,9 +5,9 @@ import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import type { ClientVibe, ClientParty } from '@/lib/types';
 
-const DB_NAME = 'VibeSyncCacheDB'; // Renamed for clarity
+const DB_NAME = 'VibeSyncCacheDB';
 const STORE_NAME = 'common-room-cache';
-const DB_VERSION = 1; // Start with version 1
+const DB_VERSION = 1;
 const CACHE_KEY = 'main';
 
 export interface CommonRoomCache {
