@@ -81,7 +81,7 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                         accuracy: assessment.accuracyScore,
                         fluency: assessment.fluencyScore,
                         completeness: assessment.completenessScore,
-                        pronScore: assessment.pronunciationScore,
+                        pronunciationScore: assessment.pronunciationScore,
                         isPass: assessment.accuracyScore > 70
                     });
                 } else if (result.reason === sdk.ResultReason.NoMatch) {
