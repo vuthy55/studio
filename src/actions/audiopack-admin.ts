@@ -5,9 +5,11 @@
 import { db } from '@/lib/firebase-admin';
 import { getStorage } from 'firebase-admin/storage';
 import { phrasebook, type LanguageCode } from '@/lib/data';
-import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { FieldValue, type Timestamp } from 'firebase-admin/firestore';
+import { ai } from '@/ai/genkit';
+import wav from 'wav';
+import { googleAI } from '@genkit-ai/googleai';
 
 interface AudioPackResult {
   language: LanguageCode;
@@ -21,7 +23,6 @@ export interface LanguagePackMetadata {
     id: LanguageCode;
     name: string;
     size: number;
-    // User-facing metadata for download list
 }
 
 export interface LanguagePackGenerationMetadata {
@@ -36,15 +37,40 @@ export interface LanguagePackGenerationMetadata {
 const MAX_RETRIES = 3;
 const METADATA_FOLDER = 'audio-packs-metadata';
 
+async function toWav(
+  pcmData: Buffer,
+  channels = 1,
+  rate = 24000,
+  sampleWidth = 2
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const writer = new wav.Writer({
+      channels,
+      sampleRate: rate,
+      bitDepth: sampleWidth * 8,
+    });
 
-// Calculate the total number of audio files required for a full pack
+    let bufs: any[] = [];
+    writer.on('error', reject);
+    writer.on('data', function (d) {
+      bufs.push(d);
+    });
+    writer.on('end', function () {
+      resolve(Buffer.concat(bufs).toString('base64'));
+    });
+
+    writer.write(pcmData);
+    writer.end();
+  });
+}
+
 const calculateTotalAudioFiles = () => {
     let total = 0;
     phrasebook.forEach(topic => {
         topic.phrases.forEach(phrase => {
-            total++; // For the phrase itself
+            total++; 
             if (phrase.answer) {
-                total++; // For the answer
+                total++; 
             }
         });
     });
@@ -54,9 +80,6 @@ const calculateTotalAudioFiles = () => {
 const totalAudioFiles = calculateTotalAudioFiles();
 
 
-/**
- * Saves generation metadata to Firebase Storage.
- */
 async function saveGenerationMetadata(bucket: any, metadata: LanguagePackGenerationMetadata) {
     const fileName = `${METADATA_FOLDER}/${metadata.id}.json`;
     const file = bucket.file(fileName);
@@ -65,16 +88,12 @@ async function saveGenerationMetadata(bucket: any, metadata: LanguagePackGenerat
     });
 }
 
-/**
- * Fetches all generation metadata files from Firebase Storage.
- */
 export async function getGenerationMetadata(): Promise<LanguagePackGenerationMetadata[]> {
     try {
         const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
         const [files] = await bucket.getFiles({ prefix: `${METADATA_FOLDER}/` });
         
         const metadataPromises = files.map(async (file) => {
-            // Skip directory placeholders
             if (file.name.endsWith('/')) return null;
             
             const [contents] = await file.download();
@@ -96,10 +115,6 @@ export async function getGenerationMetadata(): Promise<LanguagePackGenerationMet
 }
 
 
-/**
- * Generates and stores a complete audio pack for a given language.
- * This is a server-side action intended for admin use.
- */
 export async function generateLanguagePack(languages: LanguageCode[]): Promise<AudioPackResult[]> {
   const allPhrases = phrasebook.flatMap(topic => topic.phrases);
   const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
@@ -122,8 +137,15 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
         const textToSpeak = getTranslation(phrase);
         if (textToSpeak) {
           try {
-            const { audioDataUri } = await generateSpeech({ text: textToSpeak, lang: languageToLocaleMap[lang]!, voice: 'default' });
-            audioPack[phrase.id] = audioDataUri;
+            const { media } = await ai.generate({
+                model: googleAI.model('gemini-2.5-flash-preview-tts'),
+                config: { responseModalities: ['AUDIO'] },
+                prompt: textToSpeak,
+              });
+              if (media?.url) {
+                const audioBuffer = Buffer.from(media.url.substring(media.url.indexOf(',') + 1), 'base64');
+                audioPack[phrase.id] = 'data:audio/wav;base64,' + await toWav(audioBuffer);
+              }
           } catch (error) {
             console.error(`[AudioPack] Failed to generate audio for phrase "${phrase.id}" (${lang}, Attempt ${attempt}):`, error);
             failedPhrases.push(phrase.id);
@@ -134,8 +156,15 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
           const answerTextToSpeak = getTranslation(phrase.answer);
           if (answerTextToSpeak) {
             try {
-              const { audioDataUri } = await generateSpeech({ text: answerTextToSpeak, lang: languageToLocaleMap[lang]!, voice: 'default' });
-              audioPack[`${phrase.id}-ans`] = audioDataUri;
+              const { media } = await ai.generate({
+                model: googleAI.model('gemini-2.5-flash-preview-tts'),
+                config: { responseModalities: ['AUDIO'] },
+                prompt: answerTextToSpeak,
+              });
+              if (media?.url) {
+                const audioBuffer = Buffer.from(media.url.substring(media.url.indexOf(',') + 1), 'base64');
+                audioPack[`${phrase.id}-ans`] = 'data:audio/wav;base64,' + await toWav(audioBuffer);
+              }
             } catch (error) {
               console.error(`[AudioPack] Failed to generate audio for answer of "${phrase.id}" (${lang}, Attempt ${attempt}):`, error);
               failedPhrases.push(`${phrase.id}-ans`);
@@ -149,11 +178,9 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
       generatedCount = totalAudioFiles - failedPhrases.length;
 
       if (failedPhrases.length === 0) {
-        // Successfully generated all audio, save to storage
         try {
           const fileName = `audio-packs/${lang}.json`;
           const file = bucket.file(fileName);
-          // Saving the file will overwrite any existing file with the same name.
           await file.save(JSON.stringify(audioPack), {
             contentType: 'application/json',
           });
@@ -161,19 +188,18 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
           finalMessage = `Success!`;
           success = true;
           console.log(`[AudioPack] Success for ${lang} on attempt ${attempt}.`);
-          break; // Exit retry loop
+          break; 
         } catch (storageError) {
           console.error(`[AudioPack] Firebase Storage error for ${lang}:`, storageError);
           finalMessage = 'Failed to save to storage.';
           success = false;
-          break; // Don't retry on storage failure
+          break; 
         }
       } else {
-        // Some phrases failed, prepare for next attempt or final failure
         finalMessage = `Attempt ${attempt} failed. Retrying...`;
         if (attempt < MAX_RETRIES) {
           console.log(`[AudioPack] Retrying for ${lang}...`);
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 2000)); 
         } else {
            finalMessage = `Failed after ${MAX_RETRIES} attempts.`;
            console.error(`[AudioPack] Final failure for ${lang} after ${MAX_RETRIES} attempts.`);
@@ -181,7 +207,6 @@ export async function generateLanguagePack(languages: LanguageCode[]): Promise<A
       }
     }
     
-    // Always save metadata, regardless of success or failure
     const langInfo = phrasebook.find(p => p.id === 'greetings')?.phrases.find(ph => ph.id === 'g-1')?.translations[lang];
     await saveGenerationMetadata(bucket, {
         id: lang,
@@ -233,7 +258,7 @@ export async function applyFreeLanguagesToAllUsers(): Promise<{success: boolean,
     try {
         const freePacks = await getFreeLanguagePacks();
         if (freePacks.length === 0) {
-            return { success: true }; // Nothing to do
+            return { success: true };
         }
         
         const usersRef = db.collection('users');

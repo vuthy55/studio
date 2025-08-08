@@ -2,8 +2,10 @@
 'use server';
 
 import { phrasebook, type LanguageCode } from '@/lib/data';
-import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
+import { ai } from '@/ai/genkit';
+import wav from 'wav';
+import { googleAI } from '@genkit-ai/googleai';
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
@@ -12,6 +14,33 @@ export type AudioPack = {
 export interface AudioPackResult {
     audioPack: AudioPack;
     size: number; // size in bytes
+}
+
+async function toWav(
+  pcmData: Buffer,
+  channels = 1,
+  rate = 24000,
+  sampleWidth = 2
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const writer = new wav.Writer({
+      channels,
+      sampleRate: rate,
+      bitDepth: sampleWidth * 8,
+    });
+
+    let bufs: any[] = [];
+    writer.on('error', reject);
+    writer.on('data', function (d) {
+      bufs.push(d);
+    });
+    writer.on('end', function () {
+      resolve(Buffer.concat(bufs).toString('base64'));
+    });
+
+    writer.write(pcmData);
+    writer.end();
+  });
 }
 
 /**
@@ -41,26 +70,36 @@ export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPac
   const allPhrases = phrasebook.flatMap(topic => topic.phrases);
   
   const generationPromises = allPhrases.map(async (phrase) => {
-    // Generate audio for the main phrase
     const textToSpeak = getTranslation(phrase, lang);
     if (textToSpeak) {
       try {
-        const { audioDataUri } = await generateSpeech({ text: textToSpeak, lang: locale, voice: 'default' });
-        audioPack[phrase.id] = audioDataUri;
+        const { media } = await ai.generate({
+          model: googleAI.model('gemini-2.5-flash-preview-tts'),
+          config: { responseModalities: ['AUDIO'] },
+          prompt: textToSpeak,
+        });
+        if (media?.url) {
+          const audioBuffer = Buffer.from(media.url.substring(media.url.indexOf(',') + 1), 'base64');
+          audioPack[phrase.id] = 'data:audio/wav;base64,' + await toWav(audioBuffer);
+        }
       } catch (error) {
         console.error(`Failed to generate audio for phrase "${phrase.id}" in ${lang}:`, error);
-        // We will skip this phrase on error and continue with the rest.
       }
     }
 
-    // Also generate audio for the answer if it exists
     if (phrase.answer) {
         const answerTextToSpeak = getTranslation(phrase.answer, lang);
          if (answerTextToSpeak) {
             try {
-                const { audioDataUri } = await generateSpeech({ text: answerTextToSpeak, lang: locale, voice: 'default' });
-                // Use a unique key for the answer audio
-                audioPack[`${phrase.id}-ans`] = audioDataUri;
+              const { media } = await ai.generate({
+                model: googleAI.model('gemini-2.5-flash-preview-tts'),
+                config: { responseModalities: ['AUDIO'] },
+                prompt: answerTextToSpeak,
+              });
+              if (media?.url) {
+                const audioBuffer = Buffer.from(media.url.substring(media.url.indexOf(',') + 1), 'base64');
+                audioPack[`${phrase.id}-ans`] = 'data:audio/wav;base64,' + await toWav(audioBuffer);
+              }
             } catch (error) {
                 console.error(`Failed to generate audio for answer of phrase "${phrase.id}" in ${lang}:`, error);
             }

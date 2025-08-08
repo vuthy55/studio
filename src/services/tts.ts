@@ -1,4 +1,5 @@
 
+"use client";
 
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
@@ -37,8 +38,6 @@ export async function generateSpeech(input: GenerateSpeechInput): Promise<Genera
     'en-US': { male: 'en-US-GuyNeural', female: 'en-US-JennyNeural' },
   };
   
-  // If a specific voice is requested ('male' or 'female') AND the language exists in our map,
-  // set the specific voice name. Otherwise, do nothing and let Azure use its default voice for the language.
   if (voice && voice !== 'default' && voiceMap[lang]) {
     speechConfig.speechSynthesisVoiceName = voiceMap[lang][voice];
   }
