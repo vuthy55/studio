@@ -276,7 +276,7 @@ export default function IntelTab() {
                     <TabsContent value="database" className="mt-4">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                               <p className="text-sm text-muted-foreground">This is the central database of curated news sources for the Intel feature.</p>
+                               <p className="text-sm text-muted-foreground">This is the central database of curated news sources for the InfoHub feature.</p>
                             </div>
                             <Dialog open={isBuildDialogOpen} onOpenChange={setIsBuildDialogOpen}>
                                 <DialogTrigger asChild>
@@ -444,3 +444,5 @@ export default function IntelTab() {
         </Card>
     );
 }
+
+    

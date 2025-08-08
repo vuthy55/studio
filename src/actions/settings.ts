@@ -102,3 +102,5 @@ export async function updateAppSettingsAction(newSettings: Partial<AppSettings>)
     return { success: false, error: 'Failed to update settings on the server.' };
   }
 }
+
+    

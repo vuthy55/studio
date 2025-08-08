@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { getAppSettingsAction } from '@/actions/settings';
-import { getCountryIntelData } from '@/actions/intel';
+import { getCountryIntelData } from '@/actions/intel-admin';
 import { getNeighborIntelData } from '@/actions/intel-admin';
 import type { CountryIntelData } from '@/lib/types';
 import { subDays, parseISO } from 'date-fns';
