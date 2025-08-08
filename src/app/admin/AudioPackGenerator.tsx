@@ -2,18 +2,22 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { languages, type LanguageCode } from '@/lib/data';
+import { languages, phrasebook, type LanguageCode } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { generateLanguagePack, getGenerationMetadata, type LanguagePackGenerationMetadata } from '@/actions/audiopack-admin';
+import { getGenerationMetadata, saveGenerationMetadata, type LanguagePackGenerationMetadata } from '@/actions/audiopack-admin';
+import { generateSpeech, type AudioPack } from '@/services/tts';
+import { getStorage, ref, uploadString } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 import { LoaderCircle, CheckCircle2, AlertTriangle, Music, RefreshCw } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { languageToLocaleMap } from '@/lib/utils';
 
 
 type GenerationStatus = 'idle' | 'generating' | 'success' | 'failed';
@@ -25,6 +29,21 @@ interface LanguageStatus {
   generatedCount?: number;
   totalCount?: number;
 }
+
+const calculateTotalAudioFiles = () => {
+    let total = 0;
+    phrasebook.forEach(topic => {
+        topic.phrases.forEach(phrase => {
+            total++; 
+            if (phrase.answer) {
+                total++; 
+            }
+        });
+    });
+    return total;
+};
+
+const totalAudioFiles = calculateTotalAudioFiles();
 
 export default function AudioPackGenerator() {
   const [selectedLanguages, setSelectedLanguages] = useState<LanguageCode[]>([]);
@@ -93,33 +112,68 @@ export default function AudioPackGenerator() {
         return newStatuses;
     });
 
-    const results = await generateLanguagePack(selectedLanguages);
+    for (const lang of selectedLanguages) {
+        const audioPack: AudioPack = {};
+        const locale = languageToLocaleMap[lang];
 
-    // Update statuses based on results
-    setStatuses(prev => {
-        const newStatuses = { ...prev };
-        results.forEach(result => {
-            newStatuses[result.language] = {
-                code: result.language,
-                status: result.success ? 'success' : 'failed',
-                message: result.message,
-                generatedCount: result.generatedCount,
-                totalCount: result.totalCount,
-            };
+        if (!locale) {
+            setStatuses(prev => ({ ...prev, [lang]: { code: lang, status: 'failed', message: 'Unsupported language' } }));
+            continue;
+        }
+
+        const getTranslation = (textObj: any) => textObj.translations[lang] || textObj.english;
+        const allPhrases = phrasebook.flatMap(topic => topic.phrases);
+        
+        const generationPromises = allPhrases.map(async (phrase) => {
+            const textToSpeak = getTranslation(phrase);
+            if (textToSpeak) {
+                try {
+                    const { audioDataUri } = await generateSpeech({ text: textToSpeak, lang: locale });
+                    audioPack[phrase.id] = audioDataUri;
+                } catch (e) {
+                    console.error(`Failed to generate audio for phrase ${phrase.id} in ${lang}:`, e);
+                }
+            }
+
+            if (phrase.answer) {
+                const answerTextToSpeak = getTranslation(phrase.answer);
+                if (answerTextToSpeak) {
+                    try {
+                        const { audioDataUri } = await generateSpeech({ text: answerTextToSpeak, lang: locale });
+                        audioPack[`${phrase.id}-ans`] = audioDataUri;
+                    } catch (e) {
+                         console.error(`Failed to generate audio for answer ${phrase.id} in ${lang}:`, e);
+                    }
+                }
+            }
         });
-        return newStatuses;
-    });
-    
-    const successCount = results.filter(r => r.success).length;
-    const failureCount = results.length - successCount;
 
-    if (failureCount > 0) {
-         toast({ variant: 'destructive', title: 'Generation Finished with Errors', description: `${failureCount} language pack(s) failed to generate. Check details below.` });
-    } else {
-         toast({ title: 'Generation Complete!', description: `Successfully generated ${successCount} language pack(s).` });
+        await Promise.all(generationPromises);
+
+        const generatedCount = Object.keys(audioPack).length;
+
+        try {
+            const fileName = `audio-packs/${lang}.json`;
+            const fileRef = ref(storage, fileName);
+            await uploadString(fileRef, JSON.stringify(audioPack), 'raw', { contentType: 'application/json' });
+
+            setStatuses(prev => ({...prev, [lang]: { code: lang, status: 'success', message: 'Success!', generatedCount, totalCount: totalAudioFiles }}));
+            
+            const langInfo = phrasebook.find(p => p.id === 'greetings')?.phrases.find(ph => ph.id === 'g-1')?.translations[lang];
+            await saveGenerationMetadata({
+                id: lang,
+                name: langInfo || lang,
+                generatedCount,
+                totalCount: totalAudioFiles,
+                lastGeneratedAt: new Date().toISOString(),
+            });
+
+        } catch (storageError) {
+             setStatuses(prev => ({...prev, [lang]: { code: lang, status: 'failed', message: 'Storage error', generatedCount, totalCount: totalAudioFiles }}));
+        }
     }
     
-    await handleFetchMetadata(); // Refresh metadata after generation
+    await handleFetchMetadata();
     setIsGenerating(false);
   };
 
@@ -143,7 +197,7 @@ export default function AudioPackGenerator() {
             <div>
                 <CardTitle className="flex items-center gap-2"><Music /> Language Pack Generator</CardTitle>
                 <CardDescription>
-                Select languages to pre-generate their complete audio packs. This provides a generation status for previously built packs.
+                Select languages to pre-generate their complete audio packs. This provides a generation status for previously built packs. This process uses the Azure client SDK and may take a few minutes.
                 </CardDescription>
             </div>
              <Button onClick={handleFetchMetadata} variant="outline" size="sm" disabled={isFetchingStatus || isGenerating}>

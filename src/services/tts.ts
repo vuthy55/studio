@@ -9,6 +9,10 @@ export interface GenerateSpeechInput {
   voice?: 'default' | 'male' | 'female';
 }
 
+export type AudioPack = {
+  [phraseId: string]: string; // phraseId: base64 audio data URI
+};
+
 export interface GenerateSpeechOutput {
   audioDataUri: string;
 }
