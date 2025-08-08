@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon } from 'lucide-react';
+import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -148,6 +148,7 @@ export function AppSidebar() {
   const closeSidebar = () => setOpenMobile(false);
 
   const mainNavLinks = [
+    { href: "/", icon: Home, label: "Home", activePath: "/" },
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
@@ -179,7 +180,7 @@ export function AppSidebar() {
             <>
               {mainNavLinks.map(link => (
                  <SidebarMenuItem key={link.href}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(link.activePath)}>
+                    <SidebarMenuButton asChild isActive={pathname === link.href}>
                       <Link href={link.href} onClick={closeSidebar}>
                         <link.icon />
                         {link.label}
@@ -220,9 +221,9 @@ export function AppSidebar() {
             </>
           ) : (
              <>
-                {mainNavLinks.slice(0, 1).map(link => (
+                {mainNavLinks.slice(0, 2).map(link => (
                     <SidebarMenuItem key={link.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(link.activePath)}>
+                        <SidebarMenuButton asChild isActive={pathname === link.href}>
                         <Link href={link.href} onClick={closeSidebar}>
                             <link.icon />
                             {link.label}
@@ -281,5 +282,3 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-
-    
