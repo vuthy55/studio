@@ -114,9 +114,9 @@ export default function OfflineManager() {
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Offline Language Packs</DialogTitle>
+          <DialogTitle>Language Packs</DialogTitle>
           <DialogDescription>
-            Download audio packs to practice pronunciation without an internet connection. Unlocked languages are free to download.
+            To learn a new language, you must first download its language pack. Some packs are free, while others can be unlocked with tokens.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
