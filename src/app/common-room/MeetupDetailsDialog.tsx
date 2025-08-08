@@ -9,7 +9,7 @@ import { LoaderCircle, UserPlus, ShieldCheck, ShieldX, UserMinus, MessageSquare,
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe } from '@/actions/common-room';
+import { inviteToVibe, postReply, updateHostStatus, planParty, rsvpToMeetup, editMeetup, removeParticipantFromVibe, unblockParticipantFromVibe, leaveVibe, createPrivateVibe } from '@/actions/common-room';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { sendFriendRequest } from '@/actions/friends';
 import { cn } from '@/lib/utils';
 import { MapPin } from 'lucide-react';
+import { createPrivateSyncOnlineRoom } from '@/actions/room';
+import { useRouter } from 'next/navigation';
 
 function EditMeetupDialog({ party, vibeId, onUpdate, children }: { party: ClientParty; vibeId: string; onUpdate: () => void; children: React.ReactNode; }) {
     const { user } = useUserData();
@@ -95,6 +97,7 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [vibeData, setVibeData] = useState<Vibe | null>(null);
+    const router = useRouter();
 
     const [attendees, setAttendees] = useState<UserProfile[]>([]);
     const [isLoadingAttendees, setIsLoadingAttendees] = useState(false);
@@ -198,6 +201,36 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
     };
     
     const isUserRsvpd = user && party.rsvps?.includes(user.uid);
+    
+     const handleStartChat = async (targetUser: { uid: string, name: string, email: string }) => {
+        if (!user || !user.email || !user.displayName) return;
+        const result = await createPrivateVibe({
+            userA: { uid: user.uid, name: user.displayName, email: user.email },
+            userB: targetUser
+        });
+
+        if (result.success && result.vibeId) {
+            router.push(`/common-room/${result.vibeId}`);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not start private chat.' });
+        }
+    };
+
+    const handleStartCall = async (targetUser: { uid: string, name: string, email: string }) => {
+        if (!user || !user.email || !user.displayName) return;
+
+        const result = await createPrivateSyncOnlineRoom({
+            initiator: { uid: user.uid, name: user.displayName, email: user.email, selectedLanguage: userProfile?.defaultLanguage || 'en-US' },
+            invitee: targetUser,
+        });
+
+        if (result.success && result.roomId) {
+            router.push(`/connect?tab=voice-rooms`);
+             toast({ title: 'Room Created', description: `Your private room with ${targetUser.name} is ready.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Call Failed', description: result.error || 'Could not start voice call.' });
+        }
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -238,77 +271,81 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
                                         <span className={cn("text-sm font-medium flex-1", isHost && "text-primary")}>{attendee.name}</span>
                                         {isHost && <Badge variant="secondary">Host</Badge>}
 
-                                        {isCurrentUserHost && user?.uid !== attendee.id && (
+                                        {user?.uid !== attendee.id && (
                                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7"><MessageSquare className="h-4 w-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartChat(attendee)}><MessageSquare className="h-4 w-4" /></Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent><p>Chat with {attendee.name}</p></TooltipContent>
                                                     </Tooltip>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7"><Phone className="h-4 w-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartCall(attendee)}><Phone className="h-4 w-4" /></Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent><p>Start voice call</p></TooltipContent>
                                                     </Tooltip>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button 
-                                                                size="icon" 
-                                                                variant="ghost" 
-                                                                className="h-7 w-7"
-                                                                onClick={() => handleHostToggle(attendee.email, !isHost)}
-                                                            >
-                                                                {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
-                                                    </Tooltip>
                                                 </TooltipProvider>
-                                                <AlertDialog>
+
+                                                 {isCurrentUserHost && (
                                                     <TooltipProvider>
                                                         <Tooltip>
-                                                            <AlertDialogTrigger asChild>
-                                                                <TooltipTrigger asChild>
-                                                                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
-                                                                        <UserMinus className="h-4 w-4" />
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                            </AlertDialogTrigger>
-                                                            <TooltipContent>Remove user</TooltipContent>
+                                                            <TooltipTrigger asChild>
+                                                                <Button 
+                                                                    size="icon" 
+                                                                    variant="ghost" 
+                                                                    className="h-7 w-7"
+                                                                    onClick={() => handleHostToggle(attendee.email, !isHost)}
+                                                                >
+                                                                    {isHost ? <ShieldX className="h-4 w-4 text-destructive" /> : <ShieldCheck className="h-4 w-4 text-green-600" />}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>{isHost ? 'Demote from Host' : 'Promote to Host'}</p></TooltipContent>
+                                                        </Tooltip>
+                                                         <AlertDialog>
+                                                            <Tooltip>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                                            <UserMinus className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                </AlertDialogTrigger>
+                                                                <TooltipContent>Remove user</TooltipContent>
+                                                            </Tooltip>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Remove {attendee.name}?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        This will permanently remove and block {attendee.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleRemoveUser(attendee)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                                                        Remove & Block
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </TooltipProvider>
+                                                 )}
+                                                
+                                                {!isFriend && !hasPendingRequest && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(attendee)}>
+                                                                    <UserPlus className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Add Friend</p></TooltipContent>
                                                         </Tooltip>
                                                     </TooltipProvider>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Remove {attendee.name}?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This will permanently remove and block {attendee.name} from this Vibe. They will not be able to rejoin unless unblocked by a host.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleRemoveUser(attendee)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                                                Remove & Block
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
+                                                )}
                                             </div>
-                                        )}
-                                        {user?.uid !== attendee.id && !isFriend && !hasPendingRequest && (
-                                            <TooltipProvider>
-                                                 <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                         <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(attendee)}>
-                                                            <UserPlus className="h-4 w-4" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent><p>Add Friend</p></TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
                                         )}
                                     </div>
                                     );

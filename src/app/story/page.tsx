@@ -12,10 +12,10 @@ import { useUserData } from '@/context/UserDataContext';
 export default function StoryPage() {
   const { user } = useUserData();
   
-  const prepVibeLink = user ? "/synchub?tab=prep-vibe" : "/login";
-  const syncLiveLink = user ? "/synchub?tab=sync-live" : "/login";
-  const syncOnlineLink = user ? "/synchub?tab=sync-online" : "/login";
-  const adventureLink = user ? "/synchub" : "/login";
+  const prepVibeLink = user ? "/learn" : "/login";
+  const syncLiveLink = user ? "/converse" : "/login";
+  const syncOnlineLink = user ? "/connect?tab=voice-rooms" : "/login";
+  const adventureLink = user ? "/connect" : "/login";
 
   return (
     <div className="space-y-8">
