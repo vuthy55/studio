@@ -12,7 +12,8 @@ import {
   SidebarHeader,
   SidebarMenu, 
   SidebarMenuItem, 
-  SidebarMenuButton, 
+  SidebarMenuButton,
+  SidebarSeparator,
   useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
