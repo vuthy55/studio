@@ -221,16 +221,14 @@ export function AppSidebar() {
             </>
           ) : (
              <>
-                {mainNavLinks.slice(0, 2).map(link => (
-                    <SidebarMenuItem key={link.href}>
-                        <SidebarMenuButton asChild isActive={pathname === link.href}>
-                        <Link href={link.href} onClick={closeSidebar}>
-                            <link.icon />
-                            {link.label}
-                        </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ))}
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/'}>
+                    <Link href="/" onClick={closeSidebar}>
+                        <Home />
+                        Home
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/login'}>
                     <Link href="/login" onClick={closeSidebar}>
