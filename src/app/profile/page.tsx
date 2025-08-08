@@ -1,6 +1,6 @@
 
-
 "use client";
+
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -1094,7 +1094,7 @@ export default function ProfilePage() {
         if (!authLoading && !user) {
             router.push('/login');
         }
-    }, [user, authLoading]);
+    }, [user, authLoading, router]);
 
     if (authLoading || !user) {
         return (

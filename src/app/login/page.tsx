@@ -97,7 +97,9 @@ function LoginPageContent() {
                 email: user.email!,
                 photoURL: user.photoURL || undefined
             },
-            referralId
+            referralId,
+            null, // No roomId for standard login/signup
+            null // No vibeId for standard login/signup
         );
       }
       
@@ -133,7 +135,9 @@ function LoginPageContent() {
                 mobile: signupMobile,
                 defaultLanguage: signupLanguage
             }, 
-            referralId
+            referralId,
+            null, // No roomId for standard login/signup
+            null // No vibeId for standard login/signup
        );
         
        if (!result.success) {

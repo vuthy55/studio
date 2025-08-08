@@ -7,25 +7,20 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle } from "lucide-react";
 import AdminPageV2 from './AdminPageV2';
+import { useUserData } from '@/context/UserDataContext';
 
 
 export default function AdminPage() {
-    const [user, authLoading] = useAuthState(auth);
+    const { user, loading, userProfile } = useUserData();
     const router = useRouter();
-    const [isClient, setIsClient] = React.useState(false);
     
-    React.useEffect(() => {
-        setIsClient(true);
-    }, []);
-
-    React.useEffect(() => {
-        if (authLoading) return;
-        if (!user) {
+    useEffect(() => {
+        if (!loading && (!user || userProfile?.role !== 'admin')) {
             router.push('/login');
         }
-    }, [user, authLoading]);
+    }, [user, loading, userProfile, router]);
     
-    if (authLoading || !isClient) {
+    if (loading || !user || userProfile?.role !== 'admin') {
         return (
             <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
                 <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
