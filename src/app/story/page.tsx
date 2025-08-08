@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -12,10 +11,10 @@ import { useUserData } from '@/context/UserDataContext';
 export default function StoryPage() {
   const { user } = useUserData();
   
-  const prepVibeLink = user ? "/synchub?tab=prep-vibe" : "/login";
-  const syncLiveLink = user ? "/synchub?tab=sync-live" : "/login";
-  const syncOnlineLink = user ? "/synchub?tab=sync-online" : "/login";
-  const adventureLink = user ? "/synchub" : "/login";
+  const learnLink = user ? "/learn" : "/login";
+  const converseLink = user ? "/converse" : "/login";
+  const connectLink = user ? "/connect" : "/login";
+  const adventureLink = user ? "/learn" : "/login";
 
   return (
     <div className="space-y-8">
@@ -51,10 +50,10 @@ export default function StoryPage() {
           <div className="md:order-2 space-y-4">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
               <p className="text-muted-foreground">
-                  Back at the hostel, Alex finds VibeSync. The "Prep Your Vibe" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
+                  Back at the hostel, Alex finds VibeSync. The "Learn" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                  <Link href={prepVibeLink}>Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Link href={learnLink}>Try the Learn feature <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
         </div>
@@ -63,15 +62,15 @@ export default function StoryPage() {
           <div className="space-y-4">
               <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
               <p className="text-muted-foreground">
-                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Later, they add each other as buddies in the app. A quick tap on the Buddy Alert button lets everyone share their location instantly, making it easy to regroup after exploring different parts of the temple complex.
+                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Converse," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Later, they add each other as buddies in the app. A quick tap on the Buddy Alert button lets everyone share their location instantly, making it easy to regroup after exploring different parts of the temple complex.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                   <Link href={syncLiveLink}>Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                   <Link href={converseLink}>Check out Converse <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
             <div className="text-center">
-              <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Sync Live</div>
+              <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Converse</div>
             </div>
           </div>
         </div>
@@ -80,17 +79,17 @@ export default function StoryPage() {
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
                 <div className="text-center">
-                <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Sync Online</div>
+                <div className="text-6xl md:text-7xl font-bold text-primary opacity-50">Connect</div>
                 </div>
             </div>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
               <p className="text-muted-foreground">
-                  The trip ends, but the friendship doesn't. Using "Sync Online," the group chats from different countries. Aisha speaks Malay, Linh speaks Vietnamese, but everyone hears the conversation in their own language. They're planning their next adventure, already.
+                  The trip ends, but the friendship doesn't. Using "Connect," the group chats from different countries. Aisha speaks Malay, Linh speaks Vietnamese, but everyone hears the conversation in their own language. They're planning their next adventure, already.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
-                   <Link href={syncOnlineLink}>See how Sync Online works <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                   <Link href={connectLink}>See how Connect works <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
         </div>

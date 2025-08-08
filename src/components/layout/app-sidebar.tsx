@@ -1,8 +1,7 @@
-
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, Wallet, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical } from 'lucide-react';
+import { BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -178,10 +177,34 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
-                  <Link href="/synchub" onClick={closeSidebar}>
-                    <Share2 />
-                    SyncHub
+                <SidebarMenuButton asChild isActive={pathname === '/learn'}>
+                  <Link href="/learn" onClick={closeSidebar}>
+                    <BookOpen />
+                    Learn
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/translator'}>
+                  <Link href="/translator" onClick={closeSidebar}>
+                    <Languages />
+                    Translator
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/converse'}>
+                  <Link href="/converse" onClick={closeSidebar}>
+                    <Mic />
+                    Converse
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/connect'}>
+                  <Link href="/connect" onClick={closeSidebar}>
+                    <RadioTower />
+                    Connect
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -247,11 +270,35 @@ export function AppSidebar() {
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
+                 <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/learn'}>
+                        <Link href="/learn" onClick={closeSidebar}>
+                            <BookOpen />
+                            Learn
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/synchub'}>
-                        <Link href="/synchub" onClick={closeSidebar}>
-                            <Share2 />
-                            SyncHub
+                    <SidebarMenuButton asChild isActive={pathname === '/translator'}>
+                        <Link href="/translator" onClick={closeSidebar}>
+                            <Languages />
+                            Translator
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/converse'}>
+                        <Link href="/converse" onClick={closeSidebar}>
+                            <Mic />
+                            Converse
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/connect'}>
+                        <Link href="/connect" onClick={closeSidebar}>
+                            <RadioTower />
+                            Connect
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>

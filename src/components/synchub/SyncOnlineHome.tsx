@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -847,6 +845,7 @@ export default function SyncOnlineHome() {
                         hasStarted: data.hasStarted,
                         reminderMinutes: data.reminderMinutes,
                         firstMessageAt: toISO(data.firstMessageAt),
+                        effectiveEndTime: toISO(data.effectiveEndTime),
                     };
                 })
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));

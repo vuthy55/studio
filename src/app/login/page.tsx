@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -57,7 +56,7 @@ function LoginPageContent() {
       if (redirectUrl) {
         router.push(redirectUrl);
       } else {
-        router.push('/synchub');
+        router.push('/learn');
       }
     }
   }, [user, authLoading, router, redirectUrl]);

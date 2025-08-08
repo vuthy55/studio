@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -142,7 +141,7 @@ export default function JoinRoomPage() {
                     description: `Your account is ready. Your room is scheduled for ${format(new Date(result.scheduledAt!), 'PPpp')}.`,
                     duration: 10000
                 });
-                router.push('/synchub');
+                router.push('/connect');
             }
             
         } catch (error: any) {
