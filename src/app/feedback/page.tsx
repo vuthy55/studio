@@ -83,7 +83,7 @@ function FeedbackForm() {
                 title: 'Feedback Sent!',
                 description: 'Thank you for your input. We have received your submission.',
             });
-            router.push('/synchub');
+            router.push('/connect');
         } else {
             throw new Error(result.error || 'An unknown error occurred.');
         }
