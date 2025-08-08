@@ -1,13 +1,14 @@
+
 "use client";
 
 import { Suspense, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle } from 'lucide-react';
-import LearnPageContent from '@/components/synchub/LearnPageContent';
 import { useUserData } from '@/context/UserDataContext';
 import { TourProvider } from '@/context/TourContext';
 import Tour from '@/components/tour/Tour';
+import LearnPageContent from '@/components/synchub/LearnPageContent';
 
 function LearnPageContainer() {
     const { user, loading: authLoading } = useUserData();
@@ -29,7 +30,7 @@ function LearnPageContainer() {
     
     return (
         <div className="space-y-8">
-            <MainHeader title="Learn" description="Prepare for your trip by learning essential phrases and practicing your pronunciation." />
+            <MainHeader title="Learn" description="Master essential phrases and translate on the fly." />
             <LearnPageContent />
         </div>
     );

@@ -185,14 +185,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/translator'}>
-                  <Link href="/translator" onClick={closeSidebar}>
-                    <Languages />
-                    Translator
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === '/converse'}>
                   <Link href="/converse" onClick={closeSidebar}>
                     <Mic />
@@ -275,14 +267,6 @@ export function AppSidebar() {
                         <Link href="/learn" onClick={closeSidebar}>
                             <BookOpen />
                             Learn
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/translator'}>
-                        <Link href="/translator" onClick={closeSidebar}>
-                            <Languages />
-                            Translator
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>

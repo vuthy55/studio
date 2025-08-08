@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -94,11 +93,11 @@ export default function MarketingRelease() {
             <CardTitle className="text-center text-3xl">Your Ultimate Travel Companion</CardTitle>
         </CardHeader>
         <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Link href={user ? "/synchub?tab=prep-vibe" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+            <Link href={user ? "/learn" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Share2 className="h-12 w-12 text-primary" />
-                    <h3 className="font-semibold text-lg">Prep Your Vibe</h3>
-                    <p className="text-sm text-muted-foreground">Master key phrases before you go. Earn free tokens just for practicing!</p>
+                    <h3 className="font-semibold text-lg">Learn & Translate</h3>
+                    <p className="text-sm text-muted-foreground">Master key phrases and get on-the-fly translations. Earn tokens for practicing!</p>
                 </div>
             </Link>
              <Link href={user ? "/profile?tab=buddies" : "/login"} className="block hover:scale-105 transition-transform duration-200">
@@ -108,21 +107,21 @@ export default function MarketingRelease() {
                     <p className="text-sm text-muted-foreground">Add friends and send your location to the group for extra peace of mind. A safety net, powered by your friends.</p>
                 </div>
             </Link>
-             <Link href={user ? "/synchub?tab=sync-live" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={user ? "/converse" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Mic className="h-12 w-12 text-primary" />
-                    <h3 className="font-semibold text-lg">Sync Live</h3>
+                    <h3 className="font-semibold text-lg">Converse</h3>
                     <p className="text-sm text-muted-foreground">Have a 1-on-1 chat with anyone. Speak in your language, and the app translates for you.</p>
                 </div>
             </Link>
-             <Link href={user ? "/synchub?tab=sync-online" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={user ? "/connect" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <RadioTower className="h-12 w-12 text-primary" />
-                    <h3 className="font-semibold text-lg">Sync Online</h3>
+                    <h3 className="font-semibold text-lg">Connect</h3>
                     <p className="text-sm text-muted-foreground">Create group chat rooms where everyone hears the conversation in their own language.</p>
                 </div>
             </Link>
-             <Link href={user ? "/synchub?tab=prep-vibe" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={user ? "/learn" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Award className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Earn As You Learn</h3>

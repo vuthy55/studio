@@ -12,10 +12,10 @@ import { useUserData } from '@/context/UserDataContext';
 export default function MarketingRelease3() {
   const { user } = useUserData();
   
-  const prepVibeLink = user ? "/synchub?tab=prep-vibe" : "/login";
-  const syncLiveLink = user ? "/synchub?tab=sync-live" : "/login";
-  const syncOnlineLink = user ? "/synchub?tab=sync-online" : "/login";
-  const adventureLink = user ? "/synchub" : "/login";
+  const learnLink = user ? "/learn" : "/login";
+  const converseLink = user ? "/converse" : "/login";
+  const connectLink = user ? "/connect" : "/login";
+  const adventureLink = user ? "/learn" : "/login";
 
   return (
     <div className="space-y-12 text-lg">
@@ -56,10 +56,10 @@ export default function MarketingRelease3() {
         <div className="space-y-4 md:order-1">
             <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
             <p className="text-muted-foreground">
-                Back at the hostel, Alex finds VibeSync. The "Prep Your Vibe" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
+                Back at the hostel, Alex finds VibeSync. The "Learn" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
             </p>
             <Button variant="link" asChild className="p-0 h-auto">
-                <Link href={prepVibeLink}>Try Prep Your Vibe <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                <Link href={learnLink}>Try the Learn feature <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
       </div>
@@ -68,10 +68,10 @@ export default function MarketingRelease3() {
         <div className="space-y-4">
             <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
             <p className="text-muted-foreground">
-                At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Sync Live," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
+                At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Converse," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Suddenly, they're not strangers anymore.
             </p>
             <Button variant="link" asChild className="p-0 h-auto">
-                 <Link href={syncLiveLink}>Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                 <Link href={converseLink}>Check out Converse <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
         <Image 
@@ -98,10 +98,10 @@ export default function MarketingRelease3() {
         <div className="space-y-4 md:order-1">
             <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
             <p className="text-muted-foreground">
-                The trip ends, but the friendship doesn't. Using "Sync Online," the group chats from different countries. Aisha speaks Malay, Linh speaks Vietnamese, but everyone hears the conversation in their own language. They're planning their next adventure, already.
+                The trip ends, but the friendship doesn't. Using "Connect," the group chats from different countries. Aisha speaks Malay, Linh speaks Vietnamese, but everyone hears the conversation in their own language. They're planning their next adventure, already.
             </p>
             <Button variant="link" asChild className="p-0 h-auto">
-                 <Link href={syncOnlineLink}>See how Sync Online works <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                 <Link href={connectLink}>See how Connect works <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
       </div>

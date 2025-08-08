@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -11,10 +10,10 @@ import { useUserData } from '@/context/UserDataContext';
 
 export default function MarketingRelease2() {
   const { user } = useUserData();
-  const prepVibeLink = user ? "/synchub?tab=prep-vibe" : "/login";
-  const syncLiveLink = user ? "/synchub?tab=sync-live" : "/login";
-  const syncOnlineLink = user ? "/synchub?tab=sync-online" : "/login";
-  const adventureLink = user ? "/synchub" : "/login";
+  const learnLink = user ? "/learn" : "/login";
+  const converseLink = user ? "/converse" : "/login";
+  const connectLink = user ? "/connect" : "/login";
+  const adventureLink = user ? "/learn" : "/login";
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto p-4 prose prose-sm prose-headings:font-bold prose-headings:text-primary prose-a:text-primary hover:prose-a:text-primary/80 prose-strong:text-foreground">
@@ -52,9 +51,9 @@ export default function MarketingRelease2() {
       </section>
 
       <section>
-        <h3>Step 1: The First Words with 'Prep Your Vibe'</h3>
+        <h3>Step 1: The First Words with 'Learn'</h3>
         <p>
-          Before leaving the café, Alex opened the <strong><Link href={prepVibeLink}>Prep Your Vibe</Link></strong> feature. They started with the 'Greetings' and 'Numbers' topics. Within minutes, they were practicing "Sues'day" (Hello) and learning to count. The app's pronunciation guide and practice tool were addictive. Even better, they earned a few extra tokens for mastering the phrases!
+          Before leaving the café, Alex opened the <strong><Link href={learnLink}>Learn</Link></strong> feature. They started with the 'Greetings' and 'Numbers' topics. Within minutes, they were practicing "Sues'day" (Hello) and learning to count. The app's pronunciation guide and practice tool were addictive. Even better, they earned a few extra tokens for mastering the phrases!
         </p>
       </section>
       
@@ -77,14 +76,14 @@ export default function MarketingRelease2() {
           Armed with newfound confidence, Alex arrived at their homestay. The owner greeted them with a warm smile. Alex took a deep breath and said, "Sues'day!" The owner's smile widened. A connection was made.
         </p>
         <p>
-          When it was time to pay, Alex used the <strong><Link href={syncLiveLink}>Live Translation</Link></strong> feature. They typed "How much for two nights?" and showed the Khmer translation to the owner. The owner pointed to a price. Alex, using the numbers they just learned, confirmed the payment in Khmer. It was a small victory, but it felt huge. Later, they used the same feature to ask, "Can you please book a tuk-tuk for Angkor Wat tomorrow?" The tuk-tuk was arranged in seconds. No confusion, no stress.
+          When it was time to pay, Alex used the <strong><Link href={learnLink}>Translator</Link></strong> feature within the Learn page. They typed "How much for two nights?" and showed the Khmer translation to the owner. The owner pointed to a price. Alex, using the numbers they just learned, confirmed the payment in Khmer. It was a small victory, but it felt huge. Later, they used the same feature to ask, "Can you please book a tuk-tuk for Angkor Wat tomorrow?" The tuk-tuk was arranged in seconds. No confusion, no stress.
         </p>
       </section>
       
       <figure className="not-prose">
         <Image 
             src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
-            alt="A group of diverse young travelers laughing together"
+            alt="A group of diverse young travelers laughing together at a landmark"
             width={800}
             height={400}
             className="rounded-lg shadow-xl object-cover aspect-[2/1] w-full"
@@ -95,9 +94,9 @@ export default function MarketingRelease2() {
       </figure>
 
       <section>
-        <h3>Step 3: From Solo to Social with 'Sync Live'</h3>
+        <h3>Step 3: From Solo to Social with 'Converse'</h3>
         <p>
-          At the temples, Alex met a group of fellow travelers—Aisha from Malaysia, Zoya from Egypt, and Linh from Vietnam. They were all trying to communicate with a mix of gestures and broken English. Seeing the struggle, Alex pulled out their phone and opened <strong><Link href={syncLiveLink}>Sync Live</Link></strong>.
+          At the temples, Alex met a group of fellow travelers—Aisha from Malaysia, Zoya from Egypt, and Linh from Vietnam. They were all trying to communicate with a mix of gestures and broken English. Seeing the struggle, Alex pulled out their phone and opened <strong><Link href={converseLink}>Converse</Link></strong>.
         </p>
         <p>
           They selected Malay, Arabic, and Vietnamese. "Hi, my name is Alex. Where are you all from?" they said into the phone. VibeSync spoke the sentence out loud in all three languages. The girls' eyes lit up. One by one, they answered, and Alex's phone translated back. The initial awkwardness melted away into laughter and shared stories. The language wall had crumbled.
@@ -105,9 +104,9 @@ export default function MarketingRelease2() {
       </section>
 
       <section>
-        <h3>Step 4: Keeping the Vibe Alive with 'Sync Online'</h3>
+        <h3>Step 4: Keeping the Vibe Alive with 'Connect'</h3>
         <p>
-          The group became inseparable for the rest of their time in Siem Reap. When they eventually had to part ways, they promised to keep in touch. This is where <strong><Link href={syncOnlineLink}>Sync Online</Link></strong> became their lifeline.
+          The group became inseparable for the rest of their time in Siem Reap. When they eventually had to part ways, they promised to keep in touch. This is where <strong><Link href={connectLink}>Connect</Link></strong> became their lifeline.
         </p>
         <p>
           Alex created a private chat room. Now, from their respective new locations—a beach in Thailand, a market in Hanoi, a cafe in Cairo—they could all talk. Aisha would speak in Malay, Linh in Vietnamese, and Zoya in Arabic, but everyone heard the conversation in their own native language. They weren't just sending texts; they were sharing real-time experiences, planning their next reunion. VibeSync had transformed a chance meeting into a lasting global friendship.
