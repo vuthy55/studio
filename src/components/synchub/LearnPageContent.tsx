@@ -7,7 +7,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, X, Languages as TranslateIcon, BookOpen as PhrasebookIcon } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, X, Languages as TranslateIcon, BookOpen as PhrasebookIcon, Trash2 } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
