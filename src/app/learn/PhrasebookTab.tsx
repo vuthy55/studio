@@ -75,7 +75,7 @@ const learnPageTourSteps: TourStep[] = [
 ];
 
 
-export default function PhrasebookTab() {
+const PhrasebookTab = memo(function PhrasebookTab() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
     const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks, loadSingleOfflinePack } = useUserData();
@@ -534,4 +534,6 @@ export default function PhrasebookTab() {
             </Card>
         </div>
     );
-}
+});
+
+export default PhrasebookTab;

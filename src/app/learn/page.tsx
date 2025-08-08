@@ -10,8 +10,8 @@ import PhrasebookTab from './PhrasebookTab';
 import TranslatorTab from './TranslatorTab';
 
 // Memoize components to prevent re-renders when switching tabs
-const MemoizedPhrasebookTab = memo(PhrasebookTab);
-const MemoizedTranslatorTab = memo(TranslatorTab);
+const MemoizedPhrasebookTab = PhrasebookTab;
+const MemoizedTranslatorTab = TranslatorTab;
 
 function LearnPageContent() {
     const searchParams = useSearchParams();

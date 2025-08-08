@@ -45,12 +45,12 @@ function ProfilePageContent() {
     }
 
     const profileTabs = [
-        { value: 'profile', label: 'Profile', icon: UserIcon },
-        { value: 'stats', label: 'Stats', icon: BarChart },
-        { value: 'buddies', label: 'Buddies', icon: Users },
-        { value: 'wallet', label: 'Token Wallet', icon: Wallet },
-        { value: 'billing', label: 'Payment History', icon: CreditCard },
-        { value: 'referrals', label: 'Referrals', icon: MessageSquareHeart }
+        { value: 'profile', label: 'Profile', icon: UserIcon, component: <ProfileSection /> },
+        { value: 'stats', label: 'Stats', icon: BarChart, component: <StatsTab /> },
+        { value: 'buddies', label: 'Buddies', icon: Users, component: <BuddiesSection /> },
+        { value: 'wallet', label: 'Token Wallet', icon: Wallet, component: <WalletTab /> },
+        { value: 'billing', label: 'Payment History', icon: CreditCard, component: <BillingTab /> },
+        { value: 'referrals', label: 'Referrals', icon: MessageSquareHeart, component: <ReferralsTab /> }
     ];
 
     return (
@@ -78,24 +78,12 @@ function ProfilePageContent() {
                     </TabsList>
                 </div>
                 
-                <TabsContent value="profile" className="mt-6">
-                    <ProfileSection />
-                </TabsContent>
-                <TabsContent value="stats" className="mt-6">
-                    <StatsTab />
-                </TabsContent>
-                <TabsContent value="buddies" className="mt-6">
-                    <BuddiesSection />
-                </TabsContent>
-                 <TabsContent value="wallet" className="mt-6">
-                    <WalletTab />
-                </TabsContent>
-                 <TabsContent value="billing" className="mt-6">
-                    <BillingTab />
-                </TabsContent>
-                <TabsContent value="referrals" className="mt-6">
-                    <ReferralsTab />
-                </TabsContent>
+                 {profileTabs.map((tab) => (
+                    <TabsContent key={tab.value} value={tab.value} className="mt-6">
+                        {/* Render the active tab's component */}
+                        {activeTab === tab.value && tab.component}
+                    </TabsContent>
+                ))}
             </Tabs>
         </div>
     );
