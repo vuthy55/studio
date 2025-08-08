@@ -119,10 +119,10 @@ export default function SettingsTab() {
                     <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><ImageIcon className="text-primary"/> Story Page Images</h3>
                     <Separator />
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                        {renderTextInput('storyPageImage1', 'Image 1 (Backpacker)', 'URL for the first image on the story page.')}
-                        {renderTextInput('storyPageImage2', 'Image 2 (Ordering Food)', 'URL for the second image on the story page.')}
-                        {renderTextInput('storyPageImage3', 'Image 3 (Diverse Friends)', 'URL for the third image on the story page.')}
-                        {renderTextInput('storyPageImage4', 'Image 4 (Friends with Phone)', 'URL for the fourth image on the story page.')}
+                        {renderTextInput('storyPageImage1', 'Image 1 (Backpacker)', 'URL for the first image. Recommended 3:2 ratio (e.g., 600x400).')}
+                        {renderTextInput('storyPageImage2', 'Image 2 (Ordering Food)', 'URL for the second image. Recommended 3:2 ratio (e.g., 600x400).')}
+                        {renderTextInput('storyPageImage3', 'Image 3 (Diverse Friends)', 'URL for the third image. Recommended 3:2 ratio (e.g., 600x400).')}
+                        {renderTextInput('storyPageImage4', 'Image 4 (Friends with Phone)', 'URL for the fourth image. Recommended 3:2 ratio (e.g., 600x400).')}
                      </div>
                  </div>
 
