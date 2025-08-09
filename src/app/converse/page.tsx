@@ -243,33 +243,7 @@ export default function ConversePage() {
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
                 
-                <Button
-                    size="lg"
-                    className={cn(
-                        "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
-                        status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
-                        status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-                        (status === 'idle') && 'bg-primary hover:bg-primary/90',
-                        status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
-                    )}
-                    onClick={startConversationTurn}
-                    disabled={status !== 'idle'}
-                    data-tour="sl-mic-button"
-                >
-                    {status === 'idle' && <Mic className="h-16 w-16"/>}
-                    {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
-                    {status === 'speaking' && <Volume2 className="h-20 w-20" />}
-                    {status === 'disabled' && <X className="h-16 w-16"/>}
-                </Button>
-
-                <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center" data-tour="sl-status-display">
-                    {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
-                    {status === 'listening' && <p className="font-semibold text-muted-foreground text-sm">Listening...</p>}
-                    {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
-                    {status === 'disabled' && <p className="font-semibold text-destructive text-sm">Session disabled due to insufficient tokens.</p>}
-                </div>
-                
-                 <div className="w-full space-y-4" data-tour="sl-languages">
+                <div className="w-full space-y-4" data-tour="sl-languages">
                     <Label className="flex items-center gap-2 font-semibold"><Languages className="h-5 w-5"/> Conversation Languages ({selectedLanguages.length}/4)</Label>
                     <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
                         {selectedLanguages.map(lang => (
@@ -297,6 +271,32 @@ export default function ConversePage() {
                     </div>
                 </div>
 
+                <Button
+                    size="lg"
+                    className={cn(
+                        "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
+                        status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
+                        status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
+                        (status === 'idle') && 'bg-primary hover:bg-primary/90',
+                        status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
+                    )}
+                    onClick={startConversationTurn}
+                    disabled={status !== 'idle'}
+                    data-tour="sl-mic-button"
+                >
+                    {status === 'idle' && <Mic className="h-16 w-16"/>}
+                    {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
+                    {status === 'speaking' && <Volume2 className="h-20 w-20" />}
+                    {status === 'disabled' && <X className="h-16 w-16"/>}
+                </Button>
+
+                <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center" data-tour="sl-status-display">
+                    {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
+                    {status === 'listening' && <p className="font-semibold text-muted-foreground text-sm">Listening...</p>}
+                    {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
+                    {status === 'disabled' && <p className="font-semibold text-destructive text-sm">Session disabled due to insufficient tokens.</p>}
+                </div>
+                
                 {user && settings && (
                     <Accordion type="single" collapsible className="w-full" data-tour="sl-usage-card">
                         <AccordionItem value="item-1">
