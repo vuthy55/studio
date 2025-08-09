@@ -177,7 +177,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
     )
 }
 
-interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt' | 'effectiveEndTime'> {
+interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt' | 'effectiveEndTime' | 'lastSessionEndedAt'> {
     id: string;
     topic: string;
     status: 'active' | 'closed' | 'scheduled';
@@ -186,6 +186,186 @@ interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivi
     scheduledAt?: string;
     firstMessageAt?: string;
     effectiveEndTime?: string;
+    lastSessionEndedAt?: string;
+}
+
+function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
+    const { user, userProfile, settings } = useUserData();
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Form State
+    const [roomTopic, setRoomTopic] = useState('');
+    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>(userProfile?.defaultLanguage || '');
+    const [inviteeEmails, setInviteeEmails] = useState('');
+    const [duration, setDuration] = useState(30);
+    const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+    const [startNow, setStartNow] = useState(false);
+    const [friends, setFriends] = useState<UserProfile[]>([]);
+
+    useEffect(() => {
+        if (userProfile?.friends && userProfile.friends.length > 0) {
+            const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
+            getDocs(friendsQuery).then(snapshot => {
+                const friendsDetails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+                setFriends(friendsDetails);
+            });
+        }
+    }, [userProfile?.friends]);
+
+    useEffect(() => {
+        const defaultDate = new Date();
+        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+        defaultDate.setSeconds(0);
+        defaultDate.setMilliseconds(0);
+        setScheduledDate(defaultDate);
+    }, []);
+    
+    const parsedInviteeEmails = useMemo(() => inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean), [inviteeEmails]);
+    const allInvitedEmailsForCalc = useMemo(() => [...new Set([user?.email, ...parsedInviteeEmails].filter(Boolean) as string[])], [parsedInviteeEmails, user?.email]);
+    
+    const calculatedCost = useMemo(() => {
+        if (!settings || !userProfile) return 0;
+        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const currentUsageMs = userProfile.syncOnlineUsage || 0;
+        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
+        const remainingFreeMinutes = Math.floor(remainingFreeMs / 60000);
+        const billableMinutes = Math.max(0, duration - remainingFreeMinutes);
+        return billableMinutes * (settings.costPerSyncOnlineMinute || 1) * allInvitedEmailsForCalc.length;
+    }, [settings, duration, allInvitedEmailsForCalc.length, userProfile]);
+
+     const toggleFriendInvite = (friend: UserProfile) => {
+        if (!friend.email) return;
+        const currentEmails = new Set(parsedInviteeEmails);
+        if (currentEmails.has(friend.email)) {
+            currentEmails.delete(friend.email);
+        } else {
+            currentEmails.add(friend.email);
+        }
+        setInviteeEmails(Array.from(currentEmails).join(', '));
+    };
+
+    const handleSubmitRoom = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email || !userProfile || !settings) return;
+        if (!roomTopic || !creatorLanguage || (!startNow && !scheduledDate)) {
+            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
+            return;
+        }
+
+        if ((userProfile.tokenBalance || 0) < calculatedCost) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const newRoomRef = doc(collection(db, 'syncRooms'));
+            const batch = writeBatch(db);
+            const userDocRef = doc(db, 'users', user.uid);
+            const finalScheduledDate = startNow ? new Date() : scheduledDate!;
+
+            const newRoom: Omit<SyncRoom, 'id'> = {
+                topic: roomTopic,
+                creatorUid: user.uid,
+                creatorName: user.displayName || user.email,
+                createdAt: serverTimestamp(),
+                status: startNow ? 'active' : 'scheduled',
+                invitedEmails: allInvitedEmailsForCalc,
+                emceeEmails: [user.email],
+                blockedUsers: [],
+                lastActivityAt: serverTimestamp(),
+                scheduledAt: Timestamp.fromDate(finalScheduledDate),
+                durationMinutes: duration,
+                initialCost: calculatedCost,
+                hasStarted: startNow,
+                reminderMinutes: settings.roomReminderMinutes,
+            };
+            batch.set(newRoomRef, newRoom);
+
+            if (calculatedCost > 0) {
+                batch.update(userDocRef, { tokenBalance: increment(-calculatedCost) });
+            }
+
+            await batch.commit();
+
+            if (parsedInviteeEmails.length > 0) {
+                await sendRoomInviteEmail({
+                    to: parsedInviteeEmails,
+                    roomTopic: roomTopic,
+                    fromName: user.displayName || 'A user',
+                    roomId: newRoomRef.id,
+                    scheduledAt: finalScheduledDate,
+                    joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
+                });
+            }
+            
+            toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
+            onRoomCreated();
+            setRoomTopic('');
+            setInviteeEmails('');
+
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not schedule the room.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button><PlusCircle className="mr-2 h-4 w-4"/>Schedule a Room</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                 <DialogHeader>
+                    <DialogTitle>Schedule a Sync Room</DialogTitle>
+                    <DialogDescription>Set the details for your meeting. The cost will be calculated and displayed below.</DialogDescription>
+                </DialogHeader>
+                 <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="topic">Room Topic</Label>
+                        <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="duration">Duration (minutes)</Label>
+                            <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                                <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                                <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                        {!startNow && (
+                            <div className="space-y-2">
+                                <Label>Date &amp; Time</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}</Button></PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} /></PopoverContent>
+                                </Popover>
+                            </div>
+                        )}
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                        <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                        <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                        <p className="text-xs text-muted-foreground">Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.</p>
+                        <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                    </div>
+                </form>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        {isSubmitting ? 'Scheduling...' : 'Confirm & Schedule'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 // --- Main Tab Component ---
@@ -205,45 +385,10 @@ export default function VoiceRoomsTab() {
         }
         setIsFetchingRooms(true);
         try {
-            const roomsRef = collection(db, 'syncRooms');
-            const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
-            const querySnapshot = await getDocs(q);
-            const roomsData: ClientSyncRoom[] = querySnapshot.docs
-                .map(docSnapshot => {
-                    const data = docSnapshot.data() as SyncRoom;
-                     const toISO = (ts: any): string => {
-                        if (!ts) return new Date(0).toISOString();
-                        if (ts instanceof Timestamp) return ts.toDate().toISOString();
-                        if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) return ts;
-                        if (ts && typeof ts.seconds === 'number') return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
-                        return new Date(0).toISOString();
-                    };
-
-                    return {
-                        id: docSnapshot.id,
-                        topic: data.topic,
-                        creatorUid: data.creatorUid,
-                        creatorName: data.creatorName,
-                        createdAt: toISO(data.createdAt),
-                        status: data.status,
-                        invitedEmails: data.invitedEmails,
-                        emceeEmails: data.emceeEmails,
-                        lastActivityAt: toISO(data.lastActivityAt),
-                        blockedUsers: data.blockedUsers,
-                        summary: data.summary,
-                        transcript: data.transcript,
-                        scheduledAt: toISO(data.scheduledAt),
-                        durationMinutes: data.durationMinutes,
-                        initialCost: data.initialCost,
-                        hasStarted: data.hasStarted,
-                        reminderMinutes: data.reminderMinutes,
-                        firstMessageAt: toISO(data.firstMessageAt),
-                        effectiveEndTime: toISO(data.effectiveEndTime),
-                    };
-                })
+            const roomsData = await getAllRooms();
+            const userRooms = roomsData.filter(room => room.invitedEmails.includes(user.email!))
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
-            
-            setInvitedRooms(roomsData);
+            setInvitedRooms(userRooms);
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
             toast({ variant: 'destructive', title: 'Could not fetch rooms' });
@@ -321,7 +466,7 @@ export default function VoiceRoomsTab() {
                                     )}
                                     
                                     {isCreator && (
-                                        <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                        <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                     )}
                                 </div>
                             </li>
@@ -337,8 +482,13 @@ export default function VoiceRoomsTab() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Your Voice Rooms</CardTitle>
-                <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Your Voice Rooms</CardTitle>
+                        <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                    </div>
+                    <ScheduleRoomDialog onRoomCreated={fetchInvitedRooms} />
+                </div>
             </CardHeader>
             <CardContent>
                 {isFetchingRooms ? (
@@ -359,4 +509,3 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
-
