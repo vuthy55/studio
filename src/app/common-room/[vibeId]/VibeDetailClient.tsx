@@ -1344,17 +1344,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                             }
                         }}
                     />
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button disabled={isSubmitting || !replyContent.trim()}><Send className="h-4 w-4"/></Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <div className="flex flex-col">
-                                <Button variant="ghost" onClick={() => handlePostReply(false)}>Send as Message</Button>
-                                {isCurrentUserHost && <><Separator /><Button variant="ghost" onClick={() => handlePostReply(true)}>Send as Announcement</Button></>}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                     <Button onClick={() => handlePostReply(false)} disabled={isSubmitting || !replyContent.trim()}>
+                        <Send className="h-4 w-4"/>
+                    </Button>
                 </div>
             </footer>
         </div>
