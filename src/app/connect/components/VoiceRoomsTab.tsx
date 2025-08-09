@@ -312,7 +312,8 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
                     <DialogTitle>Schedule a Voice Room</DialogTitle>
                     <DialogDescription>Set the details for your meeting. The cost will be calculated and displayed below.</DialogDescription>
                 </DialogHeader>
-                 <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4 py-4">
+                <ScrollArea className="max-h-[70vh]">
+                 <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4 py-4 px-1">
                     <div className="space-y-2">
                         <Label htmlFor="topic">Room Topic</Label>
                         <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -330,7 +331,48 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
                                 <Label>Date &amp; Time</Label>
                                 <Popover>
                                     <PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}</Button></PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} /></PopoverContent>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                        <div className="p-3 border-t border-border">
+                                            <div className="flex items-center gap-2">
+                                                <Select
+                                                    value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                    onValueChange={(value) => {
+                                                        setScheduledDate(d => {
+                                                            const newDate = d ? new Date(d) : new Date();
+                                                            newDate.setHours(parseInt(value));
+                                                            return newDate;
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    <SelectContent position="popper">
+                                                        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                            <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                :
+                                                <Select
+                                                        value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                    onValueChange={(value) => {
+                                                        setScheduledDate(d => {
+                                                            const newDate = d ? new Date(d) : new Date();
+                                                            newDate.setMinutes(parseInt(value));
+                                                            return newDate;
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    <SelectContent position="popper">
+                                                        {['00', '15', '30', '45'].map(minute => (
+                                                            <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    </PopoverContent>
                                 </Popover>
                             </div>
                         )}
@@ -345,6 +387,7 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
                         <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                     </div>
                 </form>
+                </ScrollArea>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
                     <Button type="submit" form="create-room-form" disabled={isSubmitting}>
