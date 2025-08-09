@@ -26,22 +26,17 @@ type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
 
 const syncLiveTourSteps: TourStep[] = [
   {
-    selector: '[data-tour="sl-mic-button"]',
-    content: "This is the main action button. Press it to speak, and the app will automatically detect the language you're speaking.",
-    position: 'top',
+    selector: '[data-tour="sl-languages"]',
+    content: "Step 1: Select a minimum of 2 and up to 4 languages to be translated.",
   },
   {
-    selector: '[data-tour="sl-status-display"]',
-    content: "This area shows you what's happening. The app will translate your speech into the other selected languages and play them out loud.",
+    selector: '[data-tour="sl-mic-button"]',
+    content: "Step 2: Click the mic and speak in any of the selected languages. Wait for the translation and audio output.",
     position: 'top',
-  },
-   {
-    selector: '[data-tour="sl-languages"]',
-    content: "Select up to 4 languages for the conversation. This tells the app which languages to listen for and translate to.",
   },
   {
     selector: '[data-tour="sl-usage-card"]',
-    content: "Keep an eye on your usage here. You have free minutes each month, and after that, usage will cost tokens from your balance.",
+    content: "Step 3: Click here to check your token and usage status.",
     position: 'top',
   },
 ];
@@ -232,12 +227,12 @@ export default function ConversePage() {
                     1-on-1 Conversation
                 </CardTitle>
                 <CardDescription>
-                    Select up to 4 languages to be translated. Tap the mic to talk in any of the selected languages; the system will recognize your spoken language. Your speech will be translated to the other selected language(s) and spoken aloud.
+                    Select up to 4 languages to be translated. Tap the mic to talk in any of the selected languages. The system will recognize your spoken language. Your speech will be translated to the other selected language(s) and spoken aloud.
                 </CardDescription>
                 <div className="flex flex-col items-center gap-4 text-center pt-4">
                     <Button onClick={() => startTour(syncLiveTourSteps)} size="lg">
                         <HelpCircle className="mr-2" />
-                        How does this work?
+                        Take a Tour
                     </Button>
                 </div>
             </CardHeader>
