@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -78,7 +77,7 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Start a New Chat (Vibe)</DialogTitle>
+                    <DialogTitle>Start a New Vibe</DialogTitle>
                     <DialogDescription>Create a new discussion topic for the community.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
@@ -108,7 +107,7 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
 }
 
 
-export default function ChatzTab() {
+export default function VibesTab() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
 
@@ -169,7 +168,7 @@ export default function ChatzTab() {
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <div>
-                        <CardTitle>Chatz</CardTitle>
+                        <CardTitle>Vibes</CardTitle>
                         <CardDescription>Join public discussions or check your private invites.</CardDescription>
                     </div>
                      <CreateVibeDialog onVibeCreated={fetchData}>
@@ -224,7 +223,7 @@ function VibeList({ vibes, title, searchTerm, setSearchTerm }: { vibes: ClientVi
             </div>
             {vibes.length === 0 ? (
                 <div className="text-muted-foreground text-sm text-center py-8">
-                    <p>{searchTerm ? 'No vibes match your search.' : 'No chats here. Why not start one?'}</p>
+                    <p>{searchTerm ? 'No vibes match your search.' : 'No vibes here. Why not start one?'}</p>
                 </div>
             ) : (
                  <div className="border rounded-lg">
