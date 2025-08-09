@@ -543,11 +543,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [posts]);
 
-    const handlePostReply = async (isAnnouncement: boolean) => {
+    const handlePostReply = async () => {
         if (!replyContent.trim() || !user || !user.displayName || !user.email) return;
         setIsSubmitting(true);
         try {
-            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email }, isAnnouncement ? 'host_announcement' : 'user_post');
+            await postReply(vibeId, replyContent, { uid: user.uid, name: user.displayName, email: user.email }, 'user_post');
             setReplyContent('');
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to post reply.' });
@@ -1340,11 +1340,11 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
-                                handlePostReply(false);
+                                handlePostReply();
                             }
                         }}
                     />
-                     <Button onClick={() => handlePostReply(false)} disabled={isSubmitting || !replyContent.trim()}>
+                     <Button onClick={handlePostReply} disabled={isSubmitting || !replyContent.trim()}>
                         <Send className="h-4 w-4"/>
                     </Button>
                 </div>
