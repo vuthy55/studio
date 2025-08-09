@@ -182,6 +182,8 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
     const { user, userProfile, settings } = useUserData();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+
 
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -293,6 +295,7 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
             onRoomCreated();
             setRoomTopic('');
             setInviteeEmails('');
+            setIsOpen(false);
 
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not schedule the room.' });
@@ -303,7 +306,7 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
 
 
     return (
-        <Dialog>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button><PlusCircle className="mr-2 h-4 w-4"/>Schedule a Voice Room</Button>
             </DialogTrigger>
@@ -332,46 +335,48 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
                                 <Popover>
                                     <PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}</Button></PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
-                                        <div className="p-3 border-t border-border">
-                                            <div className="flex items-center gap-2">
-                                                <Select
-                                                    value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
-                                                    onValueChange={(value) => {
-                                                        setScheduledDate(d => {
-                                                            const newDate = d ? new Date(d) : new Date();
-                                                            newDate.setHours(parseInt(value));
-                                                            return newDate;
-                                                        });
-                                                    }}
-                                                >
-                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                    <SelectContent position="popper">
-                                                        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
-                                                            <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                :
-                                                <Select
-                                                        value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
-                                                    onValueChange={(value) => {
-                                                        setScheduledDate(d => {
-                                                            const newDate = d ? new Date(d) : new Date();
-                                                            newDate.setMinutes(parseInt(value));
-                                                            return newDate;
-                                                        });
-                                                    }}
-                                                >
-                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                    <SelectContent position="popper">
-                                                        {['00', '15', '30', '45'].map(minute => (
-                                                            <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                        <ScrollArea className="h-96">
+                                            <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                            <div className="p-3 border-t border-border">
+                                                <div className="flex items-center gap-2">
+                                                    <Select
+                                                        value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                        onValueChange={(value) => {
+                                                            setScheduledDate(d => {
+                                                                const newDate = d ? new Date(d) : new Date();
+                                                                newDate.setHours(parseInt(value));
+                                                                return newDate;
+                                                            });
+                                                        }}
+                                                    >
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent position="popper">
+                                                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                                <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    :
+                                                    <Select
+                                                            value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                        onValueChange={(value) => {
+                                                            setScheduledDate(d => {
+                                                                const newDate = d ? new Date(d) : new Date();
+                                                                newDate.setMinutes(parseInt(value));
+                                                                return newDate;
+                                                            });
+                                                        }}
+                                                    >
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent position="popper">
+                                                            {['00', '15', '30', '45'].map(minute => (
+                                                                <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
                                             </div>
-                                        </div>
+                                        </ScrollArea>
                                     </PopoverContent>
                                 </Popover>
                             </div>
@@ -541,3 +546,5 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
+
+    
