@@ -268,7 +268,7 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
                 durationMinutes: duration,
                 initialCost: calculatedCost,
                 hasStarted: startNow,
-                reminderMinutes: settings.roomReminderMinutes,
+                reminderMinutes: settings.roomReminderMinutes
             };
             batch.set(newRoomRef, newRoom);
 
@@ -305,9 +305,9 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4"/>Schedule a Room</Button>
+                <Button><PlusCircle className="mr-2 h-4 w-4"/>Schedule a Voice Room</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="sm:max-w-md">
                  <DialogHeader>
                     <DialogTitle>Schedule a Voice Room</DialogTitle>
                     <DialogDescription>Set the details for your meeting. The cost will be calculated and displayed below.</DialogDescription>
@@ -317,7 +317,7 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
                         <Label htmlFor="topic">Room Topic</Label>
                         <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="duration">Duration (minutes)</Label>
                             <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
@@ -471,7 +471,7 @@ export default function VoiceRoomsTab() {
     return (
         <Card>
             <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div>
                         <CardTitle>Your Voice Rooms</CardTitle>
                         <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
