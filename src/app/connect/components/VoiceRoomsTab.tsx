@@ -146,7 +146,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
                     <DialogTitle>Manage Room: {room.topic}</DialogTitle>
                 </DialogHeader>
                  <div className="py-4 space-y-4">
-                    <p className="text-sm text-muted-foreground">This room is scheduled. You can cancel and delete it, which will notify participants.</p>
+                    <p className="text-sm text-muted-foreground">This action will reconcile any costs and permanently delete the room. This cannot be undone.</p>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={isActionLoading}>
@@ -157,6 +157,13 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete the room and notify invited participants.
+                                    {(room.initialCost ?? 0) > 0 && 
+                                        <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
+                                    }
+                                    This action cannot be undone.
+                                </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Go Back</AlertDialogCancel>
@@ -617,7 +624,7 @@ export default function VoiceRoomsTab() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour([])} size="lg">
+                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg">
                             <HelpCircle className="mr-2" />
                             Take a Tour
                         </Button>
@@ -879,5 +886,3 @@ export default function VoiceRoomsTab() {
         </div>
     );
 }
-
-    
