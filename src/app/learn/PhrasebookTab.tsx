@@ -283,7 +283,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                 <div data-tour="language-pack-manager">
                     <OfflineManager />
                 </div>
-                <Button onClick={() => startTour(learnPageTourSteps)} variant="outline">
+                <Button onClick={() => startTour(learnPageTourSteps)} variant="outline" className="h-auto py-2 px-3">
                     <HelpCircle className="h-4 w-4 md:mr-2" />
                     <span className="hidden md:inline">Take a Tour</span>
                 </Button>
@@ -342,10 +342,10 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                 
                     <div className="space-y-4 pt-6">
                         <div className="space-y-2">
-                            <div className="flex items-center gap-2" data-tour="topic-selector">
+                            <div className="flex items-center gap-2">
                                 <Label>Select a Topic</Label>
                             </div>
-                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1">
+                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1" data-tour="topic-selector">
                                 {phrasebook.map((topic) => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                     <Tooltip>
