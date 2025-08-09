@@ -54,6 +54,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sendRoomInviteEmail } from '@/actions/email';
 import { db, auth } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp, writeBatch, doc, serverTimestamp, increment } from 'firebase/firestore';
+import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 
 
 // --- Re-usable Dialog Components ---
@@ -175,18 +176,6 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
             </DialogContent>
         </Dialog>
     )
-}
-
-interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt' | 'effectiveEndTime' | 'lastSessionEndedAt'> {
-    id: string;
-    topic: string;
-    status: 'active' | 'closed' | 'scheduled';
-    createdAt?: string; 
-    lastActivityAt?: string;
-    scheduledAt?: string;
-    firstMessageAt?: string;
-    effectiveEndTime?: string;
-    lastSessionEndedAt?: string;
 }
 
 function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
