@@ -68,38 +68,19 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
   try {
     const batch = db.batch();
     for (const roomId of roomIds) {
-        const roomRef = db.collection('syncRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
         
-        // --- Refund Logic ---
-        if (roomDoc.exists) {
-            const roomData = roomDoc.data() as SyncRoom;
-            // A refund is needed if there was a cost AND the room was never started.
-            const needsRefund = (roomData.initialCost ?? 0) > 0 && !roomData.firstMessageAt;
-
-            if (needsRefund) {
-                const userRef = db.collection('users').doc(roomData.creatorUid);
-                
-                // 1. Refund tokens to the user
-                batch.update(userRef, { tokenBalance: FieldValue.increment(roomData.initialCost!) });
-
-                // 2. Log the refund transaction
-                const logRef = userRef.collection('transactionLogs').doc();
-                batch.set(logRef, {
-                    actionType: 'sync_online_refund',
-                    tokenChange: roomData.initialCost,
-                    timestamp: FieldValue.serverTimestamp(),
-                    description: `Refund for canceled room: "${roomData.topic}"`
-                });
-            }
-        }
-        // --- End Refund Logic ---
+        // --- Full Reconciliation Logic ---
+        // This ensures any active or ended room has its cost correctly calculated
+        // and tokens refunded/charged before deletion.
+        await endAndReconcileRoom(roomId);
+        // --- End Reconciliation Logic ---
 
         // Delete subcollections first
         await deleteCollection(`syncRooms/${roomId}/participants`, 50);
         await deleteCollection(`syncRooms/${roomId}/messages`, 50);
 
         // Then delete the main room document
+        const roomRef = db.collection('syncRooms').doc(roomId);
         batch.delete(roomRef);
     }
     await batch.commit();
@@ -603,3 +584,6 @@ export async function createPrivateSyncOnlineRoom(payload: CreatePrivateSyncOnli
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
+
+
+    
