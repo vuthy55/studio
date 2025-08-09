@@ -36,19 +36,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '../ui/checkbox';
-import { Separator } from '../ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { languages } from '@/lib/data';
 import { translateSummary } from '@/ai/flows/translate-summary-flow';
 import { useUserData } from '@/context/UserDataContext';
-import { Calendar } from '../ui/calendar';
+import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import BuyTokens from '../BuyTokens';
+import BuyTokens from '@/components/BuyTokens';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sendRoomInviteEmail } from '@/actions/email';
 import { db, auth } from '@/lib/firebase';
@@ -608,7 +608,7 @@ export default function VoiceRoomsTab() {
                                     
                                     {isCreator && (
                                         <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                         </div>
                                     )}
                                 </div>
@@ -784,7 +784,7 @@ export default function VoiceRoomsTab() {
                                             <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
                                             <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
                                         </div>
-                                        {friends.length > 0 && (
+                                         {friends.length > 0 && (
                                             <div className="space-y-2">
                                                 <Label>Or Select Friends</Label>
                                                 <ScrollArea className="max-h-32 border rounded-md">
