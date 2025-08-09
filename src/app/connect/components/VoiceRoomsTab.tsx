@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle } from 'lucide-react';
 import type { SyncRoom, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,14 +57,7 @@ import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { useTour, TourStep } from '@/context/TourContext';
 
 
-// --- Re-usable Dialog Components ---
-// Note: These are simplified versions from the old SyncOnlineHome, as some features like
-// tour steps are not needed in this refactored component.
-
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-    // ... (This component remains large but is self-contained. For brevity, its full code is omitted,
-    // but it would be the same as the one from the original SyncOnlineHome.tsx)
-    // The key is that it's now used within this tab instead of being part of a monolithic page.
      const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
@@ -126,7 +119,6 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
 }
 
 function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-    // ... (This component also remains self-contained and is the same as the original)
      const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -179,8 +171,6 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
 }
 
 
-// --- Main Tab Component ---
-
 export default function VoiceRoomsTab() {
     const { user, userProfile, loading } = useUserData();
     const router = useRouter();
@@ -229,7 +219,6 @@ export default function VoiceRoomsTab() {
         }
     }, [activeMainTab, fetchFriends]);
 
-    // Defer date initialization to client-side to avoid hydration mismatch
     useEffect(() => {
         if (activeMainTab !== 'schedule') return;
         if (!isEditMode) {
@@ -358,11 +347,6 @@ export default function VoiceRoomsTab() {
         setActiveMainTab('schedule');
     };
     
-    const handleOpenScheduleTab = () => {
-        setEditingRoom(null);
-        setActiveMainTab('schedule');
-    }
-
     const handleSubmitRoom = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !user.email || !userProfile || !settings) {
@@ -643,8 +627,8 @@ export default function VoiceRoomsTab() {
 
             <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule" data-tour="so-schedule-button">Schedule a Room</TabsTrigger>
+                    <TabsTrigger value="your-rooms">Your Voice Rooms</TabsTrigger>
+                    <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Voice Room</TabsTrigger>
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">
                     {user && (
@@ -687,7 +671,7 @@ export default function VoiceRoomsTab() {
                         <CardContent>
                             <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
                                 <ScrollArea className="max-h-[60vh] p-1">
-                                    <div className="space-y-4 pr-4">
+                                    <div className="space-y-6 pr-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="topic">Room Topic</Label>
                                             <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -890,3 +874,5 @@ export default function VoiceRoomsTab() {
         </div>
     );
 }
+
+    
