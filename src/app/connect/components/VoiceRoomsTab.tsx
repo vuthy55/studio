@@ -669,7 +669,7 @@ export default function VoiceRoomsTab() {
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                            <form id="create-room-form" onSubmit={handleSubmitRoom}>
                                 <ScrollArea className="max-h-[60vh] p-1">
                                     <div className="space-y-6 pr-4">
                                         <div className="space-y-2">
@@ -874,5 +874,3 @@ export default function VoiceRoomsTab() {
         </div>
     );
 }
-
-    
