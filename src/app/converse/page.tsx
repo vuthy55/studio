@@ -232,7 +232,7 @@ export default function ConversePage() {
                     1-on-1 Conversation
                 </CardTitle>
                 <CardDescription>
-                    Select Up to 4 languages to be translated, tap the mic to talk in any of the selected languages. the system will recognise your spoken language. your speech will be translated to the selected language(s) and spoken aloud.
+                    Select up to 4 languages to be translated. Tap the mic to talk in any of the selected languages; the system will recognize your spoken language. Your speech will be translated to the other selected language(s) and spoken aloud.
                 </CardDescription>
                 <div className="flex flex-col items-center gap-4 text-center pt-4">
                     <Button onClick={() => startTour(syncLiveTourSteps)} size="lg">
