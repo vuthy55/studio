@@ -442,7 +442,8 @@ export default function SyncRoomPage() {
 
     // This hook now only handles the visual session timer, and runs for everyone.
     useEffect(() => {
-        if (roomData?.firstMessageAt) {
+        // Run the timer only if the room has started and the session hasn't ended.
+        if (roomData?.firstMessageAt && !roomData.lastSessionEndedAt) {
             const startTime = (roomData.firstMessageAt as Timestamp).toDate().getTime();
 
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -461,8 +462,13 @@ export default function SyncRoomPage() {
             return () => {
                 if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
             };
+        } else {
+            // If the session has ended, stop the timer.
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
         }
-    }, [roomData?.firstMessageAt]);
+    }, [roomData?.firstMessageAt, roomData?.lastSessionEndedAt]);
 
     // Centralized, dynamic reminder logic
     useEffect(() => {
@@ -625,6 +631,46 @@ export default function SyncRoomPage() {
     }, [user, authLoading, roomData, roomLoading, router, roomId, checkParticipationAndInitialize]);
     
     
+    useEffect(() => {
+        if (!user || isParticipant !== 'yes' || isExiting.current) return;
+
+        const amIStillHere = participants.some(p => p.uid === user.uid);
+        
+        if (!amIStillHere) {
+            toast({
+                variant: 'destructive',
+                title: 'You were removed',
+                description: 'An emcee has removed you from the room.',
+                duration: 5000,
+            });
+            handleManualExit();
+        }
+    }, [participants, isParticipant, user, toast, handleManualExit]);
+
+    useEffect(() => {
+        if (!roomData || !user || isExiting.current) return;
+
+        if (roomData.status === 'closed') {
+            if (!isExiting.current) {
+                toast({
+                    title: 'Meeting Ended',
+                    description: 'This room has been closed by the emcee.',
+                    duration: 5000,
+                });
+                handleManualExit();
+            }
+        }
+        if (roomData.blockedUsers?.some((bu: BlockedUser) => bu.uid === user.uid)) {
+            toast({
+                variant: 'destructive',
+                title: 'Access Denied',
+                description: 'You have been blocked from this room.',
+                duration: 5000
+            });
+            handleManualExit();
+        }
+    }, [roomData, user, toast, handleManualExit]);
+
     useEffect(() => {
         if (!user || isParticipant !== 'yes' || isExiting.current) return;
 
