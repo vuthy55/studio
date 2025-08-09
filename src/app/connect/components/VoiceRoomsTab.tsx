@@ -307,9 +307,9 @@ function ScheduleRoomDialog({ onRoomCreated }: { onRoomCreated: () => void }) {
             <DialogTrigger asChild>
                 <Button><PlusCircle className="mr-2 h-4 w-4"/>Schedule a Room</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-md">
                  <DialogHeader>
-                    <DialogTitle>Schedule a Sync Room</DialogTitle>
+                    <DialogTitle>Schedule a Voice Room</DialogTitle>
                     <DialogDescription>Set the details for your meeting. The cost will be calculated and displayed below.</DialogDescription>
                 </DialogHeader>
                  <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4 py-4">
@@ -434,7 +434,7 @@ export default function VoiceRoomsTab() {
                                     <p className="font-semibold">{room.topic}</p>
                                     <p className="text-sm text-muted-foreground">
                                         {room.status === 'scheduled' && room.scheduledAt 
-                                            ? format(new Date(room.scheduledAt), 'PPp')
+                                            ? format(new Date(room.scheduledAt), 'PPpp')
                                             : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
                                         }
                                     </p>
