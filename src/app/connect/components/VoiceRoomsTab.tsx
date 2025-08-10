@@ -122,6 +122,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
      const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [user] = useAuthState(auth);
 
     const handlePermanentDelete = async () => {
         setIsActionLoading(true);
@@ -181,11 +182,12 @@ const syncOnlineTourSteps: TourStep[] = [
   {
     selector: '[data-tour="so-schedule-button"]',
     content: "Click here to schedule a new Voice Room. If you choose 'Start Now', you'll proceed to the room immediately. For scheduled rooms, you can generally enter a few minutes before the start time. Voice Rooms are pre-paid based on duration and participant count. The session ends when the host chooses or when the last person leaves, at which point the final token cost is reconciled.",
+    position: 'bottom'
   },
   {
     selector: '[data-tour="so-room-list"]',
     content: "This is the main list of all your active, scheduled, and closed rooms. You can join rooms that are active or view summaries for rooms that have finished.",
-    position: 'top'
+    position: 'bottom'
   },
 ];
 
@@ -646,8 +648,8 @@ export default function VoiceRoomsTab() {
 
             <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="your-rooms">Your Voice Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Voice Room</TabsTrigger>
+                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
+                    <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">
                     {user && (
