@@ -543,7 +543,7 @@ export default function VoiceRoomsTab() {
                 acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
-            } else if (room.summary) { // The original bug is here
+            } else if (room.status === 'closed') {
                 acc.closed.push(room);
             }
             return acc;
@@ -686,10 +686,10 @@ export default function VoiceRoomsTab() {
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                    <Button onClick={() => startTour(syncOnlineTourSteps)} variant="ghost" size="icon">
-                        <HelpCircle className="h-5 w-5" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <CardTitle>Voice Rooms</CardTitle>
+                        <VoiceRoomsInfoDialog />
+                    </div>
                 </div>
                 <CardDescription>
                     Schedule a private room and invite others for a real-time, multi-language voice conversation.
