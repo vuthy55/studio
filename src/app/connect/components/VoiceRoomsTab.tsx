@@ -556,7 +556,7 @@ export default function VoiceRoomsTab() {
                 acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
-            } else if (room.status === 'closed' && room.summary) {
+            } else if (room.status === 'closed') {
                 acc.closed.push(room);
             }
             return acc;
@@ -681,6 +681,7 @@ export default function VoiceRoomsTab() {
             )}
         </div>
     );
+    
     return (
         <Card>
             <CardHeader>

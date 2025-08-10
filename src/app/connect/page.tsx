@@ -38,7 +38,7 @@ function ConnectPageContent() {
                 </TabsList>
                  <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
                     {tabsConfig.map((tab) => (
-                        <TabsContent key={tab.value} value={tab.value}>
+                        <TabsContent key={tab.value} value={tab.value} className="mt-6">
                             {tab.component}
                         </TabsContent>
                     ))}

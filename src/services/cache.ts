@@ -9,6 +9,7 @@ const DB_NAME = 'VibeSyncCacheDB';
 const STORE_NAME = 'common-room-cache';
 const DB_VERSION = 1;
 const CACHE_KEY = 'main';
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface CommonRoomCache {
     version: number;
@@ -31,24 +32,28 @@ async function getDb(): Promise<IDBPDatabase> {
 }
 
 /**
- * Retrieves cached Common Room data from IndexedDB, checking for version compatibility.
- * @returns {Promise<CommonRoomCache | null>} The cached data or null if not found or outdated.
+ * Retrieves cached Common Room data from IndexedDB, checking for version and timestamp.
+ * @returns {Promise<CommonRoomCache | null>} The cached data or null if not found, outdated, or expired.
  */
 export async function getCommonRoomCache(): Promise<CommonRoomCache | null> {
     try {
         const db = await getDb();
         const cachedData = await db.get(STORE_NAME, CACHE_KEY);
 
-        if (cachedData && cachedData.version === DB_VERSION) {
-            return cachedData;
-        }
-        
-        // If data is missing or version is mismatched, clear it and return null
         if (cachedData) {
-            console.warn(`Cache version mismatch. Expected ${DB_VERSION}, found ${cachedData.version}. Clearing cache.`);
+            const isVersionMatch = cachedData.version === DB_VERSION;
+            const isNotExpired = (Date.now() - cachedData.timestamp) < CACHE_DURATION_MS;
+
+            if (isVersionMatch && isNotExpired) {
+                return cachedData;
+            }
+            
+            // If data is outdated or version is mismatched, clear it and return null
+            if (!isVersionMatch) console.warn(`Cache version mismatch. Expected ${DB_VERSION}, found ${cachedData.version}. Clearing cache.`);
+            if (!isNotExpired) console.log("Cache expired. Fetching fresh data.");
             await db.delete(STORE_NAME, CACHE_KEY);
         }
-
+        
         return null;
 
     } catch (error) {
