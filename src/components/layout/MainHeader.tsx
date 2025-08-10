@@ -17,9 +17,10 @@ interface MainHeaderProps {
     title: string;
     description: string;
     children?: React.ReactNode;
+    titleIcon?: React.ReactNode;
 }
 
-export default function MainHeader({ title, description, children }: MainHeaderProps) {
+export default function MainHeader({ title, description, children, titleIcon }: MainHeaderProps) {
     const { user, userProfile } = useUserData();
     const [isClient, setIsClient] = useState(false);
 
@@ -32,7 +33,10 @@ export default function MainHeader({ title, description, children }: MainHeaderP
             <div className="flex items-center gap-4">
                 <SidebarTrigger />
                 <div>
-                    <h1 className="text-3xl font-bold font-headline">{title}</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-3xl font-bold font-headline">{title}</h1>
+                        {titleIcon}
+                    </div>
                     <p className="text-muted-foreground">{description}</p>
                 </div>
             </div>

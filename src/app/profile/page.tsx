@@ -120,9 +120,11 @@ function ProfilePageContent() {
 
     return (
         <div className="space-y-8">
-            <MainHeader title="My Profile" description="Manage settings and track your history.">
-                <ProfileInfoDialog />
-            </MainHeader>
+            <MainHeader 
+                title="My Profile" 
+                description="Manage settings and track your history."
+                titleIcon={<ProfileInfoDialog />}
+            />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <div className="grid w-full grid-cols-6">
