@@ -631,15 +631,19 @@ export async function getTranscriptAction(roomId: string, userId: string): Promi
     const roomRef = db.collection('syncRooms').doc(roomId);
 
     try {
-        // Run as transaction to ensure user has balance before proceeding
         const transcript = await db.runTransaction(async (transaction) => {
+            // --- READS FIRST ---
             const userDoc = await transaction.get(userRef);
+            const messagesQuery = roomRef.collection('messages').orderBy('createdAt', 'asc');
+            const messagesSnapshot = await transaction.get(messagesQuery);
+
+            // --- VALIDATION ---
             if (!userDoc.exists) throw new Error('User not found.');
             
             const userBalance = userDoc.data()?.tokenBalance || 0;
             if (userBalance < cost) throw new Error('Insufficient tokens for a transcript.');
             
-            // Deduct cost and log transaction
+            // --- WRITES LAST ---
             transaction.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
             const logRef = userRef.collection('transactionLogs').doc();
             transaction.set(logRef, {
@@ -650,10 +654,7 @@ export async function getTranscriptAction(roomId: string, userId: string): Promi
                 reason: 'Transcript Download'
             });
 
-            // Fetch messages AFTER transaction logic is set
-            const messagesQuery = roomRef.collection('messages').orderBy('createdAt', 'asc');
-            const messagesSnapshot = await transaction.get(messagesQuery);
-            
+            // --- PROCESS & RETURN ---
             const formattedMessages = messagesSnapshot.docs.map(doc => {
                 const msg = doc.data() as RoomMessage;
                 const time = (msg.createdAt as Timestamp)?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '00:00:00';
