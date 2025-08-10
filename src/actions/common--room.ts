@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getDocs } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 
