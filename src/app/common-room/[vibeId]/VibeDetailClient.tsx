@@ -619,7 +619,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         return isCurrentUserHost;
     }, [vibeData, user, isCurrentUserHost]);
 
-    const handleHostToggle = async (targetEmail: string, shouldBeHost: boolean) => {
+    const handleHostToggle = useCallback(async (targetEmail: string, shouldBeHost: boolean) => {
         if (!isCurrentUserHost) {
             toast({ variant: 'destructive', title: 'Permission Denied', description: 'Only hosts can manage other hosts.' });
             return;
@@ -631,9 +631,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not update host status.' });
         }
-    };
+    }, [isCurrentUserHost, vibeId, toast]);
     
-     const handleRemoveUser = async (userToRemove: { uid: string, email: string, name: string }) => {
+     const handleRemoveUser = useCallback(async (userToRemove: { uid: string, email: string, name: string }) => {
         if (!isCurrentUserHost) return;
         const result = await removeParticipantFromVibe(vibeId, userToRemove);
          if (result.success) {
@@ -641,9 +641,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not remove user.' });
         }
-    };
+    }, [isCurrentUserHost, vibeId, toast]);
     
-    const handleLeaveVibe = async () => {
+    const handleLeaveVibe = useCallback(async () => {
         if (!user || !user.email) return;
         const result = await leaveVibe(vibeId, user.email);
         if (result.success) {
@@ -652,24 +652,24 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not leave the Vibe.' });
         }
-    };
+    }, [user, vibeId, router, toast]);
 
-    const handleCopyInviteLink = (email: string) => {
+    const handleCopyInviteLink = useCallback((email: string) => {
         if (!user) return;
         const joinUrl = `${window.location.origin}/join-vibe/${vibeId}?ref=${user.uid}`;
         navigator.clipboard.writeText(joinUrl);
         toast({ title: 'Link Copied!', description: `Invite link for ${email} is on your clipboard.` });
-    };
+    }, [user, vibeId, toast]);
     
-    const handleRsvp = async (partyId: string, isRsvping: boolean) => {
+    const handleRsvp = useCallback(async (partyId: string, isRsvping: boolean) => {
         if (!user) return;
         const result = await rsvpToMeetup(vibeId, partyId, user.uid, isRsvping);
         if(!result.success) {
             toast({variant: 'destructive', title: 'Error', description: 'Could not update your RSVP status.'});
         }
-    }
+    }, [user, vibeId, toast]);
     
-    const handleUnblockUser = async (userToUnblock: BlockedUser) => {
+    const handleUnblockUser = useCallback(async (userToUnblock: BlockedUser) => {
         if (!user?.email) return;
         const result = await unblockParticipantFromVibe(vibeId, user.email, userToUnblock);
         if (result.success) {
@@ -677,9 +677,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
              toast({ variant: "destructive", title: "Error", description: result.error || "Could not unblock user." });
         }
-    }
+    }, [user, vibeId, toast]);
     
-    const handleSendFriendRequest = async (recipient: { email: string; name: string }) => {
+    const handleSendFriendRequest = useCallback(async (recipient: { email: string; name: string }) => {
         if (!user || !user.displayName || !user.email) {
             toast({ variant: 'destructive', title: 'Login required', description: 'You must be logged in to send friend requests.' });
             return;
@@ -690,9 +690,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not send friend request.' });
         }
-    };
+    }, [user, toast]);
 
-    const handleInitiateTranslation = async (post: VibePost) => {
+    const handleInitiateTranslation = useCallback(async (post: VibePost) => {
         if (!user || !userProfile?.defaultLanguage || !settings) return;
         if (translatedPosts[post.id] || isTranslatingPost) return;
 
@@ -717,9 +717,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } finally {
             setIsTranslatingPost(null);
         }
-    }
+    }, [user, userProfile, settings, vibeId, isTranslatingPost, translatedPosts, toast]);
     
-    const handleDeleteVibe = async () => {
+    const handleDeleteVibe = useCallback(async () => {
         if (!user) return;
 
         vibeUnsubscribeRef.current?.();
@@ -733,9 +733,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-    };
+    }, [user, vibeId, router, toast]);
     
-    const handleDeletePost = async (postId: string) => {
+    const handleDeletePost = useCallback(async (postId: string) => {
         if (!user) return;
 
         postsUnsubscribeRef.current?.();
@@ -753,9 +753,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-    };
+    }, [user, vibeId, toast]);
 
-    const handlePinPost = async (postId: string) => {
+    const handlePinPost = useCallback(async (postId: string) => {
         if (!isCurrentUserHost) return;
         const isCurrentlyPinned = vibeData?.pinnedPostId === postId;
         const result = await pinPost(vibeId, isCurrentlyPinned ? null : postId);
@@ -764,9 +764,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-    };
+    }, [isCurrentUserHost, vibeData, vibeId, toast]);
     
-    const handleRunAII = async () => {
+    const handleRunAII = useCallback(async () => {
         if (!isModeratorView || !vibeData || !settings) return;
         setIsInvestigating(true);
         setAiiResult(null);
@@ -780,9 +780,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } finally {
             setIsInvestigating(false);
         }
-    };
+    }, [isModeratorView, vibeData, settings, posts, toast]);
 
-    const handleResolveReport = async (resolution: 'dismiss' | 'archive') => {
+    const handleResolveReport = useCallback(async (resolution: 'dismiss' | 'archive') => {
         if (!isModeratorView || !reportId || !vibeData) return;
         setIsModerationActionLoading(true);
         try {
@@ -798,9 +798,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } finally {
             setIsModerationActionLoading(false);
         }
-    };
+    }, [isModeratorView, reportId, vibeData, vibeId, router, toast]);
 
-    const handleStartChat = async (targetUser: { uid: string, name: string, email: string }) => {
+    const handleStartChat = useCallback(async (targetUser: { uid: string, name: string, email: string }) => {
         if (!user || !user.email || !user.displayName) return;
         const result = await createPrivateVibe({
             userA: { uid: user.uid, name: user.displayName, email: user.email },
@@ -812,9 +812,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not start private chat.' });
         }
-    };
+    }, [user, router, toast]);
 
-    const handleStartCall = async (targetUser: { uid: string, name: string, email: string }) => {
+    const handleStartCall = useCallback(async (targetUser: { uid: string, name: string, email: string }) => {
         if (!user || !user.email || !user.displayName) return;
 
         const result = await createPrivateSyncOnlineRoom({
@@ -827,7 +827,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         } else {
             toast({ variant: 'destructive', title: 'Call Failed', description: result.error || 'Could not start voice call.' });
         }
-    };
+    }, [user, userProfile, router, toast]);
 
     const PinnedPost = useMemo(() => {
         if (!vibeData?.pinnedPostId || posts.length === 0) return null;
