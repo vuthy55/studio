@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, Info } from 'lucide-react';
 import type { SyncRoom, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -543,7 +543,7 @@ export default function VoiceRoomsTab() {
                 acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
-            } else if (room.status === 'closed') {
+            } else if (room.summary) { // The original bug is here
                 acc.closed.push(room);
             }
             return acc;
@@ -591,8 +591,7 @@ export default function VoiceRoomsTab() {
     };
 
 
-    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => {
-         return (
+    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
@@ -682,16 +681,15 @@ export default function VoiceRoomsTab() {
                 <p className="text-muted-foreground text-center py-4">No rooms in this category.</p>
             )}
         </div>
-         );
-    }
+    );
     return (
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <CardTitle>Voice Rooms</CardTitle>
-                        <VoiceRoomsInfoDialog />
-                    </div>
+                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
+                    <Button onClick={() => startTour(syncOnlineTourSteps)} variant="ghost" size="icon">
+                        <HelpCircle className="h-5 w-5" />
+                    </Button>
                 </div>
                 <CardDescription>
                     Schedule a private room and invite others for a real-time, multi-language voice conversation.
@@ -946,5 +944,3 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
-
-    
