@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1211,7 +1210,7 @@ export default function SyncOnlineHome() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><Wifi /> Voice Rooms</CardTitle>
                     <CardDescription>
                         Schedule a private room and invite others for a real-time, multi-language voice conversation.
                     </CardDescription>
@@ -1266,7 +1265,7 @@ export default function SyncOnlineHome() {
                 <TabsContent value="schedule" className="mt-4">
                      <Card className="border-2 border-primary">
                         <CardHeader>
-                            <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Sync Room</CardTitle>
+                            <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Room</CardTitle>
                             <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -1469,3 +1468,5 @@ export default function SyncOnlineHome() {
         </div>
     );
 }
+
+    
