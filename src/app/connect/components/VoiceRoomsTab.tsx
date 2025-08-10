@@ -186,9 +186,9 @@ const syncOnlineTourSteps: TourStep[] = [
     position: 'bottom'
   },
   {
-    selector: '[data-tour="so-room-list"]',
+    selector: '[data-tour="so-your-rooms-button"]',
     content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
-    position: 'top'
+    position: 'bottom'
   },
 ];
 
@@ -628,76 +628,72 @@ export default function VoiceRoomsTab() {
         </div>
     );
     return (
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Voice Rooms</CardTitle>
-                    <CardDescription>
-                        Schedule a private room and invite others for a real-time, multi-language voice conversation.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg">
-                            <HelpCircle className="mr-2" />
-                            Take a Tour
-                        </Button>
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle className="flex items-center gap-2"><Wifi /> Voice Rooms</CardTitle>
+                        <CardDescription>
+                            Schedule a private room and invite others for a real-time, multi-language voice conversation.
+                        </CardDescription>
                     </div>
-                </CardContent>
-            </Card>
-
-            <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
-                </TabsList>
-                <TabsContent value="your-rooms" className="mt-4">
-                    {user && (
-                        <Card data-tour="so-room-list">
+                    <Button onClick={() => startTour(syncOnlineTourSteps)} variant="outline">
+                        <HelpCircle className="mr-2" />
+                        Take a Tour
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
+                        <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="your-rooms" className="mt-4">
+                        {user && (
+                            <Card data-tour="so-room-list">
+                                <CardHeader>
+                                    <div className="flex justify-between items-center">
+                                    <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
+                                        <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
+                                            <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
+                                        </Button>
+                                    </div>
+                                    <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {isFetchingRooms ? (
+                                        <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
+                                    ) : (
+                                        <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
+                                            <TabsList className="grid w-full grid-cols-3">
+                                                <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                                                <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                                                <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                                            </TabsList>
+                                            <TabsContent value="scheduled" className="mt-4">
+                                                {renderRoomList(scheduled, 'scheduled')}
+                                            </TabsContent>
+                                            <TabsContent value="active" className="mt-4">
+                                                {renderRoomList(active, 'active')}
+                                            </TabsContent>
+                                            <TabsContent value="closed" className="mt-4">
+                                                {renderRoomList(closed, 'closed')}
+                                            </TabsContent>
+                                        </Tabs>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="schedule" className="mt-4">
+                        <Card className="border-2 border-primary">
                             <CardHeader>
-                                <div className="flex justify-between items-center">
-                                <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
-                                    <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
-                                        <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
-                                    </Button>
-                                </div>
-                                <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {isFetchingRooms ? (
-                                    <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
-                                ) : (
-                                    <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
-                                        <TabsList className="grid w-full grid-cols-3">
-                                            <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                                            <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-                                        </TabsList>
-                                        <TabsContent value="scheduled" className="mt-4">
-                                            {renderRoomList(scheduled, 'scheduled')}
-                                        </TabsContent>
-                                        <TabsContent value="active" className="mt-4">
-                                            {renderRoomList(active, 'active')}
-                                        </TabsContent>
-                                        <TabsContent value="closed" className="mt-4">
-                                            {renderRoomList(closed, 'closed')}
-                                        </TabsContent>
-                                    </Tabs>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-                </TabsContent>
-                <TabsContent value="schedule" className="mt-4">
-                     <Card className="border-2 border-primary">
-                        <form id="create-room-form" onSubmit={handleSubmitRoom}>
-                            <CardHeader>
-                                <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Voice Room</CardTitle>
+                                <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Room</CardTitle>
                                 <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <ScrollArea className="h-[calc(100vh-28rem)] sm:h-auto">
-                                    <div className="space-y-6 pr-4">
+                                <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
                                         <div className="space-y-2">
                                         <Label htmlFor="topic">Room Topic</Label>
                                         <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
@@ -713,14 +709,14 @@ export default function VoiceRoomsTab() {
                                             </Select>
                                         </div>
                                     )}
-                                        {!isEditMode && (
+                                    {!isEditMode && (
                                         <div className="flex items-center space-x-2 pt-2">
                                             <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
                                             <Label htmlFor="start-now">Start meeting immediately</Label>
                                         </div>
                                     )}
                                     
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="duration">Duration (minutes)</Label>
                                             <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
@@ -741,49 +737,47 @@ export default function VoiceRoomsTab() {
                                                         {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0" align="start">
-                                                    <ScrollArea className="h-96">
-                                                        <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
-                                                        <div className="p-3 border-t border-border">
-                                                            <div className="flex items-center gap-2">
-                                                                <Select
-                                                                    value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
-                                                                    onValueChange={(value) => {
-                                                                        setScheduledDate(d => {
-                                                                            const newDate = d ? new Date(d) : new Date();
-                                                                            newDate.setHours(parseInt(value));
-                                                                            return newDate;
-                                                                        });
-                                                                    }}
-                                                                >
-                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                                    <SelectContent position="popper">
-                                                                        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
-                                                                            <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                :
-                                                                <Select
-                                                                        value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
-                                                                    onValueChange={(value) => {
-                                                                        setScheduledDate(d => {
-                                                                            const newDate = d ? new Date(d) : new Date();
-                                                                            newDate.setMinutes(parseInt(value));
-                                                                            return newDate;
-                                                                        });
-                                                                    }}
-                                                                >
-                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                                                    <SelectContent position="popper">
-                                                                        {['00', '15', '30', '45'].map(minute => (
-                                                                            <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </div>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                                    <div className="p-3 border-t border-border">
+                                                        <div className="flex items-center gap-2">
+                                                            <Select
+                                                                value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                                onValueChange={(value) => {
+                                                                    setScheduledDate(d => {
+                                                                        const newDate = d ? new Date(d) : new Date();
+                                                                        newDate.setHours(parseInt(value));
+                                                                        return newDate;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent position="popper">
+                                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            :
+                                                            <Select
+                                                                    value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                                onValueChange={(value) => {
+                                                                    setScheduledDate(d => {
+                                                                        const newDate = d ? new Date(d) : new Date();
+                                                                        newDate.setMinutes(parseInt(value));
+                                                                        return newDate;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent position="popper">
+                                                                    {['00', '15', '30', '45'].map(minute => (
+                                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
-                                                    </ScrollArea>
+                                                    </div>
                                                 </PopoverContent>
                                             </Popover>
                                         </div>
@@ -794,7 +788,7 @@ export default function VoiceRoomsTab() {
                                         <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
                                         <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
                                     </div>
-                                     {friends.length > 0 && (
+                                    {friends.length > 0 && (
                                         <div className="space-y-2">
                                             <Label>Or Select Friends</Label>
                                             <ScrollArea className="max-h-32 border rounded-md">
@@ -872,8 +866,7 @@ export default function VoiceRoomsTab() {
                                         </p>
                                         <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
                                     </div>
-                                    </div>
-                                </ScrollArea>
+                                </form>
                             </CardContent>
                             <CardFooter className="flex justify-end gap-2">
                                 {isEditMode ? (
@@ -893,10 +886,10 @@ export default function VoiceRoomsTab() {
                                     </Button>
                                 )}
                             </CardFooter>
-                        </form>
-                    </Card>
-                </TabsContent>
-            </Tabs>
-        </div>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
     );
 }
