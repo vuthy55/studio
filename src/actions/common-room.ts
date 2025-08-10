@@ -24,7 +24,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
     const { topic, isPublic, creatorId, creatorName, creatorEmail, tags } = payload;
     try {
         const newVibeRef = db.collection('vibes').doc();
-        const vibeData: Omit<Vibe, 'id' | 'createdAt' | 'lastPostAt'> = {
+        const vibeData: Omit<Vibe, 'id' | 'lastPostAt'> = {
             topic,
             tags: tags || [],
             isPublic,

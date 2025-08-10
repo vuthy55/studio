@@ -19,7 +19,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
     const { topic, isPublic, creatorId, creatorName, creatorEmail } = payload;
     try {
         const newVibeRef = db.collection('vibes').doc();
-        const vibeData: Omit<Vibe, 'id' | 'createdAt' | 'lastPostAt'> = {
+        const vibeData: Omit<Vibe, 'id' | 'lastPostAt'> = {
             topic,
             isPublic,
             creatorId,
@@ -30,6 +30,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             hostEmails: [creatorEmail],
             postsCount: 0,
             activeMeetupId: null,
+            tags: [],
         };
         await newVibeRef.set(vibeData);
         return { success: true, vibeId: newVibeRef.id };
@@ -338,7 +339,7 @@ export async function getCommonRoomData(userEmail: string): Promise<{
         
         // --- Step 5: Sort everything before returning ---
         myMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        publicMeetups.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        publicMeetups.sort((a, b) => new Date(b.startTime).getTime() - new Date(b.startTime).getTime());
         myVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
         publicVibes.sort((a,b) => new Date(b.lastPostAt || b.createdAt).getTime() - new Date(a.lastPostAt || a.createdAt).getTime());
 
