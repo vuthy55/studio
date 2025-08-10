@@ -55,6 +55,7 @@ import { db, auth } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp, writeBatch, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { useTour, TourStep } from '@/context/TourContext';
+import { useAuthState } from 'react-firebase-hooks/auth';
 
 
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
@@ -185,9 +186,9 @@ const syncOnlineTourSteps: TourStep[] = [
     position: 'bottom'
   },
   {
-    selector: '[data-tour="so-your-rooms-button"]',
+    selector: '[data-tour="so-room-list"]',
     content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
-    position: 'bottom'
+    position: 'top'
   },
 ];
 
@@ -626,7 +627,6 @@ export default function VoiceRoomsTab() {
             )}
         </div>
     );
-
     return (
         <div className="space-y-6">
             <Card>
@@ -653,7 +653,7 @@ export default function VoiceRoomsTab() {
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">
                     {user && (
-                        <Card>
+                        <Card data-tour="so-room-list">
                             <CardHeader>
                                 <div className="flex justify-between items-center">
                                 <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
@@ -690,7 +690,7 @@ export default function VoiceRoomsTab() {
                 </TabsContent>
                 <TabsContent value="schedule" className="mt-4">
                      <Card className="border-2 border-primary">
-                        <form onSubmit={handleSubmitRoom}>
+                        <form id="create-room-form" onSubmit={handleSubmitRoom}>
                             <CardHeader>
                                 <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Voice Room</CardTitle>
                                 <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
@@ -874,26 +874,26 @@ export default function VoiceRoomsTab() {
                                     </div>
                                     </div>
                                 </ScrollArea>
-                            </form>
-                        </CardContent>
-                        <CardFooter className="flex justify-end gap-2">
-                             {isEditMode ? (
-                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
-                            ) : null}
-                            {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                <div className="flex flex-col items-end gap-2">
-                                    <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                    <BuyTokens />
-                                </div>
-                            ) : (
-                                <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                    {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                        isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                    }
-                                </Button>
-                            )}
-                        </CardFooter>
+                            </CardContent>
+                            <CardFooter className="flex justify-end gap-2">
+                                {isEditMode ? (
+                                    <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                                ) : null}
+                                {(userProfile?.tokenBalance || 0) < costDifference ? (
+                                    <div className="flex flex-col items-end gap-2">
+                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                        <BuyTokens />
+                                    </div>
+                                ) : (
+                                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                        }
+                                    </Button>
+                                )}
+                            </CardFooter>
+                        </form>
                     </Card>
                 </TabsContent>
             </Tabs>
