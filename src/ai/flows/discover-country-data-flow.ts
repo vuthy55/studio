@@ -37,6 +37,25 @@ export async function discoverCountryData(input: DiscoverCountryDataInput): Prom
   return result;
 }
 
+const generateWithFallback = async (prompt: string, outputSchema: any) => {
+    try {
+        const { output } = await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-flash',
+            output: { schema: outputSchema },
+        });
+        return output;
+    } catch (error) {
+        console.warn("[WARN] Primary model (gemini-1.5-flash) failed in discoverCountryDataFlow. Retrying with gemini-1.5-pro.", error);
+        const { output } = await ai.generate({
+            prompt,
+            model: 'googleai/gemini-1.5-pro',
+            output: { schema: outputSchema },
+        });
+        return output;
+    }
+};
+
 // --- Genkit Flow and Prompt Definitions ---
 
 const discoverCountryDataFlow = ai.defineFlow(
@@ -51,8 +70,8 @@ const discoverCountryDataFlow = ai.defineFlow(
     const countryInfo = lightweightCountries.find(c => c.name.toLowerCase() === countryName.toLowerCase());
     const countryCode = countryInfo?.code || 'Unknown';
 
-    const { output } = await ai.generate({
-      prompt: `
+    const output = await generateWithFallback(
+        `
         You are a geopolitical and travel research assistant. Your task is to populate a database with comprehensive and accurate information about a country.
         For the country "${countryName}" (ISO Code: ${countryCode}), provide the following information in the requested format. BE ACCURATE and DETAILED.
 
@@ -66,11 +85,8 @@ const discoverCountryDataFlow = ai.defineFlow(
         8.  **publicHolidays**: A comprehensive list of at least 8-10 of the most significant national public holidays and major festivals for the entire year, **sorted chronologically by date**. Provide the date range and the name for each holiday.
         9.  **emergencyNumbers**: A detailed list containing the national numbers for Police, Ambulance, and Fire. If available, also include a dedicated Tourist Police number and any other relevant emergency contacts. The format for each entry should be "Service: Number", for example, "Police: 117".
       `,
-      model: 'googleai/gemini-1.5-pro',
-      output: {
-        schema: DiscoverCountryDataOutputSchema,
-      },
-    });
+      DiscoverCountryDataOutputSchema
+    );
 
     return output!;
   }

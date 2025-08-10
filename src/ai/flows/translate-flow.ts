@@ -23,7 +23,7 @@ const translateTextFlow = ai.defineFlow(
       });
       return output!;
     } catch (error) {
-      console.warn("Primary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+      console.warn("[WARN] Primary translation model (gemini-1.5-flash) failed. Retrying with gemini-1.5-pro.", error);
       // Fallback to a different model on any error
       const {output} = await ai.generate({
           prompt: `Translate the following text from ${fromLanguage} to ${toLanguage}: ${text}`,

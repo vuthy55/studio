@@ -128,20 +128,22 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
 
 const generateWithFallback = async (prompt: string, context: any, outputSchema: any) => {
     try {
-        return await ai.generate({
+        const { output } = await ai.generate({
             prompt,
             model: 'googleai/gemini-1.5-flash',
             output: { schema: outputSchema },
             context,
         });
+        return output;
     } catch (error) {
         console.warn("Primary summary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
-        return await ai.generate({
+        const { output } = await ai.generate({
             prompt,
             model: 'googleai/gemini-1.5-pro',
             output: { schema: outputSchema },
             context,
         });
+        return output;
     }
 };
 
@@ -202,7 +204,7 @@ const summarizeRoomFlow = ai.defineFlow(
     };
     
     // 3. Call the AI model
-    const {output} = await generateWithFallback(
+    const output = await generateWithFallback(
       `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
 
       Meeting Title: {{{title}}}
