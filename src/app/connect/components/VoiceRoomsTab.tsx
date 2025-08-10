@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info } from 'lucide-react';
 import type { SyncRoom, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -56,6 +56,59 @@ import { collection, query, where, getDocs, Timestamp, writeBatch, doc, serverTi
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { useTour, TourStep } from '@/context/TourContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
+
+
+function VoiceRoomsInfoDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>About Voice Rooms</DialogTitle>
+                    <DialogDescription>Voice rooms are for real-time, translated conversations.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4 text-sm">
+                        <div>
+                            <h4 className="font-semibold mb-1">Scheduling a Room</h4>
+                            <p className="text-muted-foreground">
+                                Use the "Schedule a Room" tab to create a new voice chat. You'll need to set a topic, duration, and invite participants via email. You can also start a room immediately.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Pre-Paid System & Token Reconciliation</h4>
+                            <p className="text-muted-foreground">
+                                Voice rooms are pre-paid based on the number of participants and duration. This amount is deducted from your token balance when you schedule the room. The actual cost is based on usage, so when the room is closed (either by the host or when the last person leaves), the system reconciles the cost. Any unused tokens from your pre-payment will be refunded to your account.
+                            </p>
+                        </div>
+                         <div>
+                            <h4 className="font-semibold mb-1">Your Rooms Explained</h4>
+                            <p className="text-muted-foreground">The "Your Rooms" tab is split into three sections:</p>
+                            <ul className="list-disc pl-5 mt-1 space-y-1 text-muted-foreground">
+                                <li><strong>Scheduled:</strong> Rooms that are planned for the future. You can join a few minutes before the start time.</li>
+                                <li><strong>Active:</strong> Rooms that are currently in progress.</li>
+                                <li><strong>Closed:</strong> Rooms that have ended. From here, you can view the AI-generated meeting summary.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">AI Summaries</h4>
+                             <p className="text-muted-foreground">
+                                After a meeting ends, an AI agent automatically generates a summary of the conversation, including key discussion points and action items. This summary can be viewed from the "Closed" rooms tab.
+                            </p>
+                        </div>
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild><Button>Got it!</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
@@ -183,11 +236,12 @@ const syncOnlineTourSteps: TourStep[] = [
   {
     selector: '[data-tour="so-schedule-button"]',
     content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you may enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
+    position: 'bottom',
   },
   {
-    selector: '[data-tour="so-your-rooms-button"]',
+    selector: '[data-tour="so-room-list"]',
     content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
-    position: 'bottom',
+    position: 'bottom'
   },
 ];
 
@@ -630,17 +684,14 @@ export default function VoiceRoomsTab() {
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
-                    <div>
-                        <CardTitle className="flex items-center gap-2"><Wifi /> Voice Rooms</CardTitle>
-                        <CardDescription>
-                            Schedule a private room and invite others for a real-time, multi-language voice conversation.
-                        </CardDescription>
+                    <div className="flex items-center gap-2">
+                        <CardTitle>Voice Rooms</CardTitle>
+                        <VoiceRoomsInfoDialog />
                     </div>
-                    <Button onClick={() => startTour(syncOnlineTourSteps)} variant="outline">
-                        <HelpCircle className="mr-2" />
-                        Take a Tour
-                    </Button>
                 </div>
+                <CardDescription>
+                    Schedule a private room and invite others for a real-time, multi-language voice conversation.
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
@@ -650,9 +701,9 @@ export default function VoiceRoomsTab() {
                     </TabsList>
                     <TabsContent value="your-rooms" className="mt-4">
                         {user && (
-                            <Card>
+                            <Card data-tour="so-room-list">
                                 <CardHeader>
-                                    <div className="flex justify-between items-center" data-tour="so-room-list">
+                                    <div className="flex justify-between items-center">
                                     <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
                                         <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
                                             <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
@@ -892,3 +943,6 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
+
+
+    
