@@ -283,12 +283,12 @@ export default function UserDetailPage() {
             case 'admin_issue': return log.reason || 'Admin Issue';
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
-            case 'live_sync_online_spend': return 'Sync Online Usage';
+            case 'live_sync_online_spend': return 'Voice Room Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';
             case 'referral_bonus': return 'Referral Bonus';
-            case 'sync_online_refund': return 'Sync Online Refund';
+            case 'sync_online_refund': return 'Voice Room Refund';
             case 'language_pack_download': return 'Language Pack Download';
             default: return 'Prep Your Vibe';
         }
@@ -606,7 +606,7 @@ export default function UserDetailPage() {
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Reset Usage Stats?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This will reset Sync Live and Sync Online usage counters to zero for this user. This cannot be undone.
+                                                This will reset Sync Live and Voice Room usage counters to zero for this user. This cannot be undone.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -625,7 +625,7 @@ export default function UserDetailPage() {
                                     <span className="font-mono text-sm">{formatDuration(profile.syncLiveUsage || 0)}</span>
                                 </div>
                                 <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
-                                    <Label>Sync Online Usage (Current Cycle)</Label>
+                                    <Label>Voice Room Usage (Current Cycle)</Label>
                                     <span className="font-mono text-sm">{formatDuration(profile.syncOnlineUsage || 0)}</span>
                                 </div>
                                 <div className="flex justify-between items-center p-3 rounded-lg bg-muted">
