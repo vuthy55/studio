@@ -155,13 +155,10 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
     return result;
 }
 
-const generateWithFallback = async (promptTemplate: string, promptData: any, outputSchema: any) => {
+const generateWithFallback = async (prompt: string, outputSchema: any) => {
     try {
         const { output } = await ai.generate({
-          prompt: {
-            template: promptTemplate,
-            input: promptData,
-          },
+          prompt: prompt,
           model: 'googleai/gemini-1.5-flash',
           output: { schema: outputSchema },
         });
@@ -169,10 +166,7 @@ const generateWithFallback = async (promptTemplate: string, promptData: any, out
     } catch (error) {
         console.warn("Primary summary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
         const { output } = await ai.generate({
-          prompt: {
-            template: promptTemplate,
-            input: promptData,
-          },
+          prompt: prompt,
           model: 'googleai/gemini-1.5-pro',
           output: { schema: outputSchema },
         });
@@ -236,31 +230,28 @@ const summarizeRoomFlow = ai.defineFlow(
       absentParticipants,
     };
     
-    // 3. Call the AI model
-    const output = await generateWithFallback(
-      `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
+    const formattedPrompt = `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
 
-      Meeting Title: {{{title}}}
-      Date: {{{date}}}
+      Meeting Title: ${promptPayload.title}
+      Date: ${promptPayload.date}
       
       Participants Present:
-      {{#each presentParticipants}}
-      - {{name}} ({{email}})
-      {{/each}}
+      ${promptPayload.presentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
 
       Participants Absent:
-      {{#each absentParticipants}}
-      - {{name}} ({{email}})
-      {{/each}}
+      ${promptPayload.absentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
       
       Chat History:
       ---
-      {{{chatHistory}}}
+      ${promptPayload.chatHistory}
       ---
 
       Based on the chat history, provide a neutral, one-paragraph summary of the meeting. Then, list any concrete action items, specifying the task, the person in charge, and the due date if mentioned.
-      `,
-      promptPayload,
+      `;
+    
+    // 3. Call the AI model
+    const output = await generateWithFallback(
+      formattedPrompt,
       AISummaryOutputSchema
     );
     
