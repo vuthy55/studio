@@ -6,7 +6,7 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle, X } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle, X, Info } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,16 @@ import { openDB } from 'idb';
 import type { AudioPack } from '@/lib/types';
 import { collection, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -65,6 +75,46 @@ const liveTranslationTourSteps: TourStep[] = [
     position: 'top',
   },
 ];
+
+function TranslatorInfoDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>About the Translator</DialogTitle>
+                    <DialogDescription>Use this tool for live translations and to expand your personal phrasebook.</DialogDescription>
+                </DialogHeader>
+                 <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4 text-sm">
+                        <div>
+                            <h4 className="font-semibold mb-1">Continuous Learning</h4>
+                            <p className="text-muted-foreground">
+                                The Translator is more than just a utility; it's a way to continue your language journey. As you travel, you'll encounter new words and phrases. Use this tool to translate them instantly.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Save for Practice</h4>
+                            <p className="text-muted-foreground">
+                                When you get a translation you want to remember, click the <strong>Bookmark icon</strong>. This saves the phrase to your personal "Saved Phrases" list at the bottom of the page.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Practice and Earn</h4>
+                            <p className="text-muted-foreground">
+                                Every phrase you save becomes part of your practice deck. You can listen to its pronunciation and use the microphone icon to test your own. Just like in the main Phrasebook, mastering these saved phrases will earn you more tokens!
+                            </p>
+                        </div>
+                    </div>
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 async function getDb() {
   return openDB('VibeSync-Offline', 2);
@@ -357,6 +407,12 @@ export default function TranslatorTab() {
     return (
         <div className="space-y-8">
             <Card className="shadow-lg">
+                 <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle className="flex items-center gap-2">Live Translator</CardTitle>
+                        <TranslatorInfoDialog />
+                    </div>
+                </CardHeader>
                 <CardContent className="space-y-6 pt-6">
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6" data-tour="lt-language-selectors">
                         <div className="flex-1 w-full">
