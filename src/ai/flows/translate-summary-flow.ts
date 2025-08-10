@@ -127,6 +127,10 @@ export async function translateSummary(input: TranslateSummaryInput): Promise<Tr
   
   // Calculate cost for only the languages that are not already translated
   const newLanguagesToTranslate = targetLanguages.filter(lang => !summary.summary.translations?.[lang]);
+  if (newLanguagesToTranslate.length === 0) {
+    return summary as TranslateSummaryOutput; // No new translations needed
+  }
+  
   const totalCost = newLanguagesToTranslate.length * costPerLanguage;
 
   const userRef = db.collection('users').doc(userId);
@@ -137,27 +141,33 @@ export async function translateSummary(input: TranslateSummaryInput): Promise<Tr
     throw new Error(`Insufficient tokens. You need ${totalCost} tokens to perform this translation.`);
   }
 
-  // Deduct tokens
+  // Deduct tokens and perform translation in a single flow
+  const translatedResult = await translateSummaryFlow(input);
+  
+  const batch = db.batch();
+  
+  // 1. Update user balance
   if (totalCost > 0) {
-    const batch = db.batch();
     batch.update(userRef, { tokenBalance: FieldValue.increment(-totalCost) });
+    
+    // 2. Log transaction
     const logRef = userRef.collection('transactionLogs').doc();
     batch.set(logRef, {
-        actionType: 'translation_spend', // This type might need to be more specific
+        actionType: 'translation_spend',
         tokenChange: -totalCost,
         timestamp: FieldValue.serverTimestamp(),
         description: `Translated meeting summary into ${newLanguagesToTranslate.length} language(s).`,
     });
-    await batch.commit();
   }
-  
-  // Perform the translation
-  const translatedResult = await translateSummaryFlow(input);
-  
-  // Save the newly translated summary back to the database
-  await db.collection('syncRooms').doc(roomId).update({
-      summary: translatedResult
+
+  // 3. Save the newly translated summary back to the database
+  batch.update(db.collection('syncRooms').doc(roomId), {
+    summary: translatedResult
   });
+  
+  await batch.commit();
 
   return translatedResult;
 }
+
+    

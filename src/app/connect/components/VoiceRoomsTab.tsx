@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info, Wand2 } from 'lucide-react';
 import type { SyncRoom, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,7 +40,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
+import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary, summarizeRoomAction } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { languages } from '@/lib/data';
@@ -115,6 +115,7 @@ function VoiceRoomsInfoDialog() {
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
      const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
     const [isSaving, setIsSaving] = useState(false);
@@ -133,27 +134,49 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
     const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
      const formatDate = (dateString?: string) => {
-        if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(dateString)) return "Unknown Date";
+        if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}/.test(dateString)) return "Unknown Date";
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return "Invalid Date";
+            // Ensure we parse as UTC and display as such to prevent timezone shift issues
+            const utcDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
             return new Intl.DateTimeFormat('en-US', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
-                timeZone: 'UTC' // Important to avoid off-by-one day errors
-            }).format(date);
+                timeZone: 'UTC'
+            }).format(utcDate);
         } catch (e) {
             console.error("Error formatting date:", e);
             return "Invalid Date";
         }
     }
+
+    const handleTranslateSummary = async () => {
+        if (!user || !editableSummary || selectedLanguages.length === 0) return;
+        setIsTranslating(true);
+        try {
+            const result = await translateSummary({ 
+                summary: editableSummary, 
+                targetLanguages: selectedLanguages, 
+                roomId: room.id, 
+                userId: user.uid 
+            });
+            setEditableSummary(result);
+            toast({ title: "Translation Complete!", description: "The summary has been translated." });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Translation Failed', description: error.message || "An unexpected error occurred." });
+        } finally {
+            setIsTranslating(false);
+            setSelectedLanguages([]);
+        }
+    };
     
     if (!editableSummary) return null;
 
 
     return (
-        <Dialog>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                  <Button variant="outline" size="sm">
                     <FileText className="mr-2 h-4 w-4" />
@@ -254,8 +277,8 @@ export default function VoiceRoomsTab() {
     const { startTour } = useTour();
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
-
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSummarizing, setIsSummarizing] = useState<string | null>(null);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -550,6 +573,23 @@ export default function VoiceRoomsTab() {
         }
     };
 
+    const handleGenerateSummary = async (roomId: string) => {
+        if (!user) return;
+        setIsSummarizing(roomId);
+        try {
+            const result = await summarizeRoomAction(roomId, user.uid);
+            if(result.success) {
+                toast({ title: 'Summary Generating', description: 'The AI is creating your summary. It will appear here shortly.'});
+            } else {
+                 toast({ variant: 'destructive', title: 'Summary Failed', description: result.error || 'Could not start summary generation.' });
+            }
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Client Error', description: error.message || 'An unexpected error occurred.' });
+        } finally {
+            setIsSummarizing(null);
+        }
+    }
+
     const { active, scheduled, closed } = useMemo(() => {
         return invitedRooms.reduce((acc, room) => {
             if (room.status === 'active') {
@@ -660,6 +700,13 @@ export default function VoiceRoomsTab() {
 
                                     {isCreator && room.status === 'scheduled' && (
                                         <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                    )}
+
+                                    {isCreator && room.status === 'closed' && !room.summary && (
+                                        <Button size="sm" onClick={() => handleGenerateSummary(room.id)} disabled={isSummarizing === room.id}>
+                                            {isSummarizing === room.id ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                            Generate Summary
+                                        </Button>
                                     )}
 
                                     {room.summary && (
@@ -945,3 +992,5 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
+
+    

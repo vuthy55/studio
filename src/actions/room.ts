@@ -7,6 +7,7 @@ import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, Summa
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail, sendRoomInviteEmail } from './email';
 import { deleteCollection } from '@/lib/firestore-utils';
+import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
 /**
@@ -597,6 +598,21 @@ export async function createPrivateSyncOnlineRoom(payload: CreatePrivateSyncOnli
     }
 }
 
+
+export async function summarizeRoomAction(roomId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  if (!roomId || !userId) {
+    return { success: false, error: 'Room ID and User ID are required.' };
+  }
+  try {
+    // The summarizeRoom flow now handles token deduction and notifications.
+    await summarizeRoom({ roomId, userId });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error summarizing room:", error);
+    return { success: false, error: error.message || "Failed to generate summary." };
+  }
+}
+    
 
     
 

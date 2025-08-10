@@ -13,12 +13,14 @@ import { ai } from '@/ai/genkit';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { RoomMessage, Participant, RoomSummary } from '@/lib/types';
+import { getAppSettingsAction } from '@/actions/settings';
 
 
 // --- Zod Schemas for Input/Output ---
 
 const SummarizeRoomInputSchema = z.object({
   roomId: z.string().describe('The ID of the sync room to summarize.'),
+  userId: z.string().describe('The ID of the user requesting the summary.'),
 });
 export type SummarizeRoomInput = z.infer<typeof SummarizeRoomInputSchema>;
 
@@ -72,26 +74,53 @@ async function getAdminUids(): Promise<string[]> {
  * Main exported function that wraps and calls the Genkit flow.
  */
 export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSummary> {
-  const result = await summarizeRoomFlow(input);
+    const { roomId, userId } = input;
 
-  // After the AI generates the summary, we need to save it to Firestore.
-  // This logic is kept separate from the flow itself for clarity.
-  if (result) {
-    const roomRef = db.collection('syncRooms').doc(input.roomId);
+    // --- Step 1: Handle token deduction BEFORE calling the AI flow ---
+    const settings = await getAppSettingsAction();
+    const cost = settings.summaryTranslationCost || 50; // Use summaryTranslationCost
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+        throw new Error('User not found.');
+    }
+    const userBalance = userDoc.data()?.tokenBalance || 0;
+    if (userBalance < cost) {
+        throw new Error(`Insufficient tokens. You need ${cost} tokens for a summary.`);
+    }
+
+    // --- Step 2: Call the AI Flow ---
+    const result = await summarizeRoomFlow({ roomId, userId }); // Pass userId if needed inside flow
     
-    // Create a notification for the room creator
+    // --- Step 3: Save results and handle notifications in a single transaction ---
+    const roomRef = db.collection('syncRooms').doc(roomId);
     const roomDoc = await roomRef.get();
+    const roomTopic = roomDoc.data()?.topic || 'a room';
     const creatorUid = roomDoc.data()?.creatorUid;
-    const roomTopic = roomDoc.data()?.topic;
 
     const batch = db.batch();
 
-    batch.update(roomRef, { 
+    // 3a. Update user balance and log transaction
+    if (cost > 0) {
+        batch.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
+        const logRef = userRef.collection('transactionLogs').doc();
+        batch.set(logRef, {
+            actionType: 'translation_spend',
+            tokenChange: -cost,
+            timestamp: FieldValue.serverTimestamp(),
+            description: `Generated AI summary for room: "${roomTopic}"`,
+        });
+    }
+
+    // 3b. Save the summary to the room document
+    batch.update(roomRef, {
       summary: result,
       status: 'closed', // Mark room as fully closed once summary is generated
       lastActivityAt: FieldValue.serverTimestamp()
     });
 
+    // 3c. Create notification for the room creator
     if (creatorUid) {
        const notificationRef = db.collection('notifications').doc();
        batch.set(notificationRef, {
@@ -100,11 +129,11 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
             message: `A meeting summary has been generated for your room: "${roomTopic}"`,
             createdAt: FieldValue.serverTimestamp(),
             read: false,
-            roomId: input.roomId,
+            roomId: roomId,
        });
     }
 
-    // Also notify all admins that a summary was generated
+    // 3d. Notify all admins that a summary was generated
     const adminUids = await getAdminUids();
     for (const adminId of adminUids) {
         if (adminId !== creatorUid) { // Avoid duplicate notification for admin creator
@@ -115,15 +144,14 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
                 message: `AI summary generated for room: "${roomTopic}"`,
                 createdAt: FieldValue.serverTimestamp(),
                 read: false,
-                roomId: input.roomId,
+                roomId: roomId,
             });
         }
     }
     
     await batch.commit();
-  }
   
-  return result;
+    return result;
 }
 
 const generateWithFallback = async (prompt: string, context: any, outputSchema: any) => {
@@ -232,3 +260,5 @@ const summarizeRoomFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    
