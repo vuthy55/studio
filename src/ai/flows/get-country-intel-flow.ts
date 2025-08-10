@@ -332,7 +332,7 @@ const getCountryIntelFlow = ai.defineFlow(
     
     for (const [category, score] of Object.entries(aiOutput.categoryAssessments)) {
         const weight = weights[category as keyof typeof weights] || 1.0;
-        totalSeverity += score * weight;
+        totalSeverity += (score as number) * weight;
         totalWeight += weight;
     }
     
@@ -350,5 +350,3 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
-
-    
