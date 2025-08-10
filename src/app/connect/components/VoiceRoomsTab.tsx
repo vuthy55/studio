@@ -617,7 +617,7 @@ export default function VoiceRoomsTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2" style={{ border: '3px solid red' }}><Wifi /> Sync Online</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><Wifi /> Voice Rooms</CardTitle>
                     <CardDescription>
                         Schedule a private room and invite others for a real-time, multi-language voice conversation.
                     </CardDescription>
