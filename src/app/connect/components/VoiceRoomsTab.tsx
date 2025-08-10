@@ -182,8 +182,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
 const syncOnlineTourSteps: TourStep[] = [
   {
     selector: '[data-tour="so-schedule-button"]',
-    content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you can enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
-    position: 'bottom',
+    content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you may enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
   },
   {
     selector: '[data-tour="so-your-rooms-button"]',
@@ -651,9 +650,9 @@ export default function VoiceRoomsTab() {
                     </TabsList>
                     <TabsContent value="your-rooms" className="mt-4">
                         {user && (
-                            <Card data-tour="so-room-list">
+                            <Card>
                                 <CardHeader>
-                                    <div className="flex justify-between items-center">
+                                    <div className="flex justify-between items-center" data-tour="so-room-list">
                                     <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
                                         <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
                                             <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
@@ -869,7 +868,7 @@ export default function VoiceRoomsTab() {
                                 </form>
                             </CardContent>
                             <CardFooter className="flex justify-end gap-2">
-                                {isEditMode ? (
+                                 {isEditMode ? (
                                     <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
                                 ) : null}
                                 {(userProfile?.tokenBalance || 0) < costDifference ? (
