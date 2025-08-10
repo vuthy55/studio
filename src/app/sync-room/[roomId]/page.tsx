@@ -13,7 +13,7 @@ import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel, mapAzure
 import { recognizeFromMic, abortRecognition } from '@/services/speech';
 import { translateText } from '@/ai/flows/translate-flow';
 import { generateSpeech } from '@/services/tts';
-import { setFirstMessageTimestamp, handleParticipantExit, endAndReconcileRoom, handleMeetingReminder, extendMeeting } from '@/actions/room';
+import { setFirstMessageTimestamp, handleParticipantExit, handleMeetingReminder, extendMeeting, endAndReconcileRoom } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { sendRoomInviteEmail } from '@/actions/email';
 
@@ -416,7 +416,7 @@ export default function SyncRoomPage() {
     
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const processedMessages = useRef(new Set<string,>());
+    const processedMessages = useRef(new Set<string>());
     
     const sessionUsageRef = useRef<number>(0);
     const [sessionTimer, setSessionTimer] = useState('00:00');
@@ -1111,3 +1111,5 @@ export default function SyncRoomPage() {
         </div>
     );
 }
+
+    
