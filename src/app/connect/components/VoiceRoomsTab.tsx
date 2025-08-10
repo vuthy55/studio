@@ -446,7 +446,7 @@ export default function VoiceRoomsTab() {
                 
                 const freeMinutesToDeduct = Math.min(duration, Math.floor(Math.max(0, (settings?.freeSyncOnlineMinutes || 0) * 60 * 1000 - (userProfile.syncOnlineUsage || 0)) / 60000));
                 if(freeMinutesToDeduct > 0) {
-                     batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60000) });
+                     batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60 * 1000) });
                 }
                 
                 await batch.commit();
@@ -617,7 +617,7 @@ export default function VoiceRoomsTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
+                    <CardTitle className="flex items-center gap-2" style={{ border: '3px solid red' }}><Wifi /> Sync Online</CardTitle>
                     <CardDescription>
                         Schedule a private room and invite others for a real-time, multi-language voice conversation.
                     </CardDescription>
