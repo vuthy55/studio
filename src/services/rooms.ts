@@ -7,7 +7,7 @@ import type { SyncRoom } from '@/lib/types';
 import { Timestamp } from 'firebase-admin/firestore';
 
 // We create a specific type for returning to the client to avoid serialization issues with Timestamps.
-export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt' | 'effectiveEndTime'> {
+export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt' | 'effectiveEndTime' | 'lastSessionEndedAt'> {
     id: string;
     topic: string;
     status: 'active' | 'closed' | 'scheduled';
@@ -16,6 +16,7 @@ export interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'las
     scheduledAt?: string;
     firstMessageAt?: string;
     effectiveEndTime?: string;
+    lastSessionEndedAt?: string;
 }
 
 /**
@@ -90,6 +91,7 @@ export async function getAllRooms(): Promise<ClientSyncRoom[]> {
             scheduledAt: toISO(data.scheduledAt),
             firstMessageAt: toISO(data.firstMessageAt),
             effectiveEndTime: toISO(data.effectiveEndTime),
+            lastSessionEndedAt: toISO(data.lastSessionEndedAt),
         };
 
         rooms.push(room);

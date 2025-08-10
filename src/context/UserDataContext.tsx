@@ -5,14 +5,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion, arrayRemove, Timestamp } from 'firebase/firestore';
-import type { UserProfile } from '@/lib/types';
+import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion, arrayRemove, Timestamp, query, orderBy } from 'firebase/firestore';
+import type { UserProfile, SavedPhrase } from '@/lib/types';
 import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
-import { getLanguageAudioPack } from '@/actions/audio';
+import { getLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
@@ -20,7 +20,7 @@ import type { User } from 'firebase/auth';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -35,6 +35,7 @@ interface UserDataContextType {
     loading: boolean;
     userProfile: Partial<UserProfile>;
     practiceHistory: PracticeHistoryState;
+    savedPhrases: SavedPhrase[];
     settings: AppSettings | null;
     syncLiveUsage: number;
     offlineAudioPacks: Record<string, AudioPack>;
@@ -45,6 +46,7 @@ interface UserDataContextType {
     updateSyncLiveUsage: (durationMs: number, usageType: 'live' | 'online') => number;
     loadSingleOfflinePack: (lang: LanguageCode) => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
+    resyncSavedPhrasesAudio: () => Promise<void>;
 }
 
 // --- Context ---
@@ -59,6 +61,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     // State is now managed internally
     const [userProfile, setUserProfile] = useState<Partial<UserProfile>>({});
     const [practiceHistory, setPracticeHistory] = useState<PracticeHistoryState>({});
+    const [savedPhrases, setSavedPhrases] = useState<SavedPhrase[]>([]);
     const [syncLiveUsage, setSyncLiveUsage] = useState(0);
     const [offlineAudioPacks, setOfflineAudioPacks] = useState<Record<string, AudioPack>>({});
 
@@ -73,6 +76,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     
     const profileUnsubscribe = useRef<() => void | undefined>();
     const historyUnsubscribe = useRef<() => void | undefined>();
+    const savedPhrasesUnsubscribe = useRef<() => void | undefined>();
     
     // --- Data Fetching & Main Effect ---
     useEffect(() => {
@@ -93,12 +97,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newState;
         });
     }, []);
+    
+    const resyncSavedPhrasesAudio = useCallback(async () => {
+        if (!user) return;
+        const { audioPack, size } = await getSavedPhrasesAudioPack(user.uid);
+        await loadPackToDB('user_saved_phrases', audioPack, size);
+        setOfflineAudioPacks(prev => ({ ...prev, user_saved_phrases: { ...audioPack, size } }));
+    }, [user]);
 
     const clearLocalState = useCallback(() => {
         if (profileUnsubscribe.current) profileUnsubscribe.current();
         if (historyUnsubscribe.current) historyUnsubscribe.current();
+        if (savedPhrasesUnsubscribe.current) savedPhrasesUnsubscribe.current();
         setUserProfile({});
         setPracticeHistory({});
+        setSavedPhrases([]);
         setSyncLiveUsage(0);
         setOfflineAudioPacks({});
         setIsDataLoading(true);
@@ -145,6 +158,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 console.error("Error listening to user profile:", error);
             });
 
+            // --- Listen for practice history changes ---
             const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
             historyUnsubscribe.current = onSnapshot(historyCollectionRef, (snapshot) => {
                 if (isLoggingOut.current) return;
@@ -159,6 +173,18 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 setIsDataLoading(false);
             });
 
+             // --- Listen for saved phrases changes ---
+             const savedPhrasesRef = collection(db, 'users', user.uid, 'savedPhrases');
+             const savedPhrasesQuery = query(savedPhrasesRef, orderBy('createdAt', 'desc'));
+             savedPhrasesUnsubscribe.current = onSnapshot(savedPhrasesQuery, (snapshot) => {
+                if (isLoggingOut.current) return;
+                const serverPhrases = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as SavedPhrase));
+                setSavedPhrases(serverPhrases);
+             }, (error) => {
+                console.error("Error listening to saved phrases:", error);
+             });
+
+
         } else {
             clearLocalState();
             setIsDataLoading(false);
@@ -167,6 +193,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             if (profileUnsubscribe.current) profileUnsubscribe.current();
             if (historyUnsubscribe.current) historyUnsubscribe.current();
+            if (savedPhrasesUnsubscribe.current) savedPhrasesUnsubscribe.current();
         };
     }, [user, authLoading, clearLocalState]);
     
@@ -355,7 +382,15 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         let transactionCost;
         let actionType: TransactionLogType = 'translation_spend';
         
-        if (cost !== undefined) {
+        if (description.includes("Saved phrase")) {
+            actionType = 'save_phrase_spend';
+            const downloadedCount = userProfile.downloadedPhraseCount || 0;
+            if (downloadedCount < (settings.freeSavedPhrasesLimit || 100)) {
+                 transactionCost = 0; // Free for the first N phrases
+            } else {
+                transactionCost = settings.liveTranslationSavePhraseCost || 1;
+            }
+        } else if (cost !== undefined) {
              transactionCost = cost;
              if (description.includes("language pack")) {
                 actionType = 'language_pack_download';
@@ -371,14 +406,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         }
         
         // Optimistic UI update
-        setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - transactionCost }));
-        
-        pendingTokenSyncs.push({
-            amount: transactionCost,
-            actionType: actionType,
-            description
-        });
-        debouncedCommitToFirestore();
+        if (transactionCost > 0) {
+            setUserProfile(p => ({...p, tokenBalance: (p.tokenBalance || 0) - transactionCost }));
+            pendingTokenSyncs.push({
+                amount: transactionCost,
+                actionType: actionType,
+                description
+            });
+            debouncedCommitToFirestore();
+        }
+
+        if (actionType === 'save_phrase_spend') {
+            const userRef = doc(db, 'users', user.uid);
+            updateDoc(userRef, { downloadedPhraseCount: increment(1) });
+            setUserProfile(p => ({...p, downloadedPhraseCount: (p.downloadedPhraseCount || 0) + 1 }));
+        }
 
         return true;
     }, [user, settings, userProfile, pendingTokenSyncs, debouncedCommitToFirestore]);
@@ -412,6 +454,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         loading: authLoading || isDataLoading,
         userProfile,
         practiceHistory,
+        savedPhrases,
         settings,
         syncLiveUsage,
         offlineAudioPacks,
@@ -421,7 +464,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         spendTokensForTranslation,
         updateSyncLiveUsage,
         loadSingleOfflinePack,
-        removeOfflinePack
+        removeOfflinePack,
+        resyncSavedPhrasesAudio
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;

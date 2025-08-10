@@ -159,7 +159,7 @@ export type VibePost = {
 
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
@@ -209,6 +209,7 @@ export interface UserProfile {
   referredBy?: string;
   unlockedLanguages?: LanguageCode[];
   downloadedPacks?: LanguageCode[];
+  downloadedPhraseCount?: number;
   immediateBuddyAlert?: boolean;
 }
 
@@ -266,10 +267,12 @@ export type SavedPhrase = {
     toLang: LanguageCode;
     fromText: string;
     toText: string;
+    createdAt: string; // ISO string
 }
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
+  size?: number; // Add optional size property
 };
 
 export interface FeedbackSubmission {

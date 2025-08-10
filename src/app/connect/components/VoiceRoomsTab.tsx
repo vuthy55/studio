@@ -9,11 +9,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose
+  DialogClose,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info } from 'lucide-react';
 import type { SyncRoom, UserProfile } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -54,16 +54,65 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sendRoomInviteEmail } from '@/actions/email';
 import { db, auth } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp, writeBatch, doc, serverTimestamp, increment } from 'firebase/firestore';
+import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
+import { useTour, TourStep } from '@/context/TourContext';
+import { useAuthState } from 'react-firebase-hooks/auth';
 
 
-// --- Re-usable Dialog Components ---
-// Note: These are simplified versions from the old SyncOnlineHome, as some features like
-// tour steps are not needed in this refactored component.
+function VoiceRoomsInfoDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>About Voice Rooms</DialogTitle>
+                    <DialogDescription>Voice rooms are for real-time, translated conversations.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4 text-sm">
+                        <div>
+                            <h4 className="font-semibold mb-1">Scheduling a Room</h4>
+                            <p className="text-muted-foreground">
+                                Use the "Schedule a Room" tab to create a new voice chat. You'll need to set a topic, duration, and invite participants via email. You can also start a room immediately.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Pre-Paid System & Token Reconciliation</h4>
+                            <p className="text-muted-foreground">
+                                Voice rooms are pre-paid based on the number of participants and duration. This amount is deducted from your token balance when you schedule the room. The actual cost is based on usage, so when the room is closed (either by the host or when the last person leaves), the system reconciles the cost. Any unused tokens from your pre-payment will be refunded to your account.
+                            </p>
+                        </div>
+                         <div>
+                            <h4 className="font-semibold mb-1">Your Rooms Explained</h4>
+                            <p className="text-muted-foreground">The "Your Rooms" tab is split into three sections:</p>
+                            <ul className="list-disc pl-5 mt-1 space-y-1 text-muted-foreground">
+                                <li><strong>Scheduled:</strong> Rooms that are planned for the future. You can join a few minutes before the start time.</li>
+                                <li><strong>Active:</strong> Rooms that are currently in progress.</li>
+                                <li><strong>Closed:</strong> Rooms that have ended. From here, you can view the AI-generated meeting summary.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">AI Summaries</h4>
+                             <p className="text-muted-foreground">
+                                After a meeting ends, an AI agent automatically generates a summary of the conversation, including key discussion points and action items. This summary can be viewed from the "Closed" rooms tab.
+                            </p>
+                        </div>
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild><Button>Got it!</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-    // ... (This component remains large but is self-contained. For brevity, its full code is omitted,
-    // but it would be the same as the one from the original SyncOnlineHome.tsx)
-    // The key is that it's now used within this tab instead of being part of a monolithic page.
      const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
@@ -125,10 +174,10 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
 }
 
 function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-    // ... (This component also remains self-contained and is the same as the original)
      const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [user] = useAuthState(auth);
 
     const handlePermanentDelete = async () => {
         setIsActionLoading(true);
@@ -153,7 +202,7 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
                     <DialogTitle>Manage Room: {room.topic}</DialogTitle>
                 </DialogHeader>
                  <div className="py-4 space-y-4">
-                    <p className="text-sm text-muted-foreground">This room is scheduled. You can cancel and delete it, which will notify participants.</p>
+                    <p className="text-sm text-muted-foreground">This action will reconcile any costs and permanently delete the room. This cannot be undone.</p>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={isActionLoading}>
@@ -164,6 +213,13 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete the room and notify invited participants.
+                                    {(room.initialCost ?? 0) > 0 && 
+                                        <span className="font-bold block mt-2"> {room.initialCost} tokens will be refunded to your account.</span>
+                                    }
+                                    This action cannot be undone.
+                                </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Go Back</AlertDialogCancel>
@@ -177,26 +233,162 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
     )
 }
 
-interface ClientSyncRoom extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt' | 'effectiveEndTime'> {
-    id: string;
-    topic: string;
-    status: 'active' | 'closed' | 'scheduled';
-    createdAt?: string; 
-    lastActivityAt?: string;
-    scheduledAt?: string;
-    firstMessageAt?: string;
-    effectiveEndTime?: string;
-}
+const syncOnlineTourSteps: TourStep[] = [
+  {
+    selector: '[data-tour="so-schedule-button"]',
+    content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you may enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
+    position: 'bottom',
+  },
+  {
+    selector: '[data-tour="so-your-rooms-button"]',
+    content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
+    position: 'bottom'
+  },
+];
 
-// --- Main Tab Component ---
 
 export default function VoiceRoomsTab() {
-    const { user, loading } = useUserData();
+    const { user, userProfile, loading } = useUserData();
+    const router = useRouter();
     const { toast } = useToast();
+    const { startTour } = useTour();
+    
+    const [activeMainTab, setActiveMainTab] = useState('your-rooms');
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Form State
+    const [roomTopic, setRoomTopic] = useState('');
+    const [creatorLanguage, setCreatorLanguage] = useState<AzureLanguageCode | ''>(userProfile?.defaultLanguage || '');
+    const [inviteeEmails, setInviteeEmails] = useState('');
+    const [emceeEmails, setEmceeEmails] = useState<string[]>([]);
+    const [duration, setDuration] = useState(30);
+    const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+    const [startNow, setStartNow] = useState(false);
+    const [friends, setFriends] = useState<UserProfile[]>([]);
+
+    
+    // Edit Mode State
+    const [editingRoom, setEditingRoom] = useState<ClientSyncRoom | null>(null);
+    const isEditMode = useMemo(() => !!editingRoom, [editingRoom]);
+
     const [invitedRooms, setInvitedRooms] = useState<ClientSyncRoom[]>([]);
     const [isFetchingRooms, setIsFetchingRooms] = useState(true);
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     
+    const { settings } = useUserData();
+    
+    const fetchFriends = useCallback(async () => {
+        if (userProfile?.friends && userProfile.friends.length > 0) {
+            const friendsQuery = query(collection(db, 'users'), where('__name__', 'in', userProfile.friends));
+            const snapshot = await getDocs(friendsQuery);
+            const friendsDetails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+            setFriends(friendsDetails);
+        } else {
+            setFriends([]);
+        }
+    }, [userProfile?.friends]);
+
+    useEffect(() => {
+        if (activeMainTab === 'schedule') {
+            fetchFriends();
+        }
+    }, [activeMainTab, fetchFriends]);
+
+    useEffect(() => {
+        if (activeMainTab !== 'schedule') return;
+        if (!isEditMode) {
+             const defaultDate = new Date();
+            defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+            defaultDate.setSeconds(0);
+            defaultDate.setMilliseconds(0);
+            setScheduledDate(defaultDate);
+        } else if (editingRoom?.scheduledAt) {
+            const scheduled = editingRoom.scheduledAt;
+            if (scheduled && typeof scheduled === 'string') {
+                setScheduledDate(new Date(scheduled));
+            }
+        }
+    }, [activeMainTab, isEditMode, editingRoom]);
+
+
+     const resetForm = useCallback(() => {
+        const defaultDate = new Date();
+        defaultDate.setMinutes(defaultDate.getMinutes() + 30);
+        defaultDate.setSeconds(0);
+        defaultDate.setMilliseconds(0);
+        
+        setRoomTopic('');
+        setCreatorLanguage(userProfile?.defaultLanguage || '');
+        setInviteeEmails('');
+        setEmceeEmails(user?.email ? [user.email] : []);
+        setDuration(30);
+        setScheduledDate(defaultDate);
+        setStartNow(false);
+        setEditingRoom(null);
+    }, [user?.email, userProfile?.defaultLanguage]);
+
+     useEffect(() => {
+        if (activeMainTab === 'schedule' && !isEditMode) {
+             resetForm();
+        }
+    }, [activeMainTab, isEditMode, resetForm]);
+    
+     useEffect(() => {
+        if (userProfile?.defaultLanguage && !creatorLanguage) {
+            setCreatorLanguage(userProfile.defaultLanguage);
+        }
+    }, [userProfile?.defaultLanguage, creatorLanguage]);
+
+     useEffect(() => {
+        if (isEditMode && editingRoom) {
+            setRoomTopic(editingRoom.topic);
+            setInviteeEmails(editingRoom.invitedEmails.filter(e => e !== user?.email).join(', '));
+            setEmceeEmails(editingRoom.emceeEmails);
+            setDuration(editingRoom.durationMinutes || 30);
+            setStartNow(false); // "Start Now" is not applicable for editing
+            
+            const scheduled = editingRoom.scheduledAt;
+            if (scheduled && typeof scheduled === 'string' && !isNaN(new Date(scheduled).getTime())) {
+                setScheduledDate(new Date(scheduled));
+            } else {
+                 setScheduledDate(new Date());
+            }
+        }
+    }, [editingRoom, isEditMode, user?.email]);
+
+
+    const parsedInviteeEmails = useMemo(() => {
+        return inviteeEmails.split(/[ ,]+/).map(email => email.trim()).filter(Boolean);
+    }, [inviteeEmails]);
+
+    const allInvitedEmailsForCalc = useMemo(() => {
+        return [...new Set([user?.email, ...parsedInviteeEmails].filter(Boolean) as string[])];
+    }, [parsedInviteeEmails, user?.email]);
+
+    const calculatedCost = useMemo(() => {
+        if (!settings || !userProfile) return 0;
+        const freeMinutesMs = (settings.freeSyncOnlineMinutes || 0) * 60 * 1000;
+        const currentUsageMs = userProfile.syncOnlineUsage || 0;
+        const remainingFreeMs = Math.max(0, freeMinutesMs - currentUsageMs);
+        const remainingFreeMinutes = Math.floor(remainingFreeMs / 60000);
+        
+        const billableMinutes = Math.max(0, duration - remainingFreeMinutes);
+        
+        return billableMinutes * (settings.costPerSyncOnlineMinute || 1) * allInvitedEmailsForCalc.length;
+    }, [settings, duration, allInvitedEmailsForCalc.length, userProfile]);
+
+    const costDifference = useMemo(() => {
+        if (!isEditMode || !editingRoom) return 0;
+        return calculatedCost - (editingRoom.initialCost || 0);
+    }, [isEditMode, editingRoom, calculatedCost]);
+    
+     const toggleEmcee = (email: string) => {
+        setEmceeEmails(prev => 
+            prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
+        );
+    };
+
     const fetchInvitedRooms = useCallback(async () => {
         if (!user || !user.email) {
             setInvitedRooms([]);
@@ -205,45 +397,10 @@ export default function VoiceRoomsTab() {
         }
         setIsFetchingRooms(true);
         try {
-            const roomsRef = collection(db, 'syncRooms');
-            const q = query(roomsRef, where("invitedEmails", "array-contains", user.email));
-            const querySnapshot = await getDocs(q);
-            const roomsData: ClientSyncRoom[] = querySnapshot.docs
-                .map(docSnapshot => {
-                    const data = docSnapshot.data() as SyncRoom;
-                     const toISO = (ts: any): string => {
-                        if (!ts) return new Date(0).toISOString();
-                        if (ts instanceof Timestamp) return ts.toDate().toISOString();
-                        if (typeof ts === 'string' && !isNaN(new Date(ts).getTime())) return ts;
-                        if (ts && typeof ts.seconds === 'number') return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
-                        return new Date(0).toISOString();
-                    };
-
-                    return {
-                        id: docSnapshot.id,
-                        topic: data.topic,
-                        creatorUid: data.creatorUid,
-                        creatorName: data.creatorName,
-                        createdAt: toISO(data.createdAt),
-                        status: data.status,
-                        invitedEmails: data.invitedEmails,
-                        emceeEmails: data.emceeEmails,
-                        lastActivityAt: toISO(data.lastActivityAt),
-                        blockedUsers: data.blockedUsers,
-                        summary: data.summary,
-                        transcript: data.transcript,
-                        scheduledAt: toISO(data.scheduledAt),
-                        durationMinutes: data.durationMinutes,
-                        initialCost: data.initialCost,
-                        hasStarted: data.hasStarted,
-                        reminderMinutes: data.reminderMinutes,
-                        firstMessageAt: toISO(data.firstMessageAt),
-                        effectiveEndTime: toISO(data.effectiveEndTime),
-                    };
-                })
+            const roomsData = await getAllRooms();
+            const userRooms = roomsData.filter(room => room.invitedEmails.includes(user.email!))
                 .sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
-            
-            setInvitedRooms(roomsData);
+            setInvitedRooms(userRooms);
         } catch (error: any) {
             console.error("Error fetching invited rooms:", error);
             toast({ variant: 'destructive', title: 'Could not fetch rooms' });
@@ -261,11 +418,147 @@ export default function VoiceRoomsTab() {
         }
     }, [user, loading, fetchInvitedRooms]);
     
+    const handleOpenEditDialog = (room: ClientSyncRoom) => {
+        setEditingRoom(room);
+        setActiveMainTab('schedule');
+    };
+    
+    const handleSubmitRoom = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email || !userProfile || !settings) {
+            toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to create or edit a room.' });
+            return;
+        }
+        
+        const requiredFields = (isEditMode || startNow) ? [roomTopic] : [roomTopic, creatorLanguage, scheduledDate];
+        if (requiredFields.some(f => !f)) {
+            toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields.' });
+            return;
+        }
+
+        const allInvitedEmails = [...new Set([...parsedInviteeEmails, user.email])];
+
+        if (settings && allInvitedEmails.length > settings.maxUsersPerRoom) {
+            toast({
+                variant: 'destructive',
+                title: 'Participant Limit Exceeded',
+                description: `You can invite a maximum of ${settings.maxUsersPerRoom - 1} other participants (total ${settings.maxUsersPerRoom}).`,
+            });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const finalScheduledDate = startNow ? new Date() : scheduledDate!;
+            
+            if (isEditMode && editingRoom) {
+                 if ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0) < calculatedCost) {
+                    toast({ variant: "destructive", title: "Insufficient Tokens", description: `You need ${calculatedCost - ((userProfile.tokenBalance || 0) + (editingRoom.initialCost || 0))} more tokens.` });
+                    setIsSubmitting(false);
+                    return;
+                }
+                const result = await updateScheduledRoom({
+                    roomId: editingRoom.id,
+                    userId: user.uid,
+                    updates: {
+                        topic: roomTopic,
+                        scheduledAt: finalScheduledDate.toISOString(),
+                        durationMinutes: duration,
+                        invitedEmails: allInvitedEmails,
+                        emceeEmails: [...new Set(emceeEmails)],
+                    },
+                    newCost: calculatedCost
+                });
+                if(result.success) {
+                    toast({ title: "Room Updated!", description: "Your changes have been saved." });
+                } else {
+                     toast({ variant: "destructive", title: "Update Failed", description: result.error });
+                }
+            } else {
+                 if ((userProfile.tokenBalance || 0) < calculatedCost) {
+                    toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${calculatedCost} tokens to schedule this meeting.`});
+                    setIsSubmitting(false);
+                    return;
+                }
+                const newRoomRef = doc(collection(db, 'syncRooms'));
+                const batch = writeBatch(db);
+                const userDocRef = doc(db, 'users', user.uid);
+                
+                const newRoom: Omit<SyncRoom, 'id'> = {
+                    topic: roomTopic,
+                    creatorUid: user.uid,
+                    creatorName: user.displayName || user.email?.split('@')[0] || 'Creator',
+                    createdAt: serverTimestamp(),
+                    status: startNow ? 'active' : 'scheduled',
+                    invitedEmails: allInvitedEmails,
+                    emceeEmails: [...new Set(emceeEmails)],
+                    blockedUsers: [],
+                    lastActivityAt: serverTimestamp(),
+                    scheduledAt: Timestamp.fromDate(finalScheduledDate),
+                    durationMinutes: duration,
+                    initialCost: calculatedCost,
+                    hasStarted: startNow,
+                    reminderMinutes: settings.roomReminderMinutes,
+                };
+                batch.set(newRoomRef, newRoom);
+                
+                if (calculatedCost > 0) {
+                    batch.update(userDocRef, { tokenBalance: increment(-calculatedCost) });
+                    const logRef = doc(collection(userDocRef, 'transactionLogs'));
+                    batch.set(logRef, {
+                        actionType: 'live_sync_online_spend',
+                        tokenChange: -calculatedCost,
+                        timestamp: serverTimestamp(),
+                        description: `Pre-paid for room: "${roomTopic}"`
+                    });
+                }
+                
+                const freeMinutesToDeduct = Math.min(duration, Math.floor(Math.max(0, (settings?.freeSyncOnlineMinutes || 0) * 60 * 1000 - (userProfile.syncOnlineUsage || 0)) / 60000));
+                if(freeMinutesToDeduct > 0) {
+                     batch.update(userDocRef, { syncOnlineUsage: increment(freeMinutesToDeduct * 60 * 1000) });
+                }
+                
+                await batch.commit();
+
+                // Send email invites, which will also handle in-app notifications on the server
+                if (parsedInviteeEmails.length > 0) {
+                    await sendRoomInviteEmail({
+                        to: parsedInviteeEmails,
+                        roomTopic: roomTopic,
+                        fromName: user.displayName || 'A user',
+                        roomId: newRoomRef.id,
+                        scheduledAt: finalScheduledDate,
+                        joinUrl: `${window.location.origin}/join/${newRoomRef.id}?ref=${user.uid}`
+                    });
+                }
+                
+                toast({ title: "Room Scheduled!", description: "Your meeting is ready." });
+                
+                if (startNow) {
+                    router.push(`/sync-room/${newRoomRef.id}`);
+                }
+            }
+            
+            fetchInvitedRooms();
+            setActiveMainTab('your-rooms');
+
+        } catch (error) {
+            console.error("Error submitting room:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not submit the room." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const { active, scheduled, closed } = useMemo(() => {
         return invitedRooms.reduce((acc, room) => {
-            if (room.status === 'active') acc.active.push(room);
-            else if (room.status === 'scheduled') acc.scheduled.push(room);
-            else if (room.status === 'closed' && room.summary) acc.closed.push(room);
+            if (room.status === 'active') {
+                acc.active.push(room);
+            } else if (room.status === 'scheduled') {
+                acc.scheduled.push(room);
+            } else if (room.status === 'closed' && room.summary) {
+                acc.closed.push(room);
+            }
             return acc;
         }, { active: [] as ClientSyncRoom[], scheduled: [] as ClientSyncRoom[], closed: [] as ClientSyncRoom[] });
     }, [invitedRooms]);
@@ -276,44 +569,97 @@ export default function VoiceRoomsTab() {
 
         const scheduledTime = new Date(scheduledAt).getTime();
         const now = Date.now();
-        const gracePeriod = 5 * 60 * 1000;
+        const gracePeriod = 5 * 60 * 1000; // 5 minutes
         return now >= scheduledTime - gracePeriod;
     };
 
     const copyInviteLink = (roomId: string, creatorId: string) => {
         const link = `${window.location.origin}/join/${roomId}?ref=${creatorId}`;
         navigator.clipboard.writeText(link);
-        toast({ title: 'Invite Link Copied!' });
+        toast({ title: 'Invite Link Copied!', description: 'You can now share this link with anyone.' });
     };
 
-    const renderRoomList = (rooms: ClientSyncRoom[]) => (
+    const toggleFriendInvite = (friend: UserProfile) => {
+        if (!friend.email) return;
+        const currentEmails = new Set(parsedInviteeEmails);
+        if (currentEmails.has(friend.email)) {
+            currentEmails.delete(friend.email);
+        } else {
+            currentEmails.add(friend.email);
+        }
+        setInviteeEmails(Array.from(currentEmails).join(', '));
+    };
+
+
+    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
-                    {rooms.map((room) => {
+                    {rooms.map((room, index) => {
+                        const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
                         const isCreator = room.creatorUid === user!.uid;
                         const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
+                        const tourProps = roomType === 'active' && index === 0 
+                            ? {
+                                start: {'data-tour': `so-start-room-${index}`},
+                                share: {'data-tour': `so-share-link-${index}`},
+                                settings: {'data-tour': `so-settings-${index}`}
+                            }
+                            : {start: {}, share: {}, settings: {}};
 
                         return (
                             <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
                                 <div className="flex-grow">
                                     <p className="font-semibold">{room.topic}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {room.status === 'scheduled' && room.scheduledAt 
-                                            ? format(new Date(room.scheduledAt), 'PPp')
-                                            : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
-                                        }
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            {room.status === 'scheduled' && room.scheduledAt 
+                                                ? format(new Date(room.scheduledAt), 'PPpp')
+                                                : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
+                                            }
+                                        </p>
+                                        {room.status === 'closed' && (
+                                            <Badge variant={room.summary ? 'default' : 'destructive'}>
+                                                {room.summary ? 'Summary Available' : 'Closed'}
+                                            </Badge>
+                                        )}
+                                        {room.status === 'scheduled' && (
+                                             <Badge variant="outline">{room.durationMinutes} min</Badge>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {isCreator && canJoin ? (
-                                        <Button asChild><Link href={`/sync-room/${room.id}`}>Start Room</Link></Button>
-                                    ) : canJoin ? (
-                                        <Button asChild><Link href={`/sync-room/${room.id}`}>Join Room</Link></Button>
-                                    ) : null}
+                                    {isBlocked && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <XCircle className="h-5 w-5 text-destructive" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>You are blocked from this room.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+
+                                    {canJoin && !isCreator && (
+                                        <Button asChild disabled={isBlocked}>
+                                            <Link href={`/sync-room/${room.id}`}>Join Room</Link>
+                                        </Button>
+                                    )}
+
+                                    {isCreator && canJoin && (
+                                        <Button asChild disabled={isBlocked} {...tourProps.start}>
+                                            <Link href={`/sync-room/${room.id}`}>Start Room</Link>
+                                        </Button>
+                                    )}
                                     
+                                    {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
+                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
+                                    )}
+
                                     {isCreator && room.status === 'scheduled' && (
-                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)}><LinkIcon className="h-4 w-4"/></Button>
+                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
                                     {room.summary && (
@@ -321,7 +667,9 @@ export default function VoiceRoomsTab() {
                                     )}
                                     
                                     {isCreator && (
-                                        <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                        <div {...tourProps.settings}>
+                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
+                                        </div>
                                     )}
                                 </div>
                             </li>
@@ -333,30 +681,266 @@ export default function VoiceRoomsTab() {
             )}
         </div>
     );
-
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Your Voice Rooms</CardTitle>
-                <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <CardTitle>Voice Rooms</CardTitle>
+                        <VoiceRoomsInfoDialog />
+                    </div>
+                </div>
+                <CardDescription>
+                    Schedule a private room and invite others for a real-time, multi-language voice conversation.
+                </CardDescription>
             </CardHeader>
             <CardContent>
-                {isFetchingRooms ? (
-                    <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
-                ) : (
-                    <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                            <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="scheduled" className="mt-4">{renderRoomList(scheduled)}</TabsContent>
-                        <TabsContent value="active" className="mt-4">{renderRoomList(active)}</TabsContent>
-                        <TabsContent value="closed" className="mt-4">{renderRoomList(closed)}</TabsContent>
-                    </Tabs>
-                )}
+                <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
+                        <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="your-rooms" className="mt-4">
+                        {user && (
+                            <Card data-tour="so-room-list">
+                                <CardHeader>
+                                    <div className="flex justify-between items-center">
+                                    <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
+                                        <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
+                                            <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
+                                        </Button>
+                                    </div>
+                                    <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {isFetchingRooms ? (
+                                        <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
+                                    ) : (
+                                        <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
+                                            <TabsList className="grid w-full grid-cols-3">
+                                                <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                                                <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                                                <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                                            </TabsList>
+                                            <TabsContent value="scheduled" className="mt-4">
+                                                {renderRoomList(scheduled, 'scheduled')}
+                                            </TabsContent>
+                                            <TabsContent value="active" className="mt-4">
+                                                {renderRoomList(active, 'active')}
+                                            </TabsContent>
+                                            <TabsContent value="closed" className="mt-4">
+                                                {renderRoomList(closed, 'closed')}
+                                            </TabsContent>
+                                        </Tabs>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="schedule" className="mt-4">
+                        <Card className="border-2 border-primary">
+                            <CardHeader>
+                                <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Room</CardTitle>
+                                <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                                        <div className="space-y-2">
+                                        <Label htmlFor="topic">Room Topic</Label>
+                                        <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                                    </div>
+                                        {!isEditMode && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="language">Your Spoken Language</Label>
+                                            <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                                                <SelectTrigger id="language">
+                                                    <SelectValue placeholder="Select language..." />
+                                                </SelectTrigger>
+                                                <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
+                                    {!isEditMode && (
+                                        <div className="flex items-center space-x-2 pt-2">
+                                            <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                                            <Label htmlFor="start-now">Start meeting immediately</Label>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="duration">Duration (minutes)</Label>
+                                            <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                                                <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                                                <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                                            </Select>
+                                        </div>
+                                        {!startNow && (
+                                        <div className="space-y-2">
+                                            <Label>Date &amp; Time</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant={"outline"}
+                                                        className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                                                    <div className="p-3 border-t border-border">
+                                                        <div className="flex items-center gap-2">
+                                                            <Select
+                                                                value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                                                onValueChange={(value) => {
+                                                                    setScheduledDate(d => {
+                                                                        const newDate = d ? new Date(d) : new Date();
+                                                                        newDate.setHours(parseInt(value));
+                                                                        return newDate;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent position="popper">
+                                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            :
+                                                            <Select
+                                                                    value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                                                onValueChange={(value) => {
+                                                                    setScheduledDate(d => {
+                                                                        const newDate = d ? new Date(d) : new Date();
+                                                                        newDate.setMinutes(parseInt(value));
+                                                                        return newDate;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent position="popper">
+                                                                    {['00', '15', '30', '45'].map(minute => (
+                                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                            )}
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                                        <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                                    </div>
+                                    {friends.length > 0 && (
+                                        <div className="space-y-2">
+                                            <Label>Or Select Friends</Label>
+                                            <ScrollArea className="max-h-32 border rounded-md">
+                                                <div className="p-4 space-y-2">
+                                                    {friends.map(friend => (
+                                                        <div key={friend.id} className="flex items-center space-x-2">
+                                                            <Checkbox 
+                                                                id={`friend-${friend.id}`}
+                                                                checked={parsedInviteeEmails.includes(friend.email)}
+                                                                onCheckedChange={() => toggleFriendInvite(friend)}
+                                                            />
+                                                            <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
+                                                                <span>{friend.name}</span>
+                                                                <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                                            </Label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="space-y-3">
+                                        <Separator/>
+                                        <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
+                                        <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                                            {allInvitedEmailsForCalc.length > 0 ? (
+                                                allInvitedEmailsForCalc.map(email => (
+                                                    <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                                                ))
+                                            ) : (
+                                                <p>Just you so far!</p>
+                                            )}
+                                        </div></ScrollArea>
+                                    </div>
+
+                                    {allInvitedEmailsForCalc.length > 1 && (
+                                        <div className="space-y-3">
+                                            <Separator/>
+                                            <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
+                                            <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                                                {allInvitedEmailsForCalc.map(email => (
+                                                    <div key={email} className="flex items-center space-x-2">
+                                                        <Checkbox 
+                                                            id={email} 
+                                                            checked={emceeEmails.includes(email)} 
+                                                            onCheckedChange={() => toggleEmcee(email)}
+                                                            disabled={email === user?.email}
+                                                        />
+                                                        <Label htmlFor={email} className="font-normal w-full truncate">
+                                                            {email} {email === user?.email && '(Creator)'}
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </div></ScrollArea>
+                                        </div>
+                                    )}
+                                    <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                                        {isEditMode ? (
+                                            <>
+                                                <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
+                                                <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
+                                                <Separator/>
+                                                <div className="flex justify-between font-bold">
+                                                    <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
+                                                    <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                                        )}
+                                        
+                                        <p className="text-xs text-muted-foreground">
+                                            Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                                    </div>
+                                </form>
+                            </CardContent>
+                            <CardFooter className="flex justify-end gap-2">
+                                 {isEditMode ? (
+                                    <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                                ) : null}
+                                {(userProfile?.tokenBalance || 0) < costDifference ? (
+                                    <div className="flex flex-col items-end gap-2">
+                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                        <BuyTokens />
+                                    </div>
+                                ) : (
+                                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                        }
+                                    </Button>
+                                )}
+                            </CardFooter>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
             </CardContent>
         </Card>
     );
 }
-

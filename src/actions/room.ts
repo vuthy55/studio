@@ -68,38 +68,19 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
   try {
     const batch = db.batch();
     for (const roomId of roomIds) {
-        const roomRef = db.collection('syncRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
         
-        // --- Refund Logic ---
-        if (roomDoc.exists) {
-            const roomData = roomDoc.data() as SyncRoom;
-            // A refund is needed if there was a cost AND the room was never started.
-            const needsRefund = (roomData.initialCost ?? 0) > 0 && !roomData.firstMessageAt;
-
-            if (needsRefund) {
-                const userRef = db.collection('users').doc(roomData.creatorUid);
-                
-                // 1. Refund tokens to the user
-                batch.update(userRef, { tokenBalance: FieldValue.increment(roomData.initialCost!) });
-
-                // 2. Log the refund transaction
-                const logRef = userRef.collection('transactionLogs').doc();
-                batch.set(logRef, {
-                    actionType: 'sync_online_refund',
-                    tokenChange: roomData.initialCost,
-                    timestamp: FieldValue.serverTimestamp(),
-                    description: `Refund for canceled room: "${roomData.topic}"`
-                });
-            }
-        }
-        // --- End Refund Logic ---
+        // --- Full Reconciliation Logic ---
+        // This ensures any active or ended room has its cost correctly calculated
+        // and tokens refunded/charged before deletion.
+        await endAndReconcileRoom(roomId);
+        // --- End Reconciliation Logic ---
 
         // Delete subcollections first
         await deleteCollection(`syncRooms/${roomId}/participants`, 50);
         await deleteCollection(`syncRooms/${roomId}/messages`, 50);
 
         // Then delete the main room document
+        const roomRef = db.collection('syncRooms').doc(roomId);
         batch.delete(roomRef);
     }
     await batch.commit();
@@ -319,84 +300,96 @@ export async function endAndReconcileRoom(roomId: string): Promise<{ success: bo
  * Handles all logic when a participant exits a room, including emcee reassignment and room closure.
  * This is an atomic fire-and-forget action called by the client.
  */
-export async function handleParticipantExit(roomId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+export async function handleParticipantExit(roomId: string, userId: string): Promise<{ success: boolean; error?: string; debugLog: string[] }> {
+    const debugLog: string[] = [`[START] handleParticipantExit called for room=${roomId}, user=${userId} at ${new Date().toISOString()}`];
     if (!roomId || !userId) {
-        return { success: false, error: 'Room ID and User ID are required.' };
+        debugLog.push('[FAIL] Room ID and User ID are required.');
+        return { success: false, error: 'Room ID and User ID are required.', debugLog };
     }
 
     const roomRef = db.collection('syncRooms').doc(roomId);
-    
+    let wasLastParticipant = false;
+
     try {
         await db.runTransaction(async (transaction) => {
-            const roomDoc = await transaction.get(roomRef);
+            debugLog.push('[TRANSACTION_START] Starting Firestore transaction.');
+            const allParticipantsQuery = roomRef.collection('participants');
+
+            // --- ALL READS FIRST ---
+            const [roomDoc, allParticipantsSnapshot] = await Promise.all([
+                transaction.get(roomRef),
+                transaction.get(allParticipantsQuery)
+            ]);
+            // --- END OF READS ---
+
             if (!roomDoc.exists) {
-                console.log(`[DEBUG] handleParticipantExit: Room ${roomId} no longer exists. Exiting.`);
-                return; 
+                debugLog.push(`[TRANSACTION_INFO] Room ${roomId} no longer exists. Halting.`);
+                return;
             }
             const roomData = roomDoc.data() as SyncRoom;
-            
-            // --- Idempotency Check & Guard Clause ---
-            // If the room is already closed, do nothing to prevent multiple refunds.
+            debugLog.push(`[TRANSACTION_INFO] Room status is currently: ${roomData.status}`);
+
             if (roomData.status === 'closed') {
-                console.log(`[DEBUG] handleParticipantExit: Room ${roomId} is already closed. Halting operation.`);
+                debugLog.push('[TRANSACTION_INFO] Room already closed. Halting.');
                 return;
             }
 
-            const participantRef = roomRef.collection('participants').doc(userId);
-            const participantDoc = await transaction.get(participantRef);
-            if (!participantDoc.exists) {
-                 console.log(`[DEBUG] handleParticipantExit: Participant ${userId} already gone. Exiting.`);
-                return; 
+            const participantDoc = allParticipantsSnapshot.docs.find(doc => doc.id === userId);
+            if (!participantDoc || !participantDoc.exists) {
+                debugLog.push(`[TRANSACTION_INFO] Participant ${userId} already gone. Halting.`);
+                return;
             }
             const participantData = participantDoc.data() as Participant;
+            const remainingParticipantCount = allParticipantsSnapshot.size - 1;
 
-            // Delete the leaving participant
-             console.log(`[DEBUG] Deleting participant ${userId} from room ${roomId}.`);
-            transaction.delete(participantRef);
-
-            // Get all remaining participants within the same transaction
-            const allParticipantsSnapshot = await transaction.get(roomRef.collection('participants'));
+            debugLog.push(`[TRANSACTION_INFO] DB shows ${allParticipantsSnapshot.size} total participant(s). After filtering exiting user ${userId}, ${remainingParticipantCount} remain.`);
             
-            // Filter out the currently exiting participant to get the "true" remaining count
-            const remainingParticipants = allParticipantsSnapshot.docs.filter(doc => doc.id !== userId);
-             console.log(`[DEBUG] Remaining participants after exit: ${remainingParticipants.length}.`);
+            // --- ALL WRITES LAST ---
+            const participantRef = roomRef.collection('participants').doc(userId);
+            transaction.delete(participantRef);
+            debugLog.push(`[TRANSACTION_ACTION] Participant ${userId} deletion added to transaction.`);
 
-            // Check if the room is now empty
-            if (remainingParticipants.length === 0) {
-                 console.log(`[DEBUG] Last participant left. Calling endAndReconcileRoom for room ${roomId}.`);
-                await endAndReconcileRoom(roomId);
-                return; // Reconciliation handles closing the room, so we can stop here.
-            }
-
-            // If the room is not empty, check if an emcee left
-            const wasEmcee = roomData.emceeEmails.includes(participantData.email);
-            if (wasEmcee) {
-                const remainingEmcees = roomData.emceeEmails.filter(email => email !== participantData.email);
-
-                if (remainingEmcees.length === 0) {
-                    // Last emcee left, promote the first person from the remaining list
-                    const newEmcee = remainingParticipants[0].data() as Participant;
-                     console.log(`[DEBUG] Last emcee left. Promoting ${newEmcee.email} to emcee.`);
-                    transaction.update(roomRef, {
-                        emceeEmails: FieldValue.arrayUnion(newEmcee.email)
-                    });
-                } else {
-                    // Other emcees remain, just remove the leaving one
-                    console.log(`[DEBUG] Emcee ${participantData.email} left, other emcees remain.`);
-                     transaction.update(roomRef, {
-                        emceeEmails: FieldValue.arrayRemove(participantData.email)
-                    });
+            if (remainingParticipantCount === 0) {
+                wasLastParticipant = true;
+                debugLog.push('[TRANSACTION_ACTION] LAST PARTICIPANT LEFT. Room will be reconciled after this transaction.');
+            } else {
+                const wasEmcee = roomData.emceeEmails.includes(participantData.email);
+                if (wasEmcee) {
+                    const remainingEmcees = roomData.emceeEmails.filter(email => email !== participantData.email);
+                    if (remainingEmcees.length === 0) {
+                        const newEmcee = allParticipantsSnapshot.docs.filter(doc => doc.id !== userId)[0].data() as Participant;
+                        debugLog.push(`[TRANSACTION_ACTION] Last emcee left. Promoting ${newEmcee.email}.`);
+                        transaction.update(roomRef, { emceeEmails: FieldValue.arrayUnion(newEmcee.email) });
+                    } else {
+                        debugLog.push(`[TRANSACTION_ACTION] Emcee ${participantData.email} left, others remain.`);
+                        transaction.update(roomRef, { emceeEmails: FieldValue.arrayRemove(participantData.email) });
+                    }
                 }
             }
         });
-        return { success: true };
+        debugLog.push(`[TRANSACTION_SUCCESS] Transaction for user ${userId} completed successfully.`);
+
+        // --- POST-TRANSACTION LOGIC ---
+        if (wasLastParticipant) {
+            debugLog.push('[POST_TRANSACTION] Calling endAndReconcileRoom.');
+            const reconcileResult = await endAndReconcileRoom(roomId);
+            if (reconcileResult.success) {
+                debugLog.push('[POST_TRANSACTION] endAndReconcileRoom SUCCEEDED.');
+            } else {
+                debugLog.push(`[POST_TRANSACTION] endAndReconcileRoom FAILED: ${reconcileResult.error}`);
+            }
+        }
+        
+        await roomRef.update({ debugLog });
+        return { success: true, debugLog };
 
     } catch (error: any) {
-        console.error(`Error handling participant exit for user ${userId} in room ${roomId}:`, error);
-        // We don't return an error to the client as this is fire-and-forget
-        return { success: false, error: 'Server-side exit handling failed.' };
+        debugLog.push(`[CRITICAL_FAIL] Transaction failed for user ${userId} in room ${roomId}: ${error.message}`);
+        await roomRef.update({ debugLog });
+        return { success: false, error: 'Server-side exit handling failed.', debugLog };
     }
 }
+
 
 /**
  * Handles sending an in-session reminder to all participants.
@@ -603,3 +596,8 @@ export async function createPrivateSyncOnlineRoom(payload: CreatePrivateSyncOnli
         return { success: false, error: 'An unexpected server error occurred.' };
     }
 }
+
+
+    
+
+    

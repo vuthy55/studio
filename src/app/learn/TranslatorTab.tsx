@@ -6,12 +6,11 @@ import { languages, type LanguageCode } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle, X } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, CheckCircle2, LoaderCircle, Bookmark, XCircle, Award, Trash2, HelpCircle, X, Info } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/context/LanguageContext';
-import useLocalStorage from '@/hooks/use-local-storage';
 import { useUserData } from '@/context/UserDataContext';
 import { cn } from '@/lib/utils';
 import type { SavedPhrase } from '@/lib/types';
@@ -25,6 +24,19 @@ import { generateSpeech } from '@/services/tts';
 import { useTour, TourStep } from '@/context/TourContext';
 import { openDB } from 'idb';
 import type { AudioPack } from '@/lib/types';
+import { collection, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
 
 type VoiceSelection = 'default' | 'male' | 'female';
 
@@ -64,6 +76,46 @@ const liveTranslationTourSteps: TourStep[] = [
   },
 ];
 
+function TranslatorInfoDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>About the Translator</DialogTitle>
+                    <DialogDescription>Use this tool for live translations and to expand your personal phrasebook.</DialogDescription>
+                </DialogHeader>
+                 <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4 text-sm">
+                        <div>
+                            <h4 className="font-semibold mb-1">Continuous Learning</h4>
+                            <p className="text-muted-foreground">
+                                The Translator is more than just a utility; it's a way to continue your language journey. As you travel, you'll encounter new words and phrases. Use this tool to translate them instantly.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Save for Practice</h4>
+                            <p className="text-muted-foreground">
+                                When you get a translation you want to remember, click the <strong>Bookmark icon</strong>. This saves the phrase to your personal "Saved Phrases" list at the bottom of the page.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Practice and Earn</h4>
+                            <p className="text-muted-foreground">
+                                Every phrase you save becomes part of your practice deck. You can listen to its pronunciation and use the microphone icon to test your own. Just like in the main Phrasebook, mastering these saved phrases will earn you more tokens!
+                            </p>
+                        </div>
+                    </div>
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 async function getDb() {
   return openDB('VibeSync-Offline', 2);
 }
@@ -71,20 +123,19 @@ async function getDb() {
 export default function TranslatorTab() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation, offlineAudioPacks } = useUserData();
+    const { user, userProfile, practiceHistory, settings, recordPracticeAttempt, spendTokensForTranslation, offlineAudioPacks, savedPhrases } = useUserData();
     
     const [inputText, setInputText] = useState('');
     const [translatedText, setTranslatedText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
+    const [selectedVoice, setSelectedVoice] = useState<VoiceSelection>('default');
 
     const [isRecognizing, setIsRecognizing] = useState(false);
 
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
-    const [savedPhrases, setSavedPhrases] = useLocalStorage<SavedPhrase[]>('savedPhrases', []);
     const [visiblePhraseCount, setVisiblePhraseCount] = useState(3);
     
     const [isOnline, setIsOnline] = useState(true);
@@ -125,7 +176,7 @@ export default function TranslatorTab() {
         }
 
         window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
+        window.removeEventListener('offline', handleOffline);
 
         return () => {
             window.removeEventListener('online', handleOnline);
@@ -195,7 +246,7 @@ export default function TranslatorTab() {
         try {
             const description = `Translated: "${inputText.substring(0, 50)}..."`;
             
-            const spendSuccess = spendTokensForTranslation(description);
+            const spendSuccess = spendTokensForTranslation(description, settings.translationCost);
             
             if (!spendSuccess) {
                 toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens for this translation.' });
@@ -316,73 +367,52 @@ export default function TranslatorTab() {
 
         setIsSaving(true);
         try {
-            // 1. Generate audio first
-            const toLocale = languageToLocaleMap[toLanguage];
-            if (!toLocale) throw new Error("Unsupported language for audio generation.");
-            const { audioDataUri } = await generateSpeech({ text: translatedText, lang: toLocale, voice: selectedVoice });
-
-            // 2. Charge user only on successful audio generation
             const description = `Saved phrase for offline: "${inputText.substring(0, 30)}..."`;
             const spendSuccess = spendTokensForTranslation(description);
 
             if (!spendSuccess) {
-                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens to save this phrase.' });
+                toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens to save this phrase.' });
                 setIsSaving(false);
                 return;
             }
 
-            // 3. Save text and audio locally
-            const newPhrase: SavedPhrase = {
-                id: `saved_${new Date().getTime()}`,
+            // Save to Firestore
+            const savedPhrasesRef = collection(db, 'users', user.uid, 'savedPhrases');
+            const newPhraseDoc = {
                 fromLang: fromLanguage,
                 toLang: toLanguage,
                 fromText: inputText,
                 toText: translatedText,
+                createdAt: serverTimestamp(),
             };
+            await addDoc(savedPhrasesRef, newPhraseDoc);
 
-            const db = await getDb();
-            const tx = db.transaction('AudioPacks', 'readwrite');
-            const store = tx.objectStore('AudioPacks');
-            let audioPack = await store.get('user_saved_phrases') as AudioPack | undefined;
-            if (!audioPack) audioPack = {};
-            audioPack[newPhrase.id] = audioDataUri;
-            await store.put(audioPack, 'user_saved_phrases');
-            await tx.done;
+            toast({ title: "Phrase Saved", description: "This phrase is now available in your practice list across all devices." });
 
-            setSavedPhrases([newPhrase, ...savedPhrases]);
-            toast({ title: "Phrase Saved Offline", description: "Audio is now available for offline practice." });
-            
         } catch (error: any) {
             console.error("Error saving phrase:", error);
-            toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the phrase and its audio." });
+            toast({ variant: "destructive", title: "Save Failed", description: error.message || "Could not save the phrase." });
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleRemovePhrase = async (idToRemove: string) => {
-        setSavedPhrases(savedPhrases.filter(p => p.id !== idToRemove));
-        
-        try {
-            const db = await getDb();
-            const tx = db.transaction('AudioPacks', 'readwrite');
-            const store = tx.objectStore('AudioPacks');
-            const audioPack = await store.get('user_saved_phrases') as AudioPack | undefined;
-            if (audioPack && audioPack[idToRemove]) {
-                delete audioPack[idToRemove];
-                await store.put(audioPack, 'user_saved_phrases');
-            }
-            await tx.done;
-            toast({ title: "Phrase Removed", description: "Removed from your practice list." });
-        } catch (error) {
-            console.error("Error removing audio from IndexedDB:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not remove offline audio." });
-        }
+        if (!user) return;
+        const phraseRef = doc(db, 'users', user.uid, 'savedPhrases', idToRemove);
+        await deleteDoc(phraseRef);
+        toast({ title: "Phrase Removed", description: "Removed from your practice list." });
     }
 
     return (
         <div className="space-y-8">
             <Card className="shadow-lg">
+                 <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        Live Translator
+                        <TranslatorInfoDialog />
+                    </CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-6 pt-6">
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6" data-tour="lt-language-selectors">
                         <div className="flex-1 w-full">

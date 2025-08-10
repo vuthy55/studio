@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, Lock, Search, Tags, ChevronRight } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, Lock, Search, Tags, ChevronRight, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getCommonRoomData, startVibe } from '@/actions/common-room';
@@ -27,6 +27,49 @@ import { formatDistanceToNow } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getCommonRoomCache, setCommonRoomCache } from '@/services/cache';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+function HelpDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>What are Vibes?</DialogTitle>
+                    <DialogDescription>Vibes are community chat rooms centered around a specific topic.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4 text-sm">
+                        <div>
+                            <h4 className="font-semibold mb-1">Starting a Vibe</h4>
+                            <p className="text-muted-foreground">Click the "Start a Vibe" button to create a new chat room. You can set a topic and make it either public or private.</p>
+                        </div>
+                         <div>
+                            <h4 className="font-semibold mb-1">Public vs. Private</h4>
+                            <p className="text-muted-foreground">Public Vibes can be seen and joined by anyone in the "Community" tab. Private Vibes are invite-only and will only appear for you and invited members in the "Private" tab.</p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Planning Meetups</h4>
+                            <p className="text-muted-foreground">Inside any Vibe, hosts can use the "Start a Meetup" button to schedule real-world events. These meetups will then appear in the "Meetups" tab for all Vibe members.</p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-1">Making Connections</h4>
+                            <p className="text-muted-foreground">From the participant list within a Vibe, you can interact directly with other users to start a private text chat or a multi-lingual voice call.</p>
+                        </div>
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild><Button>Got it!</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 
 function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => void, children: React.ReactNode }) {
     const { user } = useUserData();
@@ -78,7 +121,7 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Start a New Chat (Vibe)</DialogTitle>
+                    <DialogTitle>Start a New Vibe</DialogTitle>
                     <DialogDescription>Create a new discussion topic for the community.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
@@ -108,7 +151,7 @@ function CreateVibeDialog({ onVibeCreated, children }: { onVibeCreated: () => vo
 }
 
 
-export default function ChatzTab() {
+export default function VibesTab() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
 
@@ -168,9 +211,9 @@ export default function ChatzTab() {
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
-                    <div>
-                        <CardTitle>Chatz</CardTitle>
-                        <CardDescription>Join public discussions or check your private invites.</CardDescription>
+                    <div className="flex items-center gap-2">
+                        <CardTitle>Vibes</CardTitle>
+                        <HelpDialog />
                     </div>
                      <CreateVibeDialog onVibeCreated={fetchData}>
                         <Button data-tour="chatz-start-vibe-button">
@@ -179,6 +222,7 @@ export default function ChatzTab() {
                         </Button>
                     </CreateVibeDialog>
                 </div>
+                 <CardDescription>Join public discussions or check your private invites.</CardDescription>
             </CardHeader>
             <CardContent>
                 {isFetching ? (
@@ -224,7 +268,7 @@ function VibeList({ vibes, title, searchTerm, setSearchTerm }: { vibes: ClientVi
             </div>
             {vibes.length === 0 ? (
                 <div className="text-muted-foreground text-sm text-center py-8">
-                    <p>{searchTerm ? 'No vibes match your search.' : 'No chats here. Why not start one?'}</p>
+                    <p>{searchTerm ? 'No vibes match your search.' : 'No vibes here. Why not start one?'}</p>
                 </div>
             ) : (
                  <div className="border rounded-lg">

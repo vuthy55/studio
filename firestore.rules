@@ -46,6 +46,12 @@ service cloud.firestore {
         allow list, read: if isOwner() || isAdmin();
         allow write: if isOwner();
       }
+
+      // Saved Phrases: A user can read and write their own saved phrases. Admins can read.
+      match /savedPhrases/{phraseId} {
+        allow list, read: if isOwner() || isAdmin();
+        allow write: if isOwner();
+      }
     }
     
     // --- RULES FOR ADMIN DASHBOARD ---

@@ -4,6 +4,8 @@
 import { phrasebook, type LanguageCode } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
+import { db } from '@/lib/firebase-admin';
+import type { SavedPhrase } from '@/lib/types';
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
@@ -15,12 +17,12 @@ export interface AudioPackResult {
 }
 
 /**
- * Generates an "audio pack" for a given language.
- * This involves iterating through the entire phrasebook and generating TTS audio
- * for each phrase and its corresponding answer, then returning it as a single object.
+ * Generates an "audio pack" for a given language from the static phrasebook.
+ * This involves iterating through the phrasebook and generating TTS audio
+ * for each phrase and its corresponding answer.
  *
  * @param lang - The language code for which to generate the audio pack.
- * @returns A promise that resolves to an AudioPack object.
+ * @returns A promise that resolves to an AudioPackResult object.
  */
 export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPackResult> {
   const audioPack: AudioPack = {};
@@ -30,7 +32,6 @@ export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPac
     throw new Error(`Unsupported language for audio pack generation: ${lang}`);
   }
 
-  // Helper to get the correct text for a given phrase and language
   const getTranslation = (textObj: any, lang: LanguageCode) => {
     if (lang === 'english') {
       return textObj.english;
@@ -41,7 +42,6 @@ export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPac
   const allPhrases = phrasebook.flatMap(topic => topic.phrases);
   
   const generationPromises = allPhrases.map(async (phrase) => {
-    // Generate audio for the main phrase
     const textToSpeak = getTranslation(phrase, lang);
     if (textToSpeak) {
       try {
@@ -49,17 +49,14 @@ export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPac
         audioPack[phrase.id] = audioDataUri;
       } catch (error) {
         console.error(`Failed to generate audio for phrase "${phrase.id}" in ${lang}:`, error);
-        // We will skip this phrase on error and continue with the rest.
       }
     }
 
-    // Also generate audio for the answer if it exists
     if (phrase.answer) {
         const answerTextToSpeak = getTranslation(phrase.answer, lang);
          if (answerTextToSpeak) {
             try {
                 const { audioDataUri } = await generateSpeech({ text: answerTextToSpeak, lang: locale, voice: 'default' });
-                // Use a unique key for the answer audio
                 audioPack[`${phrase.id}-ans`] = audioDataUri;
             } catch (error) {
                 console.error(`Failed to generate audio for answer of phrase "${phrase.id}" in ${lang}:`, error);
@@ -73,4 +70,41 @@ export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPac
   const size = Buffer.from(JSON.stringify(audioPack)).length;
 
   return { audioPack, size };
+}
+
+
+/**
+ * Generates an audio pack for a user's saved phrases.
+ * @param userId The ID of the user.
+ * @returns An AudioPackResult containing audio for all saved phrases.
+ */
+export async function getSavedPhrasesAudioPack(userId: string): Promise<AudioPackResult> {
+    const audioPack: AudioPack = {};
+
+    const savedPhrasesRef = db.collection('users').doc(userId).collection('savedPhrases');
+    const snapshot = await savedPhrasesRef.get();
+
+    if (snapshot.empty) {
+        return { audioPack: {}, size: 0 };
+    }
+
+    const savedPhrases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SavedPhrase));
+
+    const generationPromises = savedPhrases.map(async (phrase) => {
+        const locale = languageToLocaleMap[phrase.toLang];
+        if (phrase.toText && locale) {
+            try {
+                const { audioDataUri } = await generateSpeech({ text: phrase.toText, lang: locale, voice: 'default' });
+                audioPack[phrase.id] = audioDataUri;
+            } catch (error) {
+                console.error(`Failed to generate audio for saved phrase "${phrase.id}":`, error);
+            }
+        }
+    });
+
+    await Promise.all(generationPromises);
+
+    const size = Buffer.from(JSON.stringify(audioPack)).length;
+
+    return { audioPack, size };
 }

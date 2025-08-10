@@ -19,6 +19,7 @@ import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
@@ -26,21 +27,17 @@ type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
 const syncLiveTourSteps: TourStep[] = [
   {
     selector: '[data-tour="sl-languages"]',
-    content: "First, select up to 4 languages for the conversation. This tells the app which languages to listen for and translate to.",
+    content: "Step 1: Select a minimum of 2 and up to 4 languages to be translated.",
   },
   {
     selector: '[data-tour="sl-mic-button"]',
-    content: "When you're ready, press this button to speak. The app will automatically detect the language you're speaking.",
-    position: 'top',
-  },
-  {
-    selector: '[data-tour="sl-status-display"]',
-    content: "The app will then translate your speech into the other selected languages and play them out loud. This area will show you what's happening.",
+    content: "Step 2: Click the mic and speak in any of the selected languages. Wait for the translation and audio output.",
     position: 'top',
   },
   {
     selector: '[data-tour="sl-usage-card"]',
-    content: "Keep an eye on your usage here. You have free minutes each month, and after that, usage will cost tokens from your balance.",
+    content: "Step 3: Click here to check your token and usage status.",
+    position: 'top',
   },
 ];
 
@@ -230,54 +227,17 @@ export default function ConversePage() {
                     1-on-1 Conversation
                 </CardTitle>
                 <CardDescription>
-                    Tap the mic to talk. Your speech will be translated and spoken aloud for the group.
+                    Select up to 4 languages to be translated. Tap the mic to talk in any of the selected languages. The system will recognize your spoken language. Your speech will be translated to the other selected language(s) and spoken aloud.
                 </CardDescription>
                 <div className="flex flex-col items-center gap-4 text-center pt-4">
                     <Button onClick={() => startTour(syncLiveTourSteps)} size="lg">
                         <HelpCircle className="mr-2" />
-                        How does this work?
+                        Take a Tour
                     </Button>
                 </div>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-8 p-6">
                 
-                {user && settings && (
-                    <Card className="w-full bg-muted/50" data-tour="sl-usage-card">
-                        <CardContent className="p-4">
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Your Token Balance</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Coins className="h-5 w-5 text-amber-500" />
-                                        <p className="text-lg font-bold">{userProfile?.tokenBalance ?? '...'}</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Free Time Left</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Clock className="h-5 w-5 text-primary" />
-                                        <p className="text-lg font-bold">{formatTime(Math.max(0, freeMinutesMs - (syncLiveUsage || 0)))}</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Session Usage</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Clock className="h-5 w-5 text-muted-foreground" />
-                                        <p className="font-mono text-base">{formatTime(sessionUsage)}</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Session Tokens</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Coins className="h-5 w-5 text-red-500" />
-                                        <p className="font-mono text-base">{sessionTokensUsed}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
                 <div className="w-full space-y-4" data-tour="sl-languages">
                     <Label className="flex items-center gap-2 font-semibold"><Languages className="h-5 w-5"/> Conversation Languages ({selectedLanguages.length}/4)</Label>
                     <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
@@ -307,22 +267,22 @@ export default function ConversePage() {
                 </div>
 
                 <Button
-                size="lg"
-                className={cn(
-                    "rounded-full w-32 h-32 text-lg transition-all duration-300 ease-in-out",
-                    status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
-                    status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-                    (status === 'idle') && 'bg-primary hover:bg-primary/90',
-                    status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
-                )}
-                onClick={startConversationTurn}
-                disabled={status !== 'idle'}
-                data-tour="sl-mic-button"
+                    size="lg"
+                    className={cn(
+                        "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
+                        status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
+                        status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
+                        (status === 'idle') && 'bg-primary hover:bg-primary/90',
+                        status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
+                    )}
+                    onClick={startConversationTurn}
+                    disabled={status !== 'idle'}
+                    data-tour="sl-mic-button"
                 >
-                {status === 'idle' && <Mic className="h-10 w-10"/>}
-                {status === 'listening' && <LoaderCircle className="h-12 w-12 animate-spin" />}
-                {status === 'speaking' && <Volume2 className="h-12 w-12" />}
-                {status === 'disabled' && <X className="h-10 w-10"/>}
+                    {status === 'idle' && <Mic className="h-16 w-16"/>}
+                    {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
+                    {status === 'speaking' && <Volume2 className="h-20 w-20" />}
+                    {status === 'disabled' && <X className="h-16 w-16"/>}
                 </Button>
 
                 <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center" data-tour="sl-status-display">
@@ -331,6 +291,46 @@ export default function ConversePage() {
                     {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
                     {status === 'disabled' && <p className="font-semibold text-destructive text-sm">Session disabled due to insufficient tokens.</p>}
                 </div>
+                
+                {user && settings && (
+                    <Accordion type="single" collapsible className="w-full" data-tour="sl-usage-card">
+                        <AccordionItem value="item-1">
+                            <AccordionTrigger>
+                                <div className="flex items-center gap-2">
+                                     <Coins className="h-5 w-5 text-amber-500" />
+                                    <span>Token Balance: {userProfile?.tokenBalance ?? '...'}</span>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Free Time Left</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="h-5 w-5 text-primary" />
+                                            <p className="text-lg font-bold">{formatTime(Math.max(0, freeMinutesMs - (syncLiveUsage || 0)))}</p>
+                                        </div>
+                                    </div>
+                                     <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Session Usage</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="h-5 w-5 text-muted-foreground" />
+                                            <p className="font-mono text-base">{formatTime(sessionUsage)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Session Tokens Used</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Coins className="h-5 w-5 text-red-500" />
+                                            <p className="font-mono text-base">{sessionTokensUsed}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                )}
+
+
                 <audio ref={audioPlayerRef} className="hidden" />
             </CardContent>
         </Card>

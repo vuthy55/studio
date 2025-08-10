@@ -7,7 +7,7 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, Download } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
@@ -41,16 +41,22 @@ type AssessmentResult = {
 
 const learnPageTourSteps: TourStep[] = [
   {
+    selector: '[data-tour="language-pack-manager"]',
+    content: "Step 1: Download a language pack. This makes its audio available for offline practice and adds the language to the 'From' and 'To' selectors below.",
+    position: 'bottom',
+  },
+  {
     selector: '[data-tour="language-selectors"]',
-    content: "First, select the language you want to learn FROM and the language you want to learn TO. You can swap them anytime with the arrow button.",
+    content: "Step 2: Select the language you want to learn FROM and the language you want to learn TO. You can swap them anytime with the arrow button.",
   },
   {
     selector: '[data-tour="voice-selector"]',
-    content: "Choose a voice for the audio playback. 'Default' uses the standard voice for the selected language.",
+    content: "Step 3: Choose a voice for the audio playback. 'Default' uses the standard voice for the selected language.",
   },
   {
     selector: '[data-tour="topic-selector"]',
-    content: "Next, pick a topic to practice. Icons represent different categories like greetings, food, and directions.",
+    content: "Step 4: Pick a topic to practice. Icons represent different categories like greetings, food, and directions.",
+    position: 'bottom',
   },
   {
     selector: '[data-tour="phrase-item-0"]',
@@ -59,18 +65,13 @@ const learnPageTourSteps: TourStep[] = [
   },
   {
     selector: '[data-tour="listen-button-0"]',
-    content: "Click the speaker icon to listen to the pronunciation of the phrase. You can listen as many times as you need.",
+    content: "Step 5: Click the speaker icon to listen to the pronunciation of the phrase. You can listen as many times as you need.",
     position: 'bottom',
   },
   {
     selector: '[data-tour="practice-button-0"]',
-    content: "Click the microphone icon to practice your own pronunciation. After you speak, you'll get a score and a chance to earn tokens!",
+    content: "Step 6: Click the microphone icon to practice your own pronunciation. After you speak, you'll get a score and a chance to earn tokens!",
     position: 'bottom',
-  },
-  {
-    selector: '[data-tour="offline-manager"]',
-    content: "Finally, you can download language packs here for offline access to audio, which is great for when you're traveling without an internet connection.",
-    position: 'top',
   },
 ];
 
@@ -278,8 +279,14 @@ const PhrasebookTab = memo(function PhrasebookTab() {
 
     return (
         <div className="space-y-6">
-            <div data-tour="offline-manager">
-                <OfflineManager />
+             <div className="flex justify-between items-center" >
+                <div data-tour="language-pack-manager">
+                    <OfflineManager />
+                </div>
+                <Button onClick={() => startTour(learnPageTourSteps)} variant="outline" className="h-auto py-2 px-3">
+                    <HelpCircle className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline">Take a Tour</span>
+                </Button>
             </div>
             
             <Card className="shadow-lg">
@@ -335,10 +342,10 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                 
                     <div className="space-y-4 pt-6">
                         <div className="space-y-2">
-                            <div className="flex items-center gap-2" data-tour="topic-selector">
+                            <div className="flex items-center gap-2">
                                 <Label>Select a Topic</Label>
                             </div>
-                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1">
+                            <div className="grid grid-cols-6 gap-3 rounded-md bg-muted p-1" data-tour="topic-selector">
                                 {phrasebook.map((topic) => (
                                     <TooltipProvider key={topic.id} delayDuration={100}>
                                     <Tooltip>
