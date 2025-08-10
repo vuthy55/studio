@@ -78,7 +78,7 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
 
     // --- Step 1: Handle token deduction BEFORE calling the AI flow ---
     const settings = await getAppSettingsAction();
-    const cost = settings.summaryTranslationCost || 50; // Use summaryTranslationCost
+    const cost = settings.summaryTranslationCost || 10;
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
 
@@ -91,7 +91,7 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
     }
 
     // --- Step 2: Call the AI Flow ---
-    const result = await summarizeRoomFlow({ roomId, userId }); // Pass userId if needed inside flow
+    const result = await summarizeRoomFlow({ roomId, userId });
     
     // --- Step 3: Save results and handle notifications in a single transaction ---
     const roomRef = db.collection('syncRooms').doc(roomId);
@@ -106,11 +106,11 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
         batch.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
         const logRef = userRef.collection('transactionLogs').doc();
         batch.set(logRef, {
-            actionType: 'translation_spend', // This determines the icon and base text
+            actionType: 'translation_spend',
             tokenChange: -cost,
             timestamp: FieldValue.serverTimestamp(),
             description: `Generated AI summary for room: "${roomTopic}"`,
-            reason: 'Room Summary' // This provides specific detail
+            reason: 'Room Summary'
         });
     }
 
@@ -155,22 +155,28 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
     return result;
 }
 
-const generateWithFallback = async (prompt: string, context: any, outputSchema: any) => {
+const generateWithFallback = async (promptTemplate: string, promptData: any, outputSchema: any) => {
     try {
-        return await ai.generate({
-            prompt,
-            model: 'googleai/gemini-1.5-flash',
-            output: { schema: outputSchema },
-            context,
+        const { output } = await ai.generate({
+          prompt: {
+            template: promptTemplate,
+            input: promptData,
+          },
+          model: 'googleai/gemini-1.5-flash',
+          output: { schema: outputSchema },
         });
+        return output!;
     } catch (error) {
         console.warn("Primary summary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
-        return await ai.generate({
-            prompt,
-            model: 'googleai/gemini-1.5-pro',
-            output: { schema: outputSchema },
-            context,
+        const { output } = await ai.generate({
+          prompt: {
+            template: promptTemplate,
+            input: promptData,
+          },
+          model: 'googleai/gemini-1.5-pro',
+          output: { schema: outputSchema },
         });
+        return output!;
     }
 };
 
@@ -231,7 +237,7 @@ const summarizeRoomFlow = ai.defineFlow(
     };
     
     // 3. Call the AI model
-    const {output} = await generateWithFallback(
+    const output = await generateWithFallback(
       `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
 
       Meeting Title: {{{title}}}
@@ -258,6 +264,6 @@ const summarizeRoomFlow = ai.defineFlow(
       AISummaryOutputSchema
     );
     
-    return output!;
+    return output;
   }
 );
