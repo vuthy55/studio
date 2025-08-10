@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogClose,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -239,7 +240,7 @@ const syncOnlineTourSteps: TourStep[] = [
     position: 'bottom',
   },
   {
-    selector: '[data-tour="so-room-list"]',
+    selector: '[data-tour="so-your-rooms-button"]',
     content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
     position: 'bottom'
   },
@@ -943,6 +944,3 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
-
-
-    
