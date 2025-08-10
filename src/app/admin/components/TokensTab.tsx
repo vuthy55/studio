@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
+import { auth from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
@@ -264,56 +264,15 @@ export default function TokensTab() {
                         <p className="text-sm text-muted-foreground">This is the sum of all tokens ever purchased or awarded.</p>
                     </CardContent>
                 </Card>
-                <Tabs defaultValue="issue">
+                <Tabs defaultValue="ledger">
                     <TabsList className="grid w-full grid-cols-5">
+                        <TabsTrigger value="ledger">Ledger</TabsTrigger>
                         <TabsTrigger value="issue">Issue Tokens</TabsTrigger>
                         <TabsTrigger value="acquired">Acquired</TabsTrigger>
                         <TabsTrigger value="distribution">Distribution</TabsTrigger>
                         <TabsTrigger value="p2p">P2P Transfers</TabsTrigger>
-                        <TabsTrigger value="ledger">Ledger</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="issue" className="py-4">
-                        <IssueTokensContent onIssueSuccess={() => fetchData(searchTerm)} />
-                    </TabsContent>
-                    <TabsContent value="acquired" className="py-4">
-                        <Card>
-                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
-                                <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total In:</span> <span>{analytics.purchased.toLocaleString()}</span></div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                    <TabsContent value="distribution" className="py-4">
-                         <Card>
-                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><MinusCircle className="text-red-500" /> Token Distribution (Free)</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <div className="flex justify-between"><span>Admin-Issued:</span> <span className="font-bold">{analytics.adminIssued.toLocaleString()}</span></div>
-                                <div className="flex justify-between"><span>Signup Bonuses:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
-                                <div className="flex justify-between"><span>Referral Bonuses:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
-                                <div className="flex justify-between"><span>Practice Rewards:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
-                                <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Distributed:</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                     <TabsContent value="p2p" className="py-4">
-                        <Card>
-                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2"><Send className="text-blue-500" /> Peer-to-Peer Transfers</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <div className="flex justify-between font-bold text-lg"><span>Total Volume Transferred:</span> <span>{analytics.p2pTotalVolume.toLocaleString()}</span></div>
-                                <p className="text-sm text-muted-foreground">This is the total volume of tokens transferred between users, indicating internal economy activity.</p>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                     <TabsContent value="ledger" className="py-4">
+                    <TabsContent value="ledger" className="py-4">
                         <Card>
                             <CardHeader>
                                 <div className="flex justify-between items-center">
@@ -416,6 +375,47 @@ export default function TokensTab() {
                                         </TableBody>
                                     </Table>
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="issue" className="py-4">
+                        <IssueTokensContent onIssueSuccess={() => fetchData(searchTerm)} />
+                    </TabsContent>
+                    <TabsContent value="acquired" className="py-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><PlusCircle className="text-green-500" /> Tokens Acquired</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                <div className="flex justify-between"><span>Purchased:</span> <span className="font-bold">{analytics.purchased.toLocaleString()}</span></div>
+                                <Separator />
+                                <div className="flex justify-between font-bold text-lg"><span>Total In:</span> <span>{analytics.purchased.toLocaleString()}</span></div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="distribution" className="py-4">
+                         <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><MinusCircle className="text-red-500" /> Token Distribution (Free)</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                <div className="flex justify-between"><span>Admin-Issued:</span> <span className="font-bold">{analytics.adminIssued.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>Signup Bonuses:</span> <span className="font-bold">{analytics.signupBonus.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>Referral Bonuses:</span> <span className="font-bold">{analytics.referralBonus.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span>Practice Rewards:</span> <span className="font-bold">{analytics.practiceEarn.toLocaleString()}</span></div>
+                                <Separator />
+                                <div className="flex justify-between font-bold text-lg"><span>Total Distributed:</span> <span>{analytics.totalAwarded.toLocaleString()}</span></div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                     <TabsContent value="p2p" className="py-4">
+                        <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Send className="text-blue-500" /> Peer-to-Peer Transfers</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                <div className="flex justify-between font-bold text-lg"><span>Total Volume Transferred:</span> <span>{analytics.p2pTotalVolume.toLocaleString()}</span></div>
+                                <p className="text-sm text-muted-foreground">This is the total volume of tokens transferred between users, indicating internal economy activity.</p>
                             </CardContent>
                         </Card>
                     </TabsContent>
