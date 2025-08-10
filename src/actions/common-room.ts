@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp, getDoc } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost, Report, NotificationType } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 import { getAppSettingsAction } from './settings';
@@ -24,7 +24,7 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
     const { topic, isPublic, creatorId, creatorName, creatorEmail, tags } = payload;
     try {
         const newVibeRef = db.collection('vibes').doc();
-        const vibeData: Omit<Vibe, 'id' | 'lastPostAt'> = {
+        const vibeData: Omit<Vibe, 'id'> = {
             topic,
             tags: tags || [],
             isPublic,

@@ -441,7 +441,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
     const fromTab = searchParams.get('from');
     const reportId = searchParams.get('reportId');
-    const backLink = fromTab === 'my-space' ? '/common-room?tab=my-space' : '/common-room';
+    const backLink = fromTab === 'my-space' ? '/connect?tab=my-space' : '/connect';
 
     const vibeUnsubscribeRef = useRef<() => void | undefined>();
     const postsUnsubscribeRef = useRef<() => void | undefined>();
@@ -476,7 +476,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             if (targetLang) {
                 newPosts.forEach(post => {
                     if (post.translations && post.translations[targetLang]) {
-                        existingTranslations[post.id] = post.translations[post.id];
+                        existingTranslations[post.id] = post.translations[targetLang];
                     }
                 });
             }
@@ -648,7 +648,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const result = await leaveVibe(vibeId, user.email);
         if (result.success) {
             toast({ title: 'You have left the Vibe', description: 'You can no longer see or participate in this conversation.' });
-            router.push('/common-room');
+            router.push('/connect');
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not leave the Vibe.' });
         }
@@ -729,7 +729,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
         const result = await deleteVibe(vibeId, user.uid);
         if (result.success) {
             toast({ title: 'Vibe Deleted', description: 'This vibe and all its posts have been removed.' });
-            router.push('/common-room');
+            router.push('/connect');
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -869,9 +869,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             <header className="p-4 border-b flex justify-between items-start gap-4">
                 <div className="flex-1">
                     <Button variant="ghost" asChild>
-                        <Link href={isModeratorView ? '/admin?tab=reports' : backLink}>
+                        <Link href={isModeratorView ? '/admin?tab=reports' : '/connect?tab=vibes'}>
                             <ArrowLeft className="mr-2 h-4 w-4"/>
-                            Back to {isModeratorView ? 'Reports' : 'Common Room'}
+                            Back
                         </Link>
                     </Button>
                     <div className="flex items-center gap-2 mt-2">
