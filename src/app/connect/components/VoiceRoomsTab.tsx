@@ -180,8 +180,13 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
 
 const syncOnlineTourSteps: TourStep[] = [
   {
-    selector: '[data-tour="so-tabs-list"]',
-    content: "Use these tabs to switch between viewing your existing rooms and scheduling a new one.",
+    selector: '[data-tour="so-schedule-button"]',
+    content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you can enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
+    position: 'bottom'
+  },
+  {
+    selector: '[data-tour="so-your-rooms-button"]',
+    content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
     position: 'bottom'
   },
 ];
@@ -642,9 +647,9 @@ export default function VoiceRoomsTab() {
             </Card>
 
             <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2" data-tour="so-tabs-list">
-                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
-                    <TabsTrigger value="schedule" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
+                    <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">
                     {user && (
@@ -869,26 +874,26 @@ export default function VoiceRoomsTab() {
                                     </div>
                                     </div>
                                 </ScrollArea>
-                            </CardContent>
-                            <CardFooter className="flex justify-end gap-2">
-                                 {isEditMode ? (
-                                    <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
-                                ) : null}
-                                {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                    <div className="flex flex-col items-end gap-2">
-                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                        <BuyTokens />
-                                    </div>
-                                ) : (
-                                    <Button type="submit" disabled={isSubmitting}>
-                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                        }
-                                    </Button>
-                                )}
-                            </CardFooter>
-                        </form>
+                            </form>
+                        </CardContent>
+                        <CardFooter className="flex justify-end gap-2">
+                             {isEditMode ? (
+                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                            ) : null}
+                            {(userProfile?.tokenBalance || 0) < costDifference ? (
+                                <div className="flex flex-col items-end gap-2">
+                                    <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                    <BuyTokens />
+                                </div>
+                            ) : (
+                                <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                    {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                        isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                    }
+                                </Button>
+                            )}
+                        </CardFooter>
                     </Card>
                 </TabsContent>
             </Tabs>
