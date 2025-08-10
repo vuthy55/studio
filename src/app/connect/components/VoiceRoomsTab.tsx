@@ -181,12 +181,12 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
 const syncOnlineTourSteps: TourStep[] = [
   {
     selector: '[data-tour="so-schedule-button"]',
-    content: "Click here to schedule a new Voice Room. If you choose 'Start Now', you'll proceed to the room immediately. For scheduled rooms, you can generally enter a few minutes before the start time. Voice Rooms are pre-paid based on duration and participant count. The session ends when the host chooses or when the last person leaves, at which point the final token cost is reconciled.",
+    content: "Step 1: Click here to schedule a new Voice Room. If you choose 'Start Now', you'll proceed to the room immediately. For scheduled rooms, you can generally enter a few minutes before the start time. Voice Rooms are pre-paid based on duration and participant count. The session ends when the host chooses or when the last person leaves, at which point the final token cost is reconciled.",
     position: 'bottom'
   },
   {
     selector: '[data-tour="so-room-list"]',
-    content: "This is the main list of all your active, scheduled, and closed rooms. You can join rooms that are active or view summaries for rooms that have finished.",
+    content: "Step 2: This is the main list of all your active, scheduled, and closed rooms. You can join rooms that are active or view summaries for rooms that have finished.",
     position: 'bottom'
   },
 ];
@@ -631,7 +631,7 @@ export default function VoiceRoomsTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Voice Rooms</CardTitle>
+                    <CardTitle className="flex items-center gap-2" style={{ border: '3px solid red' }}><Wifi /> Voice Rooms</CardTitle>
                     <CardDescription>
                         Schedule a private room and invite others for a real-time, multi-language voice conversation.
                     </CardDescription>
