@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -682,6 +683,7 @@ export default function VoiceRoomsTab() {
             )}
         </div>
     );
+    }
     return (
         <Card>
             <CardHeader>
@@ -944,3 +946,4 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
+
