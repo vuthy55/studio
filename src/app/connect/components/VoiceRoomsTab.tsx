@@ -99,7 +99,7 @@ function VoiceRoomsInfoDialog() {
                         <div>
                             <h4 className="font-semibold mb-1">AI Summaries</h4>
                              <p className="text-muted-foreground">
-                                After a meeting ends, an AI agent automatically generates a summary of the conversation, including key discussion points and action items. This summary can be viewed from the "Closed" rooms tab.
+                                After a meeting ends, an AI agent generates a summary of the conversation, including key discussion points and action items. This summary can be viewed from the "Closed" rooms tab.
                             </p>
                         </div>
                     </div>
@@ -194,15 +194,15 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
             output += `- ${p.name} (${p.email})\n`;
         });
         output += '\n--- Summary ---\n';
-        const summaryText = lang ? summary.summary.translations?.[lang] : summary.summary.original;
-        output += `${summaryText}\n\n`;
+        const summaryText = lang ? summary.summary?.translations?.[lang] : summary.summary?.original;
+        output += `${summaryText || 'Not available.'}\n\n`;
         output += '--- Action Items ---\n';
         if (summary.actionItems.length === 0) {
             output += 'No action items were recorded.\n';
         } else {
             summary.actionItems.forEach((item, index) => {
-                const taskText = lang ? item.task.translations?.[lang] : item.task.original;
-                output += `${index + 1}. ${taskText}`;
+                const taskText = lang ? item.task?.translations?.[lang] : item.task?.original;
+                output += `${index + 1}. ${taskText || 'Not available.'}`;
                 if (item.personInCharge) output += ` (Owner: ${item.personInCharge})`;
                 if (item.dueDate) output += ` [Due: ${item.dueDate}]`;
                 output += '\n';
@@ -259,7 +259,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <DropdownMenuItem onClick={() => downloadAsFile(formatSummaryForDownload(editableSummary), `${room.topic}-summary.txt`)}>
                                 Summary (Original)
                             </DropdownMenuItem>
-                            {Object.entries(editableSummary.summary.translations || {}).map(([lang, text]) => (
+                            {editableSummary.summary && Object.entries(editableSummary.summary.translations || {}).map(([lang, text]) => (
                                 <DropdownMenuItem key={lang} onClick={() => downloadAsFile(formatSummaryForDownload(editableSummary, lang), `${room.topic}-summary-${lang}.txt`)}>
                                     Summary ({languages.find(l => l.value === lang)?.label || lang})
                                 </DropdownMenuItem>
