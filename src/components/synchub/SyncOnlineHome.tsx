@@ -33,8 +33,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, CheckSquare, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle } from 'lucide-react';
-import type { SyncRoom, TranslatedContent, UserProfile } from '@/lib/types';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, XCircle, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle } from 'lucide-react';
+import type { SyncRoom, TranslatedContent, UserProfile, RoomSummary, Transcript } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -45,8 +45,7 @@ import { Separator } from '../ui/separator';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
-import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
+import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary, generateRoomDocuments } from '@/actions/room';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { languages } from '@/lib/data';
 import { translateSummary } from '@/ai/flows/translate-summary-flow';
@@ -62,53 +61,29 @@ import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { useTour, TourStep } from '@/context/TourContext';
 
 
-interface InvitedRoomClient extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastActivityAt' | 'scheduledAt' | 'firstMessageAt'> {
-    id: string;
-    topic: string;
-    status: 'active' | 'closed' | 'scheduled';
-    createdAt: string; 
-    lastActivityAt?: string;
-    scheduledAt?: string;
-    firstMessageAt?: string;
-}
-
 const syncOnlineTourSteps: TourStep[] = [
   {
     selector: '[data-tour="so-schedule-button"]',
-    content: "Click here to schedule a new room. This is where you'll set the topic, invite friends, and set the meeting time.",
+    content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you may enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
+    position: 'bottom',
   },
   {
-    selector: '[data-tour="so-room-list"]',
-    content: "Your scheduled, active, and past rooms will appear here. You can join active rooms or view summaries of past ones.",
-    position: 'top'
-  },
-  {
-    selector: '[data-tour="so-start-room-0"]',
-    content: "Click 'Start Room' to enter the live conversation for an active or scheduled room.",
-    position: 'bottom'
-  },
-  {
-    selector: '[data-tour="so-share-link-0"]',
-    content: "Use this button to copy the invite link and share it with others.",
-    position: 'bottom'
-  },
-  {
-    selector: '[data-tour="so-settings-0"]',
-    content: "Manage settings for a specific room, like deleting it or managing participants.",
+    selector: '[data-tour="so-your-rooms-button"]',
+    content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
     position: 'bottom'
   },
 ];
 
 
-function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpdate: () => void }) {
-     const { userProfile, user, settings } = useUserData();
+function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
+    const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
     const [isSaving, setIsSaving] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
-
+    
     useEffect(() => {
         setEditableSummary(room.summary);
     }, [room.summary]);
@@ -117,28 +92,39 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
         if (!user || !room) return false;
         return room.creatorUid === user.uid || (user.email && room.emceeEmails?.includes(user.email));
     }, [user, room]);
-    
-    const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
-     const formatDate = (dateString?: string) => {
-        if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(dateString)) return "Unknown Date";
+    const canEditSummary = isEmcee && (room.summary?.editHistory?.length || 0) < (settings?.maxSummaryEdits || 2) || room.summary?.allowMoreEdits;
+    
+    const handleSaveEdits = async () => {
+        if (!user || !user.displayName || !user.email || !editableSummary) return;
+        setIsSaving(true);
         try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return "Invalid Date";
-            return new Intl.DateTimeFormat('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                timeZone: 'UTC' // Important to avoid off-by-one day errors
-            }).format(date);
-        } catch (e) {
-            console.error("Error formatting date:", e);
-            return "Invalid Date";
+            const result = await updateRoomSummary(room.id, editableSummary, user.uid, user.displayName, user.email);
+            if (result.success) {
+                toast({ title: "Summary Updated", description: "Your changes have been saved." });
+                setIsEditing(false);
+                onUpdate(); // Refreshes the parent list
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save summary changes.' });
+        } finally {
+            setIsSaving(false);
         }
-    }
+    };
+    
+    const handleRequestEditAccess = async () => {
+        if(!user?.displayName) return;
+        const result = await requestSummaryEditAccess(room.id, room.topic, user.displayName);
+        if (result.success) {
+            toast({ title: 'Request Sent', description: 'Admins have been notified of your request for edit access.' });
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not send request.' });
+        }
+    };
     
     if (!editableSummary) return null;
-
 
     return (
         <Dialog>
@@ -151,11 +137,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
             <DialogContent className="max-w-4xl">
                  <DialogHeader>
                     <DialogTitle>{editableSummary.title}</DialogTitle>
-                    <DialogDescription>
-                        Meeting held on {formatDate(editableSummary.date)}
-                    </DialogDescription>
                 </DialogHeader>
-                {/* Full dialog content would go here, it's omitted for brevity */}
             </DialogContent>
         </Dialog>
     )
@@ -251,6 +233,8 @@ export default function VoiceRoomsTab() {
     const [activeRoomTab, setActiveRoomTab] = useState('active');
     
     const { settings } = useUserData();
+    
+    const [isGenerating, setIsGenerating] = useState(false);
     
     const fetchFriends = useCallback(async () => {
         if (userProfile?.friends && userProfile.friends.length > 0) {
@@ -530,7 +514,7 @@ export default function VoiceRoomsTab() {
                 acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
-            } else if (room.status === 'closed' && room.summary) {
+            } else {
                 acc.closed.push(room);
             }
             return acc;
@@ -564,6 +548,19 @@ export default function VoiceRoomsTab() {
         setInviteeEmails(Array.from(currentEmails).join(', '));
     };
 
+     const handleGenerateSummary = async (room: ClientSyncRoom) => {
+        if (!user) return;
+        setIsGenerating(true);
+        const result = await generateRoomDocuments(room.id, user.uid);
+        if (result.success) {
+            toast({ title: 'Generation Complete', description: 'Summary and transcript have been generated.'});
+            fetchInvitedRooms();
+        } else {
+            toast({ variant: 'destructive', title: 'Generation Failed', description: result.error || 'Could not generate documents.' });
+        }
+        setIsGenerating(false);
+    };
+
 
     const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
@@ -573,13 +570,7 @@ export default function VoiceRoomsTab() {
                         const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
                         const isCreator = room.creatorUid === user!.uid;
                         const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
-                        const tourProps = roomType === 'active' && index === 0 
-                            ? {
-                                start: {'data-tour': `so-start-room-${index}`},
-                                share: {'data-tour': `so-share-link-${index}`},
-                                settings: {'data-tour': `so-settings-${index}`}
-                            }
-                            : {start: {}, share: {}, settings: {}};
+                        const isEmcee = isCreator || (user?.email && room.emceeEmails.includes(user.email));
 
                         return (
                             <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
@@ -593,7 +584,7 @@ export default function VoiceRoomsTab() {
                                             }
                                         </p>
                                         {room.status === 'closed' && (
-                                            <Badge variant={room.summary ? 'default' : 'destructive'}>
+                                            <Badge variant={room.summary ? 'default' : 'secondary'}>
                                                 {room.summary ? 'Summary Available' : 'Closed'}
                                             </Badge>
                                         )}
@@ -623,17 +614,24 @@ export default function VoiceRoomsTab() {
                                     )}
 
                                     {isCreator && canJoin && (
-                                        <Button asChild disabled={isBlocked} {...tourProps.start}>
+                                        <Button asChild disabled={isBlocked}>
                                             <Link href={`/sync-room/${room.id}`}>Start Room</Link>
                                         </Button>
                                     )}
                                     
                                     {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
-                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
+                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)}><LinkIcon className="h-4 w-4"/></Button>
                                     )}
 
                                     {isCreator && room.status === 'scheduled' && (
                                         <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                    )}
+                                    
+                                     {room.status === 'closed' && !room.summary && isEmcee && (
+                                        <Button onClick={() => handleGenerateSummary(room)} disabled={isGenerating}>
+                                            {isGenerating ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                            Generate Summary
+                                        </Button>
                                     )}
 
                                     {room.summary && (
@@ -641,8 +639,8 @@ export default function VoiceRoomsTab() {
                                     )}
                                     
                                     {isCreator && (
-                                        <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                        <div>
+                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                         </div>
                                     )}
                                 </div>
@@ -655,29 +653,23 @@ export default function VoiceRoomsTab() {
             )}
         </div>
     );
-
     return (
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 border-2 border-red-500"><Wifi /> Sync Online</CardTitle>
-                    <CardDescription>
-                        Schedule a private room and invite others for a real-time, multi-language voice conversation.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Button onClick={() => startTour(syncOnlineTourSteps)} size="lg">
-                            <HelpCircle className="mr-2" />
-                            Take a Tour
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
+                    <Button onClick={() => startTour(syncOnlineTourSteps)} variant="ghost" size="icon">
+                        <HelpCircle className="h-5 w-5" />
+                    </Button>
+                </div>
+                <CardDescription>
+                    Schedule a private room and invite others for a real-time, multi-language voice conversation.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="your-rooms">Your Rooms</TabsTrigger>
+                    <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
                     <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
                 </TabsList>
                 <TabsContent value="your-rooms" className="mt-4">

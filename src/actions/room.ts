@@ -7,6 +7,7 @@ import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, Summa
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail, sendRoomInviteEmail } from './email';
 import { deleteCollection } from '@/lib/firestore-utils';
+import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
 /**
@@ -92,13 +93,27 @@ export async function permanentlyDeleteRooms(roomIds: string[]): Promise<{succes
   }
 }
 
-export async function updateRoomSummary(roomId: string, summary: RoomSummary): Promise<{success: boolean, error?: string}> {
+export async function updateRoomSummary(roomId: string, summary: RoomSummary, editorId: string, editorName: string, editorEmail: string): Promise<{success: boolean, error?: string}> {
   if (!roomId || !summary) {
     return { success: false, error: "Room ID and summary are required." };
   }
   try {
     const roomRef = db.collection('syncRooms').doc(roomId);
-    await roomRef.update({ summary });
+    
+    const editEntry = {
+        editorUid: editorId,
+        editorName: editorName,
+        editorEmail: editorEmail,
+        editedAt: FieldValue.serverTimestamp()
+    };
+    
+    const updatedSummary = {
+        ...summary,
+        editHistory: FieldValue.arrayUnion(editEntry)
+    };
+    
+    await roomRef.update({ summary: updatedSummary });
+
     return { success: true };
   } catch (error: any) {
     console.error("Error updating room summary:", error);
@@ -598,6 +613,75 @@ export async function createPrivateSyncOnlineRoom(payload: CreatePrivateSyncOnli
 }
 
 
+export async function generateRoomDocuments(roomId: string, hostId: string): Promise<{ success: boolean, error?: string }> {
+    if (!roomId || !hostId) {
+        return { success: false, error: 'Room and host IDs are required.' };
+    }
+    
+    const settings = await getAppSettingsAction();
+    const roomRef = db.collection('syncRooms').doc(roomId);
+    const hostRef = db.collection('users').doc(hostId);
+    
+    try {
+        const roomDoc = await roomRef.get();
+        if (!roomDoc.exists) throw new Error('Room not found.');
+
+        const hostDoc = await hostRef.get();
+        if (!hostDoc.exists) throw new Error('Host user not found.');
+
+        const hostData = hostDoc.data();
+        const cost = settings.summaryGenerationCost || 50;
+
+        if ((hostData?.tokenBalance || 0) < cost) {
+            return { success: false, error: `Insufficient tokens. You need ${cost} tokens to generate the summary.` };
+        }
+
+        const summary = await summarizeRoom({ roomId });
+        
+        const messagesSnapshot = await roomRef.collection('messages').orderBy('createdAt').get();
+        const messages = messagesSnapshot.docs.map(doc => doc.data() as RoomMessage);
+        
+        const transcriptLog = messages.map(msg => ({
+            speakerName: msg.speakerName,
+            text: msg.text,
+            timestamp: (msg.createdAt as Timestamp).toDate().toISOString()
+        }));
+
+        const transcript: Transcript = {
+            title: summary.title,
+            date: summary.date,
+            presentParticipants: summary.presentParticipants,
+            absentParticipants: summary.absentParticipants,
+            log: transcriptLog
+        };
+
+        const batch = db.batch();
+
+        batch.update(roomRef, {
+            summary: { ...summary, editHistory: [] }, // Initialize with empty edit history
+            transcript: transcript
+        });
+        
+        if (cost > 0) {
+            batch.update(hostRef, { tokenBalance: FieldValue.increment(-cost) });
+            const logRef = hostRef.collection('transactionLogs').doc();
+            batch.set(logRef, {
+                actionType: 'summary_generation',
+                tokenChange: -cost,
+                timestamp: FieldValue.serverTimestamp(),
+                description: `Generated summary for room: "${roomDoc.data()?.topic}"`,
+            });
+        }
+        
+        await batch.commit();
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("Error generating room documents:", error);
+        return { success: false, error: error.message || "An unexpected server error occurred." };
+    }
+}
     
 
     

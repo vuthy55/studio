@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import type { RoomMessage, Participant, RoomSummary } from '@/lib/types';
+import type { RoomMessage, Participant, RoomSummary, Transcript } from '@/lib/types';
 
 
 // --- Zod Schemas for Input/Output ---
@@ -31,6 +31,7 @@ const ParticipantSchema = z.object({
 
 const TranslatedContentSchema = z.object({
     original: z.string(),
+    translations: z.record(z.string()).optional(),
 });
 
 // This schema defines the expected output from the AI.
@@ -47,82 +48,19 @@ const AISummaryOutputSchema = z.object({
   })).describe('A list of action items from the meeting.'),
 });
 
-// This is the final type that will be saved to Firestore, including the translation structure.
-export type SummarizeRoomOutput = RoomSummary;
-
-
-// --- Helper Function ---
-
-/**
- * Fetches all admin user IDs from the 'users' collection.
- */
-async function getAdminUids(): Promise<string[]> {
-    const adminsQuery = db.collection('users').where('role', '==', 'admin');
-    const snapshot = await adminsQuery.get();
-    if (snapshot.empty) {
-        return [];
-    }
-    return snapshot.docs.map(doc => doc.id);
-}
+// This is the final type that will be returned by the flow.
+export type SummarizeRoomOutput = z.infer<typeof AISummaryOutputSchema>;
 
 
 // --- Main Exported Function ---
 
 /**
  * Main exported function that wraps and calls the Genkit flow.
+ * This function is now responsible ONLY for generating the summary data,
+ * not for saving it.
  */
-export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSummary> {
+export async function summarizeRoom(input: SummarizeRoomInput): Promise<SummarizeRoomOutput> {
   const result = await summarizeRoomFlow(input);
-
-  // After the AI generates the summary, we need to save it to Firestore.
-  // This logic is kept separate from the flow itself for clarity.
-  if (result) {
-    const roomRef = db.collection('syncRooms').doc(input.roomId);
-    
-    // Create a notification for the room creator
-    const roomDoc = await roomRef.get();
-    const creatorUid = roomDoc.data()?.creatorUid;
-    const roomTopic = roomDoc.data()?.topic;
-
-    const batch = db.batch();
-
-    batch.update(roomRef, { 
-      summary: result,
-      status: 'closed', // Mark room as fully closed once summary is generated
-      lastActivityAt: FieldValue.serverTimestamp()
-    });
-
-    if (creatorUid) {
-       const notificationRef = db.collection('notifications').doc();
-       batch.set(notificationRef, {
-            userId: creatorUid,
-            type: 'room_closed_summary',
-            message: `A meeting summary has been generated for your room: "${roomTopic}"`,
-            createdAt: FieldValue.serverTimestamp(),
-            read: false,
-            roomId: input.roomId,
-       });
-    }
-
-    // Also notify all admins that a summary was generated
-    const adminUids = await getAdminUids();
-    for (const adminId of adminUids) {
-        if (adminId !== creatorUid) { // Avoid duplicate notification for admin creator
-             const adminNotificationRef = db.collection('notifications').doc();
-             batch.set(adminNotificationRef, {
-                userId: adminId,
-                type: 'room_closed_summary',
-                message: `AI summary generated for room: "${roomTopic}"`,
-                createdAt: FieldValue.serverTimestamp(),
-                read: false,
-                roomId: input.roomId,
-            });
-        }
-    }
-    
-    await batch.commit();
-  }
-  
   return result;
 }
 
