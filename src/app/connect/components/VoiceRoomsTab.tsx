@@ -229,9 +229,8 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
                 </div>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
-
 
 export default function VoiceRoomsTab() {
     const { user, userProfile, loading } = useUserData();
@@ -592,7 +591,8 @@ export default function VoiceRoomsTab() {
     };
 
 
-    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
+    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => {
+         return (
          <div className="space-y-4">
             {rooms.length > 0 ? (
                 <ul className="space-y-3">
@@ -682,16 +682,16 @@ export default function VoiceRoomsTab() {
                 <p className="text-muted-foreground text-center py-4">No rooms in this category.</p>
             )}
         </div>
-    );
+         );
     }
     return (
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2"><Wifi /> Sync Online</CardTitle>
-                    <Button onClick={() => startTour(syncOnlineTourSteps)} variant="ghost" size="icon">
-                        <HelpCircle className="h-5 w-5" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <CardTitle>Voice Rooms</CardTitle>
+                        <VoiceRoomsInfoDialog />
+                    </div>
                 </div>
                 <CardDescription>
                     Schedule a private room and invite others for a real-time, multi-language voice conversation.
@@ -947,3 +947,4 @@ export default function VoiceRoomsTab() {
     );
 }
 
+    
