@@ -129,7 +129,8 @@ export default function TokensTab() {
     const [hasSearched, setHasSearched] = useState(false);
 
     const getReasonText = (log: TokenLedgerEntry) => {
-        if (log.actionType === 'admin_issue') return log.reason || 'Admin Issue';
+        if (log.reason) return log.reason;
+        if (log.actionType === 'admin_issue') return 'Admin Issue';
         switch (log.actionType) {
             case 'purchase': return 'Token Purchase';
             case 'signup_bonus': return 'Signup Bonus';

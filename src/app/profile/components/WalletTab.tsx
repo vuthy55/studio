@@ -28,13 +28,14 @@ function TokenHistoryDialog() {
     const [isLoading, setIsLoading] = useState(true);
 
      const getActionText = (log: TransactionLog) => {
+        if (log.reason) return log.reason;
         if (log.actionType === 'p2p_transfer') {
             return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
         }
         if (log.actionType === 'sync_online_refund') return 'Sync Online Refund';
         
         switch (log.actionType) {
-            case 'admin_issue': return log.reason || 'Admin Issue';
+            case 'admin_issue': return 'Admin Issuance';
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
             case 'live_sync_online_spend': return 'Sync Online Usage';

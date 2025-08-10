@@ -106,10 +106,11 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
         batch.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
         const logRef = userRef.collection('transactionLogs').doc();
         batch.set(logRef, {
-            actionType: 'translation_spend',
+            actionType: 'translation_spend', // This determines the icon and base text
             tokenChange: -cost,
             timestamp: FieldValue.serverTimestamp(),
             description: `Generated AI summary for room: "${roomTopic}"`,
+            reason: 'Room Summary' // This provides specific detail
         });
     }
 
@@ -260,5 +261,3 @@ const summarizeRoomFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    
