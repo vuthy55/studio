@@ -70,8 +70,7 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
 // --- Server Action: Capture an order ---
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
     const request = new paypal.orders.OrdersCaptureRequest(orderID);
-    request.requestBody({});
-
+    
     try {
         const client = getPayPalClient();
         const response = await client.execute(request);
