@@ -9,6 +9,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LoaderCircle, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2, MessageSquare, LineChart, Trash2, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MainHeader from '@/components/layout/MainHeader';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Dynamically import the tab components
 const RoomsTab = lazy(() => import('./components/RoomsTab'));
@@ -28,6 +31,54 @@ const LoadingFallback = () => (
         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
     </div>
 );
+
+const adminFeatureDescriptions = [
+    { icon: RadioTower, title: "Rooms", description: "Manage Sync Online rooms and Common Rooms (Vibes). View active sessions and delete rooms if necessary." },
+    { icon: Users, title: "Users", description: "Search, view, and manage all user accounts. Access detailed user profiles, transaction histories, and stats." },
+    { icon: AlertTriangle, title: "Reports", description: "Review and moderate user-reported content (Vibes). Take action such as dismissing reports or archiving content." },
+    { icon: LifeBuoy, title: "Feedback", description: "View and manage user-submitted feedback, bug reports, and feature requests." },
+    { icon: Settings, title: "App Settings", description: "Configure global application settings, including the token economy, feature costs, and community rules." },
+    { icon: Globe, title: "Intel", description: "Manage the AI data sources and the country intelligence database used by the InfoHub feature." },
+    { icon: LineChart, title: "Financial", description: "View the central ledger of all real-money transactions (e.g., PayPal purchases and donations) for auditing." },
+    { icon: Coins, title: "Tokens", description: "Analyze the token economy, view the system-wide token transaction ledger, and manually issue tokens to users." },
+    { icon: Music, title: "Language Packs", description: "Generate and manage offline audio packs for different languages and configure which packs are free for users." },
+    { icon: Trash2, title: "Bulk Actions", description: "Perform system-wide data operations, such as deleting multiple users at once or clearing all notifications." },
+    { icon: MessageSquareQuote, title: "Messaging", description: "Access and review standardized documents like the Admin SOP, marketing copy, and app policies." },
+];
+
+function AdminInfoDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Admin Dashboard Guide</DialogTitle>
+                    <DialogDescription>A quick reference for each section of the admin panel.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-4 py-4">
+                        {adminFeatureDescriptions.map(feature => (
+                            <div key={feature.title} className="flex items-start gap-4">
+                                <feature.icon className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                                <div>
+                                    <h4 className="font-semibold">{feature.title}</h4>
+                                    <p className="text-sm text-muted-foreground">{feature.description}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild><Button>Got it</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 
 export default function AdminPageV2() {
@@ -63,7 +114,11 @@ export default function AdminPageV2() {
     
     return (
         <div className="space-y-8">
-            <MainHeader title="Admin Dashboard" description="Manage users and app settings." />
+            <MainHeader 
+                title="Admin Dashboard" 
+                description="Manage users and app settings."
+                titleIcon={<AdminInfoDialog />} 
+            />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="grid w-full grid-cols-5 md:grid-cols-11 h-auto">
