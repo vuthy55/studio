@@ -224,7 +224,7 @@ export type Report = {
   contentAuthorId: string;
   contentAuthorName: string;
   contentAuthorEmail: string;
-  createdAt: Timestamp;
+  createdAt: any;
   status: 'pending' | 'resolved' | 'dismissed';
 }
 
