@@ -183,12 +183,12 @@ const syncOnlineTourSteps: TourStep[] = [
   {
     selector: '[data-tour="so-schedule-button"]',
     content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you can enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
-    position: 'bottom'
+    position: 'bottom',
   },
   {
     selector: '[data-tour="so-your-rooms-button"]',
     content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
-    position: 'bottom'
+    position: 'bottom',
   },
 ];
 
