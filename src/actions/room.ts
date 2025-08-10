@@ -604,16 +604,70 @@ export async function summarizeRoomAction(roomId: string, userId: string): Promi
     return { success: false, error: 'Room ID and User ID are required.' };
   }
   try {
-    // The summarizeRoom flow now handles token deduction and notifications.
-    await summarizeRoom({ roomId, userId });
-    return { success: true };
+    const result = await summarizeRoom({ roomId, userId });
+    if (result) {
+        return { success: true };
+    } else {
+        return { success: false, error: 'Summary generation returned no result.' };
+    }
   } catch (error: any) {
     console.error("Error summarizing room:", error);
     return { success: false, error: error.message || "Failed to generate summary." };
   }
 }
-    
 
+/**
+ * Fetches the full transcript for a room, charging the user for it.
+ */
+export async function getTranscriptAction(roomId: string, userId: string): Promise<{ success: boolean; transcript?: string; error?: string; }> {
+    if (!roomId || !userId) {
+        return { success: false, error: 'Room ID and User ID are required.' };
+    }
     
+    const settings = await getAppSettingsAction();
+    const cost = settings.transcriptCost || 25;
+    
+    const userRef = db.collection('users').doc(userId);
+    const roomRef = db.collection('syncRooms').doc(roomId);
 
+    try {
+        // Run as transaction to ensure user has balance before proceeding
+        const transcript = await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) throw new Error('User not found.');
+            
+            const userBalance = userDoc.data()?.tokenBalance || 0;
+            if (userBalance < cost) throw new Error('Insufficient tokens for a transcript.');
+            
+            // Deduct cost and log transaction
+            transaction.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
+            const logRef = userRef.collection('transactionLogs').doc();
+            transaction.set(logRef, {
+                actionType: 'translation_spend', // Using a generic spend type
+                tokenChange: -cost,
+                timestamp: FieldValue.serverTimestamp(),
+                description: `Generated transcript for room: "${roomRef.id}"`,
+                reason: 'Transcript Download'
+            });
+
+            // Fetch messages AFTER transaction logic is set
+            const messagesQuery = roomRef.collection('messages').orderBy('createdAt', 'asc');
+            const messagesSnapshot = await transaction.get(messagesQuery);
+            
+            const formattedMessages = messagesSnapshot.docs.map(doc => {
+                const msg = doc.data() as RoomMessage;
+                const time = (msg.createdAt as Timestamp)?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '00:00:00';
+                return `[${time}] ${msg.speakerName}: ${msg.text}`;
+            });
+
+            return formattedMessages.join('\n');
+        });
+
+        return { success: true, transcript };
+
+    } catch (error: any) {
+        console.error("Error getting transcript:", error);
+        return { success: false, error: error.message || 'Could not generate transcript.' };
+    }
+}
     

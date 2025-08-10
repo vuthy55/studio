@@ -31,7 +31,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info, Wand2 } from 'lucide-react';
-import type { SyncRoom, UserProfile } from '@/lib/types';
+import type { SyncRoom, UserProfile, RoomSummary, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -40,7 +40,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary, summarizeRoomAction } from '@/actions/room';
+import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary, summarizeRoomAction, getTranscriptAction } from '@/actions/room';
 import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { languages } from '@/lib/data';
@@ -57,6 +57,7 @@ import { collection, query, where, getDocs, Timestamp, writeBatch, doc, serverTi
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { useTour, TourStep } from '@/context/TourContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 
 function VoiceRoomsInfoDialog() {
@@ -113,13 +114,14 @@ function VoiceRoomsInfoDialog() {
 
 
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-     const { userProfile, user, settings } = useUserData();
+    const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
     const [isSaving, setIsSaving] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
+    const [isDownloadingTranscript, setIsDownloadingTranscript] = useState(false);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
     useEffect(() => {
@@ -171,6 +173,61 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
             setSelectedLanguages([]);
         }
     };
+
+    const downloadAsFile = (content: string, filename: string) => {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const formatSummaryForDownload = (summary: RoomSummary, lang?: string) => {
+        let output = `Meeting Summary: ${summary.title}\n`;
+        output += `Date: ${formatDate(summary.date)}\n\n`;
+        output += '--- Participants ---\n';
+        summary.presentParticipants.forEach(p => {
+            output += `- ${p.name} (${p.email})\n`;
+        });
+        output += '\n--- Summary ---\n';
+        const summaryText = lang ? summary.summary.translations?.[lang] : summary.summary.original;
+        output += `${summaryText}\n\n`;
+        output += '--- Action Items ---\n';
+        if (summary.actionItems.length === 0) {
+            output += 'No action items were recorded.\n';
+        } else {
+            summary.actionItems.forEach((item, index) => {
+                const taskText = lang ? item.task.translations?.[lang] : item.task.original;
+                output += `${index + 1}. ${taskText}`;
+                if (item.personInCharge) output += ` (Owner: ${item.personInCharge})`;
+                if (item.dueDate) output += ` [Due: ${item.dueDate}]`;
+                output += '\n';
+            });
+        }
+        return output;
+    };
+    
+    const handleDownloadTranscript = async () => {
+        if (!user) return;
+        setIsDownloadingTranscript(true);
+        try {
+            const result = await getTranscriptAction(room.id, user.uid);
+            if (result.success && result.transcript) {
+                downloadAsFile(result.transcript, `${room.topic}-transcript.txt`);
+                toast({ title: "Transcript Downloaded", description: "The full transcript has been saved." });
+            } else {
+                throw new Error(result.error || 'Failed to generate transcript.');
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Download Failed', description: error.message });
+        } finally {
+            setIsDownloadingTranscript(false);
+        }
+    }
     
     if (!editableSummary) return null;
 
@@ -190,7 +247,32 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                         Meeting held on {formatDate(editableSummary.date)}
                     </DialogDescription>
                 </DialogHeader>
-                {/* Full dialog content would go here, it's omitted for brevity */}
+                 <div className="py-4">
+                     {/* Full dialog content would go here, it's omitted for brevity but would include translation and download buttons */}
+                 </div>
+                 <DialogFooter>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Download</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => downloadAsFile(formatSummaryForDownload(editableSummary), `${room.topic}-summary.txt`)}>
+                                Summary (Original)
+                            </DropdownMenuItem>
+                            {Object.entries(editableSummary.summary.translations || {}).map(([lang, text]) => (
+                                <DropdownMenuItem key={lang} onClick={() => downloadAsFile(formatSummaryForDownload(editableSummary, lang), `${room.topic}-summary-${lang}.txt`)}>
+                                    Summary ({languages.find(l => l.value === lang)?.label || lang})
+                                </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={handleDownloadTranscript} disabled={isDownloadingTranscript}>
+                                {isDownloadingTranscript ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                Transcript ({settings?.transcriptCost} Tokens)
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button onClick={() => setIsOpen(false)}>Close</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )
@@ -992,5 +1074,3 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
-
-    
