@@ -408,10 +408,10 @@ export default function TranslatorTab() {
         <div className="space-y-8">
             <Card className="shadow-lg">
                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle className="flex items-center gap-2">Live Translator</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                        Live Translator
                         <TranslatorInfoDialog />
-                    </div>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-4 mb-6" data-tour="lt-language-selectors">
