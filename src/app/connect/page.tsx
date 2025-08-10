@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, Suspense } from 'react';
@@ -19,8 +20,8 @@ function ConnectPageContent() {
 
     const tabsConfig = [
         { value: 'vibes', label: 'Vibes', icon: MessageCircle, component: <VibesTab /> },
-        { value: 'voice-rooms', label: 'Voice Rooms', icon: Radio, component: <VoiceRoomsTab /> },
         { value: 'meetups', label: 'Meetups', icon: Users, component: <MeetupsTab /> },
+        { value: 'voice-rooms', label: 'Voice Rooms', icon: Radio, component: <VoiceRoomsTab /> },
     ];
 
     return (
