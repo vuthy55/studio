@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -31,7 +32,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, Info, Wand2 } from 'lucide-react';
-import type { SyncRoom, UserProfile, RoomSummary, TranslatedContent } from '@/lib/types';
+import type { SyncRoom, UserProfile, RoomSummary, TranslatedContent, Transcript } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -96,9 +97,9 @@ function VoiceRoomsInfoDialog() {
                             </ul>
                         </div>
                         <div>
-                            <h4 className="font-semibold mb-1">AI Summaries</h4>
+                            <h4 className="font-semibold mb-1">AI Summaries & Transcripts</h4>
                              <p className="text-muted-foreground">
-                                After a meeting ends, an AI agent generates a summary of the conversation, including key discussion points and action items. This summary can be viewed from the "Closed" rooms tab.
+                                After a meeting ends, an AI agent generates a summary of the conversation. This costs tokens to generate initially but can be viewed and translated by anyone in the room for free afterwards. You can also generate a full, plain-text transcript of the entire meeting for a token fee.
                             </p>
                         </div>
                     </div>
@@ -218,14 +219,36 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
         return output;
     };
     
+    const formatTranscriptForDownload = (transcript: Transcript) => {
+        let output = `Transcript for: ${transcript.title}\n`;
+        output += `Date: ${formatDate(transcript.date)}\n\n`;
+        output += '--- Participants ---\n';
+        transcript.presentParticipants.forEach(p => {
+            output += `- ${p.name} (${p.email})\n`;
+        });
+        if (transcript.absentParticipants.length > 0) {
+            output += '\n--- Absent ---\n';
+            transcript.absentParticipants.forEach(p => {
+                output += `- ${p.name} (${p.email})\n`;
+            });
+        }
+        output += '\n--- Conversation Log ---\n';
+        transcript.log.forEach(item => {
+            const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            output += `[${time}] ${item.speakerName}: ${item.text}\n`;
+        });
+        return output;
+    }
+    
     const handleDownloadTranscript = async () => {
         if (!user) return;
         setIsDownloadingTranscript(true);
         try {
             const result = await getTranscriptAction(room.id, user.uid);
             if (result.success && result.transcript) {
-                downloadAsFile(result.transcript, `${room.topic}-transcript.txt`);
+                downloadAsFile(formatTranscriptForDownload(result.transcript), `${room.topic}-transcript.txt`);
                 toast({ title: "Transcript Downloaded", description: "The full transcript has been saved." });
+                onUpdate(); // Re-fetch room data to get the cached transcript
             } else {
                 throw new Error(result.error || 'Failed to generate transcript.');
             }
@@ -285,7 +308,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <Tabs defaultValue="original" className="w-full">
                                 <TabsList className="grid w-full grid-cols-2">
                                      <TabsTrigger value="original">Original Summary</TabsTrigger>
-                                     <TabsTrigger value="action-items">Action Items ({editableSummary.actionItems ? editableSummary.actionItems.length : 0})</TabsTrigger>
+                                     <TabsTrigger value="action-items">Action Items ({editableSummary.actionItems?.length || 0})</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="original">
                                     <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
@@ -328,7 +351,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleDownloadTranscript} disabled={isDownloadingTranscript}>
                                 {isDownloadingTranscript ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                Transcript ({settings?.transcriptCost} Tokens)
+                                Transcript ({room.transcript ? 'Free' : `${settings?.transcriptCost} Tokens`})
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
