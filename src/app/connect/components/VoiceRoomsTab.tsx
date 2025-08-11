@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -249,7 +250,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
             if (result.success && result.transcript) {
                 downloadAsFile(formatTranscriptForDownload(result.transcript), `${room.topic}-transcript.txt`);
                 toast({ title: "Transcript Downloaded", description: "The full transcript has been saved." });
-                onUpdate(); // Re-fetch room data to get the cached transcript
+                // onUpdate(); // Re-fetch room data to get the cached transcript
             } else {
                 throw new Error(result.error || 'Failed to generate transcript.');
             }
@@ -279,7 +280,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh]">
-                    <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-1 space-y-4">
                             <Card>
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
@@ -352,7 +353,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleDownloadTranscript} disabled={isDownloadingTranscript}>
                                 {isDownloadingTranscript ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                Transcript ({room.transcript ? 'Free' : `${settings?.transcriptCost} Tokens`})
+                                Room Transcript ({room.transcript ? 'Free' : `${settings?.transcriptCost} Tokens`})
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -1145,3 +1146,4 @@ export default function VoiceRoomsTab() {
       </Card>
     );
 }
+
