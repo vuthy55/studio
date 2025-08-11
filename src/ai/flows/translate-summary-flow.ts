@@ -14,6 +14,7 @@ import type { RoomSummary } from '@/lib/types';
 import { db } from '@/lib/firebase-admin';
 import { getAppSettingsAction } from '@/actions/settings';
 import { FieldValue } from 'firebase-admin/firestore';
+import { languages } from '@/lib/data';
 
 // --- Zod Schemas for Input/Output ---
 
@@ -51,19 +52,19 @@ export type TranslateSummaryOutput = RoomSummary;
 
 
 // --- Helper Function ---
-const generateWithFallback = async (prompt: string) => {
+const generateWithFallback = async (prompt: string, schema: z.ZodType) => {
     try {
         return await ai.generate({
             prompt,
             model: 'googleai/gemini-1.5-flash',
-            output: { schema: z.record(z.string()) },
+            output: { schema },
         });
     } catch (error) {
         console.warn("Primary translation model (gemini-1.5-flash) failed. Retrying with fallback.", error);
         return await ai.generate({
             prompt,
             model: 'googleai/gemini-1.5-pro',
-            output: { schema: z.record(z.string()) },
+            output: { schema },
         });
     }
 };
@@ -80,17 +81,27 @@ const translateSummaryFlow = ai.defineFlow(
   async ({ summary, targetLanguages }) => {
 
     const translationPromises = [];
+    
+    // Dynamically build the Zod schema based on the target languages
+    const translationSchema = z.object(
+        targetLanguages.reduce((acc, lang) => {
+            const langLabel = languages.find(l => l.value === lang)?.label || lang;
+            acc[lang] = z.string().describe(`The translated text in ${langLabel}.`);
+            return acc;
+        }, {} as Record<string, z.ZodString>)
+    );
+
 
     // Translate the main summary
     translationPromises.push(
-      generateWithFallback(`Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`)
+      generateWithFallback(`Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`, translationSchema)
         .then(res => ({ index: -1, translations: res.output! }))
     );
 
     // Translate each action item
     summary.actionItems.forEach((item, index) => {
       translationPromises.push(
-        generateWithFallback(`Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`)
+        generateWithFallback(`Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`, translationSchema)
           .then(res => ({ index, translations: res.output! }))
       );
     });
@@ -133,7 +144,7 @@ export async function translateSummary(input: TranslateSummaryInput): Promise<Tr
   
   const totalCost = newLanguagesToTranslate.length * costPerLanguage;
 
-  const userRef = db.collection('users').doc(userId);
+  const userRef = doc(db, 'users', userId);
   const userDoc = await userRef.get();
   const userBalance = userDoc.data()?.tokenBalance || 0;
 
@@ -169,5 +180,3 @@ export async function translateSummary(input: TranslateSummaryInput): Promise<Tr
 
   return translatedResult;
 }
-
-    
