@@ -20,7 +20,7 @@ import type { User } from 'firebase/auth';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -102,7 +102,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         if (!user) return;
         const { audioPack, size } = await getSavedPhrasesAudioPack(user.uid);
         await loadPackToDB('user_saved_phrases', audioPack, size);
-        setOfflineAudioPacks(prev => ({ ...prev, user_saved_phrases: { ...audioPack, size } }));
+        setOfflineAudioPacks(prev => ({ ...prev, user_saved_phrases: { ...audioPack } }));
     }, [user]);
 
     const clearLocalState = useCallback(() => {
