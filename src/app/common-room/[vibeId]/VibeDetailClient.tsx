@@ -441,7 +441,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
 
     const fromTab = searchParams.get('from');
     const reportId = searchParams.get('reportId');
-    const backLink = fromTab === 'my-space' ? '/common-room?tab=my-space' : '/common-room';
+    const backLink = fromTab === 'private' ? '/connect?tab=vibes' : '/connect?tab=vibes';
 
     const vibeUnsubscribeRef = useRef<() => void | undefined>();
     const postsUnsubscribeRef = useRef<() => void | undefined>();
@@ -857,7 +857,7 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
                 <Button asChild className="mt-6">
                     <Link href={backLink}>
                         <ArrowLeft className="mr-2 h-4 w-4"/>
-                        Back to Common Room
+                        Back to Connect
                     </Link>
                 </Button>
             </div>
@@ -869,9 +869,9 @@ export default function VibeDetailClient({ vibeId }: { vibeId: string }) {
             <header className="p-4 border-b flex justify-between items-start gap-4">
                 <div className="flex-1">
                     <Button variant="ghost" asChild>
-                        <Link href={isModeratorView ? '/admin?tab=reports' : backLink}>
+                        <Link href={isModeratorView ? '/admin?tab=reports' : '/connect?tab=vibes'}>
                             <ArrowLeft className="mr-2 h-4 w-4"/>
-                            Back to {isModeratorView ? 'Reports' : 'Common Room'}
+                            Back to {isModeratorView ? 'Reports' : 'Connect'}
                         </Link>
                     </Button>
                     <div className="flex items-center gap-2 mt-2">
