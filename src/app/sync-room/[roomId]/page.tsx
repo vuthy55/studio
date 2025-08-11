@@ -819,6 +819,7 @@ export default function SyncRoomPage() {
 
             await sendRoomInviteEmail({
                 to: emails,
+                roomId: roomId,
                 roomTopic: roomData.topic,
                 fromName: user.displayName || 'A user',
                 scheduledAt: scheduledAtDate,
