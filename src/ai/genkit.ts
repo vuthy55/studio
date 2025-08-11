@@ -14,5 +14,4 @@ export const ai = genkit({
       apiVersion: 'v1',
     }),
   ],
-  enableTracingAndMetrics: true,
 });
