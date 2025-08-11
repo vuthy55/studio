@@ -1,7 +1,7 @@
 
 'use server';
 
-import paypal from '@paypal/checkout-server-sdk';
+import paypal from '@paypal/paypal-js';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
@@ -21,12 +21,29 @@ function getPayPalClient() {
   if (!clientId || !clientSecret) {
     throw new Error('PayPal client ID or secret is not configured on the server.');
   }
+  
+  // The new SDK handles environment configuration differently. We'll use the API directly.
+  return {
+      clientId,
+      clientSecret,
+      environment: process.env.NODE_ENV === 'production' ? 'live' : 'sandbox'
+  };
+}
 
-  const environment = process.env.NODE_ENV === 'production'
-    ? new paypal.core.LiveEnvironment(clientId, clientSecret)
-    : new paypal.core.SandboxEnvironment(clientId, clientSecret);
-    
-  return new paypal.core.PayPalHttpClient(environment);
+async function getAccessToken({ clientId, clientSecret, environment }: ReturnType<typeof getPayPalClient>) {
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const url = environment === 'live' ? 'https://api-m.paypal.com/v1/oauth2/token' : 'https://api-m.sandbox.paypal.com/v1/oauth2/token';
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'grant_type=client_credentials'
+    });
+    const data = await response.json();
+    return data.access_token;
 }
 
 // --- Server Action: Create an order ---
@@ -45,22 +62,36 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         return { error: 'Invalid purchase amount.' };
     }
 
-    const request = new paypal.orders.OrdersCreateRequest();
-    request.prefer("return=representation");
-    request.requestBody({
-        intent: 'CAPTURE',
-        purchase_units: [{
-            amount: {
-                currency_code: 'USD',
-                value: purchaseAmount,
-            },
-        }],
-    });
+    const client = getPayPalClient();
+    const accessToken = await getAccessToken(client);
+    const url = client.environment === 'live' ? 'https://api-m.paypal.com/v2/checkout/orders' : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
 
     try {
-        const client = getPayPalClient();
-        const response = await client.execute(request);
-        return { orderID: response.result.id };
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+                intent: 'CAPTURE',
+                purchase_units: [{
+                    amount: {
+                        currency_code: 'USD',
+                        value: purchaseAmount,
+                    },
+                }],
+            })
+        });
+
+        const orderData = await response.json();
+        
+        if (response.ok) {
+            return { orderID: orderData.id };
+        } else {
+             throw new Error(orderData.message || 'Failed to create PayPal order.');
+        }
+
     } catch (error: any) {
         console.error("Error creating PayPal order:", error.message);
         return { error: 'Failed to create PayPal order on the server.' };
@@ -69,13 +100,25 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
 
 // --- Server Action: Capture an order ---
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
-    const request = new paypal.orders.OrdersCaptureRequest(orderID);
-    request.requestBody({});
+    
+    const client = getPayPalClient();
+    const accessToken = await getAccessToken(client);
+    const url = client.environment === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
 
     try {
-        const client = getPayPalClient();
-        const response = await client.execute(request);
-        const orderData = response.result;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        const orderData = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(orderData.message || 'Payment was not completed.');
+        }
 
         if (orderData.status === 'COMPLETED') {
             const purchaseUnit = orderData.purchase_units[0];
