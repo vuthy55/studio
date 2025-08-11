@@ -37,8 +37,7 @@ export default function FinancialTab() {
     const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
-    const [hasSearched, setHasSearched] = useState(false);
-
+    
     const [formState, setFormState] = useState<{
         description: string;
         amount: number | '';
@@ -71,7 +70,6 @@ export default function FinancialTab() {
         if (!auth.currentUser) return;
         
         setIsSearching(true);
-        setHasSearched(true);
         
         try {
             const [ledgerData, analyticsData] = await Promise.all([
@@ -102,12 +100,8 @@ export default function FinancialTab() {
     }, [toast]);
 
     useEffect(() => {
-        if (!user) {
-            setIsLoading(false);
-            return;
-        }
-        getLedgerAnalytics().then(setAnalytics).finally(() => setIsLoading(false));
-    }, [user]);
+        fetchData('*');
+    }, [fetchData]);
     
 
     const handleManualEntry = async (e: React.FormEvent, type: 'revenue' | 'expense') => {
@@ -152,7 +146,7 @@ export default function FinancialTab() {
             
             setIsExpenseDialogOpen(false);
             setIsRevenueDialogOpen(false);
-            await fetchData(searchTerm);
+            await fetchData(searchTerm || '*');
 
         } catch (error) {
             
@@ -357,7 +351,7 @@ export default function FinancialTab() {
                 </Card>
             </CardHeader>
             <CardContent>
-                 <form className="flex justify-between items-center mb-4" onSubmit={(e) => { e.preventDefault(); fetchData(searchTerm); }}>
+                 <form className="flex justify-between items-center mb-4" onSubmit={(e) => { e.preventDefault(); fetchData(searchTerm || '*'); }}>
                     <div className="relative flex-grow">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                         <Input
@@ -467,7 +461,7 @@ export default function FinancialTab() {
                             ) : (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-24 text-center">
-                                       {hasSearched ? "No records match your search." : "Enter a search term to begin."}
+                                       No records match your search. Use '*' for all.
                                     </TableCell>
                                 </TableRow>
                             )}

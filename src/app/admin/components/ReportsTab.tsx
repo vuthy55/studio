@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { LoaderCircle, RefreshCw, AlertTriangle, ArrowRight } from "lucide-react";
@@ -14,14 +14,12 @@ import type { Report } from '@/lib/types';
 
 export default function ReportsTab() {
   const [reports, setReports] = useState<Report[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
 
   const fetchReports = useCallback(async () => {
     setIsLoading(true);
-    setHasFetched(true);
     try {
       const fetchedReports = await getReportsAdmin();
       setReports(fetchedReports);
@@ -31,6 +29,10 @@ export default function ReportsTab() {
       setIsLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   const handleViewVibe = (report: Report) => {
     router.push(`/common-room/${report.vibeId}?from=reports&reportId=${report.id}`);
@@ -47,7 +49,7 @@ export default function ReportsTab() {
       <CardContent className="space-y-4">
         <Button onClick={fetchReports} disabled={isLoading}>
             {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-            {hasFetched ? 'Refresh List' : 'Fetch Reports'}
+            Refresh List
         </Button>
 
         <div className="border rounded-md">
@@ -86,7 +88,7 @@ export default function ReportsTab() {
                     ) : (
                         <TableRow>
                             <TableCell colSpan={5} className="h-24 text-center">
-                                {hasFetched ? 'No reports found.' : 'Click "Fetch Reports" to load.'}
+                                No reports found.
                             </TableCell>
                         </TableRow>
                     )}
