@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info, Wand2 } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, Info, Wand2 } from 'lucide-react';
 import type { SyncRoom, UserProfile, RoomSummary, TranslatedContent } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -261,7 +261,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
                                 <CardContent>
                                     <ul className="text-sm space-y-1">
-                                        {editableSummary.presentParticipants && editableSummary.presentParticipants.map(p => <li key={p.email}>{p.name}</li>)}
+                                        {editableSummary && editableSummary.presentParticipants && editableSummary.presentParticipants.map(p => <li key={p.email}>{p.name}</li>)}
                                     </ul>
                                 </CardContent>
                             </Card>
@@ -285,16 +285,16 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <Tabs defaultValue="original" className="w-full">
                                 <TabsList className="grid w-full grid-cols-2">
                                      <TabsTrigger value="original">Original Summary</TabsTrigger>
-                                     <TabsTrigger value="action-items">Action Items ({editableSummary.actionItems.length})</TabsTrigger>
+                                     <TabsTrigger value="action-items">Action Items ({editableSummary.actionItems ? editableSummary.actionItems.length : 0})</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="original">
                                     <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
-                                        {editableSummary.summary.original}
+                                        {editableSummary.summary?.original}
                                     </div>
                                 </TabsContent>
                                  <TabsContent value="action-items">
                                      <div className="p-4 border rounded-md min-h-[200px] mt-2 space-y-2 text-sm">
-                                        {editableSummary.actionItems.length > 0 ? (
+                                        {editableSummary.actionItems && editableSummary.actionItems.length > 0 ? (
                                             editableSummary.actionItems.map((item, i) => (
                                                 <div key={i} className="pb-2 border-b last:border-b-0">
                                                     <p>{i+1}. {item.task.original}</p>
