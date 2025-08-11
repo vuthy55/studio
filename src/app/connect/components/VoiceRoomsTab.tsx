@@ -250,7 +250,6 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
             if (result.success && result.transcript) {
                 downloadAsFile(formatTranscriptForDownload(result.transcript), `${room.topic}-transcript.txt`);
                 toast({ title: "Transcript Downloaded", description: "The full transcript has been saved." });
-                // onUpdate(); // Re-fetch room data to get the cached transcript
             } else {
                 throw new Error(result.error || 'Failed to generate transcript.');
             }
@@ -353,7 +352,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleDownloadTranscript} disabled={isDownloadingTranscript}>
                                 {isDownloadingTranscript ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                Room Transcript ({room.transcript ? 'Free' : `${settings?.transcriptCost} Tokens`})
+                                Room Transcript
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -713,6 +712,7 @@ export default function VoiceRoomsTab() {
                 
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
+                    return; // Exit early to prevent tab switch
                 }
             }
             
@@ -1086,9 +1086,9 @@ export default function VoiceRoomsTab() {
                         <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
                           {allInvitedEmailsForCalc.map(email => (
                             <div key={email} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={email}
-                                checked={emceeEmails.includes(email)}
+                              <Checkbox 
+                                id={email} 
+                                checked={emceeEmails.includes(email)} 
                                 onCheckedChange={() => toggleEmcee(email)}
                                 disabled={email === user?.email}
                               />
@@ -1146,4 +1146,3 @@ export default function VoiceRoomsTab() {
       </Card>
     );
 }
-
