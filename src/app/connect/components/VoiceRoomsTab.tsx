@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -279,7 +278,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh]">
-                <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="py-4 space-y-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-1 space-y-4">
                             <Card>
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
@@ -356,7 +355,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button onClick={() => setIsOpen(false)}>Close</Button>
+                    <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -712,12 +711,14 @@ export default function VoiceRoomsTab() {
                 
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
-                    return; // Exit early to prevent tab switch
+                    return; 
                 }
             }
             
-            fetchInvitedRooms();
-            setActiveMainTab('your-rooms');
+            if (!startNow) {
+                fetchInvitedRooms();
+                setActiveMainTab('your-rooms');
+            }
 
         } catch (error) {
             console.error("Error submitting room:", error);
@@ -788,6 +789,7 @@ export default function VoiceRoomsTab() {
                     {rooms.map((room, index) => {
                         const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
                         const isCreator = room.creatorUid === user!.uid;
+                        const isEmcee = isCreator || (user?.email && room.emceeEmails?.includes(user.email));
                         const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
                         const tourProps = roomType === 'active' && index === 0 
                             ? {
@@ -860,11 +862,11 @@ export default function VoiceRoomsTab() {
                                         </Button>
                                     )}
                                     
-                                    {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
+                                    {isEmcee && (room.status === 'scheduled' || room.status === 'active') && (
                                         <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
                                     )}
 
-                                    {isCreator && room.status === 'scheduled' && (
+                                    {isEmcee && room.status === 'scheduled' && (
                                         <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
                                     )}
 
@@ -872,7 +874,7 @@ export default function VoiceRoomsTab() {
                                         <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
                                     )}
                                     
-                                    {isCreator && (
+                                    {isEmcee && (
                                         <div {...tourProps.settings}>
                                             <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                         </div>

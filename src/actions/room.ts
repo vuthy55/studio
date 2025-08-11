@@ -8,7 +8,7 @@ import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, Summa
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail, sendRoomInviteEmail } from './email';
 import { deleteCollection } from '@/lib/firestore-utils';
-import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
+import { summarizeRoom as summarizeRoomFlow } from '@/ai/flows/summarize-room-flow';
 
 
 /**
@@ -605,7 +605,7 @@ export async function summarizeRoomAction(roomId: string, userId: string): Promi
     return { success: false, error: 'Room ID and User ID are required.' };
   }
   try {
-    const result = await summarizeRoom({ roomId, userId });
+    const result = await summarizeRoomFlow({ roomId, userId });
     if (result) {
         return { success: true };
     } else {

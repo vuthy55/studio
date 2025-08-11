@@ -35,6 +35,7 @@ export async function signUpUser(
   // Room specific
   roomStatus?: 'active' | 'scheduled' | 'closed';
   scheduledAt?: string;
+  roomTopic?: string; // Added to provide more context on redirect
   // Vibe specific - No longer returning vibeExists to simplify client logic
 }> {
   const { name, email, password, country, mobile, defaultLanguage, photoURL } = payload;
@@ -200,6 +201,7 @@ export async function signUpUser(
                 success: true, 
                 userId: uid, 
                 roomStatus: roomData.status,
+                roomTopic: roomData.topic,
                 scheduledAt: (roomData.scheduledAt as Timestamp)?.toDate().toISOString()
             };
         } else {

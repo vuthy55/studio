@@ -139,7 +139,7 @@ export default function JoinRoomPage() {
             } else {
                 toast({
                     title: "Welcome to VibeSync!",
-                    description: `Your account is ready. Your room is scheduled for ${format(new Date(result.scheduledAt!), 'PPpp')}.`,
+                    description: `Your account is ready. Your room "${result.roomTopic}" is scheduled for ${format(new Date(result.scheduledAt!), 'PPpp')}.`,
                     duration: 10000
                 });
                 router.push('/learn');
@@ -241,5 +241,3 @@ export default function JoinRoomPage() {
         </div>
     );
 }
-
-    
