@@ -19,7 +19,7 @@ All notable changes to the Sync Online feature will be documented in this file.
     - **AI Investigator (AII):** A new AI-powered tool is available to admins within the reported Vibe. The AII analyzes the entire conversation against the established community rules, provides a summary judgment, and highlights specific posts that may be in violation, dramatically speeding up the review process.
     - **Moderation Actions & Soft Deletion:** From the Vibe view, admins can take action via a streamlined dropdown menu:
         - **Dismiss:** If no violation is found, the report is dismissed, the Vibe is reactivated, and both the reporter and creator are notified.
-        - **Archive (Soft Delete):** If a violation is found, the admin can "Archive" the Vibe. This is a soft delete that makes the Vibe permanently inaccessible to all regular users but preserves the content in the database for administrative records and future reference. The reporter and creator are notified of the action taken.
+        - **Archive (Soft Deletion):** If a violation is found, the admin can "Archive" the Vibe. This is a soft delete that makes the Vibe permanently inaccessible to all regular users but preserves the content in the database for administrative records and future reference. The reporter and creator are notified of the action taken.
 - **`[IMPROVEMENT]`** Implemented Phase 1 of the "Common Room / Vibes" feature enhancement. This major update significantly improves usability and management.
     - **Post Translation:** Users can now translate any post in a Vibe into their default language for a small token fee. Translations are permanently saved to the post, so the community only pays once per language.
     - **Automatic Language Detection:** The translation feature now automatically detects the source language of a post instead of assuming it is English.
@@ -41,6 +41,10 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load performance of the Rooms tab by removing an expensive database query.
 
 ### Fixed
+- **`[FIX]`** Resolved multiple, cascading build failures by addressing several root causes in the codebase. This included:
+    - **Upgrading Deprecated Libraries:** Replaced the unsupported `@paypal/checkout-server-sdk` with a modern, `fetch`-based API implementation, resolving a critical type definition error that blocked all builds.
+    - **Correcting Type Mismatches:** Fixed numerous TypeScript errors where the data shape returned by a function did not match its defined type. This involved correcting the return value of the `getReportsAdmin` function to align with the `ClientReport` type and ensuring AI flow schemas (e.g., in `summarize-room-flow.ts`) correctly matched their expected output interfaces.
+    - **Resolving Import Errors:** Fixed invalid import statements for Firebase Admin SDK functions (`FieldValue`, `serverTimestamp`) across multiple server-side action files, ensuring the correct modules were referenced.
 - **`[FIX]`** Resolved a critical and persistent race condition where a Sync Online room would fail to close and reconcile when the last participant left. This resulted in the room appearing "active" indefinitely and the session timer continuing to run, leading to potential overcharging and incorrect state.
     - **Root Cause:** The `handleParticipantExit` server action attempted to call the `endAndReconcileRoom` function from *within* a Firestore transaction. This either violated Firestore's "reads after writes" rule (causing the transaction to fail silently) or created a race condition where the room's state wasn't updated before the reconciliation logic ran.
     - **Definitive Solution:** The logic was refactored to be robust and atomic. The `handleParticipantExit` function's transaction now only determines if the leaving user is the last one. If so, it completes its transaction (deleting the user) and *then* makes a separate, subsequent call to the `endAndReconcileRoom` function. This separation of concerns ensures the participant count is accurate before the settlement logic is triggered, guaranteeing reliable room closure and financial reconciliation every time.
@@ -78,5 +82,6 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
+
 
 
