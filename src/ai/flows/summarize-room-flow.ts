@@ -215,8 +215,8 @@ const summarizeRoomFlow = ai.defineFlow(
         };
     });
     
-    const presentParticipants = allInvitedUsers.filter((p: { email: string; }) => presentParticipantEmails.has(p.email));
-    const absentParticipants = allInvitedUsers.filter((p: { email: string; }) => !presentParticipantEmails.has(p.email));
+    const presentParticipants = allInvitedUsers.filter((p: { name: string; email: string; language: string; }) => presentParticipantEmails.has(p.email));
+    const absentParticipants = allInvitedUsers.filter((p: { name: string; email: string; language: string; }) => !presentParticipantEmails.has(p.email));
 
     const chatHistory = messages
       .map(msg => `${msg.speakerName}: ${msg.text}`)
@@ -237,10 +237,10 @@ const summarizeRoomFlow = ai.defineFlow(
       Date: ${promptPayload.date}
       
       Participants Present:
-      ${promptPayload.presentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
+      ${promptPayload.presentParticipants.map((p: { name: string; email: string; }) => `- ${p.name} (${p.email})`).join('\n')}
 
       Participants Absent:
-      ${promptPayload.absentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
+      ${promptPayload.absentParticipants.map((p: { name: string; email: string; }) => `- ${p.name} (${p.email})`).join('\n')}
       
       Chat History:
       ---
