@@ -6,6 +6,10 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Established and documented a robust, multi-step AI process for generating pure-language translations, specifically addressing challenges with closely-related languages like Khmer and Thai. The successful "correct-and-refine" method involves:
+    1.  **Initial Translation:** Generate a baseline translation of the source text.
+    2.  **Error Isolation:** In a separate step, instruct the AI to act as a language expert, analyzing the baseline translation to identify and list all words or phrases that are from an incorrect language (e.g., finding Thai words in a Khmer text).
+    3.  **Guided Replacement:** In a final, highly-constrained step, provide the AI with the mixed-language text and the specific list of identified errors. Command it to perform a direct find-and-replace operation for only those terms, preventing it from introducing new, contextually-related errors from its training data. This iterative, guided process overcomes the model's inherent data biases and ensures a high-quality, pure-language output.
 - **`[IMPROVEMENT]`** Implemented a comprehensive reporting and moderation system for the Common Room. This feature empowers the community and administrators to maintain a safe and respectful environment.
     - **User Reporting:** Any user can now report a Vibe that they believe violates community guidelines. The report action is available in the Vibe's participant list.
     - **Automated Workflow:** When a report is submitted, the system automatically:
