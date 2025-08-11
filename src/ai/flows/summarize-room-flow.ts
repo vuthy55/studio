@@ -109,7 +109,7 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
             actionType: 'translation_spend',
             tokenChange: -cost,
             timestamp: FieldValue.serverTimestamp(),
-            description: `Generated AI summary for room: "${roomTopic}"`,
+            description: `Room Summary Generation`,
             reason: 'Room Summary'
         });
     }

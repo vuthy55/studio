@@ -46,6 +46,7 @@ function TokenHistoryDialog() {
             case 'language_pack_download': return 'Language Pack Download';
             case 'infohub_intel': return 'InfoHub Intel';
             case 'save_phrase_spend': return 'Saved Phrases for Offline';
+            case 'transcript_generation': return 'Room Transcript';
             default: return 'Prep Your Vibe';
         }
     }

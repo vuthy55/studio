@@ -46,6 +46,14 @@ export default function ProfileSection() {
     const handleInputChange = (field: keyof UserProfileType, value: any) => {
         setEdits(prev => ({ ...prev, [field]: value }));
     };
+    
+    const handleLanguageChange = (value: string) => {
+        handleInputChange('defaultLanguage', value);
+    }
+    
+    const handleCountryChange = (value: string) => {
+        handleInputChange('country', value);
+    }
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -150,7 +158,7 @@ export default function ProfileSection() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="defaultLanguage">Default Spoken Language</Label>
-                                <Select value={displayProfile.defaultLanguage || ''} onValueChange={(v) => handleInputChange('defaultLanguage', v)}>
+                                <Select value={displayProfile.defaultLanguage || ''} onValueChange={handleLanguageChange}>
                                     <SelectTrigger id="defaultLanguage">
                                         <SelectValue placeholder="Select your preferred language" />
                                     </SelectTrigger>
@@ -165,7 +173,7 @@ export default function ProfileSection() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="country">Country</Label>
-                                <Select value={displayProfile.country || ''} onValueChange={(v) => handleInputChange('country', v)}>
+                                <Select value={displayProfile.country || ''} onValueChange={handleCountryChange}>
                                     <SelectTrigger id="country">
                                         <SelectValue placeholder="Select your country" />
                                     </SelectTrigger>

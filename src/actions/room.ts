@@ -695,7 +695,7 @@ export async function getTranscriptAction(roomId: string, userId: string): Promi
                 actionType: 'transcript_generation',
                 tokenChange: -cost,
                 timestamp: FieldValue.serverTimestamp(),
-                description: `Generated transcript for room: "${roomRef.id}"`,
+                description: 'Room Transcript',
             });
             
             // Save the newly generated transcript to the room document
@@ -712,4 +712,3 @@ export async function getTranscriptAction(roomId: string, userId: string): Promi
     }
 }
     
-
