@@ -18,12 +18,21 @@ const firebaseConfig = {
 // Initialize Firebase for SSR
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// New: Initialize Firestore with caching configuration
-const db = initializeFirestore(app, {
-  // Firestore settings can go here if needed in the future
-}, {
-  cache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
-});
+// Initialize Firestore
+const db = initializeFirestore(app, {});
+// Enable offline persistence
+enableIndexedDbPersistence(db)
+  .catch((err) => {
+    if (err.code == 'failed-precondition') {
+      // Multiple tabs open, persistence can only be enabled
+      // in one tab at a time.
+      console.warn('Firestore persistence failed: multiple tabs open.');
+    } else if (err.code == 'unimplemented') {
+      // The current browser does not support all of the
+      // features required to enable persistence.
+      console.warn('Firestore persistence not available in this browser.');
+    }
+  });
 
 
 const auth = getAuth(app);
