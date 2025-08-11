@@ -229,6 +229,11 @@ export type Report = {
   status: 'pending' | 'resolved' | 'dismissed';
 }
 
+// A client-safe version of the Report type
+export interface ClientReport extends Omit<Report, 'createdAt'> {
+    createdAt: string; // ISO string for client
+}
+
 export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite' | 'new_report' | 'report_resolved';
 
 export type Notification = {

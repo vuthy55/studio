@@ -10,10 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getReportsAdmin } from '@/actions/reports-admin';
-import type { Report } from '@/lib/types';
+import type { ClientReport } from '@/lib/types';
 
 export default function ReportsTab() {
-  const [reports, setReports] = useState<Report[]>([]);
+  const [reports, setReports] = useState<ClientReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function ReportsTab() {
     fetchReports();
   }, [fetchReports]);
 
-  const handleViewVibe = (report: Report) => {
+  const handleViewVibe = (report: ClientReport) => {
     router.push(`/common-room/${report.vibeId}?from=reports&reportId=${report.id}`);
   };
 

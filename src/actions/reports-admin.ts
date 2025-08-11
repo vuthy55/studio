@@ -2,25 +2,26 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import type { Report, NotificationType } from '@/lib/types';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import type { Report, ClientReport } from '@/lib/types';
+import { Timestamp } from 'firebase-admin/firestore';
 import { deleteCollection } from '@/lib/firestore-utils';
 
 /**
  * Fetches all reports from Firestore for the admin dashboard.
+ * Converts Timestamps to strings for client-side serialization.
  */
-export async function getReportsAdmin(): Promise<Report[]> {
+export async function getReportsAdmin(): Promise<ClientReport[]> {
     try {
         const snapshot = await db.collection('reports').orderBy('createdAt', 'desc').get();
         if (snapshot.empty) return [];
 
         return snapshot.docs.map(doc => {
-            const data = doc.data();
+            const data = doc.data() as Report; // Treat data as the server-side type
             return { 
-                id: doc.id,
                 ...data,
-                createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
-             } as Report;
+                id: doc.id,
+                createdAt: (data.createdAt as Timestamp).toDate().toISOString(), // Convert to string
+             } as ClientReport;
         });
 
     } catch (error) {
