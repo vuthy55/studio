@@ -20,26 +20,39 @@ export default function RoomsTab() {
   const [syncOnlineRooms, setSyncOnlineRooms] = useState<ClientSyncRoom[]>([]);
   const [commonRooms, setCommonRooms] = useState<ClientVibe[]>([]);
   
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [isVoiceRoomsLoading, setIsVoiceRoomsLoading] = useState(false);
+  const [hasFetchedVoiceRooms, setHasFetchedVoiceRooms] = useState(false);
+  
+  const [isVibesLoading, setIsVibesLoading] = useState(false);
+  const [hasFetchedVibes, setHasFetchedVibes] = useState(false);
+
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const [user] = useAuthState(auth);
 
-  const handleFetchData = useCallback(async () => {
-    setIsLoading(true);
-    setHasFetched(true);
+  const handleFetchVoiceRooms = useCallback(async () => {
+    setIsVoiceRoomsLoading(true);
+    setHasFetchedVoiceRooms(true);
     try {
-      const [fetchedRooms, fetchedVibes] = await Promise.all([
-        getAllRooms(),
-        getAllVibesAdmin()
-      ]);
+      const fetchedRooms = await getAllRooms();
       setSyncOnlineRooms(fetchedRooms);
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load Voice Rooms.' });
+    } finally {
+      setIsVoiceRoomsLoading(false);
+    }
+  }, [toast]);
+  
+  const handleFetchVibes = useCallback(async () => {
+    setIsVibesLoading(true);
+    setHasFetchedVibes(true);
+    try {
+      const fetchedVibes = await getAllVibesAdmin();
       setCommonRooms(fetchedVibes);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Error', description: e.message || 'An unknown error occurred.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load Vibes Rooms.' });
     } finally {
-      setIsLoading(false);
+      setIsVibesLoading(false);
     }
   }, [toast]);
   
@@ -50,7 +63,7 @@ export default function RoomsTab() {
         const result = await permanentlyDeleteRooms([roomId]);
         if (result.success) {
             toast({ title: "Success", description: `Room deleted.` });
-            await handleFetchData();
+            setSyncOnlineRooms(prev => prev.filter(r => r.id !== roomId));
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -67,8 +80,8 @@ export default function RoomsTab() {
     try {
         const result = await deleteVibesAdmin([vibeId]);
         if (result.success) {
-            toast({ title: "Success", description: `Common Room deleted.` });
-            await handleFetchData();
+            toast({ title: "Success", description: `Vibes Room deleted.` });
+            setCommonRooms(prev => prev.filter(v => v.id !== vibeId));
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -82,33 +95,28 @@ export default function RoomsTab() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle>Room Management</CardTitle>
-          <Button onClick={handleFetchData} variant="outline" size="sm" disabled={isLoading}>
-            {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <RefreshCw className="mr-2" />}
-            {hasFetched ? 'Refresh Data' : 'Load Rooms Data'}
-          </Button>
-        </div>
+        <CardTitle>Room Management</CardTitle>
         <CardDescription>
-          Manage private Sync Online rooms and public/private Common Rooms (Vibes).
+          Manage private Voice Rooms and public/private Vibes Rooms.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {!hasFetched ? (
-          <div className="text-center text-muted-foreground py-10">
-            Click the button above to load all room data.
-          </div>
-        ) : isLoading ? (
-          <div className="flex justify-center items-center py-10">
-            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
-                <h3 className="font-semibold">Sync Online Rooms</h3>
+                <div className="flex justify-between items-center">
+                    <h3 className="font-semibold">Voice Rooms</h3>
+                    <Button onClick={handleFetchVoiceRooms} variant="outline" size="sm" disabled={isVoiceRoomsLoading}>
+                        {isVoiceRoomsLoading ? <LoaderCircle className="animate-spin mr-2" /> : <RefreshCw className="mr-2" />}
+                        {hasFetchedVoiceRooms ? 'Refresh' : 'Load Data'}
+                    </Button>
+                </div>
                 <ScrollArea className="h-72 border rounded-md p-2">
                     <div className="pr-2 space-y-2">
-                    {syncOnlineRooms.length > 0 ? syncOnlineRooms.map(room => (
+                    {!hasFetchedVoiceRooms ? (
+                        <p className="text-center text-sm text-muted-foreground p-4">Click 'Load Data' to see Voice Rooms.</p>
+                    ) : isVoiceRoomsLoading ? (
+                        <div className="flex justify-center items-center h-full"><LoaderCircle className="h-6 w-6 animate-spin" /></div>
+                    ) : syncOnlineRooms.length > 0 ? syncOnlineRooms.map(room => (
                         <div key={room.id} className="flex items-center justify-between p-2 rounded-md bg-muted">
                             <div>
                                 <p className="font-semibold">{room.topic}</p>
@@ -120,15 +128,25 @@ export default function RoomsTab() {
                                 <Trash2 className="h-4 w-4 text-destructive"/>
                             </Button>
                         </div>
-                    )) : <p className="text-center text-sm text-muted-foreground p-4">No Sync Online rooms found.</p>}
+                    )) : <p className="text-center text-sm text-muted-foreground p-4">No Voice Rooms found.</p>}
                     </div>
                 </ScrollArea>
             </div>
             <div className="space-y-4">
-                <h3 className="font-semibold">Common Rooms (Vibes)</h3>
+                 <div className="flex justify-between items-center">
+                    <h3 className="font-semibold">Vibes Rooms</h3>
+                    <Button onClick={handleFetchVibes} variant="outline" size="sm" disabled={isVibesLoading}>
+                        {isVibesLoading ? <LoaderCircle className="animate-spin mr-2" /> : <RefreshCw className="mr-2" />}
+                        {hasFetchedVibes ? 'Refresh' : 'Load Data'}
+                    </Button>
+                 </div>
                 <ScrollArea className="h-72 border rounded-md p-2">
                     <div className="pr-2 space-y-2">
-                    {commonRooms.length > 0 ? commonRooms.map(vibe => (
+                    {!hasFetchedVibes ? (
+                         <p className="text-center text-sm text-muted-foreground p-4">Click 'Load Data' to see Vibes Rooms.</p>
+                    ) : isVibesLoading ? (
+                         <div className="flex justify-center items-center h-full"><LoaderCircle className="h-6 w-6 animate-spin" /></div>
+                    ) : commonRooms.length > 0 ? commonRooms.map(vibe => (
                         <div key={vibe.id} className="flex items-center justify-between p-2 rounded-md bg-muted">
                             <div>
                                 <p className="font-semibold">{vibe.topic}</p>
@@ -140,12 +158,11 @@ export default function RoomsTab() {
                                 <Trash2 className="h-4 w-4 text-destructive"/>
                             </Button>
                         </div>
-                    )) : <p className="text-center text-sm text-muted-foreground p-4">No Common Rooms found.</p>}
+                    )) : <p className="text-center text-sm text-muted-foreground p-4">No Vibes Rooms found.</p>}
                     </div>
                 </ScrollArea>
             </div>
           </div>
-        )}
       </CardContent>
     </Card>
   );
