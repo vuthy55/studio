@@ -261,7 +261,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
                                 <CardContent>
                                     <ul className="text-sm space-y-1">
-                                        {editableSummary.presentParticipants.map(p => <li key={p.email}>{p.name}</li>)}
+                                        {editableSummary.presentParticipants && editableSummary.presentParticipants.map(p => <li key={p.email}>{p.name}</li>)}
                                     </ul>
                                 </CardContent>
                             </Card>
