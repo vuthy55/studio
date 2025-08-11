@@ -2,7 +2,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore";
+import { initializeFirestore, connectFirestoreEmulator, persistentLocalCache, persistentSingleTabManager, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -20,8 +20,11 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // New: Initialize Firestore with caching configuration
 const db = initializeFirestore(app, {
-  cache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  // Firestore settings can go here if needed in the future
+}, {
+  cache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
 });
+
 
 const auth = getAuth(app);
 const storage = getStorage(app);
