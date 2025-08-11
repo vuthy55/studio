@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { openDB } from 'idb';
@@ -40,7 +39,7 @@ export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases')
 }
 
 
-export async function loadSingleOfflinePack(lang: LanguageCode, audioPack: AudioPack, size: number): Promise<void> {
+export async function loadSingleOfflinePack(lang: LanguageCode | 'user_saved_phrases', audioPack: AudioPack, size: number): Promise<void> {
     const db = await getDb();
     await db.put(STORE_NAME, audioPack, lang);
     
