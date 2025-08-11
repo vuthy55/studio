@@ -35,14 +35,11 @@ export async function testAdvancedSearch(): Promise<TestResult> {
 }
 
 
-const generateWithFallback = async (promptTemplate: string, promptData: any, debugLog: string[]) => {
+const generateWithFallback = async (prompt: string, debugLog: string[]) => {
     try {
         debugLog.push('[INFO] Attempting summarization with gemini-1.5-flash...');
         const result = await ai.generate({
-          prompt: {
-            template: promptTemplate,
-            input: promptData,
-          },
+          prompt: prompt,
           model: 'googleai/gemini-1.5-flash',
         });
         
@@ -51,10 +48,7 @@ const generateWithFallback = async (promptTemplate: string, promptData: any, deb
         if (!outputText) {
             debugLog.push("[WARN] gemini-1.5-flash returned null. Trying fallback with gemini-1.5-pro...");
              const fallbackResult = await ai.generate({
-              prompt: {
-                template: promptTemplate,
-                input: promptData,
-              },
+              prompt: prompt,
               model: 'googleai/gemini-1.5-pro',
             });
 
@@ -119,23 +113,18 @@ const testSearchFlow = ai.defineFlow(
     // 3. Summarize
     debugLog.push('[INFO] Sending content to AI for summarization...');
     
-    const promptTemplate = `
+    const finalPrompt = `
         You are a travel intelligence analyst. Your task is to analyze the provided article.
         
         --- CATEGORY: Official Advisory ---
-        Source URL: {{{url}}}
+        Source URL: ${topUrl}
         Article Content:
-        {{{content}}}
+        ${scrapeResult.content}
         
         --- INSTRUCTIONS ---
         Based ONLY on the information provided, provide a concise, one-paragraph summary of the travel advisory.
     `;
-
-    const promptData = {
-        url: topUrl,
-        content: scrapeResult.content
-    };
     
-    return await generateWithFallback(promptTemplate, promptData, debugLog);
+    return await generateWithFallback(finalPrompt, debugLog);
   }
 );
