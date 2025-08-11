@@ -279,62 +279,60 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh]">
-                 <div className="py-4 space-y-4 pr-4">
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="md:col-span-1 space-y-4">
-                            <Card>
-                                <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
-                                <CardContent>
-                                    <ul className="text-sm space-y-1">
-                                        {editableSummary?.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
-                                    </ul>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                 <CardHeader className="pb-2"><CardTitle className="text-base">Translate</CardTitle></CardHeader>
-                                 <CardContent className="space-y-2">
-                                    <Select onValueChange={setSelectedLanguage} value={selectedLanguage}>
-                                        <SelectTrigger><SelectValue placeholder="Select language..." /></SelectTrigger>
-                                        <SelectContent>
-                                             {languages.map(lang => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <Button className="w-full" onClick={handleTranslateSummary} disabled={isTranslating || !selectedLanguage}>
-                                        {isTranslating ? <LoaderCircle className="animate-spin mr-2" /> : <TranslateIcon className="mr-2" />}
-                                        Translate ({settings?.summaryTranslationCost || 10} tokens)
-                                    </Button>
-                                 </CardContent>
-                            </Card>
-                        </div>
-                        <div className="md:col-span-2">
-                            <Tabs defaultValue="original" className="w-full">
-                                <TabsList className="grid w-full grid-cols-2">
-                                     <TabsTrigger value="original">Original Summary</TabsTrigger>
-                                     <TabsTrigger value="action-items">Action Items ({(editableSummary.actionItems || []).length})</TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="original">
-                                    <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
-                                        {editableSummary.summary?.original}
-                                    </div>
-                                </TabsContent>
-                                 <TabsContent value="action-items">
-                                     <div className="p-4 border rounded-md min-h-[200px] mt-2 space-y-2 text-sm">
-                                        {editableSummary.actionItems && editableSummary.actionItems.length > 0 ? (
-                                            editableSummary.actionItems.map((item, i) => (
-                                                <div key={i} className="pb-2 border-b last:border-b-0">
-                                                    <p>{i+1}. {item.task.original}</p>
-                                                    <div className="flex gap-4 text-xs text-muted-foreground mt-1">
-                                                        {item.personInCharge && <span>Owner: {item.personInCharge}</span>}
-                                                        {item.dueDate && <span>Due: {item.dueDate}</span>}
-                                                    </div>
+                 <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-1 space-y-4">
+                        <Card>
+                            <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="text-sm space-y-1">
+                                    {editableSummary?.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                             <CardHeader className="pb-2"><CardTitle className="text-base">Translate</CardTitle></CardHeader>
+                             <CardContent className="space-y-2">
+                                <Select onValueChange={setSelectedLanguage} value={selectedLanguage}>
+                                    <SelectTrigger><SelectValue placeholder="Select language..." /></SelectTrigger>
+                                    <SelectContent>
+                                         {languages.map(lang => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Button className="w-full" onClick={handleTranslateSummary} disabled={isTranslating || !selectedLanguage}>
+                                    {isTranslating ? <LoaderCircle className="animate-spin mr-2" /> : <TranslateIcon className="mr-2" />}
+                                    Translate ({settings?.summaryTranslationCost || 10} tokens)
+                                </Button>
+                             </CardContent>
+                        </Card>
+                    </div>
+                    <div className="md:col-span-2">
+                        <Tabs defaultValue="original" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                 <TabsTrigger value="original">Original Summary</TabsTrigger>
+                                 <TabsTrigger value="action-items">Action Items ({(editableSummary.actionItems || []).length})</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="original">
+                                <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
+                                    {editableSummary.summary?.original}
+                                </div>
+                            </TabsContent>
+                             <TabsContent value="action-items">
+                                 <div className="p-4 border rounded-md min-h-[200px] mt-2 space-y-2 text-sm">
+                                    {editableSummary.actionItems && editableSummary.actionItems.length > 0 ? (
+                                        editableSummary.actionItems.map((item, i) => (
+                                            <div key={i} className="pb-2 border-b last:border-b-0">
+                                                <p>{i+1}. {item.task.original}</p>
+                                                <div className="flex gap-4 text-xs text-muted-foreground mt-1">
+                                                    {item.personInCharge && <span>Owner: {item.personInCharge}</span>}
+                                                    {item.dueDate && <span>Due: {item.dueDate}</span>}
                                                 </div>
-                                            ))
-                                        ) : <p className="text-muted-foreground text-center">No action items were identified.</p>}
-                                    </div>
-                                </TabsContent>
-                            </Tabs>
-                        </div>
-                     </div>
+                                            </div>
+                                        ))
+                                    ) : <p className="text-muted-foreground text-center">No action items were identified.</p>}
+                                </div>
+                            </TabsContent>
+                        </Tabs>
+                    </div>
                  </div>
                 </ScrollArea>
                  <DialogFooter>
@@ -434,7 +432,6 @@ export default function VoiceRoomsTab() {
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSummarizing, setIsSummarizing] = useState<string | null>(null);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -735,7 +732,7 @@ export default function VoiceRoomsTab() {
                 acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
-            } else if (room.status === 'closed') {
+            } else if (room.status === 'closed' && room.summary) {
                 acc.closed.push(room);
             }
             return acc;
@@ -769,6 +766,97 @@ export default function VoiceRoomsTab() {
         setInviteeEmails(Array.from(currentEmails).join(', '));
     };
 
+    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
+         <div className="space-y-4">
+            {rooms.length > 0 ? (
+                <ul className="space-y-3">
+                    {rooms.map((room, index) => {
+                        const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
+                        const isCreator = room.creatorUid === user!.uid;
+                        const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
+                        const tourProps = roomType === 'active' && index === 0 
+                            ? {
+                                start: {'data-tour': `so-start-room-${index}`},
+                                share: {'data-tour': `so-share-link-${index}`},
+                                settings: {'data-tour': `so-settings-${index}`}
+                            }
+                            : {start: {}, share: {}, settings: {}};
+
+                        return (
+                            <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
+                                <div className="flex-grow">
+                                    <p className="font-semibold">{room.topic}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            {room.status === 'scheduled' && room.scheduledAt 
+                                                ? format(new Date(room.scheduledAt), 'PPpp')
+                                                : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
+                                            }
+                                        </p>
+                                        {room.status === 'closed' && (
+                                            <Badge variant={room.summary ? 'default' : 'destructive'}>
+                                                {room.summary ? 'Summary Available' : 'Closed'}
+                                            </Badge>
+                                        )}
+                                        {room.status === 'scheduled' && (
+                                             <Badge variant="outline">{room.durationMinutes} min</Badge>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isBlocked && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <XCircle className="h-5 w-5 text-destructive" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>You are blocked from this room.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+
+                                    {canJoin && !isCreator && (
+                                        <Button asChild disabled={isBlocked}>
+                                            <Link href={`/sync-room/${room.id}`}>Join Room</Link>
+                                        </Button>
+                                    )}
+
+                                    {isCreator && canJoin && (
+                                        <Button asChild disabled={isBlocked} {...tourProps.start}>
+                                            <Link href={`/sync-room/${room.id}`}>Start Room</Link>
+                                        </Button>
+                                    )}
+                                    
+                                    {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
+                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
+                                    )}
+
+                                    {isCreator && room.status === 'scheduled' && (
+                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
+                                    )}
+
+                                    {room.summary && (
+                                        <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
+                                    )}
+                                    
+                                    {isCreator && (
+                                        <div {...tourProps.settings}>
+                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
+                                        </div>
+                                    )}
+                                </div>
+                            </li>
+                        )
+                    })}
+                </ul>
+            ) : (
+                <p className="text-muted-foreground text-center py-4">No rooms in this category.</p>
+            )}
+        </div>
+    );
+
     return (
         <Card>
             <CardHeader>
@@ -778,7 +866,7 @@ export default function VoiceRoomsTab() {
                         <VoiceRoomsInfoDialog />
                     </div>
                 </div>
-                <CardDescription>
+                 <CardDescription>
                     Schedule a private room and invite others for a real-time, multi-language voice conversation.
                 </CardDescription>
             </CardHeader>
@@ -811,13 +899,13 @@ export default function VoiceRoomsTab() {
                                                 <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
                                             </TabsList>
                                             <TabsContent value="scheduled" className="mt-4">
-                                                {/* renderRoomList(scheduled, 'scheduled') */}
+                                                {renderRoomList(scheduled, 'scheduled')}
                                             </TabsContent>
                                             <TabsContent value="active" className="mt-4">
-                                                {/* renderRoomList(active, 'active') */}
+                                                {renderRoomList(active, 'active')}
                                             </TabsContent>
                                             <TabsContent value="closed" className="mt-4">
-                                                {/* renderRoomList(closed, 'closed') */}
+                                                {renderRoomList(closed, 'closed')}
                                             </TabsContent>
                                         </Tabs>
                                     )}
@@ -1031,5 +1119,3 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
-
-    
