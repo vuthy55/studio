@@ -285,7 +285,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
                                 <CardContent>
                                     <ul className="text-sm space-y-1">
-                                        {editableSummary && editableSummary.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
+                                        {editableSummary?.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
                                     </ul>
                                 </CardContent>
                             </Card>
@@ -309,7 +309,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <Tabs defaultValue="original" className="w-full">
                                 <TabsList className="grid w-full grid-cols-2">
                                      <TabsTrigger value="original">Original Summary</TabsTrigger>
-                                     <TabsTrigger value="action-items">Action Items ({editableSummary.actionItems?.length || 0})</TabsTrigger>
+                                     <TabsTrigger value="action-items">Action Items ({editableSummary?.actionItems?.length || 0})</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="original">
                                     <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
@@ -1143,6 +1143,6 @@ export default function VoiceRoomsTab() {
                     </Card>
                 </TabsContent>
             </Tabs>
-        </div>
+        </Card>
     );
 }
