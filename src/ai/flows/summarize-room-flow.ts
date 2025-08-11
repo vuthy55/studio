@@ -13,12 +13,14 @@ import { ai } from '@/ai/genkit';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { RoomMessage, Participant, RoomSummary } from '@/lib/types';
+import { getAppSettingsAction } from '@/actions/settings';
 
 
 // --- Zod Schemas for Input/Output ---
 
 const SummarizeRoomInputSchema = z.object({
   roomId: z.string().describe('The ID of the sync room to summarize.'),
+  userId: z.string().describe('The ID of the user requesting the summary.'),
 });
 export type SummarizeRoomInput = z.infer<typeof SummarizeRoomInputSchema>;
 
@@ -72,26 +74,54 @@ async function getAdminUids(): Promise<string[]> {
  * Main exported function that wraps and calls the Genkit flow.
  */
 export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSummary> {
-  const result = await summarizeRoomFlow(input);
+    const { roomId, userId } = input;
 
-  // After the AI generates the summary, we need to save it to Firestore.
-  // This logic is kept separate from the flow itself for clarity.
-  if (result) {
-    const roomRef = db.collection('syncRooms').doc(input.roomId);
+    // --- Step 1: Handle token deduction BEFORE calling the AI flow ---
+    const settings = await getAppSettingsAction();
+    const cost = settings.summaryTranslationCost || 10;
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+        throw new Error('User not found.');
+    }
+    const userBalance = userDoc.data()?.tokenBalance || 0;
+    if (userBalance < cost) {
+        throw new Error(`Insufficient tokens. You need ${cost} tokens for a summary.`);
+    }
+
+    // --- Step 2: Call the AI Flow ---
+    const result = await summarizeRoomFlow({ roomId, userId });
     
-    // Create a notification for the room creator
+    // --- Step 3: Save results and handle notifications in a single transaction ---
+    const roomRef = db.collection('syncRooms').doc(roomId);
     const roomDoc = await roomRef.get();
+    const roomTopic = roomDoc.data()?.topic || 'a room';
     const creatorUid = roomDoc.data()?.creatorUid;
-    const roomTopic = roomDoc.data()?.topic;
 
     const batch = db.batch();
 
-    batch.update(roomRef, { 
+    // 3a. Update user balance and log transaction
+    if (cost > 0) {
+        batch.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
+        const logRef = userRef.collection('transactionLogs').doc();
+        batch.set(logRef, {
+            actionType: 'translation_spend',
+            tokenChange: -cost,
+            timestamp: FieldValue.serverTimestamp(),
+            description: `Room Summary Generation`,
+            reason: 'Room Summary'
+        });
+    }
+
+    // 3b. Save the summary to the room document
+    batch.update(roomRef, {
       summary: result,
       status: 'closed', // Mark room as fully closed once summary is generated
       lastActivityAt: FieldValue.serverTimestamp()
     });
 
+    // 3c. Create notification for the room creator
     if (creatorUid) {
        const notificationRef = db.collection('notifications').doc();
        batch.set(notificationRef, {
@@ -100,11 +130,11 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
             message: `A meeting summary has been generated for your room: "${roomTopic}"`,
             createdAt: FieldValue.serverTimestamp(),
             read: false,
-            roomId: input.roomId,
+            roomId: roomId,
        });
     }
 
-    // Also notify all admins that a summary was generated
+    // 3d. Notify all admins that a summary was generated
     const adminUids = await getAdminUids();
     for (const adminId of adminUids) {
         if (adminId !== creatorUid) { // Avoid duplicate notification for admin creator
@@ -115,33 +145,32 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
                 message: `AI summary generated for room: "${roomTopic}"`,
                 createdAt: FieldValue.serverTimestamp(),
                 read: false,
-                roomId: input.roomId,
+                roomId: roomId,
             });
         }
     }
     
     await batch.commit();
-  }
   
-  return result;
+    return result;
 }
 
-const generateWithFallback = async (prompt: string, context: any, outputSchema: any) => {
+const generateWithFallback = async (prompt: string, outputSchema: any) => {
     try {
-        return await ai.generate({
-            prompt,
-            model: 'googleai/gemini-1.5-flash',
-            output: { schema: outputSchema },
-            context,
+        const { output } = await ai.generate({
+          prompt: prompt,
+          model: 'googleai/gemini-1.5-flash',
+          output: { schema: outputSchema },
         });
+        return output!;
     } catch (error) {
         console.warn("Primary summary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
-        return await ai.generate({
-            prompt,
-            model: 'googleai/gemini-1.5-pro',
-            output: { schema: outputSchema },
-            context,
+        const { output } = await ai.generate({
+          prompt: prompt,
+          model: 'googleai/gemini-1.5-pro',
+          output: { schema: outputSchema },
         });
+        return output!;
     }
 };
 
@@ -201,34 +230,31 @@ const summarizeRoomFlow = ai.defineFlow(
       absentParticipants,
     };
     
-    // 3. Call the AI model
-    const {output} = await generateWithFallback(
-      `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
+    const formattedPrompt = `You are an expert meeting summarizer. Based on the provided chat history and participant list, generate a concise summary and a list of clear action items.
 
-      Meeting Title: {{{title}}}
-      Date: {{{date}}}
+      Meeting Title: ${promptPayload.title}
+      Date: ${promptPayload.date}
       
       Participants Present:
-      {{#each presentParticipants}}
-      - {{name}} ({{email}})
-      {{/each}}
+      ${promptPayload.presentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
 
       Participants Absent:
-      {{#each absentParticipants}}
-      - {{name}} ({{email}})
-      {{/each}}
+      ${promptPayload.absentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
       
       Chat History:
       ---
-      {{{chatHistory}}}
+      ${promptPayload.chatHistory}
       ---
 
       Based on the chat history, provide a neutral, one-paragraph summary of the meeting. Then, list any concrete action items, specifying the task, the person in charge, and the due date if mentioned.
-      `,
-      promptPayload,
+      `;
+    
+    // 3. Call the AI model
+    const output = await generateWithFallback(
+      formattedPrompt,
       AISummaryOutputSchema
     );
     
-    return output!;
+    return output;
   }
 );

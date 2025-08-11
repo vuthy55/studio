@@ -15,9 +15,9 @@ function VibeDetailPageContainer() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/login');
+            router.push(`/login?redirect=/common-room/${vibeId}`);
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, vibeId]);
 
     if (authLoading || !user) {
         return (

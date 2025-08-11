@@ -159,7 +159,7 @@ export type VibePost = {
 
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;

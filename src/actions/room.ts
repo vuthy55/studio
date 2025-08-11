@@ -1,12 +1,14 @@
 
+
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, WriteBatch, getDoc } from 'firebase-admin/firestore';
 import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail, sendRoomInviteEmail } from './email';
 import { deleteCollection } from '@/lib/firestore-utils';
+import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
 
 
 /**
@@ -598,6 +600,115 @@ export async function createPrivateSyncOnlineRoom(payload: CreatePrivateSyncOnli
 }
 
 
-    
+export async function summarizeRoomAction(roomId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  if (!roomId || !userId) {
+    return { success: false, error: 'Room ID and User ID are required.' };
+  }
+  try {
+    const result = await summarizeRoom({ roomId, userId });
+    if (result) {
+        return { success: true };
+    } else {
+        return { success: false, error: 'Summary generation returned no result.' };
+    }
+  } catch (error: any) {
+    console.error("Error summarizing room:", error);
+    return { success: false, error: error.message || "Failed to generate summary." };
+  }
+}
 
+/**
+ * Fetches or generates the full transcript for a room.
+ * If the transcript exists, it returns it.
+ * If not, it charges the user, generates it, saves it, and returns it.
+ */
+export async function getTranscriptAction(roomId: string, userId: string): Promise<{ success: boolean; transcript?: Transcript; error?: string; }> {
+    if (!roomId || !userId) {
+        return { success: false, error: 'Room ID and User ID are required.' };
+    }
+    
+    const settings = await getAppSettingsAction();
+    const cost = settings.transcriptCost || 25;
+    
+    const userRef = db.collection('users').doc(userId);
+    const roomRef = db.collection('syncRooms').doc(roomId);
+
+    // Check if transcript already exists
+    const roomDocSnap = await roomRef.get();
+    const roomData = roomDocSnap.data() as SyncRoom;
+    if (roomData && roomData.transcript) {
+        return { success: true, transcript: roomData.transcript };
+    }
+
+    // If not, generate it in a transaction
+    try {
+        const generatedTranscript = await db.runTransaction(async (transaction) => {
+            // --- READS FIRST ---
+            const userDoc = await transaction.get(userRef);
+            const messagesQuery = roomRef.collection('messages').orderBy('createdAt', 'asc');
+            const participantsQuery = roomRef.collection('participants').orderBy('joinedAt', 'asc');
+
+            const [messagesSnapshot, participantsSnapshot, roomDocForTx] = await Promise.all([
+                transaction.get(messagesQuery),
+                transaction.get(participantsQuery),
+                transaction.get(roomRef),
+            ]);
+
+            const roomDataForTx = roomDocForTx.data() as SyncRoom;
+
+            // --- VALIDATION ---
+            if (!userDoc.exists) throw new Error('User not found.');
+            
+            const userBalance = userDoc.data()?.tokenBalance || 0;
+            if (userBalance < cost) throw new Error('Insufficient tokens for a transcript.');
+            
+            // --- PROCESS & BUILD TRANSCRIPT ---
+            const presentParticipants: SummaryParticipant[] = participantsSnapshot.docs.map(doc => {
+                 const p = doc.data() as Participant;
+                 return { name: p.name, email: p.email, language: p.selectedLanguage };
+            });
+
+             const presentEmails = new Set(presentParticipants.map(p => p.email));
+             const absentParticipants: SummaryParticipant[] = (roomDataForTx.invitedEmails || [])
+                .filter(email => !presentEmails.has(email))
+                .map(email => ({ name: email.split('@')[0], email, language: 'Unknown' }));
+
+
+            const formattedMessages = messagesSnapshot.docs.map(doc => {
+                const msg = doc.data() as RoomMessage;
+                const time = (msg.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString();
+                return { speakerName: msg.speakerName, text: msg.text, timestamp: time };
+            });
+
+            const newTranscript: Transcript = {
+                title: `Transcript for ${roomDataForTx.topic}`,
+                date: (roomDataForTx.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
+                presentParticipants,
+                absentParticipants,
+                log: formattedMessages
+            };
+            
+            // --- WRITES LAST ---
+            transaction.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
+            const logRef = userRef.collection('transactionLogs').doc();
+            transaction.set(logRef, {
+                actionType: 'transcript_generation',
+                tokenChange: -cost,
+                timestamp: FieldValue.serverTimestamp(),
+                description: 'Room Transcript',
+            });
+            
+            // Save the newly generated transcript to the room document
+            transaction.update(roomRef, { transcript: newTranscript });
+
+            return newTranscript;
+        });
+
+        return { success: true, transcript: generatedTranscript };
+
+    } catch (error: any) {
+        console.error("Error getting transcript:", error);
+        return { success: false, error: error.message || 'Could not generate transcript.' };
+    }
+}
     

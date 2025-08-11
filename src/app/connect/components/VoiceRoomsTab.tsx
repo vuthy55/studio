@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -30,8 +31,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, XCircle, Info } from 'lucide-react';
-import type { SyncRoom, UserProfile } from '@/lib/types';
+import { LoaderCircle, PlusCircle, Wifi, Copy, List, ArrowRight, Trash2, ShieldCheck, UserX, UserCheck, FileText, Edit, Save, Share2, Download, Settings, Languages as TranslateIcon, RefreshCw, Calendar as CalendarIcon, Users, Link as LinkIcon, Send, HelpCircle, Info, Wand2, XCircle } from 'lucide-react';
+import type { SyncRoom, UserProfile, RoomSummary, TranslatedContent, Transcript } from '@/lib/types';
 import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -40,8 +41,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary } from '@/actions/room';
-import { summarizeRoom } from '@/ai/flows/summarize-room-flow';
+import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary, summarizeRoomAction, getTranscriptAction } from '@/actions/room';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { languages } from '@/lib/data';
 import { translateSummary } from '@/ai/flows/translate-summary-flow';
@@ -57,6 +57,7 @@ import { collection, query, where, getDocs, Timestamp, writeBatch, doc, serverTi
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { useTour, TourStep } from '@/context/TourContext';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 
 function VoiceRoomsInfoDialog() {
@@ -96,9 +97,9 @@ function VoiceRoomsInfoDialog() {
                             </ul>
                         </div>
                         <div>
-                            <h4 className="font-semibold mb-1">AI Summaries</h4>
+                            <h4 className="font-semibold mb-1">AI Summaries & Transcripts</h4>
                              <p className="text-muted-foreground">
-                                After a meeting ends, an AI agent automatically generates a summary of the conversation, including key discussion points and action items. This summary can be viewed from the "Closed" rooms tab.
+                                After a meeting ends, an AI agent generates a summary of the conversation. This costs tokens to generate initially but can be viewed and translated by anyone in the room for free afterwards. You can also generate a full, plain-text transcript of the entire meeting for a token fee.
                             </p>
                         </div>
                     </div>
@@ -113,13 +114,16 @@ function VoiceRoomsInfoDialog() {
 
 
 function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-     const { userProfile, user, settings } = useUserData();
+    const { userProfile, user, settings } = useUserData();
     const { toast, dismiss } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editableSummary, setEditableSummary] = useState(room.summary);
     const [isSaving, setIsSaving] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
-    const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+    const [isDownloadingTranscript, setIsDownloadingTranscript] = useState(false);
+    const [selectedLanguage, setSelectedLanguage] = useState('');
+
 
     useEffect(() => {
         setEditableSummary(room.summary);
@@ -133,19 +137,126 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
     const canEditSummary = isEmcee || room.summary?.allowMoreEdits;
 
      const formatDate = (dateString?: string) => {
-        if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(dateString)) return "Unknown Date";
+        if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}/.test(dateString)) return "Unknown Date";
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return "Invalid Date";
+            // Ensure we parse as UTC and display as such to prevent timezone shift issues
+            const utcDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
             return new Intl.DateTimeFormat('en-US', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
-                timeZone: 'UTC' // Important to avoid off-by-one day errors
-            }).format(date);
+                timeZone: 'UTC'
+            }).format(utcDate);
         } catch (e) {
             console.error("Error formatting date:", e);
             return "Invalid Date";
+        }
+    }
+
+    const handleTranslateSummary = async () => {
+        if (!user || !editableSummary || !selectedLanguage) return;
+
+        const cost = settings?.summaryTranslationCost || 10;
+        if ((userProfile?.tokenBalance || 0) < cost) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens to translate this summary.` });
+            return;
+        }
+
+        setIsTranslating(true);
+        try {
+            const result = await translateSummary({ 
+                summary: editableSummary, 
+                targetLanguages: [selectedLanguage], 
+                roomId: room.id, 
+                userId: user.uid 
+            });
+            setEditableSummary(result);
+            toast({ title: "Translation Complete!", description: "The summary has been translated." });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Translation Failed', description: error.message || "An unexpected error occurred." });
+        } finally {
+            setIsTranslating(false);
+            setSelectedLanguage('');
+        }
+    };
+
+    const downloadAsFile = (content: string, filename: string) => {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const formatSummaryForDownload = (summary: RoomSummary, lang?: string) => {
+        let output = `Meeting Summary: ${summary.title}\n`;
+        output += `Date: ${formatDate(summary.date)}\n\n`;
+        output += '--- Participants ---\n';
+        if (summary.presentParticipants) {
+            summary.presentParticipants.forEach(p => {
+                output += `- ${p.name} (${p.email})\n`;
+            });
+        }
+        output += '\n--- Summary ---\n';
+        const summaryText = lang ? summary.summary?.translations?.[lang] : summary.summary?.original;
+        output += `${summaryText || 'Not available.'}\n\n`;
+        output += '--- Action Items ---\n';
+        if (!summary.actionItems || summary.actionItems.length === 0) {
+            output += 'No action items were recorded.\n';
+        } else {
+            summary.actionItems.forEach((item, index) => {
+                const taskText = lang ? item.task?.translations?.[lang] : item.task?.original;
+                output += `${index + 1}. ${taskText || 'Not available.'}`;
+                if (item.personInCharge) output += ` (Owner: ${item.personInCharge})`;
+                if (item.dueDate) output += ` [Due: ${item.dueDate}]`;
+                output += '\n';
+            });
+        }
+        return output;
+    };
+    
+    const formatTranscriptForDownload = (transcript: Transcript) => {
+        let output = `Transcript for: ${transcript.title}\n`;
+        output += `Date: ${formatDate(transcript.date)}\n\n`;
+        output += '--- Participants ---\n';
+        transcript.presentParticipants.forEach(p => {
+            output += `- ${p.name} (${p.email})\n`;
+        });
+        if (transcript.absentParticipants.length > 0) {
+            output += '\n--- Absent ---\n';
+            transcript.absentParticipants.forEach(p => {
+                output += `- ${p.name} (${p.email})\n`;
+            });
+        }
+        output += '\n--- Conversation Log ---\n';
+        transcript.log.forEach(item => {
+            const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            output += `[${time}] ${item.speakerName}: ${item.text}\n`;
+        });
+        return output;
+    }
+    
+    const handleDownloadTranscript = async () => {
+        if (!user) return;
+        setIsDownloadingTranscript(true);
+        try {
+            const result = await getTranscriptAction(room.id, user.uid);
+            if (result.success && result.transcript) {
+                downloadAsFile(formatTranscriptForDownload(result.transcript), `${room.topic}-transcript.txt`);
+                toast({ title: "Transcript Downloaded", description: "The full transcript has been saved." });
+            } else {
+                throw new Error(result.error || 'Failed to generate transcript.');
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Download Failed', description: error.message });
+        } finally {
+            setIsDownloadingTranscript(false);
         }
     }
     
@@ -153,7 +264,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
 
 
     return (
-        <Dialog>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                  <Button variant="outline" size="sm">
                     <FileText className="mr-2 h-4 w-4" />
@@ -167,17 +278,95 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                         Meeting held on {formatDate(editableSummary.date)}
                     </DialogDescription>
                 </DialogHeader>
-                {/* Full dialog content would go here, it's omitted for brevity */}
+                <ScrollArea className="max-h-[70vh]">
+                <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-1 space-y-4">
+                            <Card>
+                                <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
+                                <CardContent>
+                                    <ul className="text-sm space-y-1">
+                                        {editableSummary?.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
+                                    </ul>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-2"><CardTitle className="text-base">Translate</CardTitle></CardHeader>
+                                <CardContent className="space-y-2">
+                                    <Select onValueChange={setSelectedLanguage} value={selectedLanguage}>
+                                        <SelectTrigger><SelectValue placeholder="Select language..." /></SelectTrigger>
+                                        <SelectContent>
+                                            {languages.map(lang => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button className="w-full" onClick={handleTranslateSummary} disabled={isTranslating || !selectedLanguage}>
+                                        {isTranslating ? <LoaderCircle className="animate-spin mr-2" /> : <TranslateIcon className="mr-2" />}
+                                        Translate ({settings?.summaryTranslationCost || 10} tokens)
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Tabs defaultValue="original" className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="original">Original Summary</TabsTrigger>
+                                    <TabsTrigger value="action-items">Action Items ({(editableSummary.actionItems || []).length})</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="original">
+                                    <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
+                                        {editableSummary.summary?.original}
+                                    </div>
+                                </TabsContent>
+                                <TabsContent value="action-items">
+                                    <div className="p-4 border rounded-md min-h-[200px] mt-2 space-y-2 text-sm">
+                                        {editableSummary.actionItems && editableSummary.actionItems.length > 0 ? (
+                                            editableSummary.actionItems.map((item, i) => (
+                                                <div key={i} className="pb-2 border-b last:border-b-0">
+                                                    <p>{i+1}. {item.task.original}</p>
+                                                    <div className="flex gap-4 text-xs text-muted-foreground mt-1">
+                                                        {item.personInCharge && <span>Owner: {item.personInCharge}</span>}
+                                                        {item.dueDate && <span>Due: {item.dueDate}</span>}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : <p className="text-muted-foreground text-center">No action items were identified.</p>}
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
+                        </div>
+                    </div>
+                </ScrollArea>
+                 <DialogFooter>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Download</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => downloadAsFile(formatSummaryForDownload(editableSummary), `${room.topic}-summary.txt`)}>
+                                Summary (Original)
+                            </DropdownMenuItem>
+                            {editableSummary.summary?.translations && Object.entries(editableSummary.summary.translations).map(([lang, text]) => (
+                                <DropdownMenuItem key={lang} onClick={() => downloadAsFile(formatSummaryForDownload(editableSummary, lang), `${room.topic}-summary-${lang}.txt`)}>
+                                    Summary ({languages.find(l => l.value === lang)?.label || lang})
+                                </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={handleDownloadTranscript} disabled={isDownloadingTranscript}>
+                                {isDownloadingTranscript ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                Room Transcript
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button onClick={() => setIsOpen(false)}>Close</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )
 }
 
 function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
-     const { toast } = useToast();
+    const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [user] = useAuthState(auth);
 
     const handlePermanentDelete = async () => {
         setIsActionLoading(true);
@@ -233,19 +422,6 @@ function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: 
     )
 }
 
-const syncOnlineTourSteps: TourStep[] = [
-  {
-    selector: '[data-tour="so-schedule-button"]',
-    content: "Step 1: Click here to schedule a voice room. If you click 'Start Immediately', you will proceed to the room right away. For scheduled rooms, you may enter a few minutes before the start time. Voice rooms work on a pre-paid basis and end when the host clicks 'End Meeting' or all participants exit. Tokens will then be reconciled.",
-    position: 'bottom',
-  },
-  {
-    selector: '[data-tour="so-your-rooms-button"]',
-    content: "Step 2: This is where you can view all your scheduled, active, and closed voice rooms.",
-    position: 'bottom'
-  },
-];
-
 
 export default function VoiceRoomsTab() {
     const { user, userProfile, loading } = useUserData();
@@ -254,8 +430,8 @@ export default function VoiceRoomsTab() {
     const { startTour } = useTour();
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
-
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSummarizing, setIsSummarizing] = useState<string | null>(null);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -536,6 +712,7 @@ export default function VoiceRoomsTab() {
                 
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
+                    return; // Exit early to prevent tab switch
                 }
             }
             
@@ -549,6 +726,20 @@ export default function VoiceRoomsTab() {
             setIsSubmitting(false);
         }
     };
+    
+     const handleGenerateSummary = async (roomId: string) => {
+        if (!user) return;
+        setIsSummarizing(roomId);
+        try {
+            await summarizeRoomAction(roomId, user.uid);
+            toast({ title: 'Summary Generating', description: 'The AI is creating your summary. It will appear here shortly.' });
+            fetchInvitedRooms(); // Re-fetch to update the room data
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to start summary generation.' });
+        } finally {
+            setIsSummarizing(null);
+        }
+    };
 
     const { active, scheduled, closed } = useMemo(() => {
         return invitedRooms.reduce((acc, room) => {
@@ -556,7 +747,7 @@ export default function VoiceRoomsTab() {
                 acc.active.push(room);
             } else if (room.status === 'scheduled') {
                 acc.scheduled.push(room);
-            } else if (room.status === 'closed' && room.summary) {
+            } else if (room.status === 'closed') {
                 acc.closed.push(room);
             }
             return acc;
@@ -589,7 +780,6 @@ export default function VoiceRoomsTab() {
         }
         setInviteeEmails(Array.from(currentEmails).join(', '));
     };
-
 
     const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
@@ -641,6 +831,22 @@ export default function VoiceRoomsTab() {
                                             </Tooltip>
                                         </TooltipProvider>
                                     )}
+                                    
+                                     {room.status === 'closed' && !room.summary && (
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => handleGenerateSummary(room.id)}
+                                            disabled={isSummarizing !== null}
+                                        >
+                                            {isSummarizing === room.id ? (
+                                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Wand2 className="mr-2 h-4 w-4" />
+                                            )}
+                                            Generate Summary
+                                        </Button>
+                                    )}
 
                                     {canJoin && !isCreator && (
                                         <Button asChild disabled={isBlocked}>
@@ -681,266 +887,262 @@ export default function VoiceRoomsTab() {
             )}
         </div>
     );
-    return (
-        <Card>
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <CardTitle>Voice Rooms</CardTitle>
-                        <VoiceRoomsInfoDialog />
-                    </div>
-                </div>
-                <CardDescription>
-                    Schedule a private room and invite others for a real-time, multi-language voice conversation.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
-                        <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="your-rooms" className="mt-4">
-                        {user && (
-                            <Card data-tour="so-room-list">
-                                <CardHeader>
-                                    <div className="flex justify-between items-center">
-                                    <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
-                                        <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
-                                            <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
-                                        </Button>
-                                    </div>
-                                    <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    {isFetchingRooms ? (
-                                        <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
-                                    ) : (
-                                        <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
-                                            <TabsList className="grid w-full grid-cols-3">
-                                                <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
-                                                <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-                                                <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-                                            </TabsList>
-                                            <TabsContent value="scheduled" className="mt-4">
-                                                {renderRoomList(scheduled, 'scheduled')}
-                                            </TabsContent>
-                                            <TabsContent value="active" className="mt-4">
-                                                {renderRoomList(active, 'active')}
-                                            </TabsContent>
-                                            <TabsContent value="closed" className="mt-4">
-                                                {renderRoomList(closed, 'closed')}
-                                            </TabsContent>
-                                        </Tabs>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )}
-                    </TabsContent>
-                    <TabsContent value="schedule" className="mt-4">
-                        <Card className="border-2 border-primary">
-                            <CardHeader>
-                                <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Room</CardTitle>
-                                <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
-                                        <div className="space-y-2">
-                                        <Label htmlFor="topic">Room Topic</Label>
-                                        <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
-                                    </div>
-                                        {!isEditMode && (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="language">Your Spoken Language</Label>
-                                            <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
-                                                <SelectTrigger id="language">
-                                                    <SelectValue placeholder="Select language..." />
-                                                </SelectTrigger>
-                                                <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
-                                            </Select>
-                                        </div>
-                                    )}
-                                    {!isEditMode && (
-                                        <div className="flex items-center space-x-2 pt-2">
-                                            <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
-                                            <Label htmlFor="start-now">Start meeting immediately</Label>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="duration">Duration (minutes)</Label>
-                                            <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
-                                                <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
-                                                <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
-                                            </Select>
-                                        </div>
-                                        {!startNow && (
-                                        <div className="space-y-2">
-                                            <Label>Date &amp; Time</Label>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button
-                                                        variant={"outline"}
-                                                        className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
-                                                    >
-                                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                                        {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0">
-                                                    <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
-                                                    <div className="p-3 border-t border-border">
-                                                        <div className="flex items-center gap-2">
-                                                            <Select
-                                                                value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
-                                                                onValueChange={(value) => {
-                                                                    setScheduledDate(d => {
-                                                                        const newDate = d ? new Date(d) : new Date();
-                                                                        newDate.setHours(parseInt(value));
-                                                                        return newDate;
-                                                                    });
-                                                                }}
-                                                            >
-                                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                                <SelectContent position="popper">
-                                                                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
-                                                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                            :
-                                                            <Select
-                                                                    value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
-                                                                onValueChange={(value) => {
-                                                                    setScheduledDate(d => {
-                                                                        const newDate = d ? new Date(d) : new Date();
-                                                                        newDate.setMinutes(parseInt(value));
-                                                                        return newDate;
-                                                                    });
-                                                                }}
-                                                            >
-                                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                                <SelectContent position="popper">
-                                                                    {['00', '15', '30', '45'].map(minute => (
-                                                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                    </div>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                            )}
-                                    </div>
-                                    
-                                    <div className="space-y-2">
-                                        <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
-                                        <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
-                                    </div>
-                                    {friends.length > 0 && (
-                                        <div className="space-y-2">
-                                            <Label>Or Select Friends</Label>
-                                            <ScrollArea className="max-h-32 border rounded-md">
-                                                <div className="p-4 space-y-2">
-                                                    {friends.map(friend => (
-                                                        <div key={friend.id} className="flex items-center space-x-2">
-                                                            <Checkbox 
-                                                                id={`friend-${friend.id}`}
-                                                                checked={parsedInviteeEmails.includes(friend.email)}
-                                                                onCheckedChange={() => toggleFriendInvite(friend)}
-                                                            />
-                                                            <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
-                                                                <span>{friend.name}</span>
-                                                                <span className="text-xs text-muted-foreground">{friend.email}</span>
-                                                            </Label>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </ScrollArea>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="space-y-3">
-                                        <Separator/>
-                                        <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary"/> Participants ({allInvitedEmailsForCalc.length})</Label>
-                                        <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
-                                            {allInvitedEmailsForCalc.length > 0 ? (
-                                                allInvitedEmailsForCalc.map(email => (
-                                                    <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
-                                                ))
-                                            ) : (
-                                                <p>Just you so far!</p>
-                                            )}
-                                        </div></ScrollArea>
-                                    </div>
 
-                                    {allInvitedEmailsForCalc.length > 1 && (
-                                        <div className="space-y-3">
-                                            <Separator/>
-                                            <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/> Assign Emcees</Label>
-                                            <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
-                                                {allInvitedEmailsForCalc.map(email => (
-                                                    <div key={email} className="flex items-center space-x-2">
-                                                        <Checkbox 
-                                                            id={email} 
-                                                            checked={emceeEmails.includes(email)} 
-                                                            onCheckedChange={() => toggleEmcee(email)}
-                                                            disabled={email === user?.email}
-                                                        />
-                                                        <Label htmlFor={email} className="font-normal w-full truncate">
-                                                            {email} {email === user?.email && '(Creator)'}
-                                                        </Label>
-                                                    </div>
-                                                ))}
-                                            </div></ScrollArea>
-                                        </div>
-                                    )}
-                                    <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
-                                        {isEditMode ? (
-                                            <>
-                                                <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
-                                                <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
-                                                <Separator/>
-                                                <div className="flex justify-between font-bold">
-                                                    <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
-                                                    <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
-                                        )}
-                                        
-                                        <p className="text-xs text-muted-foreground">
-                                            Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
-                                    </div>
-                                </form>
-                            </CardContent>
-                            <CardFooter className="flex justify-end gap-2">
-                                 {isEditMode ? (
-                                    <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
-                                ) : null}
-                                {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                    <div className="flex flex-col items-end gap-2">
-                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                        <BuyTokens />
-                                    </div>
-                                ) : (
-                                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                        }
-                                    </Button>
-                                )}
-                            </CardFooter>
-                        </Card>
-                    </TabsContent>
-                </Tabs>
-            </CardContent>
-        </Card>
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <CardTitle>Voice Rooms</CardTitle>
+              <VoiceRoomsInfoDialog />
+            </div>
+          </div>
+          <CardDescription>
+            Schedule a private room and invite others for a real-time, multi-language voice conversation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="your-rooms" data-tour="so-your-rooms-button">Your Rooms</TabsTrigger>
+              <TabsTrigger value="schedule" data-tour="so-schedule-button" onClick={() => resetForm()}>Schedule a Room</TabsTrigger>
+            </TabsList>
+            <TabsContent value="your-rooms" className="mt-4">
+              {user && (
+                <Card data-tour="so-room-list">
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="flex items-center gap-2"><List /> Room List</CardTitle>
+                      <Button variant="outline" size="icon" onClick={fetchInvitedRooms} disabled={isFetchingRooms}>
+                        <RefreshCw className={cn("h-4 w-4", isFetchingRooms && "animate-spin")} />
+                      </Button>
+                    </div>
+                    <CardDescription>A list of all your active, scheduled, and summarized rooms.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {isFetchingRooms ? (
+                      <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="animate-spin h-5 w-5" /><p>Fetching rooms...</p></div>
+                    ) : (
+                      <Tabs value={activeRoomTab} onValueChange={setActiveRoomTab} className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="scheduled">Scheduled ({scheduled.length})</TabsTrigger>
+                          <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+                          <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="scheduled" className="mt-4">
+                          {renderRoomList(scheduled, 'scheduled')}
+                        </TabsContent>
+                        <TabsContent value="active" className="mt-4">
+                          {renderRoomList(active, 'active')}
+                        </TabsContent>
+                        <TabsContent value="closed" className="mt-4">
+                          {renderRoomList(closed, 'closed')}
+                        </TabsContent>
+                      </Tabs>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            <TabsContent value="schedule" className="mt-4">
+              <Card className="border-2 border-primary">
+                <CardHeader>
+                  <CardTitle>{isEditMode ? 'Edit' : 'Schedule'} a Room</CardTitle>
+                  <CardDescription>Set the details for your meeting. The cost will be calculated and displayed below.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="topic">Room Topic</Label>
+                      <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                    </div>
+                    {!isEditMode && (
+                      <div className="space-y-2">
+                        <Label htmlFor="language">Your Spoken Language</Label>
+                        <Select onValueChange={(v) => setCreatorLanguage(v as AzureLanguageCode)} value={creatorLanguage} required>
+                          <SelectTrigger id="language">
+                            <SelectValue placeholder="Select language..." />
+                          </SelectTrigger>
+                          <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {!isEditMode && (
+                      <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                        <Label htmlFor="start-now">Start meeting immediately</Label>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="duration">Duration (minutes)</Label>
+                        <Select onValueChange={(v) => setDuration(parseInt(v))} value={String(duration)}>
+                          <SelectTrigger id="duration"><SelectValue /></SelectTrigger>
+                          <SelectContent>{[5, 15, 30, 45, 60].map(d => (<SelectItem key={d} value={String(d)}>{d} min</SelectItem>))}</SelectContent>
+                        </Select>
+                      </div>
+                      {!startNow && (
+                        <div className="space-y-2">
+                          <Label>Date &amp; Time</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={"outline"}
+                                className={cn("w-full justify-start text-left font-normal", !scheduledDate && "text-muted-foreground")}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {scheduledDate ? format(scheduledDate, "PPp") : <span>Pick a date</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar mode="single" selected={scheduledDate} onSelect={setScheduledDate} initialFocus disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))} />
+                              <div className="p-3 border-t border-border">
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={scheduledDate ? String(scheduledDate.getHours()).padStart(2, '0') : '00'}
+                                    onValueChange={(value) => {
+                                      setScheduledDate(d => {
+                                        const newDate = d ? new Date(d) : new Date();
+                                        newDate.setHours(parseInt(value));
+                                        return newDate;
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent position="popper">
+                                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(hour => (
+                                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  :
+                                  <Select
+                                    value={scheduledDate ? String(Math.floor(scheduledDate.getMinutes() / 15) * 15).padStart(2, '0') : '00'}
+                                    onValueChange={(value) => {
+                                      setScheduledDate(d => {
+                                        const newDate = d ? new Date(d) : new Date();
+                                        newDate.setMinutes(parseInt(value));
+                                        return newDate;
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent position="popper">
+                                      {['00', '15', '30', '45'].map(minute => (
+                                        <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="invitees">Invite Emails (comma-separated)</Label>
+                      <Textarea id="invitees" value={inviteeEmails} onChange={(e) => setInviteeEmails(e.target.value)} placeholder="friend1@example.com, friend2@example.com" />
+                    </div>
+                    {friends.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Or Select Friends</Label>
+                        <ScrollArea className="max-h-32 border rounded-md">
+                          <div className="p-4 space-y-2">
+                            {friends.map(friend => (
+                              <div key={friend.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`friend-${friend.id}`}
+                                  checked={parsedInviteeEmails.includes(friend.email)}
+                                  onCheckedChange={() => toggleFriendInvite(friend)}
+                                />
+                                <Label htmlFor={`friend-${friend.id}`} className="font-normal flex flex-col">
+                                  <span>{friend.name}</span>
+                                  <span className="text-xs text-muted-foreground">{friend.email}</span>
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      <Separator />
+                      <Label className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Participants ({allInvitedEmailsForCalc.length})</Label>
+                      <ScrollArea className="max-h-24"><div className="space-y-1 text-sm text-muted-foreground p-2 border rounded-md">
+                        {allInvitedEmailsForCalc.length > 0 ? (
+                          allInvitedEmailsForCalc.map(email => (
+                            <p key={email} className="truncate">{email} {email === user?.email && '(You)'}</p>
+                          ))
+                        ) : (
+                          <p>Just you so far!</p>
+                        )}
+                      </div></ScrollArea>
+                    </div>
+                    {allInvitedEmailsForCalc.length > 1 && (
+                      <div className="space-y-3">
+                        <Separator />
+                        <Label className="font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Assign Emcees</Label>
+                        <ScrollArea className="max-h-32"><div className="space-y-2 pr-4">
+                          {allInvitedEmailsForCalc.map(email => (
+                            <div key={email} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={email} 
+                                checked={emceeEmails.includes(email)} 
+                                onCheckedChange={() => toggleEmcee(email)}
+                                disabled={email === user?.email}
+                              />
+                              <Label htmlFor={email} className="font-normal w-full truncate">
+                                {email} {email === user?.email && '(Creator)'}
+                              </Label>
+                            </div>
+                          ))}
+                        </div></ScrollArea>
+                      </div>
+                    )}
+                    <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                      {isEditMode ? (
+                        <>
+                          <div className="flex justify-between"><span>Original Cost:</span> <span>{editingRoom?.initialCost || 0} tokens</span></div>
+                          <div className="flex justify-between"><span>New Cost:</span> <span>{calculatedCost} tokens</span></div>
+                          <Separator />
+                          <div className="flex justify-between font-bold">
+                            <span>{costDifference >= 0 ? "Additional Charge:" : "Refund:"}</span>
+                            <span className={costDifference >= 0 ? 'text-destructive' : 'text-green-600'}>{Math.abs(costDifference)} tokens</span>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="font-semibold">Total Estimated Cost: <strong className="text-primary">{calculatedCost} tokens</strong></p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Based on {allInvitedEmailsForCalc.length} participant(s) for {duration} minutes.
+                      </p>
+                      <p className="text-xs text-muted-foreground">Your Balance: {userProfile?.tokenBalance || 0} tokens</p>
+                    </div>
+                  </form>
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2">
+                  {isEditMode ? (
+                    <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                  ) : null}
+                  {(userProfile?.tokenBalance || 0) < costDifference ? (
+                    <div className="flex flex-col items-end gap-2">
+                      <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                      <BuyTokens />
+                    </div>
+                  ) : (
+                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                      {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') :
+                        isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                      }
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     );
 }

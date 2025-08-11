@@ -104,6 +104,7 @@ export default function SettingsTab() {
                         {renderNumberInput('liveTranslationSavePhraseCost', 'Save Phrase Cost', 'Tokens to save a phrase for offline practice (after free limit).')}
                         {renderNumberInput('languageUnlockCost', 'Language Pack Unlock Cost', 'One-time token cost for a user to unlock a non-free language pack.')}
                         {renderNumberInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
+                        {renderNumberInput('transcriptCost', 'Transcript Generation Cost', 'Token cost to generate and download a meeting transcript.')}
                     </div>
 
                     <div className="space-y-6">

@@ -70,15 +70,16 @@ export default function ConversePage() {
 
 
   useEffect(() => {
+    // This effect now exclusively handles cleanup.
+    // It will be called when the component unmounts.
     return () => {
-      if (status !== 'idle') {
-        abortRecognition();
-      }
+      // abortRecognition is designed to be safe to call even if no recognition is active.
+      abortRecognition();
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [status]);
+  }, []); // Empty dependency array ensures this runs only on mount and unmount.
 
 
   const startConversationTurn = async () => {
