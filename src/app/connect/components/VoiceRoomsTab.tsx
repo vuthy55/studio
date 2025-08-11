@@ -277,14 +277,15 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                         Meeting held on {formatDate(editableSummary.date)}
                     </DialogDescription>
                 </DialogHeader>
-                 <div className="py-4 space-y-4">
-                     <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="w-full sm:w-1/3 space-y-4">
+                <ScrollArea className="max-h-[70vh]">
+                 <div className="py-4 space-y-4 pr-4">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-1 space-y-4">
                             <Card>
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
                                 <CardContent>
                                     <ul className="text-sm space-y-1">
-                                        {editableSummary && editableSummary.presentParticipants && editableSummary.presentParticipants.map(p => <li key={p.email}>{p.name}</li>)}
+                                        {editableSummary && editableSummary.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
                                     </ul>
                                 </CardContent>
                             </Card>
@@ -304,7 +305,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                                  </CardContent>
                             </Card>
                         </div>
-                        <div className="w-full sm:w-2/3">
+                        <div className="md:col-span-2">
                             <Tabs defaultValue="original" className="w-full">
                                 <TabsList className="grid w-full grid-cols-2">
                                      <TabsTrigger value="original">Original Summary</TabsTrigger>
@@ -334,6 +335,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                         </div>
                      </div>
                  </div>
+                </ScrollArea>
                  <DialogFooter>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1120,28 +1122,27 @@ export default function VoiceRoomsTab() {
                                     </div>
                                 </form>
                             </CardContent>
-                            <CardFooter className="flex justify-end gap-2">
-                                 {isEditMode ? (
-                                    <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
-                                ) : null}
-                                {(userProfile?.tokenBalance || 0) < costDifference ? (
-                                    <div className="flex flex-col items-end gap-2">
-                                        <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
-                                        <BuyTokens />
-                                    </div>
-                                ) : (
-                                    <Button type="submit" form="create-room-form" disabled={isSubmitting}>
-                                        {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
-                                            isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
-                                        }
-                                    </Button>
-                                )}
-                            </CardFooter>
-                        </Card>
-                    </TabsContent>
-                </Tabs>
-            </CardContent>
-        </Card>
+                        <CardFooter className="flex justify-end gap-2">
+                             {isEditMode ? (
+                                <Button type="button" variant="ghost" onClick={() => setActiveMainTab('your-rooms')}>Cancel Edit</Button>
+                            ) : null}
+                            {(userProfile?.tokenBalance || 0) < costDifference ? (
+                                <div className="flex flex-col items-end gap-2">
+                                    <p className="text-destructive text-sm font-semibold">Insufficient tokens.</p>
+                                    <BuyTokens />
+                                </div>
+                            ) : (
+                                <Button type="submit" form="create-room-form" disabled={isSubmitting}>
+                                    {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Scheduling...') : 
+                                        isEditMode ? `Confirm & Pay ${costDifference > 0 ? costDifference : 0} Tokens` : `Confirm & Pay ${calculatedCost} Tokens`
+                                    }
+                                </Button>
+                            )}
+                        </CardFooter>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+        </div>
     );
 }
