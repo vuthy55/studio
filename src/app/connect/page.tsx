@@ -30,9 +30,9 @@ function ConnectPageContent() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                     {tabsConfig.map((tab) => (
-                        <TabsTrigger key={tab.value} value={tab.value}>
-                            <tab.icon className="mr-2 h-4 w-4" />
-                            {tab.label}
+                        <TabsTrigger key={tab.value} value={tab.value} className="flex-col h-auto md:flex-row md:gap-2">
+                            <tab.icon className="h-5 w-5 md:mr-2" />
+                            <span className="hidden md:inline">{tab.label}</span>
                         </TabsTrigger>
                     ))}
                 </TabsList>
