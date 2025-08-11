@@ -37,7 +37,19 @@ export async function deleteUsers(userIds: string[]): Promise<{success: boolean,
 
 
         // Delete from Firebase Authentication
-        await auth.deleteUsers(userIds);
+        const { successCount, errors } = await auth.deleteUsers(userIds);
+
+        // Log any auth deletion errors but don't stop the process unless all fail
+        if (errors.length > 0) {
+            console.warn(`[deleteUsers] Some users could not be deleted from Auth. Success: ${successCount}, Failures: ${errors.length}`);
+            errors.forEach(err => {
+                // We specifically want to ignore 'user-not-found' as it means the user is already gone from Auth.
+                if (err.error.code !== 'auth/user-not-found') {
+                    console.error(`- User Index ${err.index}: ${err.error.message}`);
+                }
+            });
+        }
+
 
         // Delete from Firestore
         const batch = db.batch();
