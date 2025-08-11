@@ -215,8 +215,8 @@ const summarizeRoomFlow = ai.defineFlow(
         };
     });
     
-    const presentParticipants = allInvitedUsers.filter(p => presentParticipantEmails.has(p.email));
-    const absentParticipants = allInvitedUsers.filter(p => !presentParticipantEmails.has(p.email));
+    const presentParticipants = allInvitedUsers.filter((p: { email: string; }) => presentParticipantEmails.has(p.email));
+    const absentParticipants = allInvitedUsers.filter((p: { email: string; }) => !presentParticipantEmails.has(p.email));
 
     const chatHistory = messages
       .map(msg => `${msg.speakerName}: ${msg.text}`)
