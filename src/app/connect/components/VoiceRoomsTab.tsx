@@ -198,14 +198,16 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
         let output = `Meeting Summary: ${summary.title}\n`;
         output += `Date: ${formatDate(summary.date)}\n\n`;
         output += '--- Participants ---\n';
-        summary.presentParticipants.forEach(p => {
-            output += `- ${p.name} (${p.email})\n`;
-        });
+        if (summary.presentParticipants) {
+            summary.presentParticipants.forEach(p => {
+                output += `- ${p.name} (${p.email})\n`;
+            });
+        }
         output += '\n--- Summary ---\n';
         const summaryText = lang ? summary.summary?.translations?.[lang] : summary.summary?.original;
         output += `${summaryText || 'Not available.'}\n\n`;
         output += '--- Action Items ---\n';
-        if (summary.actionItems.length === 0) {
+        if (!summary.actionItems || summary.actionItems.length === 0) {
             output += 'No action items were recorded.\n';
         } else {
             summary.actionItems.forEach((item, index) => {
@@ -309,7 +311,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                             <Tabs defaultValue="original" className="w-full">
                                 <TabsList className="grid w-full grid-cols-2">
                                      <TabsTrigger value="original">Original Summary</TabsTrigger>
-                                     <TabsTrigger value="action-items">Action Items ({editableSummary?.actionItems?.length || 0})</TabsTrigger>
+                                     <TabsTrigger value="action-items">Action Items ({(editableSummary.actionItems || []).length})</TabsTrigger>
                                 </TabsList>
                                 <TabsContent value="original">
                                     <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
@@ -784,7 +786,6 @@ export default function VoiceRoomsTab() {
         }
         setInviteeEmails(Array.from(currentEmails).join(', '));
     };
-
 
     const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
