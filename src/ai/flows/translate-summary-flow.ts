@@ -20,7 +20,7 @@ import { languages } from '@/lib/data';
 
 const TranslatedContentSchema = z.object({
     original: z.string(),
-    translations: z.record(z.string()).optional(),
+    translations: z.record(z.string()),
 });
 
 const RoomSummarySchemaForInput = z.object({
