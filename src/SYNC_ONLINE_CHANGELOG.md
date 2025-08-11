@@ -82,6 +82,4 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Resolved a persistent race condition on room entry that caused a "permission denied" error when listening for messages. The logic is now separated to ensure the message listener is only initialized *after* the user's participant status is confirmed, which also resolves the downstream WebChannel errors upon exit.
 - **`[FIX]`** Corrected a `ReferenceError` for `where` not being defined by adding the proper import from `firebase/firestore`.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
-
-
-
+- **`[FIX]`** Corrected a series of build-blocking issues, including a dependency conflict with PayPal packages and several TypeScript type errors related to incorrect prop usage (`title` on an icon instead of a `Tooltip`) and mismatched function signatures (passing an object with `id` to a function expecting `uid`). Resolved a React hydration error by delaying the rendering of user-specific links until the client has mounted, ensuring server and client HTML match on initial load.
