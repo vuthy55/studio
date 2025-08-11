@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import type { RoomSummary } from '@/lib/types';
 import { db } from '@/lib/firebase-admin';
 import { getAppSettingsAction } from '@/actions/settings';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, doc } from 'firebase-admin/firestore';
 import { languages } from '@/lib/data';
 
 // --- Zod Schemas for Input/Output ---
