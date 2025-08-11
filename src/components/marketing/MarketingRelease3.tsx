@@ -2,7 +2,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -11,11 +11,16 @@ import { useUserData } from '@/context/UserDataContext';
 
 export default function MarketingRelease3() {
   const { user } = useUserData();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
-  const prepVibeLink = user ? "/learn" : "/login";
-  const syncLiveLink = user ? "/converse" : "/login";
-  const syncOnlineLink = user ? "/connect?tab=voice-rooms" : "/login";
-  const adventureLink = user ? "/connect" : "/login";
+  const prepVibeLink = isClient && user ? "/learn" : "/login";
+  const syncLiveLink = isClient && user ? "/converse" : "/login";
+  const syncOnlineLink = isClient && user ? "/connect?tab=voice-rooms" : "/login";
+  const adventureLink = isClient && user ? "/connect" : "/login";
 
   return (
     <div className="space-y-12 text-lg">
