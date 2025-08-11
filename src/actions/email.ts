@@ -4,7 +4,7 @@
 import { Resend } from 'resend';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase-admin';
-import { serverTimestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 
 interface SendRoomInviteEmailProps {
   to: string[];
@@ -55,7 +55,7 @@ export async function sendRoomInviteEmail({
                 type: 'room_invite',
                 message: `${fromName} has invited you to the room: "${roomTopic}"`,
                 roomId: roomId,
-                createdAt: serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
                 read: false,
             });
         });
