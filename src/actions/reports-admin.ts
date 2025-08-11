@@ -2,8 +2,8 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import type { Report, ClientReport } from '@/lib/types';
-import { Timestamp } from 'firebase-admin/firestore';
+import type { Report, ClientReport, NotificationType } from '@/lib/types';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { deleteCollection } from '@/lib/firestore-utils';
 
 /**
