@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -730,23 +729,6 @@ export default function VoiceRoomsTab() {
         }
     };
 
-    const handleGenerateSummary = async (roomId: string) => {
-        if (!user) return;
-        setIsSummarizing(roomId);
-        try {
-            const result = await summarizeRoomAction(roomId, user.uid);
-            if(result.success) {
-                toast({ title: 'Summary Generating', description: 'The AI is creating your summary. It will appear here shortly.'});
-            } else {
-                 toast({ variant: 'destructive', title: 'Summary Failed', description: result.error || 'Could not start summary generation.' });
-            }
-        } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Client Error', description: error.message || 'An unexpected error occurred.' });
-        } finally {
-            setIsSummarizing(null);
-        }
-    }
-
     const { active, scheduled, closed } = useMemo(() => {
         return invitedRooms.reduce((acc, room) => {
             if (room.status === 'active') {
@@ -787,104 +769,6 @@ export default function VoiceRoomsTab() {
         setInviteeEmails(Array.from(currentEmails).join(', '));
     };
 
-    const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
-         <div className="space-y-4">
-            {rooms.length > 0 ? (
-                <ul className="space-y-3">
-                    {rooms.map((room, index) => {
-                        const isBlocked = room.blockedUsers?.some(bu => bu.uid === user!.uid);
-                        const isCreator = room.creatorUid === user!.uid;
-                        const canJoin = room.status === 'active' || (room.status === 'scheduled' && canJoinRoom(room));
-                        const tourProps = roomType === 'active' && index === 0 
-                            ? {
-                                start: {'data-tour': `so-start-room-${index}`},
-                                share: {'data-tour': `so-share-link-${index}`},
-                                settings: {'data-tour': `so-settings-${index}`}
-                            }
-                            : {start: {}, share: {}, settings: {}};
-
-                        return (
-                            <li key={room.id} className="flex justify-between items-center p-3 bg-secondary rounded-lg gap-2">
-                                <div className="flex-grow">
-                                    <p className="font-semibold">{room.topic}</p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-sm text-muted-foreground">
-                                            {room.status === 'scheduled' && room.scheduledAt 
-                                                ? format(new Date(room.scheduledAt), 'PPpp')
-                                                : `Created: ${room.createdAt ? format(new Date(room.createdAt), 'PPp') : '...'}`
-                                            }
-                                        </p>
-                                        {room.status === 'closed' && (
-                                            <Badge variant={room.summary ? 'default' : 'destructive'}>
-                                                {room.summary ? 'Summary Available' : 'Closed'}
-                                            </Badge>
-                                        )}
-                                        {room.status === 'scheduled' && (
-                                             <Badge variant="outline">{room.durationMinutes} min</Badge>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {isBlocked && (
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger>
-                                                    <XCircle className="h-5 w-5 text-destructive" />
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>You are blocked from this room.</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    )}
-
-                                    {canJoin && !isCreator && (
-                                        <Button asChild disabled={isBlocked}>
-                                            <Link href={`/sync-room/${room.id}`}>Join Room</Link>
-                                        </Button>
-                                    )}
-
-                                    {isCreator && canJoin && (
-                                        <Button asChild disabled={isBlocked} {...tourProps.start}>
-                                            <Link href={`/sync-room/${room.id}`}>Start Room</Link>
-                                        </Button>
-                                    )}
-                                    
-                                    {isCreator && (room.status === 'scheduled' || room.status === 'active') && (
-                                        <Button variant="outline" size="icon" onClick={() => copyInviteLink(room.id, room.creatorUid)} {...tourProps.share}><LinkIcon className="h-4 w-4"/></Button>
-                                    )}
-
-                                    {isCreator && room.status === 'scheduled' && (
-                                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(room)}><Edit className="h-4 w-4"/></Button>
-                                    )}
-
-                                    {isCreator && room.status === 'closed' && !room.summary && (
-                                        <Button size="sm" onClick={() => handleGenerateSummary(room.id)} disabled={isSummarizing === room.id}>
-                                            {isSummarizing === room.id ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                            Generate Summary
-                                        </Button>
-                                    )}
-
-                                    {room.summary && (
-                                        <RoomSummaryDialog room={room} onUpdate={fetchInvitedRooms} />
-                                    )}
-                                    
-                                    {isCreator && (
-                                        <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
-                                        </div>
-                                    )}
-                                </div>
-                            </li>
-                        )
-                    })}
-                </ul>
-            ) : (
-                <p className="text-muted-foreground text-center py-4">No rooms in this category.</p>
-            )}
-        </div>
-    );
-    
     return (
         <Card>
             <CardHeader>
@@ -927,13 +811,13 @@ export default function VoiceRoomsTab() {
                                                 <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
                                             </TabsList>
                                             <TabsContent value="scheduled" className="mt-4">
-                                                {renderRoomList(scheduled, 'scheduled')}
+                                                {/* renderRoomList(scheduled, 'scheduled') */}
                                             </TabsContent>
                                             <TabsContent value="active" className="mt-4">
-                                                {renderRoomList(active, 'active')}
+                                                {/* renderRoomList(active, 'active') */}
                                             </TabsContent>
                                             <TabsContent value="closed" className="mt-4">
-                                                {renderRoomList(closed, 'closed')}
+                                                {/* renderRoomList(closed, 'closed') */}
                                             </TabsContent>
                                         </Tabs>
                                     )}
@@ -1147,3 +1031,5 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
+
+    
