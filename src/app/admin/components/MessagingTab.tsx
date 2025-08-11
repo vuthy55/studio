@@ -10,6 +10,7 @@ import MarketingRelease from '@/components/marketing/MarketingRelease';
 import MarketingRelease2 from '@/components/marketing/MarketingRelease2';
 import MarketingRelease3 from '@/components/marketing/MarketingRelease3';
 import BetaTesterInfo from '@/components/marketing/BetaTesterInfo';
+import BetaTesterInfoKhmer from '@/components/marketing/BetaTesterInfoKhmer';
 import { MessageSquareQuote } from 'lucide-react';
 
 export default function MessagingTab() {
@@ -24,9 +25,15 @@ export default function MessagingTab() {
             <CardContent>
                  <Accordion type="single" collapsible className="w-full">
                      <AccordionItem value="item-beta">
-                        <AccordionTrigger>Beta Tester Information</AccordionTrigger>
+                        <AccordionTrigger>Beta Tester Information (English)</AccordionTrigger>
                         <AccordionContent>
                            <BetaTesterInfo />
+                        </AccordionContent>
+                    </AccordionItem>
+                     <AccordionItem value="item-beta-khmer">
+                        <AccordionTrigger>Beta Tester Information (Khmer)</AccordionTrigger>
+                        <AccordionContent>
+                           <BetaTesterInfoKhmer />
                         </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-1">
