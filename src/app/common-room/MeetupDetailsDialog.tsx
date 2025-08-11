@@ -259,8 +259,9 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
                         ) : attendees.length > 0 ? (
                             <div className="space-y-2">
                                 {attendees.map(attendee => {
+                                    if (!attendee.id) return null; // Should not happen if data is clean
                                     const isHost = vibeData?.hostEmails?.includes(attendee.email);
-                                    const isFriend = userProfile?.friends?.includes(attendee.id!);
+                                    const isFriend = userProfile?.friends?.includes(attendee.id);
                                     const hasPendingRequest = userProfile?.friendRequests?.some(req => req.fromUid === attendee.id);
 
                                     return (
@@ -276,13 +277,13 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartChat(attendee)}><MessageSquare className="h-4 w-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartChat({ uid: attendee.id!, name: attendee.name, email: attendee.email })}><MessageSquare className="h-4 w-4" /></Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent><p>Chat with {attendee.name}</p></TooltipContent>
                                                     </Tooltip>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartCall(attendee)}><Phone className="h-4 w-4" /></Button>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleStartCall({ uid: attendee.id!, name: attendee.name, email: attendee.email })}><Phone className="h-4 w-4" /></Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent><p>Start voice call</p></TooltipContent>
                                                     </Tooltip>
