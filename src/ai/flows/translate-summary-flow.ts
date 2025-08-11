@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import type { RoomSummary } from '@/lib/types';
 import { db } from '@/lib/firebase-admin';
 import { getAppSettingsAction } from '@/actions/settings';
-import { FieldValue, doc } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { languages } from '@/lib/data';
 
 // --- Zod Schemas for Input/Output ---
@@ -144,7 +144,7 @@ export async function translateSummary(input: TranslateSummaryInput): Promise<Tr
   
   const totalCost = newLanguagesToTranslate.length * costPerLanguage;
 
-  const userRef = doc(db, 'users', userId);
+  const userRef = db.collection('users').doc(userId); // CORRECT: Admin SDK syntax
   const userDoc = await userRef.get();
   const userBalance = userDoc.data()?.tokenBalance || 0;
 
