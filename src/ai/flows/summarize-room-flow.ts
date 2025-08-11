@@ -33,6 +33,7 @@ const ParticipantSchema = z.object({
 
 const TranslatedContentSchema = z.object({
     original: z.string(),
+    translations: z.record(z.string()).default({}).describe("An object to hold translations, which will be populated later. Initialize as an empty object."),
 });
 
 // This schema defines the expected output from the AI.
