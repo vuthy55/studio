@@ -17,33 +17,44 @@ export interface VoiceInfo {
  * Fetches the list of available TTS voices from the Azure Speech service.
  * This is a server-side action to protect credentials if they were not public.
  */
-export async function getAzureVoices(): Promise<VoiceInfo[]> {
+export async function getAzureVoices(): Promise<{ voices?: VoiceInfo[], error?: string }> {
     const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY;
     const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION;
 
     if (!azureKey || !azureRegion) {
-        throw new Error("Azure TTS credentials are not configured on the server.");
+        return { error: "Azure TTS credentials are not configured on the server." };
     }
     
+    // This recognizer is created only to access the getVoicesAsync method.
+    // It's a slight misuse of the SDK's intent but is the standard way to get the voice list.
     const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
-    const result = await synthesizer.getVoicesAsync();
+    try {
+        const result = await synthesizer.getVoicesAsync();
     
-    if (result.reason === sdk.ResultReason.VoicesListRetrieved) {
-        return result.voices.map(v => ({
-            name: v.name,
-            displayName: v.displayName,
-            localName: v.localName,
-            shortName: v.shortName,
-            gender: v.gender === sdk.SynthesisVoiceGender.Female ? 'Female' : v.gender === sdk.SynthesisVoiceGender.Male ? 'Male' : 'Neutral',
-            locale: v.locale,
-            styleList: v.styleList,
-        }));
-    } else if (result.reason === sdk.ResultReason.Canceled) {
-        // For a SynthesisVoicesResult, the error details are directly on the result object.
-        throw new Error(`Could not get voices list: ${result.errorDetails}`);
-    } else {
-        throw new Error(`Failed to retrieve voices list. Reason: ${result.reason}`);
+        if (result.reason === sdk.ResultReason.VoicesListRetrieved) {
+            const voices = result.voices.map(v => ({
+                name: v.name,
+                displayName: v.displayName,
+                localName: v.localName,
+                shortName: v.shortName,
+                gender: v.gender === sdk.SynthesisVoiceGender.Female ? 'Female' : v.gender === sdk.SynthesisVoiceGender.Male ? 'Male' : 'Neutral',
+                locale: v.locale,
+                styleList: v.styleList,
+            }));
+            return { voices };
+        } else if (result.reason === sdk.ResultReason.Canceled) {
+            // For a SynthesisVoicesResult, the error details are directly on the result object.
+            return { error: `Could not get voices list: ${result.errorDetails}` };
+        } else {
+            return { error: `Failed to retrieve voices list. Reason: ${result.reason}` };
+        }
+    } catch (error: any) {
+        console.error("[getAzureVoices] Error:", error);
+        return { error: error.message || 'An unknown error occurred while fetching voices.' };
+    } finally {
+        // Ensure the synthesizer is closed to release resources.
+        synthesizer.close();
     }
 }
