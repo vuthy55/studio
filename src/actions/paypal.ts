@@ -1,7 +1,6 @@
 
 'use server';
 
-import paypal from '@paypal/paypal-js';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
