@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp, getDoc } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Vibe, ClientVibe, Party, ClientParty, BlockedUser, VibePost, Report, NotificationType } from '@/lib/types';
 import { sendVibeInviteEmail } from './email';
 import { getAppSettingsAction } from './settings';
@@ -31,14 +31,13 @@ export async function startVibe(payload: StartVibePayload): Promise<{ success: b
             creatorId,
             creatorName,
             creatorEmail: creatorEmail,
-            createdAt: FieldValue.serverTimestamp(),
             lastPostAt: FieldValue.serverTimestamp(), // Initialize with creation date
             invitedEmails: isPublic ? [] : [creatorEmail], // Only add creator to private vibes
             hostEmails: [creatorEmail],
             postsCount: 0,
             activeMeetupId: null,
         };
-        await newVibeRef.set(vibeData);
+        await newVibeRef.set({ ...vibeData, createdAt: FieldValue.serverTimestamp() });
         return { success: true, vibeId: newVibeRef.id };
     } catch (error: any) {
         console.error("Error starting vibe:", error);
@@ -834,3 +833,5 @@ export async function createPrivateVibe(payload: CreatePrivateVibePayload): Prom
         return { success: false, error: 'Failed to create private chat.' };
     }
 }
+
+    

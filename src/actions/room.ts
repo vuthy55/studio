@@ -3,7 +3,7 @@
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp, WriteBatch, getDoc } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, WriteBatch } from 'firebase-admin/firestore';
 import type { SyncRoom, Participant, BlockedUser, RoomMessage, Transcript, SummaryParticipant, RoomSummary } from '@/lib/types';
 import { getAppSettingsAction } from './settings';
 import { sendRoomEndingSoonEmail, sendRoomInviteEmail } from './email';
@@ -711,4 +711,7 @@ export async function getTranscriptAction(roomId: string, userId: string): Promi
         return { success: false, error: error.message || 'Could not generate transcript.' };
     }
 }
+    
+
+
     
