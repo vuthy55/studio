@@ -18,12 +18,14 @@ import type { PaymentLog } from '@/lib/types';
 export default function BillingTab() {
     const [user] = useAuthState(auth);
     const [payments, setPayments] = useState<PaymentLog[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [hasFetched, setHasFetched] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
     const fetchPaymentHistory = useCallback(async () => {
-        if (!user || hasFetched) return;
+        if (!user) {
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         try {
             const paymentsRef = collection(db, 'users', user.uid, 'paymentHistory');
@@ -36,9 +38,12 @@ export default function BillingTab() {
             toast({ variant: "destructive", title: "Error", description: "Could not fetch payment history." });
         } finally {
             setIsLoading(false);
-            setHasFetched(true);
         }
-    }, [user, hasFetched, toast]);
+    }, [user, toast]);
+
+    useEffect(() => {
+        fetchPaymentHistory();
+    }, [fetchPaymentHistory]);
 
     return (
         <Card>
@@ -50,18 +55,16 @@ export default function BillingTab() {
                     </div>
                      <Button onClick={fetchPaymentHistory} variant="outline" size="sm" disabled={isLoading}>
                         <RefreshCw className="mr-2 h-4 w-4" />
-                        {hasFetched ? 'Refresh' : 'Load History'}
+                        Refresh
                     </Button>
                  </div>
             </CardHeader>
             <CardContent>
-                {isLoading && (
+                {isLoading ? (
                     <div className="flex justify-center items-center py-8">
                         <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                )}
-                
-                {hasFetched && (
+                ) : (
                     payments.length > 0 ? (
                         <div className="border rounded-md min-h-[200px]">
                             <Table>
@@ -98,9 +101,6 @@ export default function BillingTab() {
                         </div>
                     ) : <p className="text-center text-muted-foreground py-8">No payment history found.</p>
                 )}
-                 {!hasFetched && (
-                     <p className="text-center text-muted-foreground py-8">Click the button to load your payment history.</p>
-                 )}
             </CardContent>
         </Card>
     )

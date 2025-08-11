@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -66,7 +67,7 @@ interface InvitedRoomClient extends Omit<SyncRoom, 'id' | 'createdAt' | 'lastAct
     id: string;
     topic: string;
     status: 'active' | 'closed' | 'scheduled';
-    createdAt: string; 
+    createdAt?: string; 
     lastActivityAt?: string;
     scheduledAt?: string;
     firstMessageAt?: string;
@@ -161,7 +162,7 @@ function RoomSummaryDialog({ room, onUpdate }: { room: InvitedRoomClient; onUpda
     )
 }
 
-function ManageRoomDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate: () => void }) {
+function ManageRoomDialog({ room, user, onUpdate }: { room: ClientSyncRoom; user: any; onUpdate: () => void }) {
      const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);

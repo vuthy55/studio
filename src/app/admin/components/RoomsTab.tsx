@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -24,40 +24,30 @@ export default function RoomsTab() {
   const [syncOnlineRooms, setSyncOnlineRooms] = useState<ClientSyncRoom[]>([]);
   const [commonRooms, setCommonRooms] = useState<ClientVibe[]>([]);
   
-  const [isLoadingSyncOnline, setIsLoadingSyncOnline] = useState(false);
-  const [isLoadingCommonRooms, setIsLoadingCommonRooms] = useState(false);
-  const [hasFetchedSyncOnline, setHasFetchedSyncOnline] = useState(false);
-  const [hasFetchedCommonRooms, setHasFetchedCommonRooms] = useState(false);
-
+  const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const [user] = useAuthState(auth);
 
-  const handleFetchSyncOnline = useCallback(async () => {
-    setIsLoadingSyncOnline(true);
-    setHasFetchedSyncOnline(true);
+  const fetchRoomsData = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const fetchedRooms = await getAllRooms();
+      const [fetchedRooms, fetchedVibes] = await Promise.all([
+        getAllRooms(),
+        getAllVibesAdmin()
+      ]);
       setSyncOnlineRooms(fetchedRooms);
+      setCommonRooms(fetchedVibes);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error', description: e.message || 'An unknown error occurred.' });
     } finally {
-      setIsLoadingSyncOnline(false);
+      setIsLoading(false);
     }
   }, [toast]);
   
-  const handleFetchCommonRooms = useCallback(async () => {
-    setIsLoadingCommonRooms(true);
-    setHasFetchedCommonRooms(true);
-    try {
-        const fetchedVibes = await getAllVibesAdmin();
-        setCommonRooms(fetchedVibes);
-    } catch (e: any) {
-         toast({ variant: 'destructive', title: 'Error', description: e.message || 'An unknown error occurred.' });
-    } finally {
-        setIsLoadingCommonRooms(false);
-    }
-  }, [toast]);
+  useEffect(() => {
+    fetchRoomsData();
+  }, [fetchRoomsData]);
 
   const handleDeleteSyncOnlineRoom = async (roomId: string) => {
     if (!user) return;
@@ -66,7 +56,7 @@ export default function RoomsTab() {
         const result = await permanentlyDeleteRooms([roomId]);
         if (result.success) {
             toast({ title: "Success", description: `Room deleted.` });
-            await handleFetchSyncOnline();
+            await fetchRoomsData();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -84,7 +74,7 @@ export default function RoomsTab() {
         const result = await deleteVibesAdmin([vibeId]);
         if (result.success) {
             toast({ title: "Success", description: `Common Room deleted.` });
-            await handleFetchCommonRooms();
+            await fetchRoomsData();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -99,19 +89,20 @@ export default function RoomsTab() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
             <CardHeader>
-                <CardTitle>Sync Online Rooms</CardTitle>
+                <div className="flex justify-between items-center">
+                    <CardTitle>Sync Online Rooms</CardTitle>
+                     <Button onClick={fetchRoomsData} variant="outline" size="icon" disabled={isLoading}>
+                        <RefreshCw className={isLoading ? "animate-spin" : ""} />
+                    </Button>
+                </div>
                 <CardDescription>
                 Manage private, real-time translated voice chat rooms.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <Button onClick={handleFetchSyncOnline} disabled={isLoadingSyncOnline}>
-                    {isLoadingSyncOnline ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-                    {hasFetchedSyncOnline ? 'Refresh List' : 'Fetch Sync Online Rooms'}
-                </Button>
-                {isLoadingSyncOnline ? (
+            <CardContent>
+                {isLoading ? (
                      <div className="flex items-center justify-center p-4"> <LoaderCircle className="animate-spin" /></div>
-                ) : hasFetchedSyncOnline && (
+                ) : (
                      <ScrollArea className="h-72">
                          <div className="pr-4 space-y-2">
                          {syncOnlineRooms.length > 0 ? syncOnlineRooms.map(room => (
@@ -135,19 +126,20 @@ export default function RoomsTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Active Common Rooms</CardTitle>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>Common Rooms (Vibes)</CardTitle>
+                        <Button onClick={fetchRoomsData} variant="outline" size="icon" disabled={isLoading}>
+                           <RefreshCw className={isLoading ? "animate-spin" : ""} />
+                        </Button>
+                    </div>
                     <CardDescription>
-                    Manage public and private community discussion spaces (Vibes).
+                    Manage public and private community discussion spaces.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                     <Button onClick={handleFetchCommonRooms} disabled={isLoadingCommonRooms}>
-                        {isLoadingCommonRooms ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-                        {hasFetchedCommonRooms ? 'Refresh List' : 'Fetch Common Rooms'}
-                    </Button>
-                    {isLoadingCommonRooms ? (
+                <CardContent>
+                    {isLoading ? (
                          <div className="flex items-center justify-center p-4"> <LoaderCircle className="animate-spin" /></div>
-                    ) : hasFetchedCommonRooms && (
+                    ) : (
                          <ScrollArea className="h-72">
                              <div className="pr-4 space-y-2">
                              {commonRooms.length > 0 ? commonRooms.map(vibe => (

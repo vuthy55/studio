@@ -18,10 +18,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Tabs as TabsIcon, Bell, RefreshCw } from 'lucide-react';
+import { LoaderCircle, PlusCircle, MessageSquare, MapPin, ExternalLink, Compass, UserCircle, Calendar, Users as UsersIcon, LocateFixed, LocateOff, Bell, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getVibes, startVibe, getUpcomingParties } from '@/actions/common-room';
+import { getCommonRoomData, startVibe } from '@/actions/common-room';
 import { ClientVibe, ClientParty } from '@/lib/types';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolveUrlAction } from '@/actions/scraper';
 import { getCityFromCoords } from '@/ai/flows/get-city-from-coords-flow';
 import { notificationSound } from '@/lib/sounds';
+import { getCommonRoomCache, setCommonRoomCache } from '@/services/cache';
 
 function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     const { user } = useUserData();
@@ -37,6 +38,7 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [topic, setTopic] = useState('');
     const [isPublic, setIsPublic] = useState(true);
+    const [tags, setTags] = useState('');
 
     const handleCreateVibe = async () => {
         if (!topic.trim()) {
@@ -56,10 +58,12 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
                 creatorId: user.uid, 
                 creatorName: user.displayName || user.email,
                 creatorEmail: user.email,
+                tags: tags.split(',').map(t => t.trim()).filter(Boolean),
             });
             toast({ title: 'Vibe Created!', description: 'Your new common room is ready.' });
             setIsOpen(false);
             setTopic('');
+            setTags('');
             setIsPublic(true);
             onVibeCreated();
         } catch (error: any) {
@@ -86,6 +90,10 @@ function CreateVibeDialog({ onVibeCreated }: { onVibeCreated: () => void }) {
                     <div className="space-y-2">
                         <Label htmlFor="vibe-topic">Topic</Label>
                         <Input id="vibe-topic" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g., Best street food in Bangkok?"/>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="vibe-tags">Tags (comma-separated)</Label>
+                        <Input id="vibe-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g., thailand, food, budget" />
                     </div>
                     <div className="flex items-center space-x-2">
                         <Checkbox id="vibe-public" checked={isPublic} onCheckedChange={(checked) => setIsPublic(!!checked)} />
@@ -187,10 +195,12 @@ function calculateDistance(startCoords: { lat: number; lon: number }, destCoords
 export default function CommonRoomClient() {
     const { user, loading } = useUserData();
     const { toast } = useToast();
-    const [allVibes, setAllVibes] = useState<ClientVibe[]>([]);
-    const [publicParties, setPublicParties] = useState<ClientParty[]>([]); // This holds the original, unsorted list
-    const [displayedParties, setDisplayedParties] = useState<ClientParty[]>([]); // This is what gets rendered
     
+    const [myVibes, setMyVibes] = useState<ClientVibe[]>([]);
+    const [publicVibes, setPublicVibes] = useState<ClientVibe[]>([]);
+    const [myMeetups, setMyMeetups] = useState<ClientParty[]>([]);
+    const [publicMeetups, setPublicMeetups] = useState<ClientParty[]>([]);
+
     const [isFetching, setIsFetching] = useState(true);
     const [activeTab, setActiveTab] = useState('discover');
     const [activeDiscoverTab, setActiveDiscoverTab] = useState('meetups');
@@ -204,27 +214,33 @@ export default function CommonRoomClient() {
 
     const fetchData = useCallback(async () => {
         if (!user || !user.email) {
-            setAllVibes([]);
-            setPublicParties([]);
-            setDisplayedParties([]);
             setIsFetching(false);
             return;
         }
-        setIsFetching(true);
+
+        const cachedData = await getCommonRoomCache();
+        if (cachedData) {
+            setMyVibes(cachedData.myVibes);
+            setPublicVibes(cachedData.publicVibes);
+            setMyMeetups(cachedData.myMeetups);
+            setPublicMeetups(cachedData.publicMeetups);
+            setIsFetching(false);
+        } else {
+            setIsFetching(true);
+        }
+
         try {
-            const [fetchedVibes, fetchedParties] = await Promise.all([
-                getVibes(user.email),
-                getUpcomingParties(),
-            ]);
-            setAllVibes(fetchedVibes);
-            // Default sort by date
-            const sortedParties = [...fetchedParties].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-            setPublicParties(sortedParties);
-            setDisplayedParties(sortedParties);
-            setSortMode('date');
+            const serverData = await getCommonRoomData(user.email);
+            setMyVibes(serverData.myVibes);
+            setPublicVibes(serverData.publicVibes);
+            setMyMeetups(serverData.myMeetups);
+            setPublicMeetups(serverData.publicMeetups);
+            await setCommonRoomCache(serverData);
         } catch (error: any) {
             console.error("Error fetching common room data:", error);
-            toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
+            if (!cachedData) {
+                toast({ variant: 'destructive', title: 'Error fetching data', description: error.message || 'An unknown error occurred' });
+            }
         } finally {
             setIsFetching(false);
         }
@@ -267,8 +283,17 @@ export default function CommonRoomClient() {
 
     const processPartiesWithLocation = useCallback(async (location: { lat: number, lon: number }) => {
         setIsProcessingLocation(true);
+        
+        const allParties = [...publicMeetups, ...myMeetups];
+        const uniquePartyIds = new Set();
+        const uniqueParties = allParties.filter(p => {
+            if (uniquePartyIds.has(p.id)) return false;
+            uniquePartyIds.add(p.id);
+            return true;
+        });
+
         try {
-            const partiesWithDistance = await Promise.all(publicParties.map(async (party) => {
+            const partiesWithDistance = await Promise.all(uniqueParties.map(async (party) => {
                 const coords = await extractCoordsFromUrl(party.location);
                 let distance;
                 if (coords) {
@@ -278,7 +303,13 @@ export default function CommonRoomClient() {
             }));
 
             partiesWithDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-            setDisplayedParties(partiesWithDistance);
+            
+            const myMeetupIds = new Set(myMeetups.map(p => p.id));
+            const publicMeetupIds = new Set(publicMeetups.map(p => p.id));
+
+            setMyMeetups(partiesWithDistance.filter(p => myMeetupIds.has(p.id)));
+            setPublicMeetups(partiesWithDistance.filter(p => publicMeetupIds.has(p.id)));
+
             setSortMode('distance');
             setLocationStatus('success');
         } catch (error) {
@@ -288,7 +319,7 @@ export default function CommonRoomClient() {
         } finally {
             setIsProcessingLocation(false);
         }
-    }, [publicParties, extractCoordsFromUrl, toast]);
+    }, [publicMeetups, myMeetups, extractCoordsFromUrl, toast]);
 
 
     const handleSortByDistance = () => {
@@ -307,8 +338,8 @@ export default function CommonRoomClient() {
     };
 
     const handleSortByDate = () => {
-        const sortedByDate = [...publicParties].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        setDisplayedParties(sortedByDate);
+        setPublicMeetups(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+        setMyMeetups(prev => [...prev].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
         setSortMode('date');
         setLocationStatus('idle');
     };
@@ -319,20 +350,6 @@ export default function CommonRoomClient() {
             fetchData();
         }
     }, [loading, user, fetchData]);
-    
-
-    const { publicVibes, myVibes, myMeetups } = useMemo(() => {
-        const publicV = allVibes.filter(v => v.isPublic);
-        const myVibeIds = new Set(allVibes.map(v => v.id));
-        const myM = displayedParties.filter(p => myVibeIds.has(p.vibeId));
-        
-        return {
-            publicVibes: publicV,
-            myVibes: allVibes,
-            myMeetups: myM,
-        };
-    }, [allVibes, displayedParties]);
-
 
     return (
         <div className="space-y-6">
@@ -375,8 +392,8 @@ export default function CommonRoomClient() {
                                         </Button>
                                     </div>
                                     <div className="pt-4">
-                                        {activeDiscoverTab === 'meetups' && <PartyList parties={displayedParties} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
-                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} parties={publicParties} title="Public Vibes" />}
+                                        {activeDiscoverTab === 'meetups' && <PartyList parties={publicMeetups} title="Public Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
+                                        {activeDiscoverTab === 'vibes' && <VibeList vibes={publicVibes} title="Public Vibes" />}
                                     </div>
                                 </div>
                             </TabsContent>
@@ -398,7 +415,7 @@ export default function CommonRoomClient() {
                                     </div>
                                     <div className="pt-4">
                                         {activeMySpaceTab === 'meetups' && <PartyList parties={myMeetups} title="My Upcoming Meetups" onSortByDistance={handleSortByDistance} onSortByDate={handleSortByDate} sortMode={sortMode} isCalculatingDistance={isProcessingLocation} locationStatus={locationStatus} />}
-                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} parties={publicParties} title="My Vibes & Invites" />}
+                                        {activeMySpaceTab === 'vibes' && <VibeList vibes={myVibes} title="My Vibes & Invites" />}
                                     </div>
                                 </div>
                             </TabsContent>
@@ -410,11 +427,7 @@ export default function CommonRoomClient() {
     )
 }
 
-function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: ClientParty[], title: string }) {
-    
-    const getActiveMeetup = (vibe: ClientVibe) => {
-        return parties.find(p => p.vibeId === vibe.id);
-    }
+function VibeList({ vibes, title }: { vibes: ClientVibe[], title: string }) {
     
     return (
         <div className="space-y-4">
@@ -426,7 +439,6 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
             ) : (
                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {vibes.map(vibe => {
-                        const activeMeetup = getActiveMeetup(vibe);
                         return (
                             <Link href={`/common-room/${vibe.id}`} key={vibe.id} className="block">
                                 <Card className="hover:border-primary/50 transition-colors h-full flex flex-col">
@@ -440,18 +452,10 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="flex-grow flex flex-col justify-end">
-                                        {activeMeetup ? (
-                                             <div className="p-2 bg-primary/10 rounded-md text-sm">
-                                                <p className="font-bold text-primary flex items-center gap-2"><Calendar className="h-4 w-4"/> Upcoming Meetup</p>
-                                                <p className="font-semibold text-primary/90">{activeMeetup.title}</p>
-                                                <p className="text-xs text-primary/80">{format(new Date(activeMeetup.startTime), 'MMM d, h:mm a')}</p>
-                                             </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2">
-                                                <UsersIcon className="h-4 w-4 text-muted-foreground"/>
-                                                <span className="text-sm text-muted-foreground">{(vibe.invitedEmails || []).length} member(s)</span>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <UsersIcon className="h-4 w-4 text-muted-foreground"/>
+                                            <span className="text-sm text-muted-foreground">{(vibe.invitedEmails || []).length} member(s)</span>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </Link>
@@ -462,3 +466,7 @@ function VibeList({ vibes, parties, title }: { vibes: ClientVibe[], parties: Cli
         </div>
     );
 }
+
+    
+
+    

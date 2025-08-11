@@ -18,6 +18,7 @@ import { MeetupDetailsDialog } from '@/app/common-room/MeetupDetailsDialog';
 import { getCommonRoomCache, setCommonRoomCache } from '@/services/cache';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 function MeetupsInfoDialog() {
@@ -99,7 +100,18 @@ function PartyList({ parties, title, onSortByDistance, onSortByDate, sortMode, i
                                 <div className="flex justify-between items-start gap-2">
                                     <h4 className="font-semibold flex-1 flex items-center gap-2">
                                         {party.title}
-                                        {!party.isPublic && <Lock className="h-3 w-3 text-muted-foreground" title="Private Meetup"/>}
+                                        {!party.isPublic && (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Lock className="h-3 w-3 text-muted-foreground" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Private Meetup</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
                                     </h4>
                                     <div className="text-right flex-shrink-0">
                                          <p className="font-semibold text-sm whitespace-nowrap">{format(new Date(party.startTime), 'MMM d')}</p>

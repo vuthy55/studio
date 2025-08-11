@@ -1,6 +1,7 @@
 
 
-import type { FieldValue, Timestamp } from 'firebase/firestore';
+import type { FieldValue, Timestamp as ClientTimestamp } from 'firebase/firestore';
+import type { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 import type { LanguageCode } from './data';
 
@@ -84,7 +85,7 @@ export type Participant = {
     email: string;
     selectedLanguage: AzureLanguageCode | '';
     isMuted?: boolean;
-    joinedAt?: Timestamp;
+    joinedAt?: ClientTimestamp;
 }
 
 export type RoomMessage = {
@@ -93,7 +94,7 @@ export type RoomMessage = {
     speakerName: string;
     speakerUid: string;
     speakerLanguage?: AzureLanguageCode | '';
-    createdAt: Timestamp;
+    createdAt: ClientTimestamp;
     // New fields for special system messages
     type?: 'reminder' | 'system';
     actions?: ('extendMeeting')[];
@@ -147,7 +148,7 @@ export type VibePost = {
     authorId: string;
     authorName: string;
     authorEmail: string;
-    createdAt: Timestamp;
+    createdAt: ClientTimestamp;
     type?: 'user_post' | 'meetup_announcement' | 'system_message' | 'host_announcement';
     meetupDetails?: {
         title: string;
@@ -201,7 +202,7 @@ export interface UserProfile {
   practiceStats?: any;
   syncLiveUsage?: number;
   syncOnlineUsage?: number;
-  syncOnlineUsageLastReset?: Timestamp;
+  syncOnlineUsageLastReset?: ClientTimestamp;
   defaultLanguage?: AzureLanguageCode;
   friends?: string[]; // New: For all social connections
   buddies?: string[]; // Existing: For high-trust safety alerts
@@ -224,8 +225,13 @@ export type Report = {
   contentAuthorId: string;
   contentAuthorName: string;
   contentAuthorEmail: string;
-  createdAt: Timestamp;
+  createdAt: AdminTimestamp;
   status: 'pending' | 'resolved' | 'dismissed';
+}
+
+// A client-safe version of the Report type
+export interface ClientReport extends Omit<Report, 'createdAt'> {
+    createdAt: string; // ISO string for client
 }
 
 export type NotificationType = 'p2p_transfer' | 'room_closed' | 'room_closed_summary' | 'edit_request' | 'room_canceled' | 'friend_request' | 'friend_request_accepted' | 'buddy_alert' | 'referral_bonus' | 'ending_soon_reminder' | 'room_invite' | 'vibe_invite' | 'new_report' | 'report_resolved';
@@ -240,7 +246,7 @@ export type Notification = {
     roomId?: string;
     vibeId?: string;
     reportId?: string;
-    createdAt: Timestamp;
+    createdAt: ClientTimestamp;
     read: boolean;
 };
     
@@ -272,7 +278,6 @@ export type SavedPhrase = {
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
-  size?: number; // Add optional size property
 };
 
 export interface FeedbackSubmission {
@@ -282,7 +287,7 @@ export interface FeedbackSubmission {
     userEmail: string;
     userName: string;
     userId: string;
-    createdAt: Timestamp;
+    createdAt: ClientTimestamp;
     screenshotUrl?: string;
 }
 

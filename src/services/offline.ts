@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { openDB } from 'idb';
@@ -14,7 +13,7 @@ const METADATA_STORE_NAME = 'AudioPackMetadata';
 const DB_VERSION = 2; // Incremented version for new object store
 const SAVED_PHRASES_KEY = 'user_saved_phrases';
 
-interface PackMetadata {
+export interface PackMetadata {
   id: string; // e.g., 'khmer' or 'user_saved_phrases'
   phraseCount?: number;
   size: number;
@@ -40,7 +39,7 @@ export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases')
 }
 
 
-export async function loadSingleOfflinePack(lang: LanguageCode, audioPack: AudioPack, size: number): Promise<void> {
+export async function loadSingleOfflinePack(lang: LanguageCode | 'user_saved_phrases', audioPack: AudioPack, size: number): Promise<void> {
     const db = await getDb();
     await db.put(STORE_NAME, audioPack, lang);
     
@@ -53,4 +52,10 @@ export async function removeOfflinePack(lang: LanguageCode | 'user_saved_phrases
     const db = await getDb();
     await db.delete(STORE_NAME, lang);
     await db.delete(METADATA_STORE_NAME, lang);
+}
+
+
+export async function getOfflineMetadata(): Promise<PackMetadata[]> {
+    const db = await getDb();
+    return db.getAll(METADATA_STORE_NAME);
 }

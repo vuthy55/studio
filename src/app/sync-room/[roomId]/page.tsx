@@ -371,7 +371,7 @@ function ParticipantsPanel({
                                     </DialogDescription>
                                 </DialogHeader>
                                 <DialogFooter className="sm:justify-end gap-2 pt-4">
-                                    <Button type="button" variant="ghost" as={DialogClose}>Cancel</Button>
+                                    <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
                                     <Button type="button" variant="destructive" onClick={handleEndAndReconcile}>
                                         <Trash2 className="mr-2 h-4 w-4" />
                                         End & Reconcile
@@ -819,6 +819,7 @@ export default function SyncRoomPage() {
 
             await sendRoomInviteEmail({
                 to: emails,
+                roomId: roomId,
                 roomTopic: roomData.topic,
                 fromName: user.displayName || 'A user',
                 scheduledAt: scheduledAtDate,
@@ -1111,5 +1112,3 @@ export default function SyncRoomPage() {
         </div>
     );
 }
-
-    

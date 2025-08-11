@@ -17,7 +17,7 @@ export async function deleteCollection(collectionPath: string, batchSize: number
     });
 }
 
-async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value?: unknown) => void): Promise<void> {
+async function deleteQueryBatch(query: FirebaseFirestore.Query, resolve: (value: void | PromiseLike<void>) => void): Promise<void> {
     const snapshot = await query.get();
 
     const batchSize = snapshot.size;

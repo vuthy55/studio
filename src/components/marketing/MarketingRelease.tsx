@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle } from 'lucide-react';
@@ -51,6 +51,11 @@ function ReferralDialog({ settings, user }: { settings: any; user: any }) {
 
 export default function MarketingRelease() {
     const { user, settings } = useUserData();
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
     
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -69,7 +74,7 @@ export default function MarketingRelease() {
                 From ordering street food in Siem Reap to finding your hostel in Kuala Lumpur, VibeSync is the only tool you need to travel safer, smarter, and make unforgettable connections.
             </p>
              <div className="flex flex-wrap gap-2 pt-4">
-                {user && settings ? (
+                {isClient && user && settings ? (
                     <ReferralDialog settings={settings} user={user} />
                 ) : (
                     <>
@@ -101,42 +106,42 @@ export default function MarketingRelease() {
             <CardTitle className="text-center text-3xl">Your Ultimate Travel Companion</CardTitle>
         </CardHeader>
         <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Link href={user ? "/learn" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+            <Link href={isClient && user ? "/learn" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Languages className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Learn</h3>
                     <p className="text-sm text-muted-foreground">Master key phrases before you go. Earn free tokens just for practicing!</p>
                 </div>
             </Link>
-             <Link href={user ? "/converse" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={isClient && user ? "/converse" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Mic className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Converse</h3>
                     <p className="text-sm text-muted-foreground">Have a 1-on-1 chat with anyone. Speak in your language, and the app translates for you.</p>
                 </div>
             </Link>
-             <Link href={user ? "/connect" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={isClient && user ? "/connect" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border-2 border-primary rounded-lg h-full shadow-lg">
                     <Users className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Connect</h3>
                     <p className="text-sm text-muted-foreground">Join multi-lingual community <span className="font-bold">Chatz</span>, schedule group <span className="font-bold">Voice Rooms</span>, and find local <span className="font-bold">Meetups</span>.</p>
                 </div>
             </Link>
-             <Link href={user ? "/infohub" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={isClient && user ? "/infohub" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Compass className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Intel</h3>
                     <p className="text-sm text-muted-foreground">Get AI-powered, real-time travel and safety information for any country.</p>
                 </div>
             </Link>
-             <Link href={user ? "/profile?tab=buddies" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={isClient && user ? "/profile?tab=buddies" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <AlertTriangle className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Buddy Alert</h3>
                     <p className="text-sm text-muted-foreground">Add friends and send your location to the group for extra peace of mind. A safety net, powered by your friends.</p>
                 </div>
             </Link>
-             <Link href={user ? "/profile?tab=wallet" : "/login"} className="block hover:scale-105 transition-transform duration-200">
+             <Link href={isClient && user ? "/profile?tab=wallet" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Coins className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Earn Tokens</h3>

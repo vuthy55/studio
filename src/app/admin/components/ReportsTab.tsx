@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { LoaderCircle, RefreshCw, AlertTriangle, ArrowRight } from "lucide-react";
@@ -10,18 +10,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getReportsAdmin } from '@/actions/reports-admin';
-import type { Report } from '@/lib/types';
+import type { ClientReport } from '@/lib/types';
 
 export default function ReportsTab() {
-  const [reports, setReports] = useState<Report[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [reports, setReports] = useState<ClientReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
 
   const fetchReports = useCallback(async () => {
     setIsLoading(true);
-    setHasFetched(true);
     try {
       const fetchedReports = await getReportsAdmin();
       setReports(fetchedReports);
@@ -32,7 +30,11 @@ export default function ReportsTab() {
     }
   }, [toast]);
 
-  const handleViewVibe = (report: Report) => {
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
+
+  const handleViewVibe = (report: ClientReport) => {
     router.push(`/common-room/${report.vibeId}?from=reports&reportId=${report.id}`);
   };
 
@@ -47,7 +49,7 @@ export default function ReportsTab() {
       <CardContent className="space-y-4">
         <Button onClick={fetchReports} disabled={isLoading}>
             {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-            {hasFetched ? 'Refresh List' : 'Fetch Reports'}
+            Refresh List
         </Button>
 
         <div className="border rounded-md">
@@ -86,7 +88,7 @@ export default function ReportsTab() {
                     ) : (
                         <TableRow>
                             <TableCell colSpan={5} className="h-24 text-center">
-                                {hasFetched ? 'No reports found.' : 'Click "Fetch Reports" to load.'}
+                                No reports found.
                             </TableCell>
                         </TableRow>
                     )}

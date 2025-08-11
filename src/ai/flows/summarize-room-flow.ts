@@ -33,6 +33,7 @@ const ParticipantSchema = z.object({
 
 const TranslatedContentSchema = z.object({
     original: z.string(),
+    translations: z.record(z.string()).default({}).describe("An object to hold translations, which will be populated later. Initialize as an empty object."),
 });
 
 // This schema defines the expected output from the AI.
@@ -214,8 +215,8 @@ const summarizeRoomFlow = ai.defineFlow(
         };
     });
     
-    const presentParticipants = allInvitedUsers.filter(p => presentParticipantEmails.has(p.email));
-    const absentParticipants = allInvitedUsers.filter(p => !presentParticipantEmails.has(p.email));
+    const presentParticipants = allInvitedUsers.filter((p: { name: string; email: string; language: string; }) => presentParticipantEmails.has(p.email));
+    const absentParticipants = allInvitedUsers.filter((p: { name: string; email: string; language: string; }) => !presentParticipantEmails.has(p.email));
 
     const chatHistory = messages
       .map(msg => `${msg.speakerName}: ${msg.text}`)
@@ -236,10 +237,10 @@ const summarizeRoomFlow = ai.defineFlow(
       Date: ${promptPayload.date}
       
       Participants Present:
-      ${promptPayload.presentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
+      ${promptPayload.presentParticipants.map((p: { name: string; email: string; }) => `- ${p.name} (${p.email})`).join('\n')}
 
       Participants Absent:
-      ${promptPayload.absentParticipants.map(p => `- ${p.name} (${p.email})`).join('\n')}
+      ${promptPayload.absentParticipants.map((p: { name: string; email: string; }) => `- ${p.name} (${p.email})`).join('\n')}
       
       Chat History:
       ---
