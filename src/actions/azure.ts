@@ -34,15 +34,24 @@ export async function getAzureVoices(): Promise<{ voices?: VoiceInfo[], error?: 
         const result = await synthesizer.getVoicesAsync();
     
         if (result.reason === sdk.ResultReason.VoicesListRetrieved) {
-            const voices = result.voices.map(v => ({
-                name: v.name,
-                displayName: v.displayName,
-                localName: v.localName,
-                shortName: v.shortName,
-                gender: v.gender === sdk.SynthesisVoiceGender.Female ? 'Female' : v.gender === sdk.SynthesisVoiceGender.Male ? 'Male' : 'Neutral',
-                locale: v.locale,
-                styleList: v.styleList,
-            }));
+            const voices: VoiceInfo[] = result.voices.map(v => {
+                let gender: 'Male' | 'Female' | 'Neutral' = 'Neutral';
+                if (v.gender === sdk.SynthesisVoiceGender.Female) {
+                    gender = 'Female';
+                } else if (v.gender === sdk.SynthesisVoiceGender.Male) {
+                    gender = 'Male';
+                }
+                
+                return {
+                    name: v.name,
+                    displayName: v.displayName,
+                    localName: v.localName,
+                    shortName: v.shortName,
+                    gender: gender,
+                    locale: v.locale,
+                    styleList: v.styleList,
+                };
+            });
             return { voices };
         } else if (result.reason === sdk.ResultReason.Canceled) {
             // For a SynthesisVoicesResult, the error details are directly on the result object.
