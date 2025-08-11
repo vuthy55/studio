@@ -279,61 +279,61 @@ function RoomSummaryDialog({ room, onUpdate }: { room: ClientSyncRoom; onUpdate:
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh]">
-                 <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-1 space-y-4">
-                        <Card>
-                            <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
-                            <CardContent>
-                                <ul className="text-sm space-y-1">
-                                    {editableSummary?.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
-                                </ul>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                             <CardHeader className="pb-2"><CardTitle className="text-base">Translate</CardTitle></CardHeader>
-                             <CardContent className="space-y-2">
-                                <Select onValueChange={setSelectedLanguage} value={selectedLanguage}>
-                                    <SelectTrigger><SelectValue placeholder="Select language..." /></SelectTrigger>
-                                    <SelectContent>
-                                         {languages.map(lang => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <Button className="w-full" onClick={handleTranslateSummary} disabled={isTranslating || !selectedLanguage}>
-                                    {isTranslating ? <LoaderCircle className="animate-spin mr-2" /> : <TranslateIcon className="mr-2" />}
-                                    Translate ({settings?.summaryTranslationCost || 10} tokens)
-                                </Button>
-                             </CardContent>
-                        </Card>
-                    </div>
-                    <div className="md:col-span-2">
-                        <Tabs defaultValue="original" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                 <TabsTrigger value="original">Original Summary</TabsTrigger>
-                                 <TabsTrigger value="action-items">Action Items ({(editableSummary.actionItems || []).length})</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="original">
-                                <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
-                                    {editableSummary.summary?.original}
-                                </div>
-                            </TabsContent>
-                             <TabsContent value="action-items">
-                                 <div className="p-4 border rounded-md min-h-[200px] mt-2 space-y-2 text-sm">
-                                    {editableSummary.actionItems && editableSummary.actionItems.length > 0 ? (
-                                        editableSummary.actionItems.map((item, i) => (
-                                            <div key={i} className="pb-2 border-b last:border-b-0">
-                                                <p>{i+1}. {item.task.original}</p>
-                                                <div className="flex gap-4 text-xs text-muted-foreground mt-1">
-                                                    {item.personInCharge && <span>Owner: {item.personInCharge}</span>}
-                                                    {item.dueDate && <span>Due: {item.dueDate}</span>}
+                    <div className="py-4 space-y-4 pr-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-1 space-y-4">
+                            <Card>
+                                <CardHeader className="pb-2"><CardTitle className="text-base">Participants</CardTitle></CardHeader>
+                                <CardContent>
+                                    <ul className="text-sm space-y-1">
+                                        {editableSummary?.presentParticipants?.map(p => <li key={p.email}>{p.name}</li>)}
+                                    </ul>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-2"><CardTitle className="text-base">Translate</CardTitle></CardHeader>
+                                <CardContent className="space-y-2">
+                                    <Select onValueChange={setSelectedLanguage} value={selectedLanguage}>
+                                        <SelectTrigger><SelectValue placeholder="Select language..." /></SelectTrigger>
+                                        <SelectContent>
+                                            {languages.map(lang => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button className="w-full" onClick={handleTranslateSummary} disabled={isTranslating || !selectedLanguage}>
+                                        {isTranslating ? <LoaderCircle className="animate-spin mr-2" /> : <TranslateIcon className="mr-2" />}
+                                        Translate ({settings?.summaryTranslationCost || 10} tokens)
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Tabs defaultValue="original" className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="original">Original Summary</TabsTrigger>
+                                    <TabsTrigger value="action-items">Action Items ({(editableSummary.actionItems || []).length})</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="original">
+                                    <div className="p-4 border rounded-md min-h-[200px] mt-2 text-sm whitespace-pre-wrap">
+                                        {editableSummary.summary?.original}
+                                    </div>
+                                </TabsContent>
+                                <TabsContent value="action-items">
+                                    <div className="p-4 border rounded-md min-h-[200px] mt-2 space-y-2 text-sm">
+                                        {editableSummary.actionItems && editableSummary.actionItems.length > 0 ? (
+                                            editableSummary.actionItems.map((item, i) => (
+                                                <div key={i} className="pb-2 border-b last:border-b-0">
+                                                    <p>{i+1}. {item.task.original}</p>
+                                                    <div className="flex gap-4 text-xs text-muted-foreground mt-1">
+                                                        {item.personInCharge && <span>Owner: {item.personInCharge}</span>}
+                                                        {item.dueDate && <span>Due: {item.dueDate}</span>}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
-                                    ) : <p className="text-muted-foreground text-center">No action items were identified.</p>}
-                                </div>
-                            </TabsContent>
-                        </Tabs>
+                                            ))
+                                        ) : <p className="text-muted-foreground text-center">No action items were identified.</p>}
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
+                        </div>
                     </div>
-                 </div>
                 </ScrollArea>
                  <DialogFooter>
                     <DropdownMenu>
@@ -431,6 +431,7 @@ export default function VoiceRoomsTab() {
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSummarizing, setIsSummarizing] = useState<string | null>(null);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -724,6 +725,20 @@ export default function VoiceRoomsTab() {
             setIsSubmitting(false);
         }
     };
+    
+     const handleGenerateSummary = async (roomId: string) => {
+        if (!user) return;
+        setIsSummarizing(roomId);
+        try {
+            await summarizeRoomAction(roomId, user.uid);
+            toast({ title: 'Summary Generating', description: 'The AI is creating your summary. It will appear here shortly.' });
+            fetchInvitedRooms(); // Re-fetch to update the room data
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to start summary generation.' });
+        } finally {
+            setIsSummarizing(null);
+        }
+    };
 
     const { active, scheduled, closed } = useMemo(() => {
         return invitedRooms.reduce((acc, room) => {
@@ -814,6 +829,22 @@ export default function VoiceRoomsTab() {
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
+                                    )}
+                                    
+                                     {room.status === 'closed' && !room.summary && (
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => handleGenerateSummary(room.id)}
+                                            disabled={isSummarizing !== null}
+                                        >
+                                            {isSummarizing === room.id ? (
+                                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Wand2 className="mr-2 h-4 w-4" />
+                                            )}
+                                            Generate Summary
+                                        </Button>
                                     )}
 
                                     {canJoin && !isCreator && (
