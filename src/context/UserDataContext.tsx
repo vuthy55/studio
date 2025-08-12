@@ -12,7 +12,7 @@ import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
-import { getLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
+import { getPreGeneratedAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
@@ -84,7 +84,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
-        const { audioPack, size } = await getLanguageAudioPack(lang);
+        // This now correctly fetches the pre-generated pack instead of generating it on-demand.
+        const { audioPack, size } = await getPreGeneratedAudioPack(lang);
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
     }, []);

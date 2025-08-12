@@ -6,6 +6,7 @@ import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { db } from '@/lib/firebase-admin';
 import type { SavedPhrase } from '@/lib/types';
+import { getStorage } from 'firebase-admin/storage';
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
@@ -15,6 +16,37 @@ export interface AudioPackResult {
     audioPack: AudioPack;
     size: number; // size in bytes
 }
+
+/**
+ * Fetches a pre-generated language audio pack from Firebase Storage.
+ * This is the fast path for user downloads.
+ * @param lang - The language code for which to fetch the audio pack.
+ * @returns A promise that resolves to an AudioPackResult object.
+ * @throws Throws an error if the pack file does not exist in storage.
+ */
+export async function getPreGeneratedAudioPack(lang: LanguageCode): Promise<AudioPackResult> {
+  const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+  const fileName = `audio-packs/${lang}.json`;
+  const file = bucket.file(fileName);
+
+  try {
+    const [exists] = await file.exists();
+    if (!exists) {
+        throw new Error(`Pre-generated audio pack for '${lang}' not found in Firebase Storage.`);
+    }
+
+    const [contents] = await file.download();
+    const audioPack = JSON.parse(contents.toString());
+    const size = contents.length;
+
+    return { audioPack, size };
+  } catch (error: any) {
+    console.error(`[getPreGeneratedAudioPack] Failed to fetch or parse pack for '${lang}':`, error);
+    // Re-throw the error to be handled by the calling function.
+    throw new Error(`Could not retrieve the language pack for ${lang}. It may not have been generated yet.`);
+  }
+}
+
 
 /**
  * Generates an "audio pack" for a given language from the static phrasebook.
