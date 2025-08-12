@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
@@ -155,6 +154,7 @@ function IntelContent() {
     const [debugLog, setDebugLog] = useState<string[]>([]);
     
     const [staticIntel, setStaticIntel] = useState<CountryIntelData | null>(null);
+    const [isStaticLoading, setIsStaticLoading] = useState(false);
 
     const countryOptions = useMemo(() => lightweightCountries.map(c => ({ code: c.code, name: c.name })), []);
 
@@ -171,12 +171,14 @@ function IntelContent() {
         setDebugLog([]);
         setStaticIntel(null);
         
+        setIsStaticLoading(true);
         const staticData = await getCountryIntelData(countryCode);
         if (staticData) {
             setStaticIntel(staticData);
         } else {
              toast({ variant: 'destructive', title: 'Data Missing', description: `Static intelligence data for this country has not been built in the admin panel.`});
         }
+        setIsStaticLoading(false);
     };
 
     const handleGenerateIntel = async () => {
@@ -341,106 +343,113 @@ function IntelContent() {
                             </CardContent>
                         </Card>
                     </TabsContent>
-
-                    <TabsContent value="holidays" className="mt-4">
-                        <Card>
-                             <CardHeader>
-                                <CardTitle>Major Festivals & Holidays</CardTitle>
-                                <CardDescription>
-                                    Standard information for {selectedCountryName}.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                               {(staticIntel && staticIntel.publicHolidays && staticIntel.publicHolidays.length > 0) ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="w-[200px]">Date</TableHead>
-                                                <TableHead>Holiday</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {staticIntel.publicHolidays.map((event, index) => (
-                                                <TableRow key={`holiday-${index}`}>
-                                                    <TableCell className="font-medium">{event.date}</TableCell>
-                                                    <TableCell>{event.name}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                               ) : (
-                                   <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
-                               )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="etiquette" className="mt-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Cultural Etiquette</CardTitle>
-                                <CardDescription>
-                                     Standard information for {selectedCountryName}.
-                                </CardDescription>
-                            </CardHeader>
-                             <CardContent>
-                                {(staticIntel && staticIntel.etiquette) ? (
-                                    <ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
-                                    </ul>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
-                                )}
-                             </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="visa" className="mt-4">
-                        <Card>
-                             <CardHeader>
-                                <CardTitle>Visa Information</CardTitle>
-                                <CardDescription>
-                                     Standard information for {selectedCountryName} - Always verify with an official embassy.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                 <p className="text-sm">{staticIntel?.visaInformation || 'No standard data available for this country.'}</p>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
                     
-                    <TabsContent value="emergency" className="mt-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Emergency Numbers</CardTitle>
-                                 <CardDescription>
-                                    Standard information for {selectedCountryName}.
-                                </CardDescription>
-                            </CardHeader>
-                             <CardContent>
-                                {(staticIntel && staticIntel.emergencyNumbers && staticIntel.emergencyNumbers.length > 0) ? (
-                                    <Table>
-                                        <TableBody>
-                                            {staticIntel.emergencyNumbers.map((item, index) => {
-                                                const parts = item.split(':');
-                                                const service = parts.length > 1 ? parts[0] : 'Number';
-                                                const number = parts.length > 1 ? parts.slice(1).join(':').trim() : item;
-                                                return (
-                                                    <TableRow key={index}>
-                                                        <TableCell className="font-medium">{service}</TableCell>
-                                                        <TableCell className="font-mono text-right">{number}</TableCell>
+                    {isStaticLoading ? (
+                        <div className="flex justify-center items-center py-8">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : (
+                        <>
+                            <TabsContent value="holidays" className="mt-4">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Major Festivals & Holidays</CardTitle>
+                                        <CardDescription>
+                                            Standard information for {selectedCountryName}.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                    {(staticIntel && staticIntel.publicHolidays && staticIntel.publicHolidays.length > 0) ? (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="w-[200px]">Date</TableHead>
+                                                        <TableHead>Holiday</TableHead>
                                                     </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                 ) : (
-                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
-                                 )}
-                             </CardContent>
-                        </Card>
-                    </TabsContent>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {staticIntel.publicHolidays.map((event, index) => (
+                                                        <TableRow key={`holiday-${index}`}>
+                                                            <TableCell className="font-medium">{event.date}</TableCell>
+                                                            <TableCell>{event.name}</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
+                                    )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
 
+                            <TabsContent value="etiquette" className="mt-4">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Cultural Etiquette</CardTitle>
+                                        <CardDescription>
+                                            Standard information for {selectedCountryName}.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {(staticIntel && staticIntel.etiquette) ? (
+                                            <ul className="list-disc pl-5 space-y-2 text-sm">
+                                                {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="visa" className="mt-4">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Visa Information</CardTitle>
+                                        <CardDescription>
+                                            Standard information for {selectedCountryName} - Always verify with an official embassy.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-sm">{staticIntel?.visaInformation || 'No standard data available for this country.'}</p>
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+                            
+                            <TabsContent value="emergency" className="mt-4">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Emergency Numbers</CardTitle>
+                                        <CardDescription>
+                                            Standard information for {selectedCountryName}.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {(staticIntel && staticIntel.emergencyNumbers && staticIntel.emergencyNumbers.length > 0) ? (
+                                            <Table>
+                                                <TableBody>
+                                                    {staticIntel.emergencyNumbers.map((item, index) => {
+                                                        const parts = item.split(':');
+                                                        const service = parts.length > 1 ? parts[0] : 'Number';
+                                                        const number = parts.length > 1 ? parts.slice(1).join(':').trim() : item;
+                                                        return (
+                                                            <TableRow key={index}>
+                                                                <TableCell className="font-medium">{service}</TableCell>
+                                                                <TableCell className="font-mono text-right">{number}</TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+                        </>
+                    )}
                  </Tabs>
                 </>
             )}
@@ -454,7 +463,7 @@ export default function IntelPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/login');
+            router.push('/login?redirect=/infohub');
         }
     }, [user, authLoading, router]);
 

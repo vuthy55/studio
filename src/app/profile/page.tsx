@@ -90,6 +90,12 @@ function ProfilePageContent() {
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
 
     useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login?redirect=/profile');
+        }
+    }, [user, authLoading, router]);
+
+    useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab && tab !== activeTab) {
             setActiveTab(tab);
