@@ -28,6 +28,7 @@ import OfflineManager from '@/components/OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import { useTour, TourStep } from '@/context/TourContext';
 import { getLanguageAudioPack } from '@/actions/audio';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -89,7 +90,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
-    const [isOnline, setIsOnline] = useState(true);
+    const isOnline = useOnlineStatus();
 
     const { startTour } = useTour();
     const [isDownloading, setIsDownloading] = useState(false);
@@ -140,23 +141,6 @@ const PhrasebookTab = memo(function PhrasebookTab() {
         }
     }, [availableLanguages, fromLanguage, toLanguage, setFromLanguage, setToLanguage]);
 
-    useEffect(() => {
-        const handleOnline = () => setIsOnline(true);
-        const handleOffline = () => setIsOnline(false);
-
-        if (typeof window !== 'undefined') {
-            setIsOnline(navigator.onLine);
-        }
-
-        window.addEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-    
     // This effect ensures that any active speech recognition is stopped when the component unmounts.
     useEffect(() => {
         return () => {
