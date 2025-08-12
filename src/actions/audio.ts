@@ -6,6 +6,8 @@ import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { db } from '@/lib/firebase-admin';
 import type { SavedPhrase } from '@/lib/types';
+import { getStorage } from 'firebase-admin/storage';
+
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
@@ -17,9 +19,37 @@ export interface AudioPackResult {
 }
 
 /**
+ * Fetches a pre-generated language audio pack from Firebase Storage.
+ * This is the correct, fast method for user-facing downloads.
+ * @param lang - The language code for the pack to fetch.
+ * @returns A promise that resolves to an AudioPackResult object.
+ */
+export async function getStoredLanguageAudioPack(lang: LanguageCode): Promise<AudioPackResult> {
+    try {
+        const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+        const fileName = `audio-packs/${lang}.json`;
+        const file = bucket.file(fileName);
+
+        const [exists] = await file.exists();
+        if (!exists) {
+            throw new Error(`Language pack for '${lang}' does not exist in storage.`);
+        }
+
+        const [contents] = await file.download();
+        const audioPack = JSON.parse(contents.toString()) as AudioPack;
+        const size = contents.length;
+        
+        return { audioPack, size };
+    } catch (error: any) {
+        console.error(`[getStoredLanguageAudioPack] Failed to fetch pack for ${lang}:`, error);
+        throw new Error(`Could not retrieve the language pack for ${lang}. It may not have been generated yet.`);
+    }
+}
+
+
+/**
  * Generates an "audio pack" for a given language from the static phrasebook.
- * This involves iterating through the phrasebook and generating TTS audio
- * for each phrase and its corresponding answer.
+ * This is a slow, on-demand function intended only for admin use during pack creation.
  *
  * @param lang - The language code for which to generate the audio pack.
  * @returns A promise that resolves to an AudioPackResult object.
