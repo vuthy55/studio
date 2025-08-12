@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
-import { getCountryIntelData } from '@/actions/intel';
+import { getCountryIntelData } from '@/actions/intel-admin';
 import type { CountryIntelData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -416,7 +416,7 @@ function IntelContent() {
                                  <CardDescription>
                                     Standard information for {selectedCountryName}.
                                 </CardDescription>
-                            </CardHeader>
+                            </Header>
                              <CardContent>
                                 {(staticIntel && staticIntel.emergencyNumbers && staticIntel.emergencyNumbers.length > 0) ? (
                                     <Table>

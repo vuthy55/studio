@@ -5,6 +5,15 @@ All notable changes to the Sync Online feature will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **`[FIX]`** Corrected a performance regression where downloading language packs would trigger a slow, on-demand audio generation process on the server instead of fetching the correct, pre-generated audio pack from Firebase Storage. This ensures near-instantaneous downloads for users.
+- **`[FIX]`** Resolved an issue where re-syncing saved phrases for offline use was incorrectly calling the slow, on-demand audio generation process. It now correctly calls the dedicated `getSavedPhrasesAudioPack` action, making the sync much faster.
+- **`[FIX]`** Standardized the error handling in the `getAzureVoices` server action. It now consistently returns an object with an error property instead of sometimes throwing an exception, making client-side error handling more reliable and preventing potential crashes.
+- **`[FIX]`** Removed a redundant `intel.ts` file and consolidated its functionality into `intel-admin.ts` to improve code quality and reduce maintenance overhead. The `InfoHub` page has been updated to use the correct import path.
+- **`[FIX]`** Resolved a critical user registration bug where users signing up with Google would be authenticated but would not have a corresponding user profile created in the Firestore database. The `signUpUser` action now correctly handles this case by checking for an existing auth user before attempting to create a new one.
+- **`[FIX]`** Corrected a `TypeError` in `firebase.ts` caused by calling `persistentSingleTabManager()` without the required `forceOwnership: true` parameter, which was causing all build attempts to fail.
+- **`[IMPROVEMENT]`** Implemented robust offline detection across all microphone-dependent features (Learn, Converse, Sync Room). All mic buttons are now disabled when the user is offline, with a tooltip explaining the reason, preventing errors and improving user experience.
+
 ### Added
 - **`[IMPROVEMENT]`** Established and documented a robust, multi-step AI process for generating pure-language translations, specifically addressing challenges with closely-related languages like Khmer and Thai. The successful "correct-and-refine" method involves:
     1.  **Initial Translation:** Generate a baseline translation of the source text.
@@ -43,7 +52,6 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 - **`[IMPROVEMENT]`** To enhance user trust and transparency, a confirmation dialog was added before a user spends tokens to translate a Vibe post. The dialog clearly states the action and its token cost, requiring the user to explicitly approve the transaction before it proceeds.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load performance of the Rooms tab by removing an expensive database query.
-- **`[IMPROVEMENT]`** Implemented robust offline detection across all microphone-dependent features (Learn, Converse, Sync Room). All mic buttons are now disabled when the user is offline, with a tooltip explaining the reason, preventing errors and improving user experience.
 
 ### Fixed
 - **`[FIX]`** Resolved an issue where new users signing up via Google would not appear in the Admin search results. The `signUpUser` action now correctly populates the `searchableName` and `searchableEmail` fields for all new users, ensuring they are properly indexed for search.
