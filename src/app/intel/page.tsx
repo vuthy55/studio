@@ -142,7 +142,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 function IntelContent() {
-    const { userProfile, settings, spendTokensForTranslation } = useUserData();
+    const { user, loading, userProfile, settings, spendTokensForTranslation } = useUserData();
     const { toast } = useToast();
     
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
@@ -235,6 +235,14 @@ function IntelContent() {
         }
         return dateString;
     };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
+                <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+            </div>
+        );
+    }
     
     return (
         <div className="space-y-8">
