@@ -227,6 +227,15 @@ function IntelContent() {
         }
     };
 
+    const formatDateSafely = (dateString: string) => {
+        if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+            try {
+                return format(new Date(dateString), 'MMMM d');
+            } catch (e) { return dateString; }
+        }
+        return dateString;
+    };
+    
     return (
         <div className="space-y-8">
             <MainHeader title="Intel" description="Your source for global travel intelligence." />
@@ -462,5 +471,3 @@ export default function IntelPage() {
         </Suspense>
     );
 }
-
-    
