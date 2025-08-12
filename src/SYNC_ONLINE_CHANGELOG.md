@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Enhanced the user login flow for non-registered users. Instead of displaying a generic error message, the system now detects a failed login, presents a user-friendly toast notification explaining the issue, and provides a one-click action to switch to the sign-up form with the user's email pre-filled, streamlining the registration process.
 - **`[IMPROVEMENT]`** Implemented a full Progressive Web App (PWA) architecture. The application now uses a service worker to precache all essential pages and assets, enabling full offline navigation between all primary screens (`/learn`, `/converse`, `/connect`, etc.) after the initial visit. This is coupled with an `useOnlineStatus` hook that allows the UI to gracefully disable features that require an internet connection (e.g., live translation, pronunciation assessment, room creation) and provide clear user feedback, creating a truly reliable and seamless offline-first experience.
 - **`[IMPROVEMENT]`** Implemented a comprehensive reporting and moderation system for the Common Room. This feature empowers the community and administrators to maintain a safe and respectful environment.
     - **User Reporting:** Any user can now report a Vibe that they believe violates community guidelines. The report action is available in the Vibe's participant list.
@@ -27,7 +28,6 @@ All notable changes to the Sync Online feature will be documented in this file.
     - **Vibe Search:** A search bar has been added to the Common Room, allowing users to quickly find public Vibes by keywords in their topics.
     - **Creator Deletion:** Vibe creators now have the ability to permanently delete their own Vibes and all associated content.
     - **Auto-Subscription:** When a user posts a reply in a public Vibe for the first time, they are automatically "subscribed" to it, causing the Vibe to appear in their personalized "My Vibes" list for easy follow-up.
-- **`[IMPROVEMENT]`** Enhanced the user login flow for non-registered users. Instead of displaying a generic error message, the system now detects a failed login, presents a user-friendly toast notification explaining the issue, and provides a one-click action to switch to the sign-up form with the user's email pre-filled, streamlining the registration process.
 - **`[IMPROVEMENT]`** Implemented a major performance refactoring of the Admin Dashboard to address extremely slow Hot Module Replacement (HMR) times, which were taking up to 30 seconds for minor changes.
     - **Problem:** The application's development performance had degraded significantly, violating the core principle of a "fast and simple" architecture.
     - **Root Cause:** The `AdminPageV2.tsx` component had become a monolithic file containing the logic for all admin tabs. This forced the build system (Turbopack) to re-process the entire large component and its dependency graph on every minor change.
@@ -89,4 +89,5 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Prevented old messages from being loaded when a user joins or rejoins a room by querying for messages created after the user's join timestamp.
 - **`[FIX]`** Corrected a series of build-blocking issues, including a dependency conflict with PayPal packages and several TypeScript type errors related to incorrect prop usage (`title` on an icon instead of a `Tooltip`) and mismatched function signatures (passing an object with `id` to a function expecting `uid`). Resolved a React hydration error by delaying the rendering of user-specific links until the client has mounted, ensuring server and client HTML match on initial load.
 
+    
     
