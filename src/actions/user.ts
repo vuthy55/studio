@@ -104,7 +104,7 @@ export async function unlockLanguagePack(userId: string, languageCode: LanguageC
         
         return await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists()) {
+            if (!userDoc.exists) {
                 throw new Error('User not found.');
             }
 
