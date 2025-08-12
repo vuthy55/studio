@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** Replaced large photographic images on the "Traveler's Story" marketing page with lightweight, thematic icons. This change improves page load performance and provides a cleaner, more symbolic visual representation of the user journey through the app's core features.
 - **`[IMPROVEMENT]`** Enhanced the user login flow for non-registered users. Instead of displaying a generic error message, the system now detects a failed login, presents a user-friendly toast notification explaining the issue, and provides a one-click action to switch to the sign-up form with the user's email pre-filled, streamlining the registration process.
 - **`[IMPROVEMENT]`** Implemented a full Progressive Web App (PWA) architecture. The application now uses a service worker to precache all essential pages and assets, enabling full offline navigation between all primary screens (`/learn`, `/converse`, `/connect`, etc.) after the initial visit. This is coupled with an `useOnlineStatus` hook that allows the UI to gracefully disable features that require an internet connection (e.g., live translation, pronunciation assessment, room creation) and provide clear user feedback, creating a truly reliable and seamless offline-first experience.
 - **`[IMPROVEMENT]`** Implemented a comprehensive reporting and moderation system for the Common Room. This feature empowers the community and administrators to maintain a safe and respectful environment.
