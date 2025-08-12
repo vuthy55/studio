@@ -239,7 +239,7 @@ export default function VibesTab() {
                             <VibeList vibes={filteredPublicVibes} title="Public Vibes" searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
                         </TabsContent>
                         <TabsContent value="private" className="mt-4">
-                            <VibeList vibes={myVibes} title="My Vibes & Invites" />
+                            <VibeList vibes={myVibes} title="My Vibes & Invites" from="private"/>
                         </TabsContent>
                     </Tabs>
                 )}
@@ -248,7 +248,7 @@ export default function VibesTab() {
     )
 }
 
-function VibeList({ vibes, title, searchTerm, setSearchTerm }: { vibes: ClientVibe[], title: string, searchTerm?: string, setSearchTerm?: (term: string) => void }) {
+function VibeList({ vibes, title, searchTerm, setSearchTerm, from }: { vibes: ClientVibe[], title: string, searchTerm?: string, setSearchTerm?: (term: string) => void, from?: string }) {
     
     return (
         <div className="space-y-4">
@@ -272,8 +272,10 @@ function VibeList({ vibes, title, searchTerm, setSearchTerm }: { vibes: ClientVi
                 </div>
             ) : (
                  <div className="border rounded-lg">
-                    {vibes.map((vibe, index) => (
-                        <Link href={`/common-room/${vibe.id}`} key={vibe.id} className="block">
+                    {vibes.map((vibe, index) => {
+                        const href = from ? `/common-room/${vibe.id}?from=${from}` : `/common-room/${vibe.id}`;
+                        return (
+                        <Link href={href} key={vibe.id} className="block">
                             <div className={`flex items-center p-4 hover:bg-muted/50 transition-colors ${index < vibes.length - 1 ? 'border-b' : ''}`}>
                                 <div className="flex-1 space-y-1">
                                     <p className="font-semibold flex items-center gap-2">
@@ -298,7 +300,7 @@ function VibeList({ vibes, title, searchTerm, setSearchTerm }: { vibes: ClientVi
                                 <ChevronRight className="h-5 w-5 text-muted-foreground"/>
                             </div>
                         </Link>
-                    ))}
+                    )})}
                 </div>
             )}
         </div>

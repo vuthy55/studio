@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, where, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -18,19 +17,6 @@ interface UserWithId extends UserProfile {
     id: string;
 }
 
-function useDebounce(value: string, delay: number) {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [value, delay]);
-    return debouncedValue;
-}
-
 export default function UsersTab() {
     const router = useRouter();
     const [users, setUsers] = useState<UserWithId[]>([]);
@@ -39,7 +25,6 @@ export default function UsersTab() {
     
     const [searchTerm, setSearchTerm] = useState('');
     const [hasSearched, setHasSearched] = useState(false);
-    const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
      const fetchUsers = useCallback(async (search = '') => {
         const trimmedSearch = search.trim();
@@ -118,19 +103,14 @@ export default function UsersTab() {
             setIsLoading(false);
         }
     }, [toast]);
-    
-    useEffect(() => {
-        // Clear search results if the debounced term is empty
-        if (!debouncedSearchTerm) {
-            setUsers([]);
-            setHasSearched(false);
-            return;
-        }
-        fetchUsers(debouncedSearchTerm);
-    }, [debouncedSearchTerm, fetchUsers]);
 
     const handleRowClick = (userId: string) => {
         router.push(`/admin/${userId}`);
+    };
+
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        fetchUsers(searchTerm);
     };
     
     return (
@@ -138,15 +118,20 @@ export default function UsersTab() {
             <CardHeader>
                 <CardTitle>Users</CardTitle>
                 <CardDescription>Search by name/email, or use '*' to show all users.</CardDescription>
-                 <div className="relative pt-2">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                        placeholder="Search by name, email, or use * for all"
-                        className="pl-10"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
+                 <form className="relative pt-2 flex gap-2" onSubmit={handleSearch}>
+                    <div className="relative flex-grow">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by name, email, or use * for all"
+                            className="pl-10"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                     <Button type="submit" disabled={isLoading}>
+                        {isLoading ? <LoaderCircle className="animate-spin" /> : 'Search'}
+                    </Button>
+                </form>
             </CardHeader>
             <CardContent>
                 <div className="border rounded-md min-h-[200px]">

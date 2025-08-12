@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { LoaderCircle, RefreshCw, AlertTriangle, ArrowRight } from "lucide-react";
@@ -11,15 +11,18 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getReportsAdmin } from '@/actions/reports-admin';
 import type { ClientReport } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 export default function ReportsTab() {
   const [reports, setReports] = useState<ClientReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
   const fetchReports = useCallback(async () => {
     setIsLoading(true);
+    setHasFetched(true);
     try {
       const fetchedReports = await getReportsAdmin();
       setReports(fetchedReports);
@@ -29,10 +32,6 @@ export default function ReportsTab() {
       setIsLoading(false);
     }
   }, [toast]);
-
-  useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
 
   const handleViewVibe = (report: ClientReport) => {
     router.push(`/common-room/${report.vibeId}?from=reports&reportId=${report.id}`);
@@ -48,53 +47,57 @@ export default function ReportsTab() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Button onClick={fetchReports} disabled={isLoading}>
-            {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <RefreshCw className="mr-2"/>}
-            Refresh List
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
+            {hasFetched ? 'Refresh List' : 'Load Reports'}
         </Button>
 
-        <div className="border rounded-md">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Vibe Topic</TableHead>
-                        <TableHead>Reported By</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                     {isLoading ? (
+        {!hasFetched ? (
+             <p className="text-center text-muted-foreground py-10">Click the button to load user reports.</p>
+        ) : (
+            <div className="border rounded-md">
+                <Table>
+                    <TableHeader>
                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                                <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
-                            </TableCell>
+                            <TableHead>Vibe Topic</TableHead>
+                            <TableHead>Reported By</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                         </TableRow>
-                    ) : reports.length > 0 ? (
-                        reports.map((report) => (
-                            <TableRow key={report.id} data-state={report.status === 'pending' ? 'selected' : ''}>
-                                <TableCell className="font-medium">{report.vibeTopic}</TableCell>
-                                <TableCell>{report.reporterName} ({report.reporterEmail})</TableCell>
-                                <TableCell>{formatDistanceToNow(new Date(report.createdAt), { addSuffix: true })}</TableCell>
-                                <TableCell className="capitalize">{report.status}</TableCell>
-                                <TableCell className="text-right">
-                                     <Button variant="outline" size="sm" onClick={() => handleViewVibe(report)}>
-                                        View & Moderate
-                                        <ArrowRight className="ml-2 h-4 w-4"/>
-                                     </Button>
+                    </TableHeader>
+                    <TableBody>
+                         {isLoading ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
                                 </TableCell>
                             </TableRow>
-                        ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                                No reports found.
-                            </TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-            </Table>
-        </div>
+                        ) : reports.length > 0 ? (
+                            reports.map((report) => (
+                                <TableRow key={report.id} data-state={report.status === 'pending' ? 'selected' : ''}>
+                                    <TableCell className="font-medium">{report.vibeTopic}</TableCell>
+                                    <TableCell>{report.reporterName} ({report.reporterEmail})</TableCell>
+                                    <TableCell>{formatDistanceToNow(new Date(report.createdAt), { addSuffix: true })}</TableCell>
+                                    <TableCell className="capitalize">{report.status}</TableCell>
+                                    <TableCell className="text-right">
+                                         <Button variant="outline" size="sm" onClick={() => handleViewVibe(report)}>
+                                            View & Moderate
+                                            <ArrowRight className="ml-2 h-4 w-4"/>
+                                         </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    No reports found.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -62,6 +62,10 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
+        <div className="flex justify-center gap-4 mt-6">
+            <Button asChild variant="outline"><Link href="/beta-info/en">Beta Test (English)</Link></Button>
+            <Button asChild variant="outline"><Link href="/beta-info/kh">សាកល្បងបែតា (Khmer)</Link></Button>
+        </div>
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">

@@ -1,7 +1,9 @@
+
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 
 export default function BetaTesterInfo() {
   return (
@@ -23,34 +25,33 @@ export default function BetaTesterInfo() {
 
       <section>
         <h3>Key Features to Test</h3>
-        <p>Please spend time exploring the following core features:</p>
+        <p>Please spend time exploring the following core features, which can be found in the main sidebar navigation:</p>
         <ul>
           <li>
-            <strong>Prep Your Vibe:</strong> The main language learning module.
+            <strong>Learn Tab:</strong> This is the home for language learning.
             <ul>
-              <li>Does practicing phrases feel intuitive?</li>
-              <li>Is the pronunciation feedback helpful?</li>
-              <li>Do you feel you are learning effectively?</li>
+              <li><strong>Phrasebook:</strong> Does practicing phrases feel intuitive? Is the pronunciation feedback helpful?</li>
+              <li><strong>Translator:</strong> Test the live text translation. Can you easily save new phrases to your personal practice list?</li>
             </ul>
           </li>
           <li>
-            <strong>Sync Live & Live Translation:</strong> Our 1-on-1 translation tools.
+            <strong>Converse Tab:</strong> This is the 1-on-1 live conversation tool.
             <ul>
-              <li>Test both voice and text input. Are the translations accurate?</li>
-              <li>Is the audio playback clear?</li>
+              <li>Test speaking into the app with another person. Are the voice translations accurate and timely?</li>
             </ul>
           </li>
            <li>
-            <strong>Sync Online:</strong> The multi-language group chat rooms.
+            <strong>Connect Tab:</strong> This is the central hub for community interaction.
             <ul>
-                <li>Schedule a room and invite a friend (or yourself with another email).</li>
-                <li>Test the real-time voice translation. Does it keep up with the conversation?</li>
+                <li><strong>Vibes:</strong> Join or create public/private chat rooms. Is the experience smooth?</li>
+                <li><strong>Meetups:</strong> Find or create real-world events from within a Vibe.</li>
+                <li><strong>Voice Rooms:</strong> Schedule and join multi-language group voice calls.</li>
             </ul>
           </li>
            <li>
             <strong>Buddy Alert System:</strong> A community safety feature.
             <ul>
-                <li>Add another tester as a buddy.</li>
+                <li>Add another tester as a buddy from their profile.</li>
                 <li>Try sending a Buddy Alert from the button in the sidebar. Did your buddy receive the notification?</li>
             </ul>
           </li>
@@ -63,9 +64,9 @@ export default function BetaTesterInfo() {
           The app uses a token system. For the beta, all token purchases are using a <strong>test environment</strong> (PayPal Sandbox). No real money will be charged.
         </p>
          <ul>
-            <li><strong>Earning Tokens:</strong> You get a signup bonus and can earn more by mastering phrases in "Prep Your Vibe" or by referring friends. Please test the referral system!</li>
-            <li><strong>Spending Tokens:</strong> Use tokens for translations, Sync Live/Online usage, and downloading language packs.</li>
-            <li><strong>Buying Tokens:</strong> Test the "Buy Tokens" functionality. You can use a test PayPal account to simulate a purchase.</li>
+            <li><strong>Earning Tokens:</strong> You get a signup bonus and can earn more by mastering phrases in the "Learn" tab or by referring friends. Please test the referral system!</li>
+            <li><strong>Spending Tokens:</strong> Use tokens for live translations, Converse/Voice Room usage, and downloading language packs.</li>
+            <li><strong>Buying Tokens:</strong> Test the "Buy Tokens" functionality from your profile. You can use a test PayPal account to simulate a purchase.</li>
         </ul>
       </section>
 
