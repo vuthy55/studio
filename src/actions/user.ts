@@ -5,6 +5,7 @@ import { db, auth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
 import type { LanguageCode } from '@/lib/data';
+import { doc, collection } from 'firebase/firestore';
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -99,7 +100,7 @@ export async function unlockLanguagePack(userId: string, languageCode: LanguageC
         const settings = await getAppSettingsAction();
         const cost = settings.languageUnlockCost || 100;
 
-        const userRef = doc(db, 'users', userId);
+        const userRef = db.collection('users').doc(userId);
         
         return await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
@@ -119,7 +120,7 @@ export async function unlockLanguagePack(userId: string, languageCode: LanguageC
             });
 
             // 2. Log the transaction
-            const logRef = doc(collection(userRef, 'transactionLogs'));
+            const logRef = db.collection('users').doc(userId).collection('transactionLogs').doc();
             transaction.set(logRef, {
                 actionType: 'language_pack_download',
                 tokenChange: -cost,
