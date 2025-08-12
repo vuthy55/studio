@@ -226,7 +226,7 @@ function IntelContent() {
             setIsGeneratingIntel(false);
         }
     };
-    
+
     return (
         <div className="space-y-8">
             <MainHeader title="Intel" description="Your source for global travel intelligence." />
@@ -462,3 +462,5 @@ export default function IntelPage() {
         </Suspense>
     );
 }
+
+    
