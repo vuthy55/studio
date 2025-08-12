@@ -422,6 +422,7 @@ export default function SyncRoomPage() {
     const [sessionTimer, setSessionTimer] = useState('00:00');
     const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const reminderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [isOnline, setIsOnline] = useState(true);
 
     
     const isExiting = useRef(false);
@@ -940,6 +941,23 @@ export default function SyncRoomPage() {
         setIsExtending(false);
     };
 
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        if (typeof window !== 'undefined') {
+            setIsOnline(navigator.onLine);
+        }
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
 
     if (authLoading || roomLoading || isParticipant === 'unknown' || isSummarizing) {
         return <div className="flex h-screen items-center justify-center flex-col gap-4">
@@ -1093,17 +1111,30 @@ export default function SyncRoomPage() {
                 </div>
                 <div className="p-4 border-t bg-background flex flex-col gap-4">
                     <div className="flex flex-col items-center justify-center gap-4">
-                       <Button 
-                            size="lg" 
-                            className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
-                            onClick={isListening ? abortRecognition : handleMicPress}
-                            disabled={isSpeaking || currentUserParticipant?.isMuted}
-                            title={currentUserParticipant?.isMuted ? 'You are muted' : (isListening ? 'Stop listening' : 'Press to talk')}
-                        >
-                            {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
-                        </Button>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div>
+                                        <Button 
+                                            size="lg" 
+                                            className={cn("rounded-full w-24 h-24 text-lg", isListening && "bg-destructive hover:bg-destructive/90")}
+                                            onClick={isListening ? abortRecognition : handleMicPress}
+                                            disabled={!isOnline || isSpeaking || currentUserParticipant?.isMuted}
+                                            title={!isOnline ? 'You are offline' : (currentUserParticipant?.isMuted ? 'You are muted' : (isListening ? 'Stop listening' : 'Press to talk'))}
+                                        >
+                                            {currentUserParticipant?.isMuted ? <MicOff className="h-10 w-10"/> : (isListening ? <XCircle className="h-10 w-10"/> : <Mic className="h-10 w-10"/>)}
+                                        </Button>
+                                    </div>
+                                </TooltipTrigger>
+                                {!isOnline && (
+                                    <TooltipContent>
+                                        <p>Microphone is disabled while offline.</p>
+                                    </TooltipContent>
+                                )}
+                            </Tooltip>
+                        </TooltipProvider>
                         <p className="font-semibold text-muted-foreground text-sm h-5 w-48 text-center">
-                            {currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk"))}
+                            {!isOnline ? "You are offline." : (currentUserParticipant?.isMuted ? "You are muted by an emcee." : (isListening ? "Listening..." : (isSpeaking ? "Playing incoming audio..." : "Press the mic to talk")))}
                         </p>
                     </div>
                 </div>

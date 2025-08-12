@@ -149,7 +149,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
         }
 
         window.addEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
+        window.addEventListener('offline', handleOffline);
 
         return () => {
             window.removeEventListener('online', handleOnline);

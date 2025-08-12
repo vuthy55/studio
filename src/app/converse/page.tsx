@@ -20,6 +20,7 @@ import useLocalStorage from '@/hooks/use-local-storage';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
@@ -59,6 +60,7 @@ export default function ConversePage() {
   
   const { toast } = useToast();
   const { startTour } = useTour();
+  const [isOnline, setIsOnline] = useState(true);
 
   const costPerMinute = settings?.costPerSyncLiveMinute || 1;
   const freeMinutesMs = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000;
@@ -68,6 +70,22 @@ export default function ConversePage() {
     setSelectedLanguages(persistedLanguages);
   }, [persistedLanguages]);
 
+   useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    if (typeof window !== 'undefined') {
+        setIsOnline(navigator.onLine);
+    }
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     // This effect now exclusively handles cleanup.
@@ -267,27 +285,42 @@ export default function ConversePage() {
                     </div>
                 </div>
 
-                <Button
-                    size="lg"
-                    className={cn(
-                        "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
-                        status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
-                        status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-                        (status === 'idle') && 'bg-primary hover:bg-primary/90',
-                        status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
-                    )}
-                    onClick={startConversationTurn}
-                    disabled={status !== 'idle'}
-                    data-tour="sl-mic-button"
-                >
-                    {status === 'idle' && <Mic className="h-16 w-16"/>}
-                    {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
-                    {status === 'speaking' && <Volume2 className="h-20 w-20" />}
-                    {status === 'disabled' && <X className="h-16 w-16"/>}
-                </Button>
+                 <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div>
+                                <Button
+                                    size="lg"
+                                    className={cn(
+                                        "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
+                                        status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
+                                        status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
+                                        (status === 'idle') && 'bg-primary hover:bg-primary/90',
+                                        status === 'disabled' && 'bg-destructive/80 cursor-not-allowed',
+                                        !isOnline && 'bg-muted-foreground cursor-not-allowed'
+                                    )}
+                                    onClick={startConversationTurn}
+                                    disabled={status !== 'idle' || !isOnline}
+                                    data-tour="sl-mic-button"
+                                >
+                                    {status === 'idle' && <Mic className="h-16 w-16"/>}
+                                    {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
+                                    {status === 'speaking' && <Volume2 className="h-20 w-20" />}
+                                    {status === 'disabled' && <X className="h-16 w-16"/>}
+                                </Button>
+                            </div>
+                        </TooltipTrigger>
+                         {!isOnline && (
+                            <TooltipContent>
+                                <p>Conversation is disabled while offline.</p>
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
+                 </TooltipProvider>
 
                 <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center" data-tour="sl-status-display">
-                    {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
+                    {status === 'idle' && !isOnline && <p className="font-semibold text-muted-foreground text-sm">You are offline. Live Conversation is disabled.</p>}
+                    {status === 'idle' && isOnline && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}
                     {status === 'listening' && <p className="font-semibold text-muted-foreground text-sm">Listening...</p>}
                     {status === 'speaking' && speakingLanguage && <p className="text-lg text-primary font-bold">Speaking: {speakingLanguage}</p>}
                     {status === 'disabled' && <p className="font-semibold text-destructive text-sm">Session disabled due to insufficient tokens.</p>}
