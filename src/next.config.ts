@@ -1,6 +1,5 @@
 
 import type {NextConfig} from 'next';
-import { Duplex } from 'stream';
 
 const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
