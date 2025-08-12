@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
@@ -12,6 +13,12 @@ import Tour from '@/components/tour/Tour';
 export const metadata: Metadata = {
   title: 'VibeSync',
   description: 'A modern minimal web app for backpackers in South East Asia.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'VibeSync',
+  },
 };
 
 export default function RootLayout({
@@ -28,6 +35,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap"
           rel="stylesheet"
         />
+        <meta name="theme-color" content="#D4A373" />
       </head>
       <body className="font-body antialiased">
         <UserDataProvider>

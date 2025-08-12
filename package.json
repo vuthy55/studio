@@ -66,6 +66,7 @@
     "@genkit-ai/googleai": "1.14.1"
   },
   "devDependencies": {
+    "@ducanh2912/next-pwa": "10.2.7",
     "@types/cheerio": "^0.22.35",
     "@types/lodash": "^4.17.5",
     "@types/node": "^20",
@@ -77,6 +78,7 @@
     "typescript": "^5"
   },
   "overrides": {
+    "@babel/types": "7.24.7",
     "genkit": "1.14.1",
     "undici": "^6.11.1"
   }

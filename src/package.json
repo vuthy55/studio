@@ -62,6 +62,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@ducanh2912/next-pwa": "10.2.7",
     "@types/lodash": "^4.17.5",
     "@types/node": "^20",
     "@types/react": "^18",
