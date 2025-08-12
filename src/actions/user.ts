@@ -2,6 +2,9 @@
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAppSettingsAction } from './settings';
+import type { LanguageCode } from '@/lib/data';
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -79,5 +82,56 @@ export async function anonymizeAndDeactivateUser(payload: { userId: string }): P
              return { success: false, error: "This user account may have already been deleted." };
         }
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
+
+
+/**
+ * Spends tokens to unlock a language pack for a user.
+ * This is a secure server-side transaction.
+ */
+export async function unlockLanguagePack(userId: string, languageCode: LanguageCode, languageName: string): Promise<{ success: boolean; error?: string }> {
+    if (!userId || !languageCode) {
+        return { success: false, error: 'User ID and language code are required.' };
+    }
+
+    try {
+        const settings = await getAppSettingsAction();
+        const cost = settings.languageUnlockCost || 100;
+
+        const userRef = doc(db, 'users', userId);
+        
+        return await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) {
+                throw new Error('User not found.');
+            }
+
+            const userBalance = userDoc.data()?.tokenBalance || 0;
+            if (userBalance < cost) {
+                throw new Error('Insufficient tokens to unlock this language pack.');
+            }
+
+            // 1. Update the user's profile to add the unlocked language
+            transaction.update(userRef, {
+                unlockedLanguages: FieldValue.arrayUnion(languageCode),
+                tokenBalance: FieldValue.increment(-cost)
+            });
+
+            // 2. Log the transaction
+            const logRef = doc(collection(userRef, 'transactionLogs'));
+            transaction.set(logRef, {
+                actionType: 'language_pack_download',
+                tokenChange: -cost,
+                timestamp: FieldValue.serverTimestamp(),
+                description: `Unlocked the ${languageName} language pack.`
+            });
+
+            return { success: true };
+        });
+
+    } catch (error: any) {
+        console.error(`Error unlocking language pack for user ${userId}:`, error);
+        return { success: false, error: error.message || 'An unexpected server error occurred.' };
     }
 }

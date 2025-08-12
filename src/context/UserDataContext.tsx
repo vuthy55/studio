@@ -47,6 +47,7 @@ interface UserDataContextType {
     loadSingleOfflinePack: (lang: LanguageCode) => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
     resyncSavedPhrasesAudio: () => Promise<void>;
+    unlockLanguageInProfile: (lang: LanguageCode) => void;
 }
 
 // --- Context ---
@@ -104,6 +105,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         await loadPackToDB('user_saved_phrases', audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, user_saved_phrases: { ...audioPack } }));
     }, [user]);
+    
+    const unlockLanguageInProfile = useCallback((lang: LanguageCode) => {
+        setUserProfile(prev => ({
+            ...prev,
+            unlockedLanguages: [...(prev.unlockedLanguages || []), lang]
+        }));
+    }, []);
 
     const clearLocalState = useCallback(() => {
         if (profileUnsubscribe.current) profileUnsubscribe.current();
@@ -465,7 +473,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         updateSyncLiveUsage,
         loadSingleOfflinePack,
         removeOfflinePack,
-        resyncSavedPhrasesAudio
+        resyncSavedPhrasesAudio,
+        unlockLanguageInProfile
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
