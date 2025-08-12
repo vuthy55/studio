@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
@@ -66,20 +66,6 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                 </div>
             </div>
 
-            {/* {categoryAssessments && (
-                 <Card>
-                    <CardHeader><CardTitle className="text-lg">Risk Severity Levels</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                       {Object.entries(categoryAssessments).map(([category, catScore]) => (
-                            <div key={category} className="text-center p-2 rounded-lg bg-background border">
-                                <p className="text-sm font-semibold">{category}</p>
-                                <p className={cn("text-3xl font-bold", getSeverityAppearance(catScore).color)}>{catScore}/10</p>
-                            </div>
-                        ))}
-                    </CardContent>
-                 </Card>
-            )} */}
-
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
                 <div className="p-4 border rounded-md bg-background text-sm text-muted-foreground whitespace-pre-wrap">
@@ -116,24 +102,6 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                         )}
                     </AccordionContent>
                 </AccordionItem>
-                 {/* <AccordionItem value="debug">
-                    <AccordionTrigger>
-                        <h4 className="text-lg font-semibold">Debug Log</h4>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                        {debugLog.length > 0 ? (
-                           <ScrollArea className="h-48 p-4 border rounded-md bg-muted font-mono text-xs">
-                            {debugLog.map((log, index) => (
-                                <p key={index} className={cn("whitespace-pre-wrap", log.includes('[FAIL]') || log.includes('[CRITICAL]') ? 'text-destructive' : '')}>
-                                    {log}
-                                </p>
-                            ))}
-                            </ScrollArea>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">No debug information available.</p>
-                        )}
-                    </AccordionContent>
-                </AccordionItem> */}
             </Accordion>
         </div>
     );
@@ -142,7 +110,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 function IntelContent() {
-    const { userProfile, settings, spendTokensForTranslation } = useUserData();
+    const { userProfile, settings, spendTokensForTranslation: spendTokens } = useUserData();
     const { toast } = useToast();
     
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
@@ -161,7 +129,6 @@ function IntelContent() {
         return staticIntel?.countryName || countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
     }, [selectedCountryCode, countryOptions, staticIntel]);
 
-    
     const handleCountrySelection = async (countryCode: string) => {
         setSelectedCountryCode(countryCode);
         setAiIntel(null);
@@ -177,6 +144,11 @@ function IntelContent() {
              toast({ variant: 'destructive', title: 'Data Missing', description: `Static intelligence data for this country has not been built in the admin panel.`});
         }
     };
+    
+    const spendTokensForTranslation = useCallback((description: string, cost?: number) => {
+        if (!spendTokens) return false;
+        return spendTokens(description, cost);
+    }, [spendTokens]);
 
     const handleGenerateIntel = async () => {
         if (!selectedCountryCode) return;
@@ -453,7 +425,7 @@ export default function IntelPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/login');
+            router.push('/login?redirect=/infohub');
         }
     }, [user, authLoading, router]);
 
