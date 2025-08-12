@@ -43,6 +43,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load performance of the Rooms tab by removing an expensive database query.
 
 ### Fixed
+- **`[FIX]`** Resolved a critical Progressive Web App (PWA) build failure that occurred after upgrading to Next.js 15. The root cause was an incompatibility between the legacy PWA library (`@ducanh2912/next-pwa`) and the updated internals of the Next.js Webpack configuration, which resulted in a `_getAssignmentIdentifiers is not a function` error during the service worker compilation. The definitive solution involved migrating to the modern `next-pwa-webpack-plugin`, which required updating `package.json` to use the new library and reconfiguring `next.config.ts` to use the direct Webpack plugin approach instead of the old `withPWA` wrapper. This resolved all build errors and restored full PWA functionality.
 - **`[FIX]`** Resolved a critical bug where users signing up with Google would be authenticated but would not have a corresponding user profile created in the database. The user creation logic now correctly handles both new email/password signups and sign-ups via external providers like Google, ensuring a user record is always created.
 - **`[FIX]`** Resolved a `TypeError: settings.tabManager._initialize is not a function` build error caused by an incorrect Firebase cache initialization. Replaced the deprecated `enableIndexedDbPersistence()` function with the modern `initializeFirestore()` and `persistentSingleTabManager`, ensuring the app builds correctly and uses the latest Firebase v11 API for offline data caching.
 - **`[FIX]`** Resolved a major performance bug where downloading a language pack or re-syncing saved phrases would incorrectly trigger a slow, on-demand generation of the entire app's audio phrasebook from the server. The download logic has been corrected to fetch the fast, pre-generated audio packs directly from Firebase Storage as originally intended, and saved phrase re-syncs now only process the user's specific phrases. This reduces download and sync times from several minutes to nearly instantaneous.
@@ -92,3 +93,4 @@ All notable changes to the Sync Online feature will be documented in this file.
 
     
     
+

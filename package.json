@@ -50,9 +50,9 @@
     "lucide-react": "^0.475.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.38.0",
     "next": "15.3.3",
-    "react": "^18.3.1",
+    "react": "18.3.1",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "18.3.1",
     "react-firebase-hooks": "^5.1.1",
     "react-hook-form": "^7.54.2",
     "react-phone-number-input": "^3.4.3",
@@ -66,7 +66,7 @@
     "@genkit-ai/googleai": "1.14.1"
   },
   "devDependencies": {
-    "@ducanh2912/next-pwa": "^10.2.7",
+    "next-pwa-webpack-plugin": "^1.1.1",
     "@types/cheerio": "^0.22.35",
     "@types/lodash": "^4.17.5",
     "@types/node": "^20",
