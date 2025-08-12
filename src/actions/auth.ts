@@ -6,6 +6,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
 import { getFreeLanguagePacks } from './audiopack-admin';
 import type { SyncRoom, Vibe } from '@/lib/types';
+import { findUserByEmailAdmin } from '@/lib/firebase-utils';
 
 interface SignUpPayload {
   name: string;
@@ -65,18 +66,32 @@ export async function signUpUser(
         }
     }
 
+    // --- Step 2: Get or Create User in Firebase Auth ---
+    let userRecord;
+    let uid;
+    
+    // Check if user already exists (e.g., via Google Sign-In)
+    const existingUser = await auth.getUserByEmail(lowerCaseEmail).catch(() => null);
 
-    // --- Step 2: Create User in Firebase Auth ---
-    // This must happen first to get a UID for all subsequent database operations.
-    console.log('[signUpUser] Step 2: Creating user in Firebase Auth...');
-    const userRecord = await auth.createUser({
-        email: lowerCaseEmail,
-        password: password,
-        displayName: name,
-        photoURL: photoURL
-    });
-    const uid = userRecord.uid;
-    console.log('[signUpUser] User created successfully in Auth. UID:', uid);
+    if (existingUser) {
+        console.log('[signUpUser] Found existing Auth user:', existingUser.email);
+        userRecord = existingUser;
+        uid = existingUser.uid;
+    } else {
+        // If no user exists, create one (standard email/password flow)
+        console.log('[signUpUser] Step 2: Creating user in Firebase Auth...');
+        if (!password) {
+            throw new Error('A password is required for new user sign-ups.');
+        }
+        userRecord = await auth.createUser({
+            email: lowerCaseEmail,
+            password: password,
+            displayName: name,
+            photoURL: photoURL
+        });
+        uid = userRecord.uid;
+        console.log('[signUpUser] User created successfully in Auth. UID:', uid);
+    }
 
 
     // --- Step 3: Perform all database writes in a single atomic batch ---
@@ -98,7 +113,7 @@ export async function signUpUser(
         country: country || '',
         mobile: mobile || '',
         defaultLanguage: defaultLanguage || 'en-US',
-        photoURL: photoURL || null,
+        photoURL: photoURL || userRecord.photoURL || null,
         unlockedLanguages: freeLanguages,
         downloadedPacks: freeLanguages,
         downloadedPhraseCount: 0,
