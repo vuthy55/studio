@@ -5,8 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Map, MessageSquarePlus, Users, Globe } from 'lucide-react';
 import { useUserData } from '@/context/UserDataContext';
 
 export default function MarketingRelease3() {
@@ -37,27 +36,15 @@ export default function MarketingRelease3() {
                 Alex lands in Siem Reap. The energy is epic, but the language barrier is a brick wall. How do you even ask for a bottle of water? Pointing and smiling only gets you so far. The feeling of being totally alone starts to creep in.
             </p>
         </div>
-        <Image 
-            src="https://images.unsplash.com/photo-1534323382794-4b5b34149e91?q=80&w=2070&auto=format&fit=crop"
-            alt="A solo male backpacker looking lost in a bustling Asian market"
-            width={600}
-            height={400}
-            className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-            unoptimized
-            data-ai-hint="backpacker market"
-        />
+        <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video">
+            <Map className="h-32 w-32 text-primary/70" />
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
-         <Image 
-            src="https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop"
-            alt="Traveler confidently ordering street food"
-            width={600}
-            height={400}
-            className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
-            unoptimized
-            data-ai-hint="ordering food"
-        />
+        <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video md:order-2">
+            <MessageSquarePlus className="h-32 w-32 text-primary/70" />
+        </div>
         <div className="space-y-4 md:order-1">
             <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
             <p className="text-muted-foreground">
@@ -79,27 +66,15 @@ export default function MarketingRelease3() {
                  <Link href={syncLiveLink}>Check out Sync Live <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
         </div>
-        <Image 
-            src="https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop"
-            alt="A diverse group of young friends laughing together at a landmark"
-            width={600}
-            height={400}
-            className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-            unoptimized
-            data-ai-hint="diverse friends"
-        />
+        <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video">
+            <Users className="h-32 w-32 text-primary/70" />
+        </div>
       </div>
 
        <div className="grid md:grid-cols-2 gap-8 items-center">
-        <Image 
-            src="https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop"
-            alt="A group of people looking at a phone together and planning"
-            width={600}
-            height={400}
-            className="rounded-lg shadow-xl object-cover aspect-[3/2] md:order-2"
-            unoptimized
-            data-ai-hint="friends phone"
-        />
+        <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video md:order-2">
+            <Globe className="h-32 w-32 text-primary/70" />
+        </div>
         <div className="space-y-4 md:order-1">
             <h2 className="text-3xl font-bold">The Vibe: Staying in Sync</h2>
             <p className="text-muted-foreground">

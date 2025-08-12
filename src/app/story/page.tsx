@@ -4,8 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Map, MessageSquarePlus, Users, Globe } from 'lucide-react';
 import MainHeader from '@/components/layout/MainHeader';
 import { useUserData } from '@/context/UserDataContext';
 
@@ -34,31 +33,15 @@ export default function StoryPage() {
                   Alex lands in Siem Reap. The energy is epic, but the language barrier is a brick wall. How do you even ask for a bottle of water? Pointing and smiling only gets you so far. The feeling of being totally alone starts to creep in.
               </p>
           </div>
-          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-            <Image 
-                src={settings?.storyPageImage1 || 'https://placehold.co/600x400.png'}
-                alt="A solo male backpacker looking lost in a bustling Asian market"
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                unoptimized
-                data-ai-hint="backpacker market"
-            />
+          <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video">
+            <Map className="h-32 w-32 text-primary/70" />
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
-            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                 <Image 
-                    src={settings?.storyPageImage2 || 'https://placehold.co/600x400.png'}
-                    alt="Traveler confidently ordering street food"
-                    width={600}
-                    height={400}
-                    className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                    unoptimized
-                    data-ai-hint="ordering food"
-                />
+            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video">
+                 <MessageSquarePlus className="h-32 w-32 text-primary/70" />
             </div>
           </div>
           <div className="md:order-1 space-y-4">
@@ -82,31 +65,15 @@ export default function StoryPage() {
                    <Link href={converseLink}>Check out Converse <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
-           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-             <Image 
-                src={settings?.storyPageImage3 || 'https://placehold.co/600x400.png'}
-                alt="A diverse group of young friends laughing together at a landmark"
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                unoptimized
-                data-ai-hint="diverse friends"
-            />
+           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video">
+             <Users className="h-32 w-32 text-primary/70" />
           </div>
         </div>
 
          <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
-            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                 <Image 
-                    src={settings?.storyPageImage4 || 'https://placehold.co/600x400.png'}
-                    alt="A group of people looking at a phone together and planning"
-                    width={600}
-                    height={400}
-                    className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                    unoptimized
-                    data-ai-hint="friends phone"
-                />
+            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-inner aspect-video">
+                 <Globe className="h-32 w-32 text-primary/70" />
             </div>
           </div>
           <div className="space-y-4 md:order-1">
