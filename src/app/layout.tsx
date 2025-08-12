@@ -1,6 +1,6 @@
 
 import type { Metadata } from 'next';
-import './globals.css';
+import '@/app/globals.css';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import ClientSidebar from '@/components/layout/client-sidebar';
