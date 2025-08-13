@@ -153,6 +153,7 @@ export function AppSidebar() {
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
     { href: "/infohub", icon: Compass, label: "Intel", activePath: "/infohub" },
+    { href: "/test-download", icon: FlaskConical, label: "Download Test", activePath: "/test-download" },
   ];
 
   const userNavLinks = [
@@ -205,14 +206,6 @@ export function AppSidebar() {
               {userProfile?.role === 'admin' && (
                 <>
                   <SidebarSeparator />
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/test-download')}>
-                        <Link href="/test-download" onClick={closeSidebar}>
-                        <FlaskConical />
-                        Download Test
-                        </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
                           <Link href="/admin" onClick={closeSidebar}>
