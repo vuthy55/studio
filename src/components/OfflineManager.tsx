@@ -130,14 +130,14 @@ export default function OfflineManager() {
             <span className="hidden md:inline">Language Packs</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Language Packs</DialogTitle>
           <DialogDescription>
             To learn a new language, you must first download its language pack. Some packs are free, while others can be unlocked with tokens.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 space-y-4">
+        <div className="flex-grow overflow-y-auto -mr-6 pr-6 space-y-4">
           <div className="flex items-center space-x-2">
             <Checkbox 
                 id="select-all-packs"
@@ -152,82 +152,80 @@ export default function OfflineManager() {
             />
             <Label htmlFor="select-all-packs">Select all available for download</Label>
           </div>
-          <ScrollArea className="h-72">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
-              {downloadablePacks.map(pack => {
-                const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
-                const cost = isUnlocked ? 0 : 100;
-                
-                return (
-                    <div key={pack.code} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2">
-                        <div className="flex items-center gap-2 flex-grow">
-                            {pack.code !== 'user_saved_phrases' ? (
-                                <Checkbox 
-                                id={pack.code}
-                                checked={selectedPacks.includes(pack.code as LanguageCode)}
-                                onCheckedChange={(checked) => {
-                                    setSelectedPacks(prev => checked ? [...prev, pack.code as LanguageCode] : prev.filter(c => c !== pack.code));
-                                }}
-                                disabled={pack.isDownloaded || !isUnlocked}
-                                />
-                            ) : (
-                                <Bookmark className="h-4 w-4 mx-2 text-primary flex-shrink-0" />
-                            )}
-                            <div className="flex flex-col">
-                                <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  {pack.phraseCount !== undefined && (
-                                      <span>{pack.phraseCount} phrases</span>
-                                  )}
-                                  {pack.isDownloaded && pack.size !== undefined && (
-                                      <>
-                                        <span>&middot;</span>
-                                        <span>{formatBytes(pack.size)}</span>
-                                      </>
-                                  )}
-                                </div>
-                            </div>
-                        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {downloadablePacks.map(pack => {
+              const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
+              const cost = isUnlocked ? 0 : 100;
+              
+              return (
+                  <div key={pack.code} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2">
+                      <div className="flex items-center gap-2 flex-grow">
+                          {pack.code !== 'user_saved_phrases' ? (
+                              <Checkbox 
+                              id={pack.code}
+                              checked={selectedPacks.includes(pack.code as LanguageCode)}
+                              onCheckedChange={(checked) => {
+                                  setSelectedPacks(prev => checked ? [...prev, pack.code as LanguageCode] : prev.filter(c => c !== pack.code));
+                              }}
+                              disabled={pack.isDownloaded || !isUnlocked}
+                              />
+                          ) : (
+                              <Bookmark className="h-4 w-4 mx-2 text-primary flex-shrink-0" />
+                          )}
+                          <div className="flex flex-col">
+                              <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                {pack.phraseCount !== undefined && (
+                                    <span>{pack.phraseCount} phrases</span>
+                                )}
+                                {pack.isDownloaded && pack.size !== undefined && (
+                                    <>
+                                      <span>&middot;</span>
+                                      <span>{formatBytes(pack.size)}</span>
+                                    </>
+                                )}
+                              </div>
+                          </div>
+                      </div>
 
-                        <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                            {pack.code === 'user_saved_phrases' ? (
-                                <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : 'Re-sync'}
-                                </Button>
-                            ) : (
-                                !pack.isDownloaded && <p className="text-sm text-muted-foreground">{cost === 0 ? 'Free' : `${cost} tokens`}</p>
-                            )}
-                        
-                            {pack.isDownloaded ? (
-                                <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleRemove(pack.code)}
-                                disabled={isProcessing[pack.code]}
-                                >
-                                {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
-                                </Button>
-                            ) : (
-                                pack.code !== 'user_saved_phrases' && (
-                                <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handleDownload(pack.code as LanguageCode)}
-                                    disabled={!isUnlocked || isProcessing[pack.code]}
-                                >
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
-                                </Button>
-                                )
-                            )}
-                        </div>
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
+                      <div className="flex items-center justify-end gap-2 flex-shrink-0">
+                          {pack.code === 'user_saved_phrases' ? (
+                              <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
+                                  {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : 'Re-sync'}
+                              </Button>
+                          ) : (
+                              !pack.isDownloaded && <p className="text-sm text-muted-foreground">{cost === 0 ? 'Free' : `${cost} tokens`}</p>
+                          )}
+                      
+                          {pack.isDownloaded ? (
+                              <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleRemove(pack.code)}
+                              disabled={isProcessing[pack.code]}
+                              >
+                              {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                              </Button>
+                          ) : (
+                              pack.code !== 'user_saved_phrases' && (
+                              <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleDownload(pack.code as LanguageCode)}
+                                  disabled={!isUnlocked || isProcessing[pack.code]}
+                              >
+                                  {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
+                              </Button>
+                              )
+                          )}
+                      </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
           <Button 
             type="button" 
