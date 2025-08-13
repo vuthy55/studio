@@ -204,23 +204,23 @@ export function AppSidebar() {
               
               {userProfile?.role === 'admin' && (
                 <>
-                <SidebarSeparator />
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
-                        <Link href="/admin" onClick={closeSidebar}>
-                        <Settings />
-                        Admin
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
+                  <SidebarSeparator />
+                  <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname?.startsWith('/test-download')}>
                         <Link href="/test-download" onClick={closeSidebar}>
                         <FlaskConical />
                         Download Test
                         </Link>
                     </SidebarMenuButton>
-                </SidebarMenuItem>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
+                          <Link href="/admin" onClick={closeSidebar}>
+                          <Settings />
+                          Admin
+                          </Link>
+                      </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </>
               )}
               <SidebarSeparator />
