@@ -5,6 +5,9 @@ All notable changes to the Sync Online feature will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **`[FIX]`** Resolved a persistent and critical crash (`TypeError: Cannot destructure property 'audioPack' of '(intermediate value)'`) occurring in the "Learn" tab. The root cause was a faulty `useEffect` hook in `PhrasebookTab.tsx` that incorrectly attempted to automatically re-download language packs that the user had manually deleted. This definitive fix completely removes the problematic automatic download logic from the client-side component, ensuring the application remains stable. All language pack downloads are now correctly and exclusively handled by the user through the manual `OfflineManager` component. The corresponding server action was also hardened to prevent this class of error from ever occurring again, regardless of the calling context.
+
 ### Added
 - **`[IMPROVEMENT]`** Implemented a comprehensive reporting and moderation system for the Common Room. This feature empowers the community and administrators to maintain a safe and respectful environment.
     - **User Reporting:** Any user can now report a Vibe that they believe violates community guidelines. The report action is available in the Vibe's participant list.

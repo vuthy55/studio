@@ -27,7 +27,7 @@ import { getOfflineAudio } from '@/services/offline';
 import OfflineManager from '@/components/OfflineManager';
 import { languageToLocaleMap } from '@/lib/utils';
 import { useTour, TourStep } from '@/context/TourContext';
-import { getLanguageAudioPack } from '@/actions/audio';
+import { downloadLanguagePack } from '@/actions/audio';
 
 
 type VoiceSelection = 'default' | 'male' | 'female';
@@ -79,7 +79,7 @@ const learnPageTourSteps: TourStep[] = [
 const PhrasebookTab = memo(function PhrasebookTab() {
     const { fromLanguage, setFromLanguage, toLanguage, setToLanguage, swapLanguages } = useLanguage();
     const { toast } = useToast();
-    const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks, loadSingleOfflinePack } = useUserData();
+    const { user, userProfile, practiceHistory, settings, loading, recordPracticeAttempt, getTopicStats, offlineAudioPacks } = useUserData();
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
@@ -92,35 +92,6 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     const [isOnline, setIsOnline] = useState(true);
 
     const { startTour } = useTour();
-    const [isDownloading, setIsDownloading] = useState(false);
-
-    // This effect handles the automatic download of unlocked but not-yet-downloaded packs.
-    useEffect(() => {
-        if (!userProfile?.unlockedLanguages || isDownloading) return;
-
-        const checkAndDownload = async () => {
-            const missingPacks = userProfile.unlockedLanguages!.filter(
-                lang => !offlineAudioPacks[lang]
-            );
-
-            if (missingPacks.length > 0) {
-                setIsDownloading(true);
-                toast({ title: "Starting Free Pack Downloads", description: `Downloading audio for ${missingPacks.join(', ')}...`});
-                for (const lang of missingPacks) {
-                    try {
-                        await loadSingleOfflinePack(lang);
-                    } catch (error) {
-                        console.error(`Failed to auto-download ${lang}:`, error);
-                    }
-                }
-                toast({ title: "Downloads Complete!", description: "Your free language packs are ready for offline use."});
-                setIsDownloading(false);
-            }
-        };
-
-        checkAndDownload();
-    }, [userProfile?.unlockedLanguages, offlineAudioPacks, isDownloading, loadSingleOfflinePack, toast]);
-
 
     const availableLanguages = useMemo(() => {
         // The languages available for practice are ONLY those that are downloaded.

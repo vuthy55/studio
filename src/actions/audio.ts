@@ -6,6 +6,7 @@ import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { db } from '@/lib/firebase-admin';
 import type { SavedPhrase } from '@/lib/types';
+import { getStorage } from 'firebase-admin/storage';
 
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
@@ -14,6 +15,32 @@ export type AudioPack = {
 export interface AudioPackResult {
     audioPack: AudioPack;
     size: number; // size in bytes
+}
+
+/**
+ * Downloads a pre-generated language audio pack from Firebase Storage.
+ * This is a resilient function that returns an empty pack on any error.
+ * @param lang The language code of the pack to download.
+ * @returns An AudioPackResult object.
+ */
+export async function downloadLanguagePack(lang: LanguageCode): Promise<AudioPackResult> {
+  const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+  const file = bucket.file(`audio-packs/${lang}.json`);
+
+  try {
+    const [contents] = await file.download();
+    const audioPack = JSON.parse(contents.toString()) as AudioPack;
+    const size = contents.length;
+    return { audioPack, size };
+  } catch (error: any) {
+    console.error(`[SERVER ACTION] Failed to download or parse audio pack for '${lang}'. Error: ${error.message}`);
+    // This is a critical change: always return a valid, empty object on failure
+    // to prevent any client-side crashes from destructuring an undefined result.
+    if (error.code === 404) {
+      console.error(`[SERVER ACTION] Reason: File not found in Firebase Storage at path 'audio-packs/${lang}.json'. Returning empty pack.`);
+    }
+    return { audioPack: {}, size: 0 };
+  }
 }
 
 /**
