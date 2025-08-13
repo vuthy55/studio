@@ -139,7 +139,7 @@ export function AppSidebar() {
 
   const copyReferralLink = () => {
     if (user?.uid && typeof window !== 'undefined') {
-      const referralLink = `$\{window.location.origin\}/login?ref=$\{user.uid\}`;
+      const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
       navigator.clipboard.writeText(referralLink);
       toast({ title: "Copied!", description: "Referral link copied to clipboard." });
     }
