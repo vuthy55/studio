@@ -242,6 +242,14 @@ export function AppSidebar() {
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
+                 <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/story'}>
+                    <Link href="/story" onClick={closeSidebar}>
+                        <BookOpen />
+                        Our Story
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
              </>
           )}
 
