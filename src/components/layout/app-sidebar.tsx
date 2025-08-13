@@ -1,4 +1,3 @@
-
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -168,6 +167,7 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
+        <div className="border-4 border-red-500 p-2 m-2">DEBUG BOX</div>
         <SidebarMenu>
           {loading ? (
              <SidebarMenuItem>
