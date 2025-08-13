@@ -18,15 +18,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useUserData } from '@/context/UserDataContext';
-import DonateButton from '../DonateButton';
-import BuyTokens from '../BuyTokens';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
+import DonateButton from '@/components/DonateButton';
+import BuyTokens from '@/components/BuyTokens';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import React, { useState } from 'react';
 import { sendBuddyAlert } from '@/actions/friends';
 import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
 
 function BuddyAlertButton() {

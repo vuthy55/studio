@@ -149,7 +149,6 @@ export function AppSidebar() {
 
   const mainNavLinks = [
     { href: "/", icon: Home, label: "Home", activePath: "/" },
-    { href: "/test-download", icon: FlaskConical, label: "Download Test", activePath: "/test-download" },
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
