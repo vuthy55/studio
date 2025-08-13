@@ -45,6 +45,7 @@
     "firebase-admin": "^12.2.0",
     "framer-motion": "^11.2.12",
     "genkit": "1.14.1",
+    "idb": "^8.0.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.38.0",
