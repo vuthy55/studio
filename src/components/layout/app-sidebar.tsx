@@ -203,6 +203,8 @@ export function AppSidebar() {
               ))}
               
               {userProfile?.role === 'admin' && (
+                <>
+                <SidebarSeparator />
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
                         <Link href="/admin" onClick={closeSidebar}>
@@ -211,7 +213,17 @@ export function AppSidebar() {
                         </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/test-download')}>
+                        <Link href="/test-download" onClick={closeSidebar}>
+                        <FlaskConical />
+                        Download Test
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                </>
               )}
+              <SidebarSeparator />
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
                   <LogOut />
