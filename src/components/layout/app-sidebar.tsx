@@ -139,7 +139,7 @@ export function AppSidebar() {
 
   const copyReferralLink = () => {
     if (user?.uid && typeof window !== 'undefined') {
-      const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+      const referralLink = `$\{window.location.origin\}/login?ref=$\{user.uid\}`;
       navigator.clipboard.writeText(referralLink);
       toast({ title: "Copied!", description: "Referral link copied to clipboard." });
     }
@@ -153,6 +153,7 @@ export function AppSidebar() {
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
     { href: "/infohub", icon: Compass, label: "Intel", activePath: "/infohub" },
+    { href: "/test-download", icon: FlaskConical, label: "Download Test", activePath: "/test-download" },
   ];
 
   const userNavLinks = [

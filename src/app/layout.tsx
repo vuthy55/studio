@@ -30,19 +30,6 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <div style={{
-          backgroundColor: 'red',
-          color: 'white',
-          padding: '4px',
-          textAlign: 'center',
-          fontWeight: 'bold',
-          fontSize: '14px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 9999
-        }}>
-          DEBUG: If you can see this banner, file changes are working.
-        </div>
         <UserDataProvider>
           <LanguageProvider>
             <TourProvider>
