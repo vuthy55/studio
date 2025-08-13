@@ -234,6 +234,14 @@ export function AppSidebar() {
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
+                 <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/test-download'}>
+                    <Link href="/test-download" onClick={closeSidebar}>
+                        <FlaskConical />
+                        Download Test
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/login'}>
                     <Link href="/login" onClick={closeSidebar}>
