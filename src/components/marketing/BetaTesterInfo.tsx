@@ -1,7 +1,9 @@
+
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function BetaTesterInfo() {
   return (
@@ -12,6 +14,10 @@ export default function BetaTesterInfo() {
         <p>
           Thank you for helping us test and refine VibeSync. Your feedback is crucial for making this the best possible tool for travelers. This guide will walk you through the key areas to focus on during your testing.
         </p>
+         <div className="flex items-center gap-4 not-prose">
+            <Button asChild variant="outline"><Link href="/test-download">Test Download</Link></Button>
+            <Button asChild variant="outline"><Link href="#">Beta Test (English)</Link></Button>
+        </div>
       </section>
 
       <section>

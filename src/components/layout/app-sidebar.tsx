@@ -203,7 +203,9 @@ export function AppSidebar() {
               ))}
               
               <SidebarSeparator />
-              <SidebarMenuItem>
+              {userProfile?.role === 'admin' && (
+                <>
+                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/test-download'}>
                       <Link href="/test-download" onClick={closeSidebar}>
                         <FlaskConical />
@@ -211,8 +213,6 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-              {userProfile?.role === 'admin' && (
-                <>
                   <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
                           <Link href="/admin" onClick={closeSidebar}>
