@@ -10,7 +10,7 @@ import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
-import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB, ensureDbReady } from '@/services/offline';
+import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
 import { downloadLanguagePack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import type { User } from 'firebase/auth';
@@ -127,7 +127,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // --- Load existing offline packs from IndexedDB into state ---
             const loadOfflinePacks = async () => {
                 try {
-                    await ensureDbReady();
                     const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
                     const loadedPacks: Record<string, AudioPack> = {};
                     
