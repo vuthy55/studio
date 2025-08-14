@@ -14,7 +14,6 @@ import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/
 import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB, ensureDbReady } from '@/services/offline';
 import { downloadLanguagePack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
-import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
 
 
@@ -128,22 +127,30 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             // --- Load existing offline packs from IndexedDB into state ---
             const loadOfflinePacks = async () => {
-                // *** CRITICAL FIX: Ensure the DB is ready BEFORE trying to load anything. ***
-                await ensureDbReady();
-                const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+                console.log(`[DEBUG] UserDataContext: loadOfflinePacks() called at ${new Date().toISOString()}`);
                 
                 try {
-                    // *** CRITICAL FIX: Load packs sequentially to avoid overwhelming the browser's IndexedDB implementation. ***
+                    console.log(`[DEBUG] UserDataContext: Awaiting ensureDbReady() at ${new Date().toISOString()}`);
+                    await ensureDbReady();
+                    console.log(`[DEBUG] UserDataContext: ensureDbReady() COMPLETED at ${new Date().toISOString()}`);
+
+                    const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+                    
+                    console.log(`[DEBUG] UserDataContext: Starting Promise.all to getOfflineAudio at ${new Date().toISOString()}`);
+                    const packs = await Promise.all(
+                        allPackKeys.map(key => getOfflineAudio(key))
+                    );
+                    console.log(`[DEBUG] UserDataContext: Promise.all to getOfflineAudio COMPLETED at ${new Date().toISOString()}`);
+
                     const loadedPacks: Record<string, AudioPack> = {};
-                    for (const key of allPackKeys) {
-                        const pack = await getOfflineAudio(key);
-                        if(pack) {
-                            loadedPacks[key] = pack;
+                    packs.forEach((pack, index) => {
+                        if (pack) {
+                            loadedPacks[allPackKeys[index]] = pack;
                         }
-                    }
+                    });
                     setOfflineAudioPacks(loadedPacks);
                 } catch(error) {
-                    console.error("Critical error loading offline audio packs from IndexedDB:", error);
+                    console.error(`[DEBUG] UserDataContext: Critical error loading offline audio packs from IndexedDB:`, error);
                 }
             };
             
