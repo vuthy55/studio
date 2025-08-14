@@ -127,19 +127,29 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             setIsDataLoading(true);
 
             // --- Load existing offline packs from IndexedDB into state ---
-            const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-            const packPromises = allPackKeys.map(key => getOfflineAudio(key));
+            // This now waits for the user data to be ready before proceeding
+            const loadOfflinePacks = async () => {
+                const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+                const packPromises = allPackKeys.map(key => getOfflineAudio(key));
+                
+                try {
+                    const packs = await Promise.all(packPromises);
+                    const loadedPacks: Record<string, AudioPack> = {};
+                    packs.forEach((pack, index) => {
+                        if(pack) {
+                            const key = allPackKeys[index];
+                            loadedPacks[key] = pack;
+                        }
+                    });
+                    setOfflineAudioPacks(loadedPacks);
+                } catch(error) {
+                    // This is where the race condition error was happening.
+                    // The improved getDb() in offline.ts should prevent this,
+                    // but we keep the catch block for safety.
+                    console.error("Critical error loading offline audio packs from IndexedDB:", error);
+                }
+            };
             
-            Promise.all(packPromises).then(packs => {
-                 const loadedPacks: Record<string, AudioPack> = {};
-                 packs.forEach((pack, index) => {
-                    if(pack) {
-                        const key = allPackKeys[index];
-                        loadedPacks[key] = pack;
-                    }
-                 });
-                 setOfflineAudioPacks(loadedPacks);
-            });
 
             const userDocRef = doc(db, 'users', user.uid);
             
@@ -151,6 +161,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
+                    // Now that profile is loaded, load offline packs
+                    loadOfflinePacks();
                 } else {
                     setUserProfile({});
                 }

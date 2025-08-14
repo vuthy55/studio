@@ -36,7 +36,7 @@ export default function RootLayout({
               <SidebarProvider>
                 <ClientSidebar />
                 <SidebarInset>
-                  <main className="relative flex-1 p-4 sm:p-6 lg:p-8 border-4 border-red-500">
+                  <main className="relative flex-1 p-4 sm:p-6 lg:p-8">
                     {children}
                   </main>
                 </SidebarInset>

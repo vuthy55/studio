@@ -10,7 +10,7 @@ import type { AudioPack } from '@/lib/types';
 const DB_NAME = 'VibeSync-Offline';
 const STORE_NAME = 'AudioPacks';
 const METADATA_STORE_NAME = 'AudioPackMetadata';
-const DB_VERSION = 2;
+const DB_VERSION = 2; // Keep this version number
 const SAVED_PHRASES_KEY = 'user_saved_phrases';
 
 export interface PackMetadata {
@@ -45,6 +45,7 @@ function getDb(): Promise<IDBPDatabase> {
 
 export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases'): Promise<AudioPack | undefined> {
     const db = await getDb();
+    // The transaction call will now correctly wait for the upgrade to finish.
     return db.get(STORE_NAME, lang);
 }
 
