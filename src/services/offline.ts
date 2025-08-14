@@ -10,7 +10,7 @@ import type { AudioPack } from '@/lib/types';
 const DB_NAME = 'VibeSync-Offline';
 const STORE_NAME = 'AudioPacks';
 const METADATA_STORE_NAME = 'AudioPackMetadata';
-const DB_VERSION = 2; // Incremented version for new object store
+const DB_VERSION = 2; // Version remains the same, the logic change handles creation/upgrade robustly.
 const SAVED_PHRASES_KEY = 'user_saved_phrases';
 
 export interface PackMetadata {
@@ -22,11 +22,14 @@ export interface PackMetadata {
 
 async function getDb(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion) {
+    upgrade(db) {
+      // This is a more robust way to handle database creation and upgrades.
+      // It simply checks for the existence of each store and creates it if it's missing.
+      // This works correctly for both initial creation (from version 0) and future upgrades.
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
-      if (oldVersion < 2 && !db.objectStoreNames.contains(METADATA_STORE_NAME)) {
+      if (!db.objectStoreNames.contains(METADATA_STORE_NAME)) {
         db.createObjectStore(METADATA_STORE_NAME, { keyPath: 'id' });
       }
     },
