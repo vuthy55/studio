@@ -4,14 +4,16 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle } from 'lucide-react';
+import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { useUserData } from '@/context/UserDataContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
+import BetaTesterInfo from './BetaTesterInfo';
+import { ScrollArea } from '../ui/scroll-area';
 
 function ReferralDialog({ settings, user }: { settings: any; user: any }) {
     const { toast } = useToast();
@@ -48,6 +50,32 @@ function ReferralDialog({ settings, user }: { settings: any; user: any }) {
     );
 }
 
+function BetaInfoDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline">
+                    <Info className="mr-2 h-4 w-4" />
+                    Beta Testing Info
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+                 <DialogHeader>
+                    <DialogTitle>Beta Tester Information</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[70vh] pr-4">
+                    <BetaTesterInfo />
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button>Close</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 
 export default function MarketingRelease() {
     const { user, settings } = useUserData();
@@ -62,6 +90,9 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
+        <div className="mt-4">
+            <BetaInfoDialog />
+        </div>
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
