@@ -33,7 +33,7 @@ function LoginPageContent() {
   const { toast, dismiss } = useToast();
   const { user, loading: authLoading } = useUserData();
 
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'login');
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -51,6 +51,13 @@ function LoginPageContent() {
 
   const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
   const redirectUrl = useMemo(() => searchParams.get('redirect'), [searchParams]);
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!authLoading && user) {
