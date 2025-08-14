@@ -20,15 +20,15 @@ export interface PackMetadata {
 }
 
 // --- Singleton Database Initialization ---
-// This prevents race conditions where multiple parts of the app
-// try to access the DB before it's fully initialized/upgraded.
+// This robust singleton pattern prevents race conditions during app startup.
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function getDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, newVersion, transaction) {
-        // This robust upgrade logic handles both initial creation and future updates.
+        // This logic is resilient to both initial creation and upgrades.
+        // It checks for the existence of each object store and creates it if missing.
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
