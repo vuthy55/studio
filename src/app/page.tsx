@@ -2,6 +2,7 @@
 "use client";
 
 import React from 'react';
+import './globals.css';
 import MainHeader from '@/components/layout/MainHeader';
 import MarketingRelease from '@/components/marketing/MarketingRelease';
 
