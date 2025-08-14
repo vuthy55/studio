@@ -11,7 +11,7 @@ import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
-import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
+import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB, ensureDbReady } from '@/services/offline';
 import { downloadLanguagePack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
@@ -127,25 +127,22 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             setIsDataLoading(true);
 
             // --- Load existing offline packs from IndexedDB into state ---
-            // This now waits for the user data to be ready before proceeding
             const loadOfflinePacks = async () => {
+                // *** CRITICAL FIX: Ensure the DB is ready BEFORE trying to load anything. ***
+                await ensureDbReady();
                 const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-                const packPromises = allPackKeys.map(key => getOfflineAudio(key));
                 
                 try {
-                    const packs = await Promise.all(packPromises);
+                    // *** CRITICAL FIX: Load packs sequentially to avoid overwhelming the browser's IndexedDB implementation. ***
                     const loadedPacks: Record<string, AudioPack> = {};
-                    packs.forEach((pack, index) => {
+                    for (const key of allPackKeys) {
+                        const pack = await getOfflineAudio(key);
                         if(pack) {
-                            const key = allPackKeys[index];
                             loadedPacks[key] = pack;
                         }
-                    });
+                    }
                     setOfflineAudioPacks(loadedPacks);
                 } catch(error) {
-                    // This is where the race condition error was happening.
-                    // The improved getDb() in offline.ts should prevent this,
-                    // but we keep the catch block for safety.
                     console.error("Critical error loading offline audio packs from IndexedDB:", error);
                 }
             };

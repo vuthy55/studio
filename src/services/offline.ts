@@ -40,6 +40,14 @@ function getDb(): Promise<IDBPDatabase> {
   }
   return dbPromise;
 }
+
+/**
+ * Exported function to ensure the database is ready.
+ * This can be awaited by components before they attempt to read data.
+ */
+export async function ensureDbReady(): Promise<void> {
+    await getDb();
+}
 // --- End Singleton Initialization ---
 
 
