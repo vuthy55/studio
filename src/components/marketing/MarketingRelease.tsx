@@ -90,9 +90,6 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
-        <div className="mt-4">
-            <BetaInfoDialog />
-        </div>
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
