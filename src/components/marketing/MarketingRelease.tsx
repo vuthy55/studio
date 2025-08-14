@@ -147,7 +147,7 @@ export default function MarketingRelease() {
                             <Link href="/login">Login</Link>
                         </Button>
                         <Button size="lg" variant="secondary" asChild>
-                            <Link href="/login">Register Now & Get {settings?.signupBonus || 100} Free Tokens!</Link>
+                            <Link href="/login?tab=signup">Register Now & Get {settings?.signupBonus || 100} Free Tokens!</Link>
                         </Button>
                     </>
                 )}
