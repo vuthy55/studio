@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { openDB } from 'idb';
@@ -11,8 +10,7 @@ import type { AudioPack } from '@/lib/types';
 const DB_NAME = 'VibeSync-Offline';
 const STORE_NAME = 'AudioPacks';
 const METADATA_STORE_NAME = 'AudioPackMetadata';
-const DB_VERSION = 2; // Keep this version number
-const SAVED_PHRASES_KEY = 'user_saved_phrases';
+const DB_VERSION = 2;
 
 export interface PackMetadata {
   id: string; // e.g., 'khmer' or 'user_saved_phrases'
@@ -20,14 +18,12 @@ export interface PackMetadata {
   size: number;
 }
 
-// --- Singleton Database Initialization ---
-// This robust singleton pattern prevents race conditions during app startup.
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function getDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, newVersion, transaction) {
+      upgrade(db) {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
@@ -40,15 +36,9 @@ function getDb(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
-/**
- * Exported function to ensure the database is ready.
- * This can be awaited by components before they attempt to read data.
- */
 export async function ensureDbReady(): Promise<void> {
     await getDb();
 }
-// --- End Singleton Initialization ---
-
 
 export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases'): Promise<AudioPack | undefined> {
     const db = await getDb();

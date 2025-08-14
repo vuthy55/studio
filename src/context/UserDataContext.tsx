@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -128,21 +127,18 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // --- Load existing offline packs from IndexedDB into state ---
             const loadOfflinePacks = async () => {
                 try {
-                    // This now just waits for the DB to be ready, it doesn't fetch.
                     await ensureDbReady();
-
                     const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-                    
-                    const packs = await Promise.all(
-                        allPackKeys.map(key => getOfflineAudio(key))
-                    );
-
                     const loadedPacks: Record<string, AudioPack> = {};
-                    packs.forEach((pack, index) => {
+                    
+                    // This is the critical change: Use a sequential for...of loop instead of Promise.all
+                    // This prevents the race condition that was causing the database to be accessed before it was ready.
+                    for (const key of allPackKeys) {
+                        const pack = await getOfflineAudio(key);
                         if (pack) {
-                            loadedPacks[allPackKeys[index]] = pack;
+                            loadedPacks[key] = pack;
                         }
-                    });
+                    }
                     setOfflineAudioPacks(loadedPacks);
                 } catch(error) {
                     console.error("Critical error loading offline audio packs from IndexedDB:", error);
