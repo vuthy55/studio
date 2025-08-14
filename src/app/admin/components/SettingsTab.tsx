@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -65,14 +65,6 @@ export default function SettingsTab() {
             <p className="text-sm text-muted-foreground">{description}</p>
         </div>
     );
-
-    const renderTextInput = (key: string, label: string, description: string) => (
-        <div className="space-y-2" key={key}>
-            <Label htmlFor={key}>{label}</Label>
-            <Input id={key as keyof AppSettings} type="text" value={(settings as any)[key] ?? ''} onChange={handleInputChange} />
-            <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-    );
     
     return (
         <Card>
@@ -118,18 +110,6 @@ export default function SettingsTab() {
                     </div>
                  </div>
                  
-                 <div>
-                    <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><ImageIcon className="text-primary"/> Story Page Images</h3>
-                    <Separator />
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                        {renderTextInput('storyPageImage1', 'Image 1 (Backpacker)', 'URL for the first image. Recommended 3:2 ratio (e.g., 600x400).')}
-                        {renderTextInput('storyPageImage2', 'Image 2 (Ordering Food)', 'URL for the second image. Recommended 3:2 ratio (e.g., 600x400).')}
-                        {renderTextInput('storyPageImage3', 'Image 3 (Diverse Friends)', 'URL for the third image. Recommended 3:2 ratio (e.g., 600x400).')}
-                        {renderTextInput('storyPageImage4', 'Image 4 (Friends with Phone)', 'URL for the fourth image. Recommended 3:2 ratio (e.g., 600x400).')}
-                     </div>
-                 </div>
-
-
                  <div>
                     <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><MessageSquareHeart className="text-primary"/> Community</h3>
                     <Separator />

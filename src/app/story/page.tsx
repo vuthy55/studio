@@ -4,18 +4,18 @@
 import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, BookOpen, Compass, Heart, Languages, Map, MessageSquare, Mic, Users } from 'lucide-react';
 import MainHeader from '@/components/layout/MainHeader';
 import { useUserData } from '@/context/UserDataContext';
 
 export default function StoryPage() {
-  const { user, settings } = useUserData();
+  const { user } = useUserData();
   
   const learnLink = user ? "/learn" : "/login";
   const converseLink = user ? "/converse" : "/login";
   const connectLink = user ? "/connect" : "/login";
   const adventureLink = user ? "/connect" : "/login";
+  const intelLink = user ? "/infohub" : "/login";
 
   return (
     <div className="space-y-8">
@@ -26,45 +26,32 @@ export default function StoryPage() {
           <h1 className="text-5xl font-bold text-primary font-headline">Lost for Words? Find Your Vibe.</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">The true story of how one app turned a solo trip into a global connection.</p>
         </header>
-
+        
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="space-y-4">
-              <h2 className="text-3xl font-bold">The Panic: Day 1 in Cambodia</h2>
+              <h2 className="text-3xl font-bold">The Plan: Before the Flight</h2>
               <p className="text-muted-foreground">
-                  Alex lands in Siem Reap. The energy is epic, but the language barrier is a brick wall. How do you even ask for a bottle of water? Pointing and smiling only gets you so far. The feeling of being totally alone starts to creep in.
+                  Alex is planning their first solo trip to Cambodia. Excitement is high, but so are the nerves. Using VibeSync's **Intel** feature, they get a real-time safety score, learn about local etiquette (like how to 'wai' respectfully), and discover which areas are best for solo travelers. They feel prepared, not panicked.
               </p>
+               <Button variant="link" asChild className="p-0 h-auto">
+                  <Link href={intelLink}>Check the Intel Hub <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
           </div>
           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-            <Image 
-                src={settings?.storyPageImage1 || 'https://placehold.co/600x400.png'}
-                alt="A solo male backpacker looking lost in a bustling Asian market"
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                unoptimized
-                data-ai-hint="backpacker market"
-            />
+            <Compass className="h-32 w-32 text-primary" strokeWidth={1.5}/>
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                 <Image 
-                    src={settings?.storyPageImage2 || 'https://placehold.co/600x400.png'}
-                    alt="Traveler confidently ordering street food"
-                    width={600}
-                    height={400}
-                    className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                    unoptimized
-                    data-ai-hint="ordering food"
-                />
+                <BookOpen className="h-32 w-32 text-primary" strokeWidth={1.5}/>
             </div>
           </div>
           <div className="md:order-1 space-y-4">
               <h2 className="text-3xl font-bold">The Fix: From Clueless to Confident</h2>
               <p className="text-muted-foreground">
-                  Back at the hostel, Alex finds VibeSync. The "Learn" feature is a game-changer. In ten minutes, they've nailed the basics: "Sues'day" (Hello), "Arkoun" (Thank You), and how to count. That night, they confidently order street food and pay the right price. Small win? Huge win.
+                  After landing, Alex uses the "Learn" feature. In ten minutes, they've nailed the basics: "Sues'day" (Hello) and "Arkoun" (Thank You). That night, they confidently order street food and pay the right price. Small win? Huge win.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
                   <Link href={learnLink}>Try the Learn Feature <ArrowRight className="ml-2 h-4 w-4" /></Link>
@@ -76,43 +63,27 @@ export default function StoryPage() {
           <div className="space-y-4">
               <h2 className="text-3xl font-bold">The Connection: Breaking the Ice</h2>
               <p className="text-muted-foreground">
-                  At Angkor Wat, Alex meets a crew from Malaysia, Egypt, and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Converse," speaks, and the phone translates for everyone. The awkward silence shatters into laughter. Later, they add each other as buddies in the app for an extra layer of safety.
+                  At Angkor Wat, Alex meets a crew from Malaysia and Vietnam. The vibe is cool, but conversation is stuck on gestures. Alex opens "Converse," speaks, and the phone translates for everyone. The awkward silence shatters into laughter.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
                    <Link href={converseLink}>Check out Converse <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
           </div>
            <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-             <Image 
-                src={settings?.storyPageImage3 || 'https://placehold.co/600x400.png'}
-                alt="A diverse group of young friends laughing together at a landmark"
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                unoptimized
-                data-ai-hint="diverse friends"
-            />
+            <Mic className="h-32 w-32 text-primary" strokeWidth={1.5}/>
           </div>
         </div>
 
          <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                 <Image 
-                    src={settings?.storyPageImage4 || 'https://placehold.co/600x400.png'}
-                    alt="A group of people looking at a phone together and planning"
-                    width={600}
-                    height={400}
-                    className="rounded-lg shadow-xl object-cover aspect-[3/2]"
-                    unoptimized
-                    data-ai-hint="friends phone"
-                />
+                 <Users className="h-32 w-32 text-primary" strokeWidth={1.5}/>
             </div>
           </div>
           <div className="space-y-4 md:order-1">
               <h2 className="text-3xl font-bold">The Community: Finding Your People</h2>
               <p className="text-muted-foreground">
-                  The trip continues, but now Alex isn't just a tourist; they're part of a community. Using the "Connect" feature, they join multi-lingual "Chatz" to swap tips about secret waterfalls, and even find a "Meetup" with other VibeSync users for a night market tour in the next city. The app isn't just for translation; it's for finding your crew on the road.
+                  The trip continues, but now Alex isn't just a tourist; they're part of a community. Using the "Connect" feature, they join multi-lingual "Vibes" to swap tips, and even find a "Meetup" with other VibeSync users for a night market tour.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
                    <Link href={connectLink}>Explore the Connect Hub <ArrowRight className="ml-2 h-4 w-4" /></Link>
