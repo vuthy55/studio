@@ -56,7 +56,7 @@ function BetaInfoDialog() {
             <DialogTrigger asChild>
                 <Button variant="outline">
                     <Info className="mr-2 h-4 w-4" />
-                    Beta Testing Info
+                    Beta Test Info (English)
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl">
