@@ -13,6 +13,7 @@ import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
 import BetaTesterInfo from './BetaTesterInfo';
+import BetaTesterInfoKhmer from './BetaTesterInfoKhmer';
 import { ScrollArea } from '../ui/scroll-area';
 
 function ReferralDialog({ settings, user }: { settings: any; user: any }) {
@@ -76,6 +77,32 @@ function BetaInfoDialog() {
     )
 }
 
+function BetaInfoKhmerDialog() {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="mt-4">
+                    <Info className="mr-2 h-4 w-4" />
+                    Beta Test Info (Khmer)
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>ព័ត៌មានសម្រាប់អ្នកសាកល្បងបេតា</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[70vh] pr-4">
+                    <BetaTesterInfoKhmer />
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button>បិទ</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function MarketingRelease() {
     const { user, settings } = useUserData();
@@ -90,7 +117,10 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
-        <BetaInfoDialog />
+        <div className="flex justify-center gap-2">
+          <BetaInfoDialog />
+          <BetaInfoKhmerDialog />
+        </div>
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
