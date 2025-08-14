@@ -56,16 +56,6 @@
           "order": "DESCENDING"
         }
       ]
-    },
-    {
-      "collectionGroup": "parties",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        {
-          "fieldPath": "startTime",
-          "order": "ASCENDING"
-        }
-      ]
     }
   ],
   "fieldOverrides": []
