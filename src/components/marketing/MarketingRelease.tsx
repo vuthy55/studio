@@ -63,6 +63,9 @@ function BetaInfoDialog() {
             <DialogContent className="max-w-3xl">
                  <DialogHeader>
                     <DialogTitle>Beta Tester Information</DialogTitle>
+                    <DialogDescription>
+                        A guide for beta testers to understand the app's features and provide effective feedback.
+                    </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh] pr-4">
                     <BetaTesterInfo />
@@ -89,6 +92,9 @@ function BetaInfoKhmerDialog() {
             <DialogContent className="max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>ព័ត៌មានសម្រាប់អ្នកសាកល្បងបេតា</DialogTitle>
+                    <DialogDescription>
+                        ការណែនាំសម្រាប់អ្នកសាកល្បងបេតា ដើម្បីយល់ពីមុខងាររបស់កម្មវិធី និងផ្តល់មតិកែលម្អប្រកបដោយប្រសិទ្ធភាព។
+                    </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh] pr-4">
                     <BetaTesterInfoKhmer />
