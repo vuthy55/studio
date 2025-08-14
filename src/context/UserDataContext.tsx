@@ -10,7 +10,7 @@ import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
-import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
+import { initializeAndLoadOfflinePacks, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
 import { downloadLanguagePack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import type { User } from 'firebase/auth';
@@ -127,17 +127,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // --- Load existing offline packs from IndexedDB into state ---
             const loadOfflinePacks = async () => {
                 try {
-                    const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-                    const loadedPacks: Record<string, AudioPack> = {};
-                    
-                    // This is the critical change: Use a sequential for...of loop instead of Promise.all
-                    // This prevents the race condition that was causing the database to be accessed before it was ready.
-                    for (const key of allPackKeys) {
-                        const pack = await getOfflineAudio(key);
-                        if (pack) {
-                            loadedPacks[key] = pack;
-                        }
-                    }
+                    const loadedPacks = await initializeAndLoadOfflinePacks();
                     setOfflineAudioPacks(loadedPacks);
                 } catch(error) {
                     console.error("Critical error loading offline audio packs from IndexedDB:", error);

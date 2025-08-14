@@ -5,6 +5,7 @@ import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import type { LanguageCode } from '@/lib/data';
 import type { AudioPack } from '@/lib/types';
+import { offlineAudioPackLanguages } from '@/lib/data';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -25,8 +26,6 @@ function getDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, newVersion, transaction) {
-        // This upgrade function is GUARANTEED to run if the database doesn't exist or if the version number is increased.
-        // This is the correct place to create and modify object stores.
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
@@ -35,7 +34,6 @@ function getDb(): Promise<IDBPDatabase> {
         }
       },
       blocked() {
-        // This event fires if there are other connections to the same database that are preventing it from being upgraded.
         alert("A newer version of the app is trying to load. Please close all other VibeSync tabs and refresh this page.");
       }
     });
@@ -84,4 +82,25 @@ export async function removeOfflinePack(lang: LanguageCode | 'user_saved_phrases
 export async function getOfflineMetadata(): Promise<PackMetadata[]> {
     const db = await getDb();
     return db.getAll(METADATA_STORE_NAME);
+}
+
+/**
+ * Initializes the database and loads all available offline packs from IndexedDB.
+ * This function is designed to be called once on application startup.
+ * @returns {Promise<Record<string, AudioPack>>} A record of all successfully loaded audio packs.
+ */
+export async function initializeAndLoadOfflinePacks(): Promise<Record<string, AudioPack>> {
+    await getDb(); // This ensures the database and its stores are created before any reads.
+
+    const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+    const loadedPacks: Record<string, AudioPack> = {};
+    
+    // Using a sequential loop to be robust and avoid any potential for race conditions.
+    for (const key of allPackKeys) {
+        const pack = await getOfflineAudio(key);
+        if (pack) {
+            loadedPacks[key] = pack;
+        }
+    }
+    return loadedPacks;
 }
