@@ -30,20 +30,6 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <div style={{
-            position: 'fixed',
-            bottom: '10px',
-            right: '10px',
-            border: '2px solid red',
-            padding: '10px',
-            backgroundColor: 'rgba(255, 220, 220, 0.9)',
-            color: 'red',
-            zIndex: 9999,
-            fontWeight: 'bold',
-            borderRadius: '8px'
-        }}>
-            DEBUG CONTROL TEST
-        </div>
         <UserDataProvider>
           <LanguageProvider>
             <TourProvider>
