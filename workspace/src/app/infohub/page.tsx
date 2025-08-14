@@ -144,7 +144,7 @@ function IntelContent() {
              toast({ variant: 'destructive', title: 'Data Missing', description: `Static intelligence data for this country has not been built in the admin panel.`});
         }
     };
-
+    
     const handleGenerateIntel = async () => {
         if (!selectedCountryCode) return;
         
@@ -352,7 +352,7 @@ function IntelContent() {
                              <CardContent>
                                 {(staticIntel && staticIntel.etiquette) ? (
                                     <ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
+                                        {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>}
                                     </ul>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
@@ -382,7 +382,7 @@ function IntelContent() {
                                  <CardDescription>
                                     Standard information for {selectedCountryName}.
                                 </CardDescription>
-                            </Header>
+                            </CardHeader>
                              <CardContent>
                                 {(staticIntel && staticIntel.emergencyNumbers && staticIntel.emergencyNumbers.length > 0) ? (
                                     <Table>
