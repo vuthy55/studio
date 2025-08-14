@@ -149,11 +149,11 @@ export function AppSidebar() {
 
   const mainNavLinks = [
     { href: "/", icon: Home, label: "Home", activePath: "/" },
+    { href: "/story", icon: BookOpen, label: "Our Story", activePath: "/story" },
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
     { href: "/infohub", icon: Compass, label: "Intel", activePath: "/infohub" },
-    
   ];
 
   const userNavLinks = [
@@ -234,19 +234,19 @@ export function AppSidebar() {
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/login'}>
-                    <Link href="/login" onClick={closeSidebar}>
-                        <LogIn />
-                        Login / Sign Up
-                    </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
                  <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/story'}>
                     <Link href="/story" onClick={closeSidebar}>
                         <BookOpen />
                         Our Story
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/login'}>
+                    <Link href="/login" onClick={closeSidebar}>
+                        <LogIn />
+                        Login / Sign Up
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
