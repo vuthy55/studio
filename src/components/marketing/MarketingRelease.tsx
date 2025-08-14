@@ -54,7 +54,7 @@ function BetaInfoDialog() {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" className="mt-4">
                     <Info className="mr-2 h-4 w-4" />
                     Beta Test Info (English)
                 </Button>
@@ -90,6 +90,7 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
+        <BetaInfoDialog />
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
