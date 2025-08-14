@@ -110,7 +110,7 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
 type InfoTab = 'latest' | 'holidays' | 'etiquette' | 'visa' | 'emergency';
 
 function IntelContent() {
-    const { userProfile, settings, spendTokensForTranslation } = useUserData();
+    const { userProfile, settings, spendTokensForTranslation: spendTokens } = useUserData();
     const { toast } = useToast();
     
     const [selectedCountryCode, setSelectedCountryCode] = useState('');
@@ -145,6 +145,11 @@ function IntelContent() {
         }
     };
     
+    const spendTokensForTranslation = useCallback((description: string, cost?: number) => {
+        if (!spendTokens) return false;
+        return spendTokens(description, cost);
+    }, [spendTokens]);
+
     const handleGenerateIntel = async () => {
         if (!selectedCountryCode) return;
         
@@ -352,7 +357,7 @@ function IntelContent() {
                              <CardContent>
                                 {(staticIntel && staticIntel.etiquette) ? (
                                     <ul className="list-disc pl-5 space-y-2 text-sm">
-                                        {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>}
+                                        {staticIntel.etiquette.map((item, index) => <li key={`etiquette-${index}`}>{item}</li>)}
                                     </ul>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">No standard data available for this country.</p>
@@ -382,7 +387,7 @@ function IntelContent() {
                                  <CardDescription>
                                     Standard information for {selectedCountryName}.
                                 </CardDescription>
-                            </CardHeader>
+                            </Header>
                              <CardContent>
                                 {(staticIntel && staticIntel.emergencyNumbers && staticIntel.emergencyNumbers.length > 0) ? (
                                     <Table>
@@ -438,5 +443,3 @@ export default function IntelPage() {
         </Suspense>
     );
 }
-
-    
