@@ -10,7 +10,7 @@ import {
 } from "firebase/auth";
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { lightweightCountries } from '@/lib/location-data';
+import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,27 +85,31 @@ function LoginPageContent() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check if user document already exists
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
+      // After successful authentication, call our robust signUpUser function.
+      // This function now handles both new and existing users gracefully.
+      const serverResult = await signUpUser(
+        {
+          uid: user.uid,
+          name: user.displayName || 'New User',
+          email: user.email!,
+          photoURL: user.photoURL || undefined
+        },
+        referralId,
+        null, 
+        null
+      );
 
-      if (!userDoc.exists()) {
-        // This is a new user, create their profile via the server action
-        await signUpUser(
-            {
-                name: user.displayName || 'New User',
-                email: user.email!,
-                photoURL: user.photoURL || undefined
-            },
-            referralId,
-            null, // No roomId for standard login/signup
-            null // No vibeId for standard login/signup
-        );
+      if (!serverResult.success) {
+        throw new Error(serverResult.error || "Failed to sync user profile with server.");
       }
-      
-      toast({ title: "Welcome!", description: "Logged in successfully." });
-      // The useEffect will handle the redirect
 
+      if (serverResult.isNewUser) {
+        toast({ title: "Welcome!", description: "Your account has been created successfully." });
+      } else {
+        toast({ title: "Welcome Back!", description: "Logged in successfully." });
+      }
+
+      // The main useEffect will handle redirection.
     } catch (error: any) {
       console.error("Google sign-in error", error);
       if (error.code === 'auth/account-exists-with-different-credential') {
@@ -136,19 +140,18 @@ function LoginPageContent() {
                 defaultLanguage: signupLanguage
             }, 
             referralId,
-            null, // No roomId for standard login/signup
-            null // No vibeId for standard login/signup
+            null,
+            null
        );
         
        if (!result.success) {
             throw new Error(result.error || 'An unknown error occurred during signup.');
        }
         
-       // Manually sign in the user on the client after successful server-side creation
-       await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
-
-       toast({ title: "Success", description: "Account created successfully." });
-       // The useEffect will handle the redirect
+       toast({ title: "Success", description: "Account created successfully. You can now log in." });
+       setActiveTab('login');
+       setLoginEmail(signupEmail);
+       setLoginPassword('');
       
     } catch (error: any) {
       console.error("Email sign-up error", error);
@@ -164,7 +167,7 @@ function LoginPageContent() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
-      // The useEffect will handle the redirect
+      // The main useEffect will handle redirection
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
         const { id: toastId } = toast({
@@ -321,5 +324,3 @@ export default function LoginPage() {
         </Suspense>
     );
 }
-
-    
