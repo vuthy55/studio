@@ -127,20 +127,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
             // --- Load existing offline packs from IndexedDB into state ---
             const loadOfflinePacks = async () => {
-                console.log(`[DEBUG] UserDataContext: loadOfflinePacks() called at ${new Date().toISOString()}`);
-                
                 try {
-                    console.log(`[DEBUG] UserDataContext: Awaiting ensureDbReady() at ${new Date().toISOString()}`);
                     await ensureDbReady();
-                    console.log(`[DEBUG] UserDataContext: ensureDbReady() COMPLETED at ${new Date().toISOString()}`);
 
                     const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
                     
-                    console.log(`[DEBUG] UserDataContext: Starting Promise.all to getOfflineAudio at ${new Date().toISOString()}`);
                     const packs = await Promise.all(
                         allPackKeys.map(key => getOfflineAudio(key))
                     );
-                    console.log(`[DEBUG] UserDataContext: Promise.all to getOfflineAudio COMPLETED at ${new Date().toISOString()}`);
 
                     const loadedPacks: Record<string, AudioPack> = {};
                     packs.forEach((pack, index) => {
@@ -150,7 +144,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     });
                     setOfflineAudioPacks(loadedPacks);
                 } catch(error) {
-                    console.error(`[DEBUG] UserDataContext: Critical error loading offline audio packs from IndexedDB:`, error);
+                    console.error("Critical error loading offline audio packs from IndexedDB:", error);
                 }
             };
             
