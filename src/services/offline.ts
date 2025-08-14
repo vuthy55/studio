@@ -10,7 +10,7 @@ import type { AudioPack } from '@/lib/types';
 const DB_NAME = 'VibeSync-Offline';
 const STORE_NAME = 'AudioPacks';
 const METADATA_STORE_NAME = 'AudioPackMetadata';
-const DB_VERSION = 2; // Version remains the same, the logic change handles creation/upgrade robustly.
+const DB_VERSION = 2;
 const SAVED_PHRASES_KEY = 'user_saved_phrases';
 
 export interface PackMetadata {
@@ -19,22 +19,29 @@ export interface PackMetadata {
   size: number;
 }
 
+// --- Singleton Database Initialization ---
+// This prevents race conditions where multiple parts of the app
+// try to access the DB before it's fully initialized/upgraded.
+let dbPromise: Promise<IDBPDatabase> | null = null;
 
-async function getDb(): Promise<IDBPDatabase> {
-  return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      // This is a more robust way to handle database creation and upgrades.
-      // It simply checks for the existence of each store and creates it if it's missing.
-      // This works correctly for both initial creation (from version 0) and future upgrades.
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-      if (!db.objectStoreNames.contains(METADATA_STORE_NAME)) {
-        db.createObjectStore(METADATA_STORE_NAME, { keyPath: 'id' });
-      }
-    },
-  });
+function getDb(): Promise<IDBPDatabase> {
+  if (!dbPromise) {
+    dbPromise = openDB(DB_NAME, DB_VERSION, {
+      upgrade(db, oldVersion, newVersion, transaction) {
+        // This robust upgrade logic handles both initial creation and future updates.
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+        if (!db.objectStoreNames.contains(METADATA_STORE_NAME)) {
+          db.createObjectStore(METADATA_STORE_NAME, { keyPath: 'id' });
+        }
+      },
+    });
+  }
+  return dbPromise;
 }
+// --- End Singleton Initialization ---
+
 
 export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases'): Promise<AudioPack | undefined> {
     const db = await getDb();
@@ -44,17 +51,33 @@ export async function getOfflineAudio(lang: LanguageCode | 'user_saved_phrases')
 
 export async function loadSingleOfflinePack(lang: LanguageCode | 'user_saved_phrases', audioPack: AudioPack, size: number): Promise<void> {
     const db = await getDb();
-    await db.put(STORE_NAME, audioPack, lang);
-    
+    const tx = db.transaction([STORE_NAME, METADATA_STORE_NAME], 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const metaStore = tx.objectStore(METADATA_STORE_NAME);
+
     const metadata: PackMetadata = { id: lang, size };
-    await db.put(METADATA_STORE_NAME, metadata);
+    
+    await Promise.all([
+      store.put(audioPack, lang),
+      metaStore.put(metadata)
+    ]);
+    
+    await tx.done;
 }
 
 
 export async function removeOfflinePack(lang: LanguageCode | 'user_saved_phrases'): Promise<void> {
     const db = await getDb();
-    await db.delete(STORE_NAME, lang);
-    await db.delete(METADATA_STORE_NAME, lang);
+    const tx = db.transaction([STORE_NAME, METADATA_STORE_NAME], 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const metaStore = tx.objectStore(METADATA_STORE_NAME);
+
+    await Promise.all([
+      store.delete(lang),
+      metaStore.delete(lang)
+    ]);
+
+    await tx.done;
 }
 
 
