@@ -128,6 +128,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             // --- Load existing offline packs from IndexedDB into state ---
             const loadOfflinePacks = async () => {
                 try {
+                    // This now just waits for the DB to be ready, it doesn't fetch.
                     await ensureDbReady();
 
                     const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
