@@ -240,12 +240,11 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{party.title}</DialogTitle>
-                    <DialogDescription>
-                        <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                            <MapPin className="h-4 w-4" /> Location
-                        </a>
-                    </DialogDescription>
+                    <DialogDescription>Details for the upcoming meetup.</DialogDescription>
                 </DialogHeader>
+                 <a href={party.location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                    <MapPin className="h-4 w-4" /> Location
+                </a>
                 <div className="py-2">
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{party.description || 'No description provided.'}</p>
                 </div>
@@ -338,7 +337,7 @@ export function MeetupDetailsDialog({ party, children }: { party: ClientParty, c
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSendFriendRequest(attendee)}>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleSendFriendRequest(attendee)}>
                                                                     <UserPlus className="h-4 w-4" />
                                                                 </Button>
                                                             </TooltipTrigger>
