@@ -14,10 +14,6 @@ export default function BetaTesterInfo() {
         <p>
           Thank you for helping us test and refine VibeSync. Your feedback is crucial for making this the best possible tool for travelers. This guide will walk you through the key areas to focus on during your testing.
         </p>
-         <div className="flex items-center gap-4 not-prose">
-            <Button asChild variant="outline"><Link href="/test-download">Test Download</Link></Button>
-            <Button asChild variant="outline"><Link href="#">Beta Test (English)</Link></Button>
-        </div>
       </section>
 
       <section>
@@ -32,7 +28,7 @@ export default function BetaTesterInfo() {
         <p>Please spend time exploring the following core features:</p>
         <ul>
           <li>
-            <strong>Prep Your Vibe:</strong> The main language learning module.
+            <strong>Learn:</strong> The main language learning module.
             <ul>
               <li>Does practicing phrases feel intuitive?</li>
               <li>Is the pronunciation feedback helpful?</li>
@@ -40,17 +36,17 @@ export default function BetaTesterInfo() {
             </ul>
           </li>
           <li>
-            <strong>Sync Live & Live Translation:</strong> Our 1-on-1 translation tools.
+            <strong>Converse:</strong> Our 1-on-1 live translation tool.
             <ul>
               <li>Test both voice and text input. Are the translations accurate?</li>
               <li>Is the audio playback clear?</li>
             </ul>
           </li>
            <li>
-            <strong>Sync Online:</strong> The multi-language group chat rooms.
+            <strong>Connect:</strong> The community hub for Vibes, Meetups, and Voice Rooms.
             <ul>
-                <li>Schedule a room and invite a friend (or yourself with another email).</li>
-                <li>Test the real-time voice translation. Does it keep up with the conversation?</li>
+                <li>Join or create a Vibe (a chat room).</li>
+                <li>Schedule a Voice Room and invite a friend to test real-time voice translation.</li>
             </ul>
           </li>
            <li>
@@ -69,8 +65,8 @@ export default function BetaTesterInfo() {
           The app uses a token system. For the beta, all token purchases are using a <strong>test environment</strong> (PayPal Sandbox). No real money will be charged.
         </p>
          <ul>
-            <li><strong>Earning Tokens:</strong> You get a signup bonus and can earn more by mastering phrases in "Prep Your Vibe" or by referring friends. Please test the referral system!</li>
-            <li><strong>Spending Tokens:</strong> Use tokens for translations, Sync Live/Online usage, and downloading language packs.</li>
+            <li><strong>Earning Tokens:</strong> You get a signup bonus and can earn more by mastering phrases in the "Learn" tab or by referring friends. Please test the referral system!</li>
+            <li><strong>Spending Tokens:</strong> Use tokens for translations, Voice Room usage, and downloading language packs.</li>
             <li><strong>Buying Tokens:</strong> Test the "Buy Tokens" functionality. You can use a test PayPal account to simulate a purchase.</li>
         </ul>
       </section>
