@@ -1,5 +1,7 @@
+
 {
   "hosting": {
+    "project": "trans3-92849",
     "source": ".",
     "ignore": [
       "firebase.json",
