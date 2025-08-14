@@ -266,7 +266,7 @@ export default function FinancialTab() {
 
                         <Dialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button><PlusCircle className="mr-2"/> Add Expense</Button>
+                                <Button onClick={handleOpenExpenseDialog}><PlusCircle className="mr-2"/> Add Expense</Button>
                             </DialogTrigger>
                             <DialogContent>
                                 <DialogHeader>

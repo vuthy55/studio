@@ -15,6 +15,18 @@ import { Badge } from '@/components/ui/badge';
 import { getAllVibesAdmin, deleteVibesAdmin } from '@/actions/common-room-admin';
 import { getAllRooms, type ClientSyncRoom } from '@/services/rooms';
 import { permanentlyDeleteRooms } from '@/actions/room';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
 
 export default function RoomsTab() {
   const [syncOnlineRooms, setSyncOnlineRooms] = useState<ClientSyncRoom[]>([]);
@@ -124,9 +136,27 @@ export default function RoomsTab() {
                                     Status: <Badge variant={room.status === 'active' ? 'default' : (room.status === 'closed' ? 'destructive' : 'secondary')} className="h-5">{room.status}</Badge>
                                 </div>
                             </div>
-                            <Button size="icon" variant="ghost" onClick={() => handleDeleteSyncOnlineRoom(room.id)} disabled={isDeleting}>
-                                <Trash2 className="h-4 w-4 text-destructive"/>
-                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="icon" variant="ghost" disabled={isDeleting}>
+                                        <Trash2 className="h-4 w-4 text-destructive"/>
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action will permanently delete the room "{room.topic}" and all its data.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteSyncOnlineRoom(room.id)} disabled={isDeleting}>
+                                            Confirm Delete
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     )) : <p className="text-center text-sm text-muted-foreground p-4">No Voice Rooms found.</p>}
                     </div>
@@ -154,9 +184,27 @@ export default function RoomsTab() {
                                     {vibe.postsCount} posts &middot; Last active: {vibe.lastPostAt ? formatDistanceToNow(new Date(vibe.lastPostAt), { addSuffix: true }) : 'never'}
                                 </p>
                             </div>
-                            <Button size="icon" variant="ghost" onClick={() => handleDeleteVibe(vibe.id)} disabled={isDeleting}>
-                                <Trash2 className="h-4 w-4 text-destructive"/>
-                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="icon" variant="ghost" disabled={isDeleting}>
+                                        <Trash2 className="h-4 w-4 text-destructive"/>
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action will permanently delete the vibe "{vibe.topic}" and all its posts.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteVibe(vibe.id)} disabled={isDeleting}>
+                                            Confirm Delete
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     )) : <p className="text-center text-sm text-muted-foreground p-4">No Vibes Rooms found.</p>}
                     </div>

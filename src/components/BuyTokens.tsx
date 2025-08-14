@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -106,7 +107,7 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                             </Button>
                         </DialogTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><p>Buy Tokens</p></TooltipContent>
+                    <TooltipContent side="right"><p>Buy Tokens</p></TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         ) : (
@@ -175,6 +176,11 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                 )}
                  {!user && <p className="text-center text-sm text-destructive">Please log in to make a purchase.</p>}
             </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
   );

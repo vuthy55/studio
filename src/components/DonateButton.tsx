@@ -9,6 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -99,7 +101,7 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                             </Button>
                         </DialogTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><p>Donate</p></TooltipContent>
+                    <TooltipContent side="right"><p>Donate</p></TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         ) : (
@@ -161,6 +163,11 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                     </p>
                 )}
             </div>
+             <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
   );
