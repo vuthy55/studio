@@ -49,6 +49,14 @@ export default function BetaTesterInfo() {
                 <li>Schedule a Voice Room and invite a friend to test real-time voice translation.</li>
             </ul>
           </li>
+          <li>
+            <strong>Intel:</strong> Our AI-powered travel intelligence feature.
+            <ul>
+              <li>Select a country and get the latest information.</li>
+              <li>Is the safety score and summary helpful and easy to understand?</li>
+              <li>Does the information seem reliable and up-to-date?</li>
+            </ul>
+          </li>
            <li>
             <strong>Buddy Alert System:</strong> A community safety feature.
             <ul>
