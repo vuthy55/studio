@@ -19,17 +19,18 @@ import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSche
 /**
  * Wraps the Genkit flow, providing a simple async function interface.
  * @param input The travel query.
- * @returns A promise that resolves to the structured transport options and a debug log.
+ * @param debugLog The array to log debugging information to.
+ * @returns A promise that resolves to the structured transport options.
  */
-export async function discoverTransportOptions(input: DiscoverTransportOptionsInput): Promise<{ options: DiscoverTransportOptionsOutput; debugLog: string[] }> {
-  const debugLog: string[] = [];
+export async function discoverTransportOptions(input: DiscoverTransportOptionsInput, debugLog: string[]): Promise<DiscoverTransportOptionsOutput> {
   try {
     const result = await discoverTransportOptionsFlow({ ...input, debugLog });
-    return { options: result, debugLog };
+    return result;
   } catch (error: any) {
     console.error("[CRITICAL] Flow failed:", error);
     debugLog.push(`[CRITICAL] Flow failed: ${error.message}`);
-    return { options: [], debugLog };
+    // Re-throw the error so the action can handle it.
+    throw error;
   }
 }
 
@@ -88,12 +89,12 @@ const discoverTransportOptionsFlow = ai.defineFlow(
         fromCity: z.string(),
         toCity: z.string(),
         country: z.string(),
-        debugLog: z.custom<string[]>()
+        debugLog: z.custom<string[]>() // Define debugLog in the input schema
     }),
     outputSchema: DiscoverTransportOptionsOutputSchema,
   },
   async (input) => {
-    
+    // The debugLog is now guaranteed to exist on the input object.
     input.debugLog.push('[INFO] Starting transport options flow.');
     const { output } = await ai.generate({
         prompt: `Based on the provided search results, generate a structured list of transport options from ${input.fromCity} to ${input.toCity}.`,
