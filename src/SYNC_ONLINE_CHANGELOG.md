@@ -22,7 +22,7 @@ All notable changes to the Sync Online feature will be documented in this file.
     - **Moderation Actions & Soft Deletion:** From the Vibe view, admins can take action via a streamlined dropdown menu:
         - **Dismiss:** If no violation is found, the report is dismissed, the Vibe is reactivated, and both the reporter and creator are notified.
         - **Archive (Soft Deletion):** If a violation is found, the admin can "Archive" the Vibe. This is a soft delete that makes the Vibe permanently inaccessible to all regular users but preserves the content in the database for administrative records and future reference. The reporter and creator are notified of the action taken.
-- **`[IMPROVEMENT]`** Implemented Phase 1 of the "Common Room / Vibes" feature enhancement. This major update significantly improves usability and management.
+- **`[IM_PROVEMENT]`** Implemented Phase 1 of the "Common Room / Vibes" feature enhancement. This major update significantly improves usability and management.
     - **Post Translation:** Users can now translate any post in a Vibe into their default language for a small token fee. Translations are permanently saved to the post, so the community only pays once per language.
     - **Automatic Language Detection:** The translation feature now automatically detects the source language of a post instead of assuming it is English.
     - **Vibe Search:** A search bar has been added to the Common Room, allowing users to quickly find public Vibes by keywords in their topics.
@@ -43,6 +43,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load of the Rooms tab by removing an expensive database query.
 
 ### Fixed
+- **`[FIX]`** Resolved a critical user creation failure for new users signing up via Google. Although they could authenticate, their user profiles were not being created in the Firestore database, making them invisible in the admin panel and preventing them from receiving their signup bonus. The `signUpUser` server action has been corrected to properly handle the user's `displayName` and `photoURL` from Google, ensuring their profile is created completely and atomically upon first login.
 - **`[FIX]`** Resolved a `TypeError: settings.tabManager._initialize is not a function` build error caused by an incorrect Firebase cache initialization. Replaced the deprecated `enableIndexedDbPersistence()` function with the modern `initializeFirestore()` and `persistentSingleTabManager`, ensuring the app builds correctly and uses the latest Firebase v11 API for offline data caching.
 - **`[FIX]`** Fixed a routing issue where the "Register Now" button on the main marketing page did not take users to the sign-up form. The login page now correctly respects the `?tab=signup` URL parameter to show the appropriate form on load.
 - **`[FIX]`** Overhauled the offline language pack architecture to resolve multiple critical regressions and improve performance.
@@ -97,4 +98,5 @@ All notable changes to the Sync Online feature will be documented in this file.
 
 
     
+
 
