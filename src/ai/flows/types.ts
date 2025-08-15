@@ -61,7 +61,7 @@ export const DiscoverTransportOptionsInputSchema = z.object({
 });
 export type DiscoverTransportOptionsInput = z.infer<typeof DiscoverTransportOptionsInputSchema>;
 
-const TransportOptionSchema = z.object({
+export const TransportOptionSchema = z.object({
     type: z.enum(['flight', 'bus', 'train', 'ride-sharing', 'ferry']).describe("The type of transportation."),
     company: z.string().describe("The name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM')."),
     estimatedTravelTime: z.string().describe("The estimated duration of the travel (e.g., '1 hour', '4-5 hours')."),
