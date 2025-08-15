@@ -62,7 +62,7 @@ export const DiscoverTransportOptionsInputSchema = z.object({
 export type DiscoverTransportOptionsInput = z.infer<typeof DiscoverTransportOptionsInputSchema>;
 
 const TransportOptionSchema = z.object({
-    type: z.enum(['flight', 'bus', 'train', 'ride-sharing']).describe("The type of transportation."),
+    type: z.enum(['flight', 'bus', 'train', 'ride-sharing', 'ferry']).describe("The type of transportation."),
     company: z.string().describe("The name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM')."),
     estimatedTravelTime: z.string().describe("The estimated duration of the travel (e.g., '1 hour', '4-5 hours')."),
     typicalPriceRange: z.string().describe("A typical price range for a single ticket (e.g., '$20 - $40 USD', 'from $15 USD')."),
@@ -72,3 +72,18 @@ export type TransportOption = z.infer<typeof TransportOptionSchema>;
 
 export const DiscoverTransportOptionsOutputSchema = z.array(TransportOptionSchema).describe("A list of transport options found.");
 export type DiscoverTransportOptionsOutput = z.infer<typeof DiscoverTransportOptionsOutputSchema>;
+
+
+// --- Schemas for discover-transport-providers-flow ---
+export const DiscoverTransportProvidersInputSchema = z.object({
+  countryName: z.string().describe('The full, official name of the country to research.'),
+});
+export type DiscoverTransportProvidersInput = z.infer<typeof DiscoverTransportProvidersInputSchema>;
+
+export const DiscoverTransportProvidersOutputSchema = z.object({
+  countryName: z.string().describe("The official name of the country, matching the input."),
+  region: z.string().describe("The primary geopolitical region or continent the country belongs to (e.g., 'South East Asia', 'South America', 'Western Europe')."),
+  regionalTransportProviders: z.array(z.string()).describe("A list of 3-5 major regional airline root URLs (e.g., 'airasia.com')."),
+  localTransportProviders: z.array(z.string()).describe("A list of 3-5 major local transport provider root URLs including trains, buses, ferries, and ride-sharing (e.g., 'ktmb.com.my', '12go.asia', 'grab.com')."),
+});
+export type DiscoverTransportProvidersOutput = z.infer<typeof DiscoverTransportProvidersOutputSchema>;

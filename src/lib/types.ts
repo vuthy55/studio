@@ -316,6 +316,17 @@ export interface CountryIntelData {
     lastBuildAt?: string; // Changed from FieldValue to string for serialization
 }
 
+export interface CountryTransportData {
+    id: string; // country code, e.g. 'KH'
+    countryName: string;
+    region: string;
+    regionalTransportProviders: string[]; // e.g., airasia.com, singaporeair.com
+    localTransportProviders: string[]; // e.g., ktmb.com.my, 12go.asia, grab.com
+    lastBuildStatus?: 'success' | 'failed';
+    lastBuildError?: string | null;
+    lastBuildAt?: string;
+}
+
 // ClientVibe is a version of Vibe that is safe to pass to client components
 export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
     id: string;

@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon, FileText } from 'lucide-react';
+import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon, FileText, Bus } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -207,6 +207,16 @@ export function AppSidebar() {
               ))}
               
               {userProfile?.role === 'admin' && (
+                <>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/transport-intel')}>
+                      <Link href="/transport-intel" onClick={closeSidebar}>
+                        <Bus />
+                        Transport Intel
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
                 <Collapsible>
                   <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
@@ -230,14 +240,10 @@ export function AppSidebar() {
                                     <Link href="/test-search" onClick={closeSidebar}>Test AI Search</Link>
                                 </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
-                            <SidebarMenuSubItem>
-                                <SidebarMenuSubButton asChild isActive={pathname === '/test-transport'}>
-                                    <Link href="/test-transport" onClick={closeSidebar}>Test Transport AI</Link>
-                                </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
                         </SidebarMenuSub>
                     </CollapsibleContent>
                 </Collapsible>
+                </>
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
