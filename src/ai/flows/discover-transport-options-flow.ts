@@ -27,6 +27,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
     const result = await discoverTransportOptionsFlow({ ...input, debugLog });
     return { options: result, debugLog };
   } catch (error: any) {
+    console.error("[CRITICAL] Flow failed:", error);
     debugLog.push(`[CRITICAL] Flow failed: ${error.message}`);
     return { options: [], debugLog };
   }
