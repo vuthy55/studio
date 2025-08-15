@@ -66,7 +66,7 @@ export const TransportOptionSchema = z.object({
     company: z.string().describe("The name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM')."),
     estimatedTravelTime: z.string().describe("The estimated duration of the travel (e.g., '1 hour', '4-5 hours')."),
     typicalPriceRange: z.string().describe("A typical price range for a single ticket (e.g., '$20 - $40 USD', 'from $15 USD')."),
-    bookingUrl: z.string().url().describe("A direct URL to a booking page or a reputable search aggregator (e.g., Skyscanner, 12go.asia)."),
+    bookingUrl: z.string().describe("A direct URL to a booking page or a reputable search aggregator (e.g., Skyscanner, 12go.asia)."),
 });
 export type TransportOption = z.infer<typeof TransportOptionSchema>;
 
