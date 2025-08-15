@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
-import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSchema, type DiscoverTransportOptionsInput, type DiscoverTransportOptionsOutput } from './types';
+import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSchema, type DiscoverTransportOptionsInput, type DiscoverTransportOptionsOutput, TransportOptionSchema } from './types';
 import { getCountryTransportData } from '@/actions/transport-admin';
 import { lightweightCountries } from '@/lib/location-data';
 import { scrapeUrlAction } from '@/actions/scraper';
@@ -36,29 +36,27 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
 
   const queries: string[] = [];
 
-  // Add targeted queries for airlines if they exist
+  // Always perform targeted searches if providers exist
   if (transportProviders?.regionalTransportProviders?.length) {
     transportProviders.regionalTransportProviders.forEach(provider => {
       queries.push(`flights from ${fromCity} to ${toCity} site:${provider}`);
     });
-  } else {
-      queries.push(`flights from ${fromCity} to ${toCity} ${country}`);
   }
-
-  // Add targeted queries for local providers (bus, train, etc.)
   if (transportProviders?.localTransportProviders?.length) {
      transportProviders.localTransportProviders.forEach(provider => {
       queries.push(`"${fromCity} to ${toCity}" site:${provider}`);
     });
   }
   
-  // Add generic fallback queries
+  // Always include generic fallback queries to catch anything missed
+  queries.push(`flights from ${fromCity} to ${toCity} ${country}`);
   queries.push(`bus from ${fromCity} to ${toCity} ${country}`);
   queries.push(`ETS train ticket price and schedule ${fromCity} to ${toCity}`);
   queries.push(`Grab or Uber from ${fromCity} to ${toCity} ${country}`);
   queries.push(`ferry from ${fromCity} to ${toCity} ${country}`);
 
   const uniqueQueries = [...new Set(queries)];
+  debugLog.push(`[INFO] Compiled ${uniqueQueries.length} unique search queries.`);
 
   let searchResultsText = "";
   for (const query of uniqueQueries) {
@@ -66,7 +64,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
       const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
       if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
           const topUrl = searchResult.results[0].link;
-          debugLog.push(`[INFO] Scraping top result: ${topUrl}`);
+          debugLog.push(`[SUCCESS] Found ${searchResult.results.length} result(s) for "${query}". Scraping top result: ${topUrl}`);
           const scrapeResult = await scrapeUrlAction(topUrl);
 
           if (scrapeResult.success && scrapeResult.content) {
@@ -88,7 +86,9 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   }
   
   try {
+    debugLog.push(`[INFO] Passing ${searchResultsText.length} characters of scraped text to the AI for analysis.`);
     const result = await discoverTransportOptionsFlow({ fromCity, toCity, searchResultsText });
+    debugLog.push(`[SUCCESS] AI analysis complete. Found ${result.length} transport options.`);
     return result;
   } catch (error: any) {
     debugLog.push(`[CRITICAL] Flow execution failed: ${error.message}`);
@@ -121,16 +121,16 @@ const discoverTransportOptionsFlow = ai.defineFlow(
           
           Based ONLY on the text provided, generate a list of transport options. For each option, provide:
           - The type of transport (e.g., flight, bus, train, ride-sharing, ferry).
-          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). When you see "e-hailing", identify if it is Grab or another service. If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
-          - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours').
-          - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD").
+          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). If you see "e-hailing", identify if it is Grab or another service. If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
+          - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours'). If no time is found, set it to "Check Online".
+          - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD"). If no price is found, set it to "Check Online".
           - A direct URL for booking if available in the text. Prioritize direct provider links over aggregators if possible.
           
-          CRITICAL: Do not leave fields blank. If you cannot find a specific piece of information for an option (like price or travel time), explicitly state "Not Available". Do not make up information.
+          CRITICAL: Do not make up information. If you cannot find a specific piece of information for an option, use the specified fallback values.
         `,
         model: 'googleai/gemini-1.5-pro',
         output: {
-            schema: DiscoverTransportOptionsOutputSchema,
+            schema: z.array(TransportOptionSchema),
         }
     });
     
@@ -138,3 +138,4 @@ const discoverTransportOptionsFlow = ai.defineFlow(
   }
 );
 
+    
