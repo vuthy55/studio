@@ -94,10 +94,8 @@ function LoginPageContent() {
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        // Existing user, let the useEffect handle redirect
         toast({ title: "Welcome back!", description: "Logged in successfully." });
       } else {
-        // New user, start the progressive sign-up flow
         setGoogleUserData({
             name: user.displayName || 'New User',
             email: user.email!,
@@ -145,29 +143,26 @@ function LoginPageContent() {
         const result = await signUpUser(
             payload, 
             referralId,
-            null, // No roomId for standard login/signup
-            null // No vibeId for standard login/signup
+            null,
+            null
        );
         
        if (!result.success) {
             throw new Error(result.error || 'An unknown error occurred during signup.');
        }
         
-       // If it was an email sign-up, we need to manually sign the user in.
-       // For Google sign-up, they are already authenticated.
        if (!isGoogleFlow) {
            await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
        }
 
        toast({ title: "Welcome to VibeSync!", description: "Your account has been created." });
-       // The main useEffect will handle redirecting the now logged-in user.
       
     } catch (error: any) {
       console.error("Finalize sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsEmailLoading(false);
-      setIsCompletingGoogleSignUp(false); // Reset the flow state
+      setIsCompletingGoogleSignUp(false);
       setGoogleUserData(null);
     }
   }
@@ -179,7 +174,6 @@ function LoginPageContent() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
-      // The useEffect will handle the redirect
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
         const { id: toastId } = toast({
@@ -205,14 +199,14 @@ function LoginPageContent() {
     }
   };
   
-  if (authLoading || (!isCompletingGoogleSignUp && user) || !settings) {
+  if (authLoading || !settings) {
      return (
         <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
             <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
         </div>
     );
   }
-
+  
   if (isCompletingGoogleSignUp) {
     return (
         <div className="flex justify-center items-center min-h-screen bg-muted">
@@ -225,7 +219,6 @@ function LoginPageContent() {
                 </CardHeader>
                 <form onSubmit={handleFinalizeSignUp}>
                     <CardContent className="space-y-4">
-                        {/* Name and email are pre-filled and read-only */}
                         <div className="space-y-2">
                             <Label htmlFor="google-name">Name</Label>
                             <Input id="google-name" value={googleUserData?.name} readOnly disabled />
@@ -267,7 +260,6 @@ function LoginPageContent() {
         </div>
     );
   }
-
 
   return (
     <div className="space-y-8">
