@@ -142,15 +142,15 @@ export default function OfflineManager() {
             <span className="hidden md:inline">Language Packs</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Language Packs</DialogTitle>
           <DialogDescription>
             To learn a new language, you must first download its language pack. Some packs are free, while others can be unlocked with tokens.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 space-y-4">
-          <div className="flex items-center space-x-2">
+        <div className="flex-grow overflow-hidden flex flex-col gap-4 py-4">
+          <div className="flex items-center space-x-2 px-1">
             <Checkbox 
                 id="select-all-packs"
                 onCheckedChange={(checked) => {
@@ -166,7 +166,7 @@ export default function OfflineManager() {
             />
             <Label htmlFor="select-all-packs">Select all available for download</Label>
           </div>
-          <ScrollArea className="h-72">
+          <ScrollArea className="flex-grow">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
               {downloadablePacks.map(pack => {
                 const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
