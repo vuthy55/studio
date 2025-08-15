@@ -13,6 +13,7 @@ import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
 import BetaTesterInfo from './BetaTesterInfo';
+import BetaTesterInfoKhmer from './BetaTesterInfoKhmer';
 import { ScrollArea } from '../ui/scroll-area';
 
 
@@ -65,26 +66,48 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button asChild variant="outline" className="mt-4">
-                    <button>Beta Test (English)</button>
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl">
-                <DialogHeader>
-                    <DialogTitle>Beta Tester Information</DialogTitle>
-                </DialogHeader>
-                <ScrollArea className="max-h-[70vh] pr-6">
-                    <BetaTesterInfo />
-                </ScrollArea>
-                <DialogFooter>
-                    <DialogClose asChild>
-                        <Button>Close</Button>
-                    </DialogClose>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <div className="flex items-center justify-center gap-2 mt-4">
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button asChild variant="outline">
+                        <button>Beta Test (English)</button>
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Beta Tester Information</DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[70vh] pr-6">
+                        <BetaTesterInfo />
+                    </ScrollArea>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button>Close</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button asChild variant="outline">
+                        <button>Beta Test (Khmer)</button>
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>ព័ត៌មាន​សម្រាប់​អ្នក​សាកល្បង Beta</DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[70vh] pr-6">
+                        <BetaTesterInfoKhmer />
+                    </ScrollArea>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button>បិទ</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
