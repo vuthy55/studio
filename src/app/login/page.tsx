@@ -33,7 +33,7 @@ function LoginPageContent() {
   const { toast, dismiss } = useToast();
   const { user, loading: authLoading } = useUserData();
 
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'login');
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -322,4 +322,3 @@ export default function LoginPage() {
     );
 }
 
-    
