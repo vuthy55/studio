@@ -43,7 +43,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load of the Rooms tab by removing an expensive database query.
 
 ### Fixed
-- **`[FIX]`** Resolved a critical user creation failure for new users signing up via Google. The sign-up flow has been re-architected to be a two-step process. First, Google authenticates the user. If they are new, they are then presented with a "complete profile" form to provide necessary details (e.g., country, default language). Only after submitting this form is the `signUpUser` server action called, which now creates the Firebase Auth record and the Firestore user document in a single, atomic transaction. This guarantees that all new users are correctly registered with all required information.
+- **`[FIX]`** To ensure a reliable registration process, the Google Sign-In/Sign-Up functionality has been removed. This streamlines the user flow by directing all new users to the standard email sign-up form, guaranteeing their profiles and sign-up bonuses are created correctly. The login page and corresponding authentication actions have been updated to remove all Google-related code.
 - **`[FIX]`** Corrected the visibility of the "Donate" button in the main sidebar. It was previously visible to all users, including those who were not logged in. The button will now only appear for authenticated users, aligning with the requirement that donations be tied to a specific user account for record-keeping.
 - **`[FIX]`** Resolved a `TypeError: settings.tabManager._initialize is not a function` build error caused by an incorrect Firebase cache initialization. Replaced the deprecated `enableIndexedDbPersistence()` function with the modern `initializeFirestore()` and `persistentSingleTabManager`, ensuring the app builds correctly and uses the latest Firebase v11 API for offline data caching.
 - **`[FIX]`** Fixed a routing issue where the "Register Now" button on the main marketing page did not take users to the sign-up form. The login page now correctly respects the `?tab=signup` URL parameter to show the appropriate form on load.
@@ -99,6 +99,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 
 
     
+
 
 
 

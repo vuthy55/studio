@@ -4,12 +4,9 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider
+  signInWithEmailAndPassword
 } from "firebase/auth";
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 import { lightweightCountries } from '@/lib/location-data';
 
 import { Button } from "@/components/ui/button";
@@ -38,10 +35,6 @@ function LoginPageContent() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
-  // State for the multi-step Google sign-up flow
-  const [isCompletingGoogleSignUp, setIsCompletingGoogleSignUp] = useState(false);
-  const [googleUserData, setGoogleUserData] = useState<{name: string, email: string, photoURL?: string} | null>(null);
-  
   // Standard sign-up state
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
@@ -50,22 +43,21 @@ function LoginPageContent() {
   const [signupMobile, setSignupMobile] = useState('');
   const [signupLanguage, setSignupLanguage] = useState<AzureLanguageCode | ''>('');
   
-  const [isEmailLoading, setIsEmailLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const referralId = useMemo(() => searchParams.get('ref'), [searchParams]);
   const redirectUrl = useMemo(() => searchParams.get('redirect'), [searchParams]);
 
   useEffect(() => {
-    if (!authLoading && user && !isCompletingGoogleSignUp) {
+    if (!authLoading && user) {
       if (redirectUrl) {
         router.push(redirectUrl);
       } else {
         router.push('/learn');
       }
     }
-  }, [user, authLoading, router, redirectUrl, isCompletingGoogleSignUp]);
+  }, [user, authLoading, router, redirectUrl]);
 
   useEffect(() => {
     getAppSettingsAction().then(setSettings);
@@ -82,41 +74,10 @@ function LoginPageContent() {
         }
     }
   };
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        toast({ title: "Welcome back!", description: "Logged in successfully." });
-      } else {
-        setGoogleUserData({
-            name: user.displayName || 'New User',
-            email: user.email!,
-            photoURL: user.photoURL || undefined
-        });
-        setIsCompletingGoogleSignUp(true);
-      }
-      
-    } catch (error: any) {
-      console.error("Google sign-in error", error);
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast({ variant: "destructive", title: "Error", description: error.message });
-      }
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
   
-  const handleFinalizeSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isCompletingGoogleSignUp && (!signupName || !signupEmail || !signupPassword)) {
+    if (!signupName || !signupEmail || !signupPassword) {
         toast({ variant: "destructive", title: "Missing Fields", description: "Please fill out all required fields." });
         return;
     }
@@ -125,52 +86,40 @@ function LoginPageContent() {
         return;
     }
     
-    setIsEmailLoading(true);
-    
-    const isGoogleFlow = !!googleUserData;
+    setIsLoading(true);
     
     try {
         const payload = {
-            name: isGoogleFlow ? googleUserData.name : signupName,
-            email: isGoogleFlow ? googleUserData.email : signupEmail,
-            password: isGoogleFlow ? undefined : signupPassword,
+            name: signupName,
+            email: signupEmail,
+            password: signupPassword,
             country: signupCountry,
             mobile: signupMobile,
             defaultLanguage: signupLanguage,
-            photoURL: isGoogleFlow ? googleUserData.photoURL : undefined
         };
 
-        const result = await signUpUser(
-            payload, 
-            referralId,
-            null,
-            null
-       );
+        const result = await signUpUser(payload, referralId, null, null);
         
        if (!result.success) {
             throw new Error(result.error || 'An unknown error occurred during signup.');
        }
         
-       if (!isGoogleFlow) {
-           await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
-       }
+       await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
 
        toast({ title: "Welcome to VibeSync!", description: "Your account has been created." });
       
     } catch (error: any) {
-      console.error("Finalize sign-up error", error);
+      console.error("Sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
-      setIsEmailLoading(false);
-      setIsCompletingGoogleSignUp(false);
-      setGoogleUserData(null);
+      setIsLoading(false);
     }
   }
 
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEmailLoading(true);
+    setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       toast({ title: "Success", description: "Logged in successfully." });
@@ -195,7 +144,7 @@ function LoginPageContent() {
         toast({ variant: "destructive", title: "Error", description: error.message });
       }
     } finally {
-      setIsEmailLoading(false);
+      setIsLoading(false);
     }
   };
   
@@ -203,60 +152,6 @@ function LoginPageContent() {
      return (
         <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
             <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
-        </div>
-    );
-  }
-  
-  if (isCompletingGoogleSignUp) {
-    return (
-        <div className="flex justify-center items-center min-h-screen bg-muted">
-            <Card className="w-full max-w-md">
-                <CardHeader>
-                    <CardTitle>Just one more step...</CardTitle>
-                    <CardDescription>
-                        Welcome, {googleUserData?.name}! Please confirm your details to complete your account.
-                    </CardDescription>
-                </CardHeader>
-                <form onSubmit={handleFinalizeSignUp}>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="google-name">Name</Label>
-                            <Input id="google-name" value={googleUserData?.name} readOnly disabled />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="google-email">Email</Label>
-                            <Input id="google-email" value={googleUserData?.email} readOnly disabled />
-                        </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="signup-language-google">Default Spoken Language</Label>
-                            <Select onValueChange={(v) => setSignupLanguage(v as AzureLanguageCode)} value={signupLanguage} required>
-                                <SelectTrigger id="signup-language-google"><SelectValue placeholder="Select your language..." /></SelectTrigger>
-                                <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="signup-country-google">Country</Label>
-                            <Select onValueChange={handleCountryChange} value={signupCountry} required>
-                                <SelectTrigger id="signup-country-google"><SelectValue placeholder="Select your country" /></SelectTrigger>
-                                <SelectContent>{countryOptions.map((country: any) => (<SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>))}</SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="signup-mobile-google">Mobile Number (Optional)</Label>
-                            <Input id="signup-mobile-google" type="tel" placeholder="Your phone number" value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} />
-                        </div>
-                         <div className="flex items-center justify-center gap-2 p-3 text-base font-bold text-primary bg-primary/10 rounded-lg mt-4">
-                            <Award className="h-6 w-6" />
-                            <span>You'll receive {settings?.signupBonus || '...'} tokens as a welcome bonus!</span>
-                        </div>
-                    </CardContent>
-                    <CardFooter>
-                        <Button className="w-full" type="submit" disabled={isEmailLoading}>
-                            {isEmailLoading ? <LoaderCircle className="animate-spin" /> : 'Complete Sign Up'}
-                        </Button>
-                    </CardFooter>
-                </form>
-            </Card>
         </div>
     );
   }
@@ -291,12 +186,8 @@ function LoginPageContent() {
                         </div>
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isEmailLoading || isGoogleLoading}>
-                            {isEmailLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}
-                        </Button>
-                        <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isEmailLoading || isGoogleLoading}>
-                            {isGoogleLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
-                            Sign in with Google
+                        <Button className="w-full" type="submit" disabled={isLoading}>
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : 'Login'}
                         </Button>
                     </CardFooter>
                     </form>
@@ -308,7 +199,7 @@ function LoginPageContent() {
                     <CardTitle>Sign Up</CardTitle>
                     <CardDescription>Create a new account to start your journey.</CardDescription>
                     </CardHeader>
-                    <form onSubmit={handleFinalizeSignUp}>
+                    <form onSubmit={handleSignUp}>
                         <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="signup-name">Name</Label>
@@ -360,12 +251,8 @@ function LoginPageContent() {
                         </div>
                         </CardContent>
                         <CardFooter className="flex-col gap-4">
-                        <Button className="w-full" type="submit" disabled={isEmailLoading || isGoogleLoading}>
-                            {isEmailLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}
-                        </Button>
-                         <Button variant="outline" className="w-full" type="button" onClick={handleGoogleSignIn} disabled={isEmailLoading || isGoogleLoading}>
-                             {isGoogleLoading ? <LoaderCircle className="animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
-                             Sign up with Google
+                        <Button className="w-full" type="submit" disabled={isLoading}>
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : 'Create Account'}
                         </Button>
                         </CardFooter>
                     </form>

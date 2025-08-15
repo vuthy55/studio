@@ -282,7 +282,7 @@ export function AppSidebar() {
                   </>
               ) : (
                   <>
-                      {/* Donate button is intentionally removed for logged-out users */}
+                      {/* Logged out users see nothing here */}
                   </>
               )}
           </div>

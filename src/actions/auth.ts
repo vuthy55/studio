@@ -10,11 +10,10 @@ import type { SyncRoom, Vibe } from '@/lib/types';
 interface SignUpPayload {
   name: string;
   email: string;
-  password?: string; // Optional for Google Sign-In
+  password?: string;
   country?: string;
   mobile?: string;
   defaultLanguage?: string;
-  photoURL?: string;
 }
 
 /**
@@ -38,7 +37,7 @@ export async function signUpUser(
   roomTopic?: string; // Added to provide more context on redirect
   // Vibe specific - No longer returning vibeExists to simplify client logic
 }> {
-  const { name, email, password, country, mobile, defaultLanguage, photoURL } = payload;
+  const { name, email, password, country, mobile, defaultLanguage } = payload;
   const lowerCaseEmail = email.toLowerCase();
   
   console.log('[signUpUser] Initiated for email:', lowerCaseEmail);
@@ -73,7 +72,6 @@ export async function signUpUser(
         email: lowerCaseEmail,
         password: password, // Password is optional and will be undefined for Google Sign-In
         displayName: name,
-        photoURL: photoURL
     });
     const uid = userRecord.uid;
     console.log('[signUpUser] User created successfully in Auth. UID:', uid);
@@ -98,7 +96,7 @@ export async function signUpUser(
         country: country || '',
         mobile: mobile || '',
         defaultLanguage: defaultLanguage || 'en-US',
-        photoURL: photoURL || null,
+        photoURL: null,
         unlockedLanguages: freeLanguages,
         downloadedPacks: freeLanguages,
         downloadedPhraseCount: 0,
