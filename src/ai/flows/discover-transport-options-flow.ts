@@ -121,7 +121,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
           
           Based ONLY on the text provided, generate a list of transport options. For each option, provide:
           - The type of transport (e.g., flight, bus, train, ride-sharing, ferry).
-          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). If you see "e-hailing", identify if it is Grab or another service. If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
+          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). When you see "e-hailing", identify if it is Grab or another service. If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
           - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours').
           - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD").
           - A direct URL for booking if available in the text. Prioritize direct provider links over aggregators if possible.
@@ -137,3 +137,4 @@ const discoverTransportOptionsFlow = ai.defineFlow(
     return output!;
   }
 );
+
