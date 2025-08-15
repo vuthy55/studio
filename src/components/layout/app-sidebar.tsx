@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon } from 'lucide-react';
+import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon, FileText } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -149,6 +149,7 @@ export function AppSidebar() {
 
   const mainNavLinks = [
     { href: "/", icon: Home, label: "Home", activePath: "/" },
+    { href: "/story", icon: FileText, label: "Traveler's Story", activePath: "/story" },
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
@@ -226,6 +227,14 @@ export function AppSidebar() {
                     <Link href="/" onClick={closeSidebar}>
                         <Home />
                         Home
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                 <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === '/story'}>
+                    <Link href="/story" onClick={closeSidebar}>
+                        <FileText />
+                        Traveler's Story
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
