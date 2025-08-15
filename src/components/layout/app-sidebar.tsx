@@ -208,7 +208,15 @@ export function AppSidebar() {
               
               {userProfile?.role === 'admin' && (
                 <>
-                <SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/test-search')}>
+                      <Link href="/test-search" onClick={closeSidebar}>
+                        <FlaskConical />
+                        Test AI Agent
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname.startsWith('/transport-intel')}>
                       <Link href="/transport-intel" onClick={closeSidebar}>
                         <Bus />
@@ -216,33 +224,11 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-
-                <Collapsible>
                   <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                           <SidebarMenuButton className="w-full justify-between">
-                            <div className="flex items-center gap-2">
-                                <Settings />
-                                Admin
-                            </div>
-                           </SidebarMenuButton>
-                      </CollapsibleTrigger>
+                    <SidebarMenuButton asChild isActive={pathname === '/admin'}>
+                        <Link href="/admin" onClick={closeSidebar}><Settings/>Admin</Link>
+                    </SidebarMenuButton>
                   </SidebarMenuItem>
-                   <CollapsibleContent>
-                        <SidebarMenuSub>
-                           <SidebarMenuSubItem>
-                                <SidebarMenuSubButton asChild isActive={pathname === '/admin'}>
-                                    <Link href="/admin" onClick={closeSidebar}>Dashboard</Link>
-                                </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                             <SidebarMenuSubItem>
-                                <SidebarMenuSubButton asChild isActive={pathname === '/test-search'}>
-                                    <Link href="/test-search" onClick={closeSidebar}>Test AI Search</Link>
-                                </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                        </SidebarMenuSub>
-                    </CollapsibleContent>
-                </Collapsible>
                 </>
               )}
               <SidebarMenuItem>
