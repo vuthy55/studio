@@ -43,6 +43,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load performance of the Rooms tab by removing an expensive database query.
 
 ### Fixed
+- **`[FIX]`** Fixed a routing issue where the "Register Now" button on the main marketing page did not take users to the sign-up form. The login page now correctly respects the `?tab=signup` URL parameter to show the appropriate form on load.
 - **`[FIX]`** Overhauled the offline language pack architecture to resolve multiple critical regressions and improve performance.
     - **Inefficient Regeneration:** Fixed a major performance issue where the client was re-generating language packs via expensive AI calls on every download, instead of fetching the pre-built packs from storage. The system now correctly downloads the pre-generated data, significantly reducing costs and load times.
     - **Purchase & Unlock Flow:** Restored the regressed feature allowing users to unlock paid language packs with tokens. The UI now correctly displays an "Unlock" button for locked packs, and the transaction is handled atomically on the server.
