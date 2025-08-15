@@ -116,12 +116,12 @@ const discoverTransportOptionsFlow = ai.defineFlow(
           
           Based ONLY on the text provided, generate a list of transport options. For each option, provide:
           - The type of transport (e.g., flight, bus, train, ride-sharing, ferry).
-          - The name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM').
+          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). If no company is explicitly mentioned for a type (e.g., a generic bus result), set the company to 'Various'.
           - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours').
-          - A typical price range. If you find a single price, present it as a small range (e.g., if you see "RM 35", return "$8 - $10 USD").
+          - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD").
           - A direct URL for booking if available in the snippets. Prioritize direct provider links over aggregators if possible.
           
-          If the information for a field isn't present in the snippets for a particular option, omit that field. Do not make up information.
+          CRITICAL: Do not leave fields blank. If you cannot find a specific piece of information for an option (like price or travel time), explicitly state "Not Available". Do not make up information.
         `,
         model: 'googleai/gemini-1.5-pro',
         output: {
