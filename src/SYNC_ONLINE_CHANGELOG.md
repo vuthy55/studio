@@ -6,6 +6,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`[IMPROVEMENT]`** To better support our international testing community, a Khmer-language version of the "Beta Tester Information" is now available on the homepage. This provides clear, native-language guidance for our Cambodian testers, ensuring they have the same quality of information as our English-speaking participants.
 - **`[IMPROVEMENT]`** Enhanced the main marketing page by replacing the "Beta Test (English)" link with an interactive dialog. This allows prospective testers to view the Beta Tester Information directly on the homepage without navigating away, creating a more seamless and user-friendly experience.
 - **`[IMPROVEMENT]`** Implemented a comprehensive reporting and moderation system for the Common Room. This feature empowers the community and administrators to maintain a safe and respectful environment.
     - **User Reporting:** Any user can now report a Vibe that they believe violates community guidelines. The report action is available in the Vibe's participant list.
@@ -92,3 +93,6 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[FIX]`** Corrected a series of build-blocking issues, including a dependency conflict with PayPal packages and several TypeScript type errors related to incorrect prop usage (`title` on an icon instead of a `Tooltip`) and mismatched function signatures (passing an object with `id` to a function expecting `uid`). Resolved a React hydration error by delaying the rendering of user-specific links until the client has mounted, ensuring server and client HTML match on initial load.
 
 
+
+
+    
