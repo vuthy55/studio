@@ -112,8 +112,8 @@ export default function TestTransportPage() {
                                    </div>
                                     <div className="flex-1 space-y-1">
                                         <h3 className="font-semibold capitalize">{option.type} via {option.company}</h3>
-                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime !== 'Not Available' ? option.estimatedTravelTime : 'Check Online'}</span></p>
-                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange !== 'Not Available' ? option.typicalPriceRange : 'Check Online'}</span></p>
+                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime === 'Not Available' ? 'Check Online' : option.estimatedTravelTime}</span></p>
+                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange === 'Not Available' ? 'Check Online' : option.typicalPriceRange}</span></p>
                                     </div>
                                     <Button asChild variant="outline" size="sm" disabled={!option.bookingUrl.startsWith('http')}>
                                         <a href={option.bookingUrl} target="_blank" rel="noopener noreferrer">

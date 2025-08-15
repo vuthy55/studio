@@ -80,7 +80,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   }
   
   try {
-    const result = await discoverTransportOptionsFlow({ fromCity, toCity, searchResultsText, debugLog });
+    const result = await discoverTransportOptionsFlow({ fromCity, toCity, searchResultsText });
     return result;
   } catch (error: any) {
     debugLog.push(`[CRITICAL] Flow execution failed: ${error.message}`);
@@ -97,17 +97,14 @@ const discoverTransportOptionsFlow = ai.defineFlow(
         fromCity: z.string(),
         toCity: z.string(),
         searchResultsText: z.string().describe("The raw text from web search results containing transport information."),
-        debugLog: z.custom<string[]>()
     }),
     outputSchema: DiscoverTransportOptionsOutputSchema,
   },
-  async ({ fromCity, toCity, searchResultsText, debugLog }) => {
-    
-    debugLog.push('[INFO] Passing search results to AI for analysis.');
+  async ({ fromCity, toCity, searchResultsText }) => {
 
     const { output } = await ai.generate({
         prompt: `
-          You are an intelligent travel agent. Your task is to analyze the provided web search result snippets and extract structured information about transportation options from ${fromCity} to ${toCity}.
+          You are an expert travel agent. Your task is to analyze the provided web search result snippets and extract structured information about transportation options from ${fromCity} to ${toCity}.
           
           Analyze the following search results:
           ---
@@ -116,7 +113,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
           
           Based ONLY on the text provided, generate a list of transport options. For each option, provide:
           - The type of transport (e.g., flight, bus, train, ride-sharing, ferry).
-          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
+          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad', 'Grab'). If you see "ride-sharing" or "e-hailing", identify if it is Grab or Uber. If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
           - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours').
           - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD").
           - A direct URL for booking if available in the snippets. Prioritize direct provider links over aggregators if possible.
@@ -129,7 +126,6 @@ const discoverTransportOptionsFlow = ai.defineFlow(
         }
     });
     
-    debugLog.push('[SUCCESS] AI analysis complete.');
     return output!;
   }
 );
