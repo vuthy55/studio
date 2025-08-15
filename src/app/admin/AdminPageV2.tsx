@@ -6,7 +6,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LoaderCircle, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2, MessageSquare, LineChart, Trash2, AlertTriangle } from "lucide-react";
+import { LoaderCircle, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2, MessageSquare, LineChart, Trash2, AlertTriangle, Train } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MainHeader from '@/components/layout/MainHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
@@ -25,6 +25,8 @@ const LanguagePacksTab = lazy(() => import('./components/LanguagePacksTab'));
 const BulkActionsTab = lazy(() => import('./components/BulkActionsTab'));
 const MessagingTab = lazy(() => import('./components/MessagingTab'));
 const ReportsTab = lazy(() => import('./components/ReportsTab'));
+const TransportTab = lazy(() => import('./components/TransportTab'));
+
 
 const LoadingFallback = () => (
     <div className="flex justify-center items-center py-10">
@@ -39,6 +41,7 @@ const adminFeatureDescriptions = [
     { icon: LifeBuoy, title: "Feedback", description: "View and manage user-submitted feedback, bug reports, and feature requests." },
     { icon: Settings, title: "App Settings", description: "Configure global application settings, including the token economy, feature costs, and community rules." },
     { icon: Globe, title: "Intel", description: "Manage the AI data sources and the country intelligence database used by the InfoHub feature." },
+    { icon: Train, title: "Transport", description: "Manage the AI data sources for transportation providers in each country." },
     { icon: LineChart, title: "Financial", description: "View the central ledger of all real-money transactions (e.g., PayPal purchases and donations) for auditing." },
     { icon: Coins, title: "Tokens", description: "Analyze the token economy, view the system-wide token transaction ledger, and manually issue tokens to users." },
     { icon: Music, title: "Language Packs", description: "Generate and manage offline audio packs for different languages and configure which packs are free for users." },
@@ -105,6 +108,7 @@ export default function AdminPageV2() {
         { value: 'feedback', label: 'Feedback', icon: LifeBuoy, component: <FeedbackTab /> },
         { value: 'settings', label: 'App Settings', icon: Settings, component: <SettingsTab /> },
         { value: 'intel', label: 'Intel', icon: Globe, component: <IntelTab /> },
+        { value: 'transport', label: 'Transport', icon: Train, component: <TransportTab /> },
         { value: 'financial', label: 'Financial', icon: LineChart, component: <FinancialTab /> },
         { value: 'tokens', label: 'Tokens', icon: Coins, component: <TokensTab /> },
         { value: 'language-packs', label: 'Language Packs', icon: Music, component: <LanguagePacksTab /> },
@@ -121,7 +125,7 @@ export default function AdminPageV2() {
             />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-5 md:grid-cols-11 h-auto">
+                <TabsList className="grid w-full grid-cols-6 md:grid-cols-12 h-auto">
                     {adminTabs.map(tab => (
                         <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full">
                             <tab.icon className="h-5 w-5" />

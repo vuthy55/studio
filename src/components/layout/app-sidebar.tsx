@@ -156,7 +156,7 @@ export function AppSidebar() {
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
-    { href: "/infohub", icon: Compass, label: "Intel", activePath: "/infohub" },
+    { href: "/infohub", icon: Compass, label: "Intel Hub", activePath: "/infohub" },
   ];
 
   const userNavLinks = [
@@ -208,22 +208,6 @@ export function AppSidebar() {
               
               {userProfile?.role === 'admin' && (
                 <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/test-transport')}>
-                      <Link href="/test-transport" onClick={closeSidebar}>
-                        <FlaskConical />
-                        Test Transport
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/transport-intel')}>
-                      <Link href="/transport-intel" onClick={closeSidebar}>
-                        <Database />
-                        Transport DB
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/admin'}>
                         <Link href="/admin" onClick={closeSidebar}><Settings/>Admin</Link>

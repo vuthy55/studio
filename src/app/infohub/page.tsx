@@ -7,7 +7,7 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { getCountryIntelData } from '@/actions/intel';
@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import TransportIntelDialog from './TransportIntelDialog';
 
 
 function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<CountryIntel> | null, searchDate: Date | null, debugLog: string[] }) {
@@ -67,20 +68,6 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                 </div>
             </div>
 
-            {/* {categoryAssessments && (
-                 <Card>
-                    <CardHeader><CardTitle className="text-lg">Risk Severity Levels</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                       {Object.entries(categoryAssessments).map(([category, catScore]) => (
-                            <div key={category} className="text-center p-2 rounded-lg bg-background border">
-                                <p className="text-sm font-semibold">{category}</p>
-                                <p className={cn("text-3xl font-bold", getSeverityAppearance(catScore).color)}>{catScore}/10</p>
-                            </div>
-                        ))}
-                    </CardContent>
-                 </Card>
-            )} */}
-
             <div className="space-y-4">
                  <h4 className="text-lg font-semibold">Analyst Briefing</h4>
                 <div className="p-4 border rounded-md bg-background text-sm text-muted-foreground whitespace-pre-wrap">
@@ -117,24 +104,6 @@ function LatestIntelDisplay({ intel, searchDate, debugLog }: { intel: Partial<Co
                         )}
                     </AccordionContent>
                 </AccordionItem>
-                 {/* <AccordionItem value="debug">
-                    <AccordionTrigger>
-                        <h4 className="text-lg font-semibold">Debug Log</h4>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                        {debugLog.length > 0 ? (
-                           <ScrollArea className="h-48 p-4 border rounded-md bg-muted font-mono text-xs">
-                            {debugLog.map((log, index) => (
-                                <p key={index} className={cn("whitespace-pre-wrap", log.includes('[FAIL]') || log.includes('[CRITICAL]') ? 'text-destructive' : '')}>
-                                    {log}
-                                </p>
-                            ))}
-                            </ScrollArea>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">No debug information available.</p>
-                        )}
-                    </AccordionContent>
-                </AccordionItem> */}
             </Accordion>
         </div>
     );
@@ -239,7 +208,7 @@ function IntelContent() {
     
     return (
         <div className="space-y-8">
-            <MainHeader title="Intel" description="Your source for global travel intelligence." />
+            <MainHeader title="Intel Hub" description="Your source for global travel and transport intelligence." />
             
             <Card>
                 <CardHeader>
@@ -247,34 +216,37 @@ function IntelContent() {
                         <div>
                             <CardTitle>Location Intel</CardTitle>
                             <CardDescription>
-                                Select a country to view standard information. For the absolute latest on any country, use our AI service.
+                                Select a country to view standard information, or use our AI agents for the latest updates.
                             </CardDescription>
                         </div>
-                         <Dialog>
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <Info className="h-4 w-4 mr-2"/>
-                                    How "Latest Intel" Works
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                    <DialogTitle>How "Latest Intel" Works</DialogTitle>
-                                     <DialogDescription>
-                                        Our AI analyst provides a real-time risk assessment for travelers. Here's our robust research process.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <ScrollArea className="max-h-[60vh] pr-4">
-                                <div className="space-y-4 text-sm py-4">
-                                     <p className="text-destructive font-semibold">Disclaimer: While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.</p>
-                                    <p><strong>1. Dual-Tiered Data Gathering:</strong> The agent first performs targeted Google searches against official government sites and reputable news outlets. If a critical web search (like for a travel advisory) fails to return recent, relevant results, the agent initiates a fallback: it directly scrapes the content from the primary government source. This ensures we always have the most critical data.</p>
-                                    <p><strong>2. Source Verification:</strong> The system prioritizes the most current information. For breaking news, it discards articles older than 30 days. For official advisories, which can be long-standing, it focuses on the latest available data from government sources, regardless of its publication date.</p>
-                                    <p><strong>3. Scoring and Analysis:</strong> The AI analyzes the verified content to assign a 0-10 severity score to each category (e.g., Political Stability, Health). "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score for maximum caution.</p>
-                                    <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a list of the key articles it used for its analysis.</p>
-                                </div>
-                                </ScrollArea>
-                            </DialogContent>
-                        </Dialog>
+                         <div className="flex items-center gap-2">
+                            <TransportIntelDialog />
+                             <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline">
+                                        <Info className="h-4 w-4 mr-2"/>
+                                        How "Latest Intel" Works
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                        <DialogTitle>How "Latest Intel" Works</DialogTitle>
+                                         <DialogDescription>
+                                            Our AI analyst provides a real-time risk assessment for travelers. Here's our robust research process.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <ScrollArea className="max-h-[60vh] pr-4">
+                                    <div className="space-y-4 text-sm py-4">
+                                         <p className="text-destructive font-semibold">Disclaimer: While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.</p>
+                                        <p><strong>1. Dual-Tiered Data Gathering:</strong> The agent first performs targeted Google searches against official government sites and reputable news outlets. If a critical web search (like for a travel advisory) fails to return recent, relevant results, the agent initiates a fallback: it directly scrapes the content from the primary government source. This ensures we always have the most critical data.</p>
+                                        <p><strong>2. Source Verification:</strong> The system prioritizes the most current information. For breaking news, it discards articles older than 30 days. For official advisories, which can be long-standing, it focuses on the latest available data from government sources, regardless of its publication date.</p>
+                                        <p><strong>3. Scoring and Analysis:</strong> The AI analyzes the verified content to assign a 0-10 severity score to each category (e.g., Political Stability, Health). "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score for maximum caution.</p>
+                                        <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a list of the key articles it used for its analysis.</p>
+                                    </div>
+                                    </ScrollArea>
+                                </DialogContent>
+                            </Dialog>
+                         </div>
                     </div>
                 </CardHeader>
                 <CardContent>
