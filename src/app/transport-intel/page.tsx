@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { getTransportDataAdmin, updateTransportDataAdmin, buildTransportData } from '@/actions/transport-admin';
 import type { CountryTransportData } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
+import Link from 'next/link';
 
 
 type BuildStatus = 'idle' | 'generating' | 'success' | 'failed';
@@ -203,91 +204,99 @@ function TransportIntelPageContent() {
                            <CardTitle>Transport Provider Database</CardTitle>
                            <CardDescription>This is the central database of curated transport providers for the app.</CardDescription>
                         </div>
-                        <Dialog open={isBuildDialogOpen} onOpenChange={setIsBuildDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button disabled={isBuilding}>
-                                    {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4" />}
-                                    Build/Update Database
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-4xl">
-                                <DialogHeader>
-                                    <DialogTitle>Build Transport Provider Database</DialogTitle>
-                                    <DialogDescription>
-                                        Select regions or countries to research. Re-selecting a country will overwrite its existing data with fresh information from the AI.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <ScrollArea className="h-[60vh]">
-                                    <div className="space-y-4 p-1">
-                                        {Object.entries(countriesByRegion).map(([region, countries]) => (
-                                            <Accordion key={region} type="single" collapsible>
-                                                <AccordionItem value={region} className="border rounded-md px-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            id={`region-checkbox-${region}`}
-                                                            className="ml-2"
-                                                            checked={countries.every(c => selectedCountries.includes(c.code))}
-                                                            onCheckedChange={(checked) => {
-                                                                const regionCodes = countries.map(c => c.code);
-                                                                if(checked) {
-                                                                    setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
-                                                                } else {
-                                                                    setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
-                                                                }
-                                                            }}
-                                                        />
-                                                        <AccordionTrigger className="hover:no-underline">
-                                                            <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full text-left">
-                                                                {region} ({countries.length})
-                                                            </Label>
-                                                        </AccordionTrigger>
-                                                    </div>
-                                                    <AccordionContent>
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4">
-                                                            {countries.map(country => {
-                                                                const buildStatus = buildStatuses[country.code];
-                                                                const dbStatus = builtCountryData.get(country.code)?.lastBuildStatus;
-
-                                                                return (
-                                                                <div key={country.code} className="flex items-center space-x-2">
-                                                                    <Checkbox 
-                                                                        id={country.code} 
-                                                                        checked={selectedCountries.includes(country.code)}
-                                                                        onCheckedChange={(checked) => {
-                                                                            setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
-                                                                        }}
-                                                                    />
-                                                                    <Label htmlFor={country.code} className="flex items-center gap-1.5 cursor-pointer">
-                                                                        {country.name}
-                                                                        {buildStatus ? (
-                                                                            buildStatus.status === 'generating' ? <LoaderCircle className="h-3 w-3 text-primary animate-spin" />
-                                                                            : buildStatus.status === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                                            : <AlertTriangle className="h-3 w-3 text-destructive" />
-                                                                        ) : dbStatus ? (
-                                                                            dbStatus === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                                            : <AlertTriangle className="h-3 w-3 text-destructive" />
-                                                                        ) : (
-                                                                             <Database className="h-3 w-3 text-muted-foreground" />
-                                                                        )}
-                                                                    </Label>
-                                                                </div>
-                                                            )})}
-                                                        </div>
-                                                    </AccordionContent>
-                                                </AccordionItem>
-                                            </Accordion>
-                                        ))}
-                                    </div>
-                                </ScrollArea>
-                                <DialogFooter>
-                                    <Button variant="ghost" onClick={() => { setIsBuildDialogOpen(false); setBuildStatuses({}); setSelectedCountries([]); }}>Close</Button>
-                                    <Button onClick={handleBuildDatabase} disabled={isBuilding || selectedCountries.length === 0}>
-                                        {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                        Build for {selectedCountries.length} Countries
+                        <div className="flex items-center gap-2">
+                           <Button asChild variant="outline">
+                                <Link href="/test-transport">
+                                    <Plane className="mr-2 h-4 w-4" />
+                                    Test Search
+                                </Link>
+                            </Button>
+                            <Dialog open={isBuildDialogOpen} onOpenChange={setIsBuildDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button disabled={isBuilding}>
+                                        {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4" />}
+                                        Build/Update Database
                                     </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl">
+                                    <DialogHeader>
+                                        <DialogTitle>Build Transport Provider Database</DialogTitle>
+                                        <DialogDescription>
+                                            Select regions or countries to research. Re-selecting a country will overwrite its existing data with fresh information from the AI.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <ScrollArea className="h-[60vh]">
+                                        <div className="space-y-4 p-1">
+                                            {Object.entries(countriesByRegion).map(([region, countries]) => (
+                                                <Accordion key={region} type="single" collapsible>
+                                                    <AccordionItem value={region} className="border rounded-md px-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                id={`region-checkbox-${region}`}
+                                                                className="ml-2"
+                                                                checked={countries.every(c => selectedCountries.includes(c.code))}
+                                                                onCheckedChange={(checked) => {
+                                                                    const regionCodes = countries.map(c => c.code);
+                                                                    if(checked) {
+                                                                        setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
+                                                                    } else {
+                                                                        setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <AccordionTrigger className="hover:no-underline">
+                                                                <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full text-left">
+                                                                    {region} ({countries.length})
+                                                                </Label>
+                                                            </AccordionTrigger>
+                                                        </div>
+                                                        <AccordionContent>
+                                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4">
+                                                                {countries.map(country => {
+                                                                    const buildStatus = buildStatuses[country.code];
+                                                                    const dbStatus = builtCountryData.get(country.code)?.lastBuildStatus;
+
+                                                                    return (
+                                                                    <div key={country.code} className="flex items-center space-x-2">
+                                                                        <Checkbox 
+                                                                            id={country.code} 
+                                                                            checked={selectedCountries.includes(country.code)}
+                                                                            onCheckedChange={(checked) => {
+                                                                                setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
+                                                                            }}
+                                                                        />
+                                                                        <Label htmlFor={country.code} className="flex items-center gap-1.5 cursor-pointer">
+                                                                            {country.name}
+                                                                            {buildStatus ? (
+                                                                                buildStatus.status === 'generating' ? <LoaderCircle className="h-3 w-3 text-primary animate-spin" />
+                                                                                : buildStatus.status === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                                                                : <AlertTriangle className="h-3 w-3 text-destructive" />
+                                                                            ) : dbStatus ? (
+                                                                                dbStatus === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                                                                : <AlertTriangle className="h-3 w-3 text-destructive" />
+                                                                            ) : (
+                                                                                 <Database className="h-3 w-3 text-muted-foreground" />
+                                                                            )}
+                                                                        </Label>
+                                                                    </div>
+                                                                )})}
+                                                            </div>
+                                                        </AccordionContent>
+                                                    </AccordionItem>
+                                                </Accordion>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                    <DialogFooter>
+                                        <Button variant="ghost" onClick={() => { setIsBuildDialogOpen(false); setBuildStatuses({}); setSelectedCountries([]); }}>Close</Button>
+                                        <Button onClick={handleBuildDatabase} disabled={isBuilding || selectedCountries.length === 0}>
+                                            {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                            Build for {selectedCountries.length} Countries
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                     </div>
                     <form className="flex items-center gap-2" onSubmit={handleSearch}>
                         <div className="relative flex-grow">
