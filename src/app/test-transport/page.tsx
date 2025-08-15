@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Search, Plane, Bus, Train, Car, Ship, FileText, Building } from 'lucide-react';
+import { LoaderCircle, Search, Plane, Bus, Train, Car, Ship, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
@@ -23,7 +23,7 @@ const transportTypeIcons: Record<string, React.ReactNode> = {
     train: <Train className="h-6 w-6 text-red-500" />,
     'ride-sharing': <Car className="h-6 w-6 text-purple-500" />,
     ferry: <Ship className="h-6 w-6 text-cyan-500" />,
-    unknown: <Building className="h-6 w-6 text-gray-400" />
+    unknown: <Car className="h-6 w-6 text-gray-400" />
 };
 
 export default function TestTransportPage() {
@@ -108,12 +108,12 @@ export default function TestTransportPage() {
                              <Card key={index}>
                                 <CardContent className="p-4 flex items-start gap-4">
                                    <div className="p-2 bg-muted rounded-md">
-                                        {transportTypeIcons[option.type] || <Building className="h-6 w-6 text-gray-400" />}
+                                        {transportTypeIcons[option.type] || <Car className="h-6 w-6 text-gray-400" />}
                                    </div>
                                     <div className="flex-1 space-y-1">
                                         <h3 className="font-semibold capitalize">{option.type} via {option.company}</h3>
-                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime === 'Not Available' ? 'Check Online' : option.estimatedTravelTime}</span></p>
-                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange === 'Not Available' ? 'Check Online' : option.typicalPriceRange}</span></p>
+                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime}</span></p>
+                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange}</span></p>
                                     </div>
                                     <Button asChild variant="outline" size="sm" disabled={!option.bookingUrl.startsWith('http')}>
                                         <a href={option.bookingUrl} target="_blank" rel="noopener noreferrer">

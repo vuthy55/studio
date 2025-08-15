@@ -20,8 +20,8 @@ import { scrapeUrlAction } from '@/actions/scraper';
 
 /**
  * Wraps the Genkit flow, providing a simple async function interface.
- * This function now performs the web search itself, scrapes the top result, 
- * and passes the full content to the AI for analysis.
+ * This function now performs multiple web searches, scrapes the top results for each,
+ * and passes the full content along with snippets to the AI for analysis.
  * It uses the pre-built transport database to perform targeted searches.
  */
 export async function discoverTransportOptions(input: DiscoverTransportOptionsInput, debugLog: string[]): Promise<DiscoverTransportOptionsOutput> {
@@ -62,19 +62,28 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   for (const query of uniqueQueries) {
       debugLog.push(`[INFO] Searching with query: "${query}"`);
       const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
+      
       if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-          const topUrl = searchResult.results[0].link;
-          debugLog.push(`[SUCCESS] Found ${searchResult.results.length} result(s) for "${query}". Scraping top result: ${topUrl}`);
-          const scrapeResult = await scrapeUrlAction(topUrl);
+          debugLog.push(`[SUCCESS] Found ${searchResult.results.length} result(s) for "${query}".`);
 
-          if (scrapeResult.success && scrapeResult.content) {
-              debugLog.push(`[SUCCESS] Scraped ${scrapeResult.content.length} characters from ${topUrl}`);
-              searchResultsText += `Content from ${topUrl} (for query "${query}"):\n`;
-              searchResultsText += `${scrapeResult.content}\n\n---\n\n`;
-          } else {
-              debugLog.push(`[WARN] Failed to scrape ${topUrl}. Using snippet instead. Error: ${scrapeResult.error}`);
-              searchResultsText += `Snippet for query "${query}":\n${searchResult.results[0].snippet}\n\n---\n\n`;
-          }
+          // Scrape the top 2 results to get richer content
+          const scrapePromises = searchResult.results.slice(0, 2).map(result => scrapeUrlAction(result.link));
+          const scrapeResults = await Promise.all(scrapePromises);
+          
+          let contentFound = false;
+          scrapeResults.forEach((scrapeResult, index) => {
+              const url = searchResult.results![index].link;
+              if (scrapeResult.success && scrapeResult.content) {
+                  debugLog.push(`[SUCCESS] Scraped ${scrapeResult.content.length} characters from ${url}`);
+                  searchResultsText += `Content from ${url} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
+                  contentFound = true;
+              } else {
+                  debugLog.push(`[WARN] Failed to scrape ${url}. Using snippet instead. Error: ${scrapeResult.error}`);
+                  // Fallback to snippet if scrape fails
+                  searchResultsText += `Snippet for query "${query}" from ${url}:\n${searchResult.results![index].snippet}\n\n---\n\n`;
+              }
+          });
+
       } else {
            debugLog.push(`[WARN] No results found for query: "${query}". Error: ${searchResult.error || 'N/A'}`);
       }
@@ -86,7 +95,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   }
   
   try {
-    debugLog.push(`[INFO] Passing ${searchResultsText.length} characters of scraped text to the AI for analysis.`);
+    debugLog.push(`[INFO] Passing ${searchResultsText.length} characters of scraped text and snippets to the AI for analysis.`);
     const result = await discoverTransportOptionsFlow({ fromCity, toCity, searchResultsText });
     debugLog.push(`[SUCCESS] AI analysis complete. Found ${result.length} transport options.`);
     return result;
@@ -104,7 +113,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
     inputSchema: z.object({
         fromCity: z.string(),
         toCity: z.string(),
-        searchResultsText: z.string().describe("The full scraped text from web search results containing transport information."),
+        searchResultsText: z.string().describe("The full scraped text from multiple web search results containing transport information."),
     }),
     outputSchema: DiscoverTransportOptionsOutputSchema,
   },
@@ -112,21 +121,24 @@ const discoverTransportOptionsFlow = ai.defineFlow(
 
     const { output } = await ai.generate({
         prompt: `
-          You are an expert travel agent. Your task is to analyze the provided web page content and extract structured information about transportation options from ${fromCity} to ${toCity}.
+          You are an expert travel agent and research analyst. Your task is to analyze the provided web page content and extract structured information about transportation options from ${fromCity} to ${toCity}.
           
-          Analyze the following web content:
+          Analyze the following research packet, which contains content scraped from multiple relevant webpages:
           ---
           ${searchResultsText}
           ---
           
-          Based ONLY on the text provided, generate a list of transport options. For each option, provide:
+          Based ONLY on the text provided, generate a list of transport options. For each option, you MUST provide:
           - The type of transport (e.g., flight, bus, train, ride-sharing, ferry).
-          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad'). If you see "e-hailing", identify if it is Grab or another service. If no specific company is explicitly mentioned for a type, set the company to 'Not Available'.
-          - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours'). If no time is found, set it to "Check Online".
-          - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD"). If no price is found, set it to "Check Online".
+          - The full name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM Berhad', 'Grab'). If you see "e-hailing", identify if it is Grab or another service.
+          - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours').
+          - A typical price range in USD. If you find a single price in a local currency (e.g., "RM 35"), do a rough conversion and present it as a small range (e.g., if RM35 is ~$8 USD, return "$8 - $10 USD").
           - A direct URL for booking if available in the text. Prioritize direct provider links over aggregators if possible.
           
-          CRITICAL: Do not make up information. If you cannot find a specific piece of information for an option, use the specified fallback values.
+          CRITICAL INSTRUCTIONS:
+          1.  DO NOT invent information. If a specific detail (like company, time, or price) is truly not present in the provided text, use "Check Online".
+          2.  **QUALITY GATE**: If you cannot find a specific company name for a transport option, DISCARD that option entirely. Do not create an entry with "Company: Not Available".
+          3.  Synthesize information. If one source mentions a price and another mentions the travel time for the same service, combine them into one complete entry.
         `,
         model: 'googleai/gemini-1.5-pro',
         output: {
