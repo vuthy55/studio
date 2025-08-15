@@ -58,14 +58,14 @@ function LoginPageContent() {
   const redirectUrl = useMemo(() => searchParams.get('redirect'), [searchParams]);
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && !isCompletingGoogleSignUp) {
       if (redirectUrl) {
         router.push(redirectUrl);
       } else {
         router.push('/learn');
       }
     }
-  }, [user, authLoading, router, redirectUrl]);
+  }, [user, authLoading, router, redirectUrl, isCompletingGoogleSignUp]);
 
   useEffect(() => {
     getAppSettingsAction().then(setSettings);
@@ -118,7 +118,11 @@ function LoginPageContent() {
   
   const handleFinalizeSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupCountry || !signupLanguage) {
+    if (!isCompletingGoogleSignUp && (!signupName || !signupEmail || !signupPassword)) {
+        toast({ variant: "destructive", title: "Missing Fields", description: "Please fill out all required fields." });
+        return;
+    }
+     if (!signupCountry || !signupLanguage) {
         toast({ variant: "destructive", title: "Missing Fields", description: "Please select your country and default language." });
         return;
     }
@@ -201,7 +205,7 @@ function LoginPageContent() {
     }
   };
   
-  if (authLoading || (!authLoading && user) || !settings) {
+  if (authLoading || (!isCompletingGoogleSignUp && user) || !settings) {
      return (
         <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
             <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
