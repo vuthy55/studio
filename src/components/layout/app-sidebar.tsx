@@ -282,7 +282,7 @@ export function AppSidebar() {
                   </>
               ) : (
                   <>
-                      <DonateButton variant="icon" />
+                      {/* Donate button is intentionally removed for logged-out users */}
                   </>
               )}
           </div>
