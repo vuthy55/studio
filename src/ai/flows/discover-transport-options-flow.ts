@@ -12,32 +12,54 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSchema, type DiscoverTransportOptionsInput, type DiscoverTransportOptionsOutput } from './types';
-
+import { getCountryTransportData } from '@/actions/transport-admin';
+import { lightweightCountries } from '@/lib/location-data';
 
 // --- Main Exported Function ---
 
 /**
  * Wraps the Genkit flow, providing a simple async function interface.
  * This function now performs the web search itself and passes the results to the AI for analysis.
- * @param input The travel query.
- * @param debugLog The array to log debugging information to.
- * @returns A promise that resolves to the structured transport options.
+ * It uses the pre-built transport database to perform targeted searches.
  */
 export async function discoverTransportOptions(input: DiscoverTransportOptionsInput, debugLog: string[]): Promise<DiscoverTransportOptionsOutput> {
   const { fromCity, toCity, country } = input;
   const apiKey = process.env.GOOGLE_API_KEY!;
   const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID!;
+  
+  const countryInfo = lightweightCountries.find(c => c.name.toLowerCase() === country.toLowerCase());
+  const transportProviders = countryInfo ? await getCountryTransportData(countryInfo.code) : null;
+  
+  debugLog.push(`[INFO] Starting transport options flow for ${fromCity} to ${toCity}, ${country}.`);
 
-  const queries = [
-      `flights from ${fromCity} to ${toCity} ${country}`,
-      `bus from ${fromCity} to ${toCity} ${country}`,
-      `train from ${fromCity} to ${toCity} ${country}`,
-      `Grab or Uber from ${fromCity} to ${toCity} ${country}`,
-      `ferry from ${fromCity} to ${toCity} ${country}`
-  ];
+  const queries: string[] = [];
+
+  // Add targeted queries for airlines if they exist
+  if (transportProviders?.regionalTransportProviders?.length) {
+    transportProviders.regionalTransportProviders.forEach(provider => {
+      queries.push(`flights from ${fromCity} to ${toCity} site:${provider}`);
+    });
+  } else {
+      queries.push(`flights from ${fromCity} to ${toCity} ${country}`);
+  }
+
+  // Add targeted queries for local providers (bus, train, etc.)
+  if (transportProviders?.localTransportProviders?.length) {
+     transportProviders.localTransportProviders.forEach(provider => {
+      queries.push(`"${fromCity} to ${toCity}" site:${provider}`);
+    });
+  }
+  
+  // Add generic fallback queries
+  queries.push(`bus from ${fromCity} to ${toCity} ${country}`);
+  queries.push(`ETS train ticket price and schedule ${fromCity} to ${toCity}`);
+  queries.push(`Grab or Uber from ${fromCity} to ${toCity} ${country}`);
+  queries.push(`ferry from ${fromCity} to ${toCity} ${country}`);
+
+  const uniqueQueries = [...new Set(queries)];
 
   let searchResultsText = "";
-  for (const query of queries) {
+  for (const query of uniqueQueries) {
       debugLog.push(`[INFO] Searching with query: "${query}"`);
       const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
       if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
@@ -58,7 +80,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   }
   
   try {
-    const result = await discoverTransportOptionsFlow({ fromCity, toCity, searchResultsText });
+    const result = await discoverTransportOptionsFlow({ fromCity, toCity, searchResultsText, debugLog });
     return result;
   } catch (error: any) {
     debugLog.push(`[CRITICAL] Flow execution failed: ${error.message}`);
@@ -75,10 +97,14 @@ const discoverTransportOptionsFlow = ai.defineFlow(
         fromCity: z.string(),
         toCity: z.string(),
         searchResultsText: z.string().describe("The raw text from web search results containing transport information."),
+        debugLog: z.custom<string[]>()
     }),
     outputSchema: DiscoverTransportOptionsOutputSchema,
   },
-  async ({ fromCity, toCity, searchResultsText }) => {
+  async ({ fromCity, toCity, searchResultsText, debugLog }) => {
+    
+    debugLog.push('[INFO] Passing search results to AI for analysis.');
+
     const { output } = await ai.generate({
         prompt: `
           You are an intelligent travel agent. Your task is to analyze the provided web search result snippets and extract structured information about transportation options from ${fromCity} to ${toCity}.
@@ -89,11 +115,11 @@ const discoverTransportOptionsFlow = ai.defineFlow(
           ---
           
           Based ONLY on the text provided, generate a list of transport options. For each option, provide:
-          - The type of transport (e.g., flight, bus, train).
-          - The name of the company or provider.
-          - An estimated travel time.
-          - A typical price range.
-          - A direct URL for booking if available in the snippets.
+          - The type of transport (e.g., flight, bus, train, ride-sharing, ferry).
+          - The name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM').
+          - An estimated travel time, including a range if possible (e.g., '1 hour', '4-5 hours').
+          - A typical price range. If you find a single price, present it as a small range (e.g., if you see "RM 35", return "$8 - $10 USD").
+          - A direct URL for booking if available in the snippets. Prioritize direct provider links over aggregators if possible.
           
           If the information for a field isn't present in the snippets for a particular option, omit that field. Do not make up information.
         `,
@@ -102,7 +128,8 @@ const discoverTransportOptionsFlow = ai.defineFlow(
             schema: DiscoverTransportOptionsOutputSchema,
         }
     });
-
+    
+    debugLog.push('[SUCCESS] AI analysis complete.');
     return output!;
   }
 );

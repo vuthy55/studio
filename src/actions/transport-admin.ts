@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -29,6 +30,40 @@ export async function getTransportDataAdmin(): Promise<CountryTransportData[]> {
         return [];
     }
 }
+
+/**
+ * Fetches the transport data for a single country by its unique country code.
+ * @param countryCode The ISO 3166-1 alpha-2 code of the country (e.g., "MY").
+ * @returns {Promise<CountryTransportData | null>}
+ */
+export async function getCountryTransportData(countryCode: string): Promise<CountryTransportData | null> {
+    try {
+        if (!countryCode) return null;
+        
+        const intelDocRef = db.collection('countryTransport').doc(countryCode);
+        const doc = await intelDocRef.get();
+
+        if (!doc.exists) {
+            return null;
+        }
+        
+        const data = doc.data();
+        if (!data) return null;
+        
+        const lastBuildAt = (data.lastBuildAt as Timestamp)?.toDate().toISOString();
+
+        return {
+            id: doc.id,
+            ...data,
+            lastBuildAt,
+        } as CountryTransportData;
+
+    } catch (error) {
+        console.error(`Error fetching transport data for ${countryCode}:`, error);
+        return null;
+    }
+}
+
 
 /**
  * Updates a specific country's transport document in Firestore.
