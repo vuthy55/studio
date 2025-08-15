@@ -18,7 +18,7 @@ export async function scrapeUrlAction(url: string): Promise<{success: boolean, c
   try {
     const { data, status } = await axios.get(url, {
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
         },
         timeout: 10000 // 10 second timeout
     });
@@ -30,7 +30,7 @@ export async function scrapeUrlAction(url: string): Promise<{success: boolean, c
     const $ = cheerio.load(data);
 
     // Remove script and style tags to clean up the text
-    $('script, style').remove();
+    $('script, style, noscript, iframe, header, footer, nav').remove();
     
     // Attempt to find a publication date
     let publishedDate: string | undefined;
@@ -57,7 +57,10 @@ export async function scrapeUrlAction(url: string): Promise<{success: boolean, c
   } catch (error: any) {
     console.error(`[Scraper] Error fetching URL ${url}:`, error.message);
     if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) {
+        if (error.response?.status === 403) {
+            return { success: false, error: 'Scraping blocked by the website (403 Forbidden). The site may be using advanced anti-bot measures.' };
+        }
+         if (error.response?.status === 404) {
             return { success: false, error: 'Failed to fetch the URL. Status: 404 Not Found' };
         }
         return { success: false, error: `Could not fetch URL. Reason: ${error.message}` };

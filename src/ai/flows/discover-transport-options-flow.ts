@@ -39,12 +39,12 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   // 1. Add targeted searches for known providers
   if (transportProviders?.regionalTransportProviders?.length) {
     transportProviders.regionalTransportProviders.forEach(provider => {
-      queries.push(`flights from ${fromCity} to ${toCity} site:${provider}`);
+      queries.push(`flights from ${fromCity} to ${toCity} schedule site:${provider}`);
     });
   }
   if (transportProviders?.localTransportProviders?.length) {
      transportProviders.localTransportProviders.forEach(provider => {
-      queries.push(`"${fromCity} to ${toCity}" site:${provider}`);
+      queries.push(`"${fromCity} to ${toCity}" tickets site:${provider}`);
     });
   }
   
