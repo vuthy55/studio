@@ -12,11 +12,12 @@ import { useToast } from '@/hooks/use-toast';
 import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
 
-const transportIcons = {
+const transportIcons: Record<string, React.ReactNode> = {
     flight: <Plane className="h-6 w-6 text-blue-500" />,
     bus: <Bus className="h-6 w-6 text-green-500" />,
     train: <Train className="h-6 w-6 text-red-500" />,
     'ride-sharing': <Car className="h-6 w-6 text-purple-500" />,
+    ferry: <Car className="h-6 w-6 text-cyan-500" />,
 };
 
 export default function TestTransportPage() {
@@ -98,7 +99,7 @@ export default function TestTransportPage() {
                              <Card key={index}>
                                 <CardContent className="p-4 flex items-start gap-4">
                                    <div className="p-2 bg-muted rounded-md">
-                                        {transportIcons[option.type]}
+                                        {transportIcons[option.type] || <Bus className="h-6 w-6 text-gray-500" />}
                                    </div>
                                     <div className="flex-1 space-y-1">
                                         <h3 className="font-semibold capitalize">{option.type} via {option.company}</h3>

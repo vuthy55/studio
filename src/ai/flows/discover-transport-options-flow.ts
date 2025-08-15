@@ -31,9 +31,9 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
 const getTransportOptionsTool = ai.defineTool(
     {
         name: 'getTransportOptions',
-        description: 'Get a list of transport options (flights, buses, trains, ride-sharing) between two cities in a specific country. Use web search to find the most relevant and up-to-date information.',
+        description: 'Get a list of transport options (flights, buses, trains, ride-sharing, ferries) between two cities in a specific country. Use web search to find the most relevant and up-to-date information.',
         inputSchema: DiscoverTransportOptionsInputSchema,
-        outputSchema: DiscoverTransportOptionsOutputSchema,
+        outputSchema: z.string().describe('A summary of search results containing snippets of information about transport options.'),
     },
     async (input) => {
         const { fromCity, toCity, country } = input;
@@ -44,7 +44,8 @@ const getTransportOptionsTool = ai.defineTool(
             `flights from ${fromCity} to ${toCity} ${country}`,
             `bus from ${fromCity} to ${toCity} ${country}`,
             `train from ${fromCity} to ${toCity} ${country}`,
-            `Grab or Uber from ${fromCity} to ${toCity} ${country}`
+            `Grab or Uber from ${fromCity} to ${toCity} ${country}`,
+            `ferry from ${fromCity} to ${toCity} ${country}`
         ];
 
         let searchResultsText = "";
@@ -73,13 +74,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
   async (input) => {
 
     const { output } = await ai.generate({
-        prompt: `Based on the provided web search results, identify the transport options for the user's query.
-        For each distinct option, provide the transportation type, the company/provider, an estimated travel time, a typical price range, and a booking URL.
-        Prioritize well-known booking sites like Skyscanner, 12go.asia, or official carrier websites.
-        Do not invent information. If no clear data is available for a transport type, omit it.
-        
-        Query: ${input.fromCity} to ${input.toCity} in ${input.country}
-        `,
+        prompt: `Find transport options between ${input.fromCity} and ${input.toCity} in ${input.country}.`,
         model: 'googleai/gemini-1.5-pro',
         tools: [getTransportOptionsTool],
         toolChoice: 'required',
