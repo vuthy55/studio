@@ -16,17 +16,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
-const getCompanyIcon = (company: string): React.ReactNode => {
-    const lowerCaseCompany = company.toLowerCase();
-    if (lowerCaseCompany.includes('airasia')) return <Image src="https://upload.wikimedia.org/wikipedia/commons/f/f5/AirAsia_New_Logo.svg" alt="AirAsia" width={24} height={24} className="rounded-full" />;
-    if (lowerCaseCompany.includes('malaysia airlines')) return <Image src="https://upload.wikimedia.org/wikipedia/commons/3/33/Malaysia_Airlines_logo.svg" alt="Malaysia Airlines" width={24} height={24} />;
-    if (lowerCaseCompany.includes('firefly')) return <Image src="https://upload.wikimedia.org/wikipedia/en/c/cb/Firefly_logo.svg" alt="Firefly" width={24} height={24}/>;
-    if (lowerCaseCompany.includes('batik air')) return <Image src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Batik_Air_logo.svg" alt="Batik Air" width={24} height={24}/>;
-    if (lowerCaseCompany.includes('singapore airlines')) return <Image src="https://upload.wikimedia.org/wikipedia/en/thumb/9/9d/Singapore_Airlines_Logo.svg/1200px-Singapore_Airlines_Logo.svg.png" alt="Singapore Airlines" width={24} height={24}/>;
-    if (lowerCaseCompany.includes('ktm') || lowerCaseCompany.includes('ets')) return <Train className="h-6 w-6 text-blue-600" />;
-    if (lowerCaseCompany.includes('bus')) return <Bus className="h-6 w-6 text-green-500" />;
-    return <Building className="h-6 w-6 text-gray-500" />;
-};
 
 const transportTypeIcons: Record<string, React.ReactNode> = {
     flight: <Plane className="h-6 w-6 text-blue-500" />,
@@ -119,12 +108,12 @@ export default function TestTransportPage() {
                              <Card key={index}>
                                 <CardContent className="p-4 flex items-start gap-4">
                                    <div className="p-2 bg-muted rounded-md">
-                                        {option.type === 'flight' ? getCompanyIcon(option.company) : transportTypeIcons[option.type]}
+                                        {transportTypeIcons[option.type] || <Building className="h-6 w-6 text-gray-400" />}
                                    </div>
                                     <div className="flex-1 space-y-1">
                                         <h3 className="font-semibold capitalize">{option.type} via {option.company}</h3>
-                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime}</span></p>
-                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange}</span></p>
+                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime !== 'Not Available' ? option.estimatedTravelTime : 'Check Online'}</span></p>
+                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange !== 'Not Available' ? option.typicalPriceRange : 'Check Online'}</span></p>
                                     </div>
                                     <Button asChild variant="outline" size="sm" disabled={!option.bookingUrl.startsWith('http')}>
                                         <a href={option.bookingUrl} target="_blank" rel="noopener noreferrer">
