@@ -288,6 +288,7 @@ function LocationIntelTab() {
 
 function TransportIntelTab() {
     const { toast } = useToast();
+    const { userProfile, settings, spendTokensForTranslation } = useUserData();
     const [fromCity, setFromCity] = useState('');
     const [toCity, setToCity] = useState('');
     const [country, setCountry] = useState('');
@@ -299,10 +300,25 @@ function TransportIntelTab() {
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!settings || !userProfile) {
+            toast({ variant: 'destructive', title: 'Error', description: 'User data or settings are not available.' });
+            return;
+        }
+
+        const cost = settings.transportIntelligenceCost ?? 10;
+        if ((userProfile.tokenBalance || 0) < cost) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${cost} tokens for this action.` });
+            return;
+        }
+
         setIsLoading(true);
         setResults([]);
         setHasSearched(true);
         try {
+            const spendSuccess = spendTokensForTranslation(`Transport search: ${fromCity} to ${toCity}`, cost);
+            if (!spendSuccess) throw new Error("Token spending failed.");
+
             const { options } = await getTransportOptionsAction({ fromCity, toCity, country });
             if (!options || options.length === 0) {
                  toast({ variant: 'default', title: 'No Results', description: 'The AI could not find any transport options for this route.' });
@@ -319,8 +335,27 @@ function TransportIntelTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Transport Intelligence</CardTitle>
-                    <CardDescription>Find the best ways to get from city to city.</CardDescription>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <CardTitle>Transport Intelligence</CardTitle>
+                            <CardDescription>Find the best ways to get from city to city.</CardDescription>
+                        </div>
+                        <Dialog>
+                             <DialogTrigger asChild>
+                                <Button variant="outline"><Info className="h-4 w-4 mr-2"/>How it Works</Button>
+                            </DialogTrigger>
+                             <DialogContent className="max-w-xl">
+                                <DialogHeader>
+                                    <DialogTitle>AI-Powered Transport Research</DialogTitle>
+                                    <DialogDescription>Our AI agent's process for finding your best route.</DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4 space-y-4 text-sm">
+                                    <p>The AI performs a series of targeted Google searches using our curated database of local airlines, bus companies, and train services for your selected country. It then scrapes the content of the top results to find details like price, duration, and booking links.</p>
+                                    <p className="font-bold text-destructive">Disclaimer: The AI is a research assistant, not a booking agent. Prices and schedules can change. Always click the "Book Now" link to verify the information on the provider's website before making any payments.</p>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </CardHeader>
                 <CardContent>
                      <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-end gap-4">
@@ -339,9 +374,14 @@ function TransportIntelTab() {
                             <Label htmlFor="toCity">To City</Label>
                             <Input id="toCity" value={toCity} onChange={(e) => setToCity(e.target.value)} required />
                         </div>
-                        <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-                            {isLoading ? <LoaderCircle className="animate-spin" /> : <Search className="mr-2" />} Search
-                        </Button>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 text-amber-500" /> {settings?.transportIntelligenceCost ?? 10}
+                            </Badge>
+                            <Button type="submit" disabled={isLoading} className="w-full">
+                                {isLoading ? <LoaderCircle className="animate-spin" /> : <Search className="mr-2" />} Search
+                            </Button>
+                        </div>
                     </form>
                 </CardContent>
             </Card>

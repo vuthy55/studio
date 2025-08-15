@@ -91,6 +91,7 @@ export default function SettingsTab() {
                         {renderNumberInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
                         {renderNumberInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
                         {renderNumberInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
+                        {renderNumberInput('transportIntelligenceCost', 'Transport Intel Cost', 'Tokens for an AI-powered transport options search.')}
                         {renderNumberInput('freeSavedPhrasesLimit', 'Free Saved Phrases Limit', 'Number of phrases a user can save for offline practice for free.')}
                     </div>
 

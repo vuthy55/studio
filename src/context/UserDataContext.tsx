@@ -21,7 +21,7 @@ import { unlockLanguagePackAction } from '@/actions/user';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'transport_intel';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -398,6 +398,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 actionType = 'language_pack_download';
              } else if (description.includes("travel intel")) {
                 actionType = 'infohub_intel';
+             } else if (description.includes("Transport search")) {
+                actionType = 'transport_intel';
              }
         } else {
             transactionCost = settings.translationCost || 1;
