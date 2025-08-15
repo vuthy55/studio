@@ -71,7 +71,7 @@ export async function signUpUser(
     console.log('[signUpUser] Step 2: Creating user in Firebase Auth...');
     const userRecord = await auth.createUser({
         email: lowerCaseEmail,
-        password: password,
+        password: password, // Password is optional and will be undefined for Google Sign-In
         displayName: name,
         photoURL: photoURL
     });

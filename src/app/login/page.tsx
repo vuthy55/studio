@@ -38,6 +38,11 @@ function LoginPageContent() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
+  // State for the multi-step Google sign-up flow
+  const [isCompletingGoogleSignUp, setIsCompletingGoogleSignUp] = useState(false);
+  const [googleUserData, setGoogleUserData] = useState<{name: string, email: string, photoURL?: string} | null>(null);
+  
+  // Standard sign-up state
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
@@ -85,56 +90,56 @@ function LoginPageContent() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check if user document already exists
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
 
-      if (!userDoc.exists()) {
-        // This is a new user, create their profile via the server action
-        await signUpUser(
-            {
-                name: user.displayName || 'New User',
-                email: user.email!,
-                photoURL: user.photoURL || undefined
-            },
-            referralId,
-            null, // No roomId for standard login/signup
-            null // No vibeId for standard login/signup
-        );
+      if (userDoc.exists()) {
+        // Existing user, let the useEffect handle redirect
+        toast({ title: "Welcome back!", description: "Logged in successfully." });
+      } else {
+        // New user, start the progressive sign-up flow
+        setGoogleUserData({
+            name: user.displayName || 'New User',
+            email: user.email!,
+            photoURL: user.photoURL || undefined
+        });
+        setIsCompletingGoogleSignUp(true);
       }
       
-      toast({ title: "Welcome!", description: "Logged in successfully." });
-      // The useEffect will handle the redirect
-
     } catch (error: any) {
       console.error("Google sign-in error", error);
-      if (error.code === 'auth/account-exists-with-different-credential') {
-        toast({ variant: "destructive", title: "Sign-in Error", description: "An account already exists with this email address. Please sign in using the original method." });
-      } else if (error.code !== 'auth/popup-closed-by-user') {
+      if (error.code !== 'auth/popup-closed-by-user') {
         toast({ variant: "destructive", title: "Error", description: error.message });
       }
     } finally {
       setIsGoogleLoading(false);
     }
   };
-
-  const handleEmailSignUp = async (e: React.FormEvent) => {
+  
+  const handleFinalizeSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signupCountry || !signupLanguage) {
-        toast({ variant: "destructive", title: "Error", description: "Please select your country and default language." });
+        toast({ variant: "destructive", title: "Missing Fields", description: "Please select your country and default language." });
         return;
     }
+    
     setIsEmailLoading(true);
+    
+    const isGoogleFlow = !!googleUserData;
+    
     try {
-       const result = await signUpUser(
-            {
-                name: signupName,
-                email: signupEmail,
-                password: signupPassword,
-                country: signupCountry,
-                mobile: signupMobile,
-                defaultLanguage: signupLanguage
-            }, 
+        const payload = {
+            name: isGoogleFlow ? googleUserData.name : signupName,
+            email: isGoogleFlow ? googleUserData.email : signupEmail,
+            password: isGoogleFlow ? undefined : signupPassword,
+            country: signupCountry,
+            mobile: signupMobile,
+            defaultLanguage: signupLanguage,
+            photoURL: isGoogleFlow ? googleUserData.photoURL : undefined
+        };
+
+        const result = await signUpUser(
+            payload, 
             referralId,
             null, // No roomId for standard login/signup
             null // No vibeId for standard login/signup
@@ -144,19 +149,25 @@ function LoginPageContent() {
             throw new Error(result.error || 'An unknown error occurred during signup.');
        }
         
-       // Manually sign in the user on the client after successful server-side creation
-       await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
+       // If it was an email sign-up, we need to manually sign the user in.
+       // For Google sign-up, they are already authenticated.
+       if (!isGoogleFlow) {
+           await signInWithEmailAndPassword(auth, signupEmail, signupPassword);
+       }
 
-       toast({ title: "Success", description: "Account created successfully." });
-       // The useEffect will handle the redirect
+       toast({ title: "Welcome to VibeSync!", description: "Your account has been created." });
+       // The main useEffect will handle redirecting the now logged-in user.
       
     } catch (error: any) {
-      console.error("Email sign-up error", error);
+      console.error("Finalize sign-up error", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
       setIsEmailLoading(false);
+      setIsCompletingGoogleSignUp(false); // Reset the flow state
+      setGoogleUserData(null);
     }
-  };
+  }
+
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +208,62 @@ function LoginPageContent() {
         </div>
     );
   }
+
+  if (isCompletingGoogleSignUp) {
+    return (
+        <div className="flex justify-center items-center min-h-screen bg-muted">
+            <Card className="w-full max-w-md">
+                <CardHeader>
+                    <CardTitle>Just one more step...</CardTitle>
+                    <CardDescription>
+                        Welcome, {googleUserData?.name}! Please confirm your details to complete your account.
+                    </CardDescription>
+                </CardHeader>
+                <form onSubmit={handleFinalizeSignUp}>
+                    <CardContent className="space-y-4">
+                        {/* Name and email are pre-filled and read-only */}
+                        <div className="space-y-2">
+                            <Label htmlFor="google-name">Name</Label>
+                            <Input id="google-name" value={googleUserData?.name} readOnly disabled />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="google-email">Email</Label>
+                            <Input id="google-email" value={googleUserData?.email} readOnly disabled />
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="signup-language-google">Default Spoken Language</Label>
+                            <Select onValueChange={(v) => setSignupLanguage(v as AzureLanguageCode)} value={signupLanguage} required>
+                                <SelectTrigger id="signup-language-google"><SelectValue placeholder="Select your language..." /></SelectTrigger>
+                                <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-country-google">Country</Label>
+                            <Select onValueChange={handleCountryChange} value={signupCountry} required>
+                                <SelectTrigger id="signup-country-google"><SelectValue placeholder="Select your country" /></SelectTrigger>
+                                <SelectContent>{countryOptions.map((country: any) => (<SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="signup-mobile-google">Mobile Number (Optional)</Label>
+                            <Input id="signup-mobile-google" type="tel" placeholder="Your phone number" value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} />
+                        </div>
+                         <div className="flex items-center justify-center gap-2 p-3 text-base font-bold text-primary bg-primary/10 rounded-lg mt-4">
+                            <Award className="h-6 w-6" />
+                            <span>You'll receive {settings?.signupBonus || '...'} tokens as a welcome bonus!</span>
+                        </div>
+                    </CardContent>
+                    <CardFooter>
+                        <Button className="w-full" type="submit" disabled={isEmailLoading}>
+                            {isEmailLoading ? <LoaderCircle className="animate-spin" /> : 'Complete Sign Up'}
+                        </Button>
+                    </CardFooter>
+                </form>
+            </Card>
+        </div>
+    );
+  }
+
 
   return (
     <div className="space-y-8">
@@ -245,7 +312,7 @@ function LoginPageContent() {
                     <CardTitle>Sign Up</CardTitle>
                     <CardDescription>Create a new account to start your journey.</CardDescription>
                     </CardHeader>
-                    <form onSubmit={handleEmailSignUp}>
+                    <form onSubmit={handleFinalizeSignUp}>
                         <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="signup-name">Name</Label>
@@ -321,4 +388,3 @@ export default function LoginPage() {
         </Suspense>
     );
 }
-
