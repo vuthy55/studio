@@ -19,11 +19,17 @@ import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSche
 /**
  * Wraps the Genkit flow, providing a simple async function interface.
  * @param input The travel query.
- * @returns A promise that resolves to the structured transport options.
+ * @returns A promise that resolves to the structured transport options and a debug log.
  */
-export async function discoverTransportOptions(input: DiscoverTransportOptionsInput): Promise<DiscoverTransportOptionsOutput> {
-  const result = await discoverTransportOptionsFlow(input);
-  return result;
+export async function discoverTransportOptions(input: DiscoverTransportOptionsInput): Promise<{ options: DiscoverTransportOptionsOutput; debugLog: string[] }> {
+  const debugLog: string[] = [];
+  try {
+    const result = await discoverTransportOptionsFlow({ ...input, debugLog });
+    return { options: result, debugLog };
+  } catch (error: any) {
+    debugLog.push(`[CRITICAL] Flow failed: ${error.message}`);
+    return { options: [], debugLog };
+  }
 }
 
 // --- Genkit Flow and Tool Definitions ---
@@ -32,11 +38,16 @@ const getTransportOptionsTool = ai.defineTool(
     {
         name: 'getTransportOptions',
         description: 'Get a list of transport options (flights, buses, trains, ride-sharing, ferries) between two cities in a specific country. Use web search to find the most relevant and up-to-date information.',
-        inputSchema: DiscoverTransportOptionsInputSchema,
+        inputSchema: z.object({
+            fromCity: z.string(),
+            toCity: z.string(),
+            country: z.string(),
+            debugLog: z.custom<string[]>()
+        }),
         outputSchema: z.string().describe('A summary of search results containing snippets of information about transport options.'),
     },
     async (input) => {
-        const { fromCity, toCity, country } = input;
+        const { fromCity, toCity, country, debugLog } = input;
         const apiKey = process.env.GOOGLE_API_KEY!;
         const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID!;
 
@@ -50,17 +61,21 @@ const getTransportOptionsTool = ai.defineTool(
 
         let searchResultsText = "";
         for (const query of queries) {
+            debugLog.push(`[INFO] Searching with query: "${query}"`);
             const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
-            if (searchResult.success && searchResult.results) {
+            if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                debugLog.push(`[SUCCESS] Found ${searchResult.results.length} results for "${query}"`);
                 searchResultsText += `Search results for "${query}":\n`;
                 searchResult.results.forEach(res => {
                     searchResultsText += `  - Title: ${res.title}\n    Link: ${res.link}\n    Snippet: ${res.snippet}\n`;
                 });
                 searchResultsText += "\n";
+            } else {
+                 debugLog.push(`[WARN] No results found for query: "${query}". Error: ${searchResult.error || 'N/A'}`);
             }
         }
         
-        return searchResultsText;
+        return searchResultsText || "No transport options found.";
     }
 );
 
@@ -68,13 +83,19 @@ const getTransportOptionsTool = ai.defineTool(
 const discoverTransportOptionsFlow = ai.defineFlow(
   {
     name: 'discoverTransportOptionsFlow',
-    inputSchema: DiscoverTransportOptionsInputSchema,
-    outputSchema: z.array(TransportOptionSchema).describe("A list of transport options found."),
+    inputSchema: z.object({
+        fromCity: z.string(),
+        toCity: z.string(),
+        country: z.string(),
+        debugLog: z.custom<string[]>()
+    }),
+    outputSchema: DiscoverTransportOptionsOutputSchema,
   },
   async (input) => {
     
+    input.debugLog.push('[INFO] Starting transport options flow.');
     const { output } = await ai.generate({
-        prompt: `Find transport options between ${input.fromCity} and ${input.toCity} in ${input.country}.`,
+        prompt: `Based on the provided search results, generate a structured list of transport options from ${input.fromCity} to ${input.toCity}.`,
         model: 'googleai/gemini-1.5-pro',
         tools: [getTransportOptionsTool],
         toolChoice: 'required',
@@ -83,6 +104,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
         }
     });
 
+    input.debugLog.push('[INFO] AI generation complete.');
     return output!;
   }
 );

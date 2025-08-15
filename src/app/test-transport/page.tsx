@@ -7,17 +7,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Search, Plane, Bus, Train, Car } from 'lucide-react';
+import { LoaderCircle, Search, Plane, Bus, Train, Car, Ship, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const transportIcons: Record<string, React.ReactNode> = {
     flight: <Plane className="h-6 w-6 text-blue-500" />,
     bus: <Bus className="h-6 w-6 text-green-500" />,
     train: <Train className="h-6 w-6 text-red-500" />,
     'ride-sharing': <Car className="h-6 w-6 text-purple-500" />,
-    ferry: <Car className="h-6 w-6 text-cyan-500" />,
+    ferry: <Ship className="h-6 w-6 text-cyan-500" />,
 };
 
 export default function TestTransportPage() {
@@ -26,23 +29,26 @@ export default function TestTransportPage() {
     const [toCity, setToCity] = useState('Penang');
     const [isLoading, setIsLoading] = useState(false);
     const [results, setResults] = useState<TransportOption[]>([]);
+    const [debugLog, setDebugLog] = useState<string[]>([]);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setResults([]);
+        setDebugLog([]);
         try {
-            const transportResults = await getTransportOptionsAction({
+            const { options, debugLog: log } = await getTransportOptionsAction({
                 fromCity,
                 toCity,
                 country: 'Malaysia'
             });
+            setDebugLog(log);
             
-            if (!transportResults || transportResults.length === 0) {
+            if (!options || options.length === 0) {
                  toast({ variant: 'default', title: 'No Results', description: 'The AI could not find any transport options for this route.' });
             }
 
-            setResults(transportResults);
+            setResults(options);
 
         } catch (error: any) {
             toast({
@@ -116,6 +122,32 @@ export default function TestTransportPage() {
                         ))}
                     </CardContent>
                 </Card>
+            )}
+
+            {debugLog.length > 0 && (
+                 <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="debug-log">
+                        <AccordionTrigger>
+                            <div className="flex items-center gap-2">
+                                <FileText />
+                                <h4 className="text-lg font-semibold">Debug Log</h4>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                           <ScrollArea className="h-72 p-4 border rounded-md bg-muted font-mono text-xs">
+                                {debugLog.map((log, index) => (
+                                    <p key={index} className={cn(
+                                        "whitespace-pre-wrap",
+                                        log.includes('[CRITICAL]') && 'text-destructive font-bold',
+                                        log.includes('[WARN]') && 'text-amber-600'
+                                        )}>
+                                        {log}
+                                    </p>
+                                ))}
+                            </ScrollArea>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             )}
         </div>
     );
