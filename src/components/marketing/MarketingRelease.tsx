@@ -76,6 +76,9 @@ export default function MarketingRelease() {
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>Beta Tester Information</DialogTitle>
+                        <DialogDescription>
+                            A guide for beta testers to understand the features and provide feedback.
+                        </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="max-h-[70vh] pr-6">
                         <BetaTesterInfo />
@@ -96,6 +99,9 @@ export default function MarketingRelease() {
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>ព័ត៌មាន​សម្រាប់​អ្នក​សាកល្បង Beta</DialogTitle>
+                         <DialogDescription>
+                            ការណែនាំ​សម្រាប់​អ្នក​សាកល្បង​ដើម្បី​យល់​ដឹង​ពី​មុខងារ និង​ផ្តល់​មតិកែលម្អ។
+                        </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="max-h-[70vh] pr-6">
                         <BetaTesterInfoKhmer />
