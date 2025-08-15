@@ -63,7 +63,7 @@ export default function MarketingRelease() {
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
         <Button asChild variant="outline" className="mt-4">
-            <Link href="/admin?tab=messaging">Beta Test (English)</Link>
+            <Link href="/admin?tab=messaging" target="_blank" rel="noopener noreferrer">Beta Test (English)</Link>
         </Button>
       </header>
 
