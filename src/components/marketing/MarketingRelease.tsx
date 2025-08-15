@@ -8,10 +8,13 @@ import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Comp
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { useUserData } from '@/context/UserDataContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
+import BetaTesterInfo from './BetaTesterInfo';
+import { ScrollArea } from '../ui/scroll-area';
+
 
 function ReferralDialog({ settings, user }: { settings: any; user: any }) {
     const { toast } = useToast();
@@ -62,9 +65,26 @@ export default function MarketingRelease() {
       <header className="text-center p-8 bg-primary/10 rounded-lg">
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
-        <Button asChild variant="outline" className="mt-4">
-            <Link href="/admin?tab=messaging" target="_blank" rel="noopener noreferrer">Beta Test (English)</Link>
-        </Button>
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button asChild variant="outline" className="mt-4">
+                    <button>Beta Test (English)</button>
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Beta Tester Information</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[70vh] pr-6">
+                    <BetaTesterInfo />
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button>Close</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
       </header>
 
       <div className="grid md:grid-cols-2 gap-8 items-center">
