@@ -16,6 +16,7 @@ import { getLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio'
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
+import { unlockLanguagePackAction } from '@/actions/user';
 
 
 // --- Types ---
@@ -47,6 +48,7 @@ interface UserDataContextType {
     loadSingleOfflinePack: (lang: LanguageCode) => Promise<void>;
     removeOfflinePack: (lang: LanguageCode | 'user_saved_phrases') => Promise<void>;
     resyncSavedPhrasesAudio: () => Promise<void>;
+    unlockLanguagePack: (lang: LanguageCode) => Promise<void>;
 }
 
 // --- Context ---
@@ -449,6 +451,46 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         return { correct, tokensEarned };
     }, [practiceHistory, settings]);
 
+    const unlockLanguagePack = useCallback(async (lang: LanguageCode) => {
+        if (!user || !settings) {
+            throw new Error("User or settings not available.");
+        }
+        const cost = settings.languageUnlockCost;
+        const currentBalance = userProfile.tokenBalance || 0;
+
+        if (currentBalance < cost) {
+            throw new Error("Insufficient tokens to unlock this language pack.");
+        }
+        
+        // Optimistic UI Update
+        setUserProfile(prev => ({
+            ...prev,
+            tokenBalance: (prev.tokenBalance || 0) - cost,
+            unlockedLanguages: [...(prev.unlockedLanguages || []), lang]
+        }));
+        
+        try {
+            const result = await unlockLanguagePackAction(user.uid, lang, cost);
+            if (!result.success) {
+                // Revert optimistic update on failure
+                setUserProfile(prev => ({
+                    ...prev,
+                    tokenBalance: (prev.tokenBalance || 0) + cost,
+                    unlockedLanguages: prev.unlockedLanguages?.filter(l => l !== lang)
+                }));
+                throw new Error(result.error || 'Server-side unlock failed.');
+            }
+        } catch (error) {
+             // Revert optimistic update on any failure
+             setUserProfile(prev => ({
+                ...prev,
+                tokenBalance: (prev.tokenBalance || 0) + cost,
+                unlockedLanguages: prev.unlockedLanguages?.filter(l => l !== lang)
+            }));
+            throw error; // Re-throw for the UI to catch
+        }
+    }, [user, settings, userProfile]);
+
     const value: UserDataContextType = {
         user,
         loading: authLoading || isDataLoading,
@@ -465,7 +507,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         updateSyncLiveUsage,
         loadSingleOfflinePack,
         removeOfflinePack,
-        resyncSavedPhrasesAudio
+        resyncSavedPhrasesAudio,
+        unlockLanguagePack,
     };
 
     return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;

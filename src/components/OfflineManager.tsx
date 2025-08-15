@@ -7,13 +7,11 @@ import { useUserData } from '@/context/UserDataContext';
 import { languages as allLanguages, offlineAudioPackLanguages, type LanguageCode } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LoaderCircle, Download, Trash2, WifiOff, Bookmark } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { LoaderCircle, Download, Trash2, WifiOff, Bookmark, Unlock } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { getOfflineMetadata } from '@/services/offline';
 import type { PackMetadata } from '@/services/offline';
 
@@ -26,7 +24,7 @@ interface DownloadablePack {
 }
 
 export default function OfflineManager() {
-  const { userProfile, offlineAudioPacks, loadSingleOfflinePack, removeOfflinePack, savedPhrases, resyncSavedPhrasesAudio } = useUserData();
+  const { userProfile, settings, offlineAudioPacks, loadSingleOfflinePack, removeOfflinePack, savedPhrases, resyncSavedPhrasesAudio, unlockLanguagePack } = useUserData();
   const { toast } = useToast();
   const [downloadablePacks, setDownloadablePacks] = useState<DownloadablePack[]>([]);
   const [isProcessing, setIsProcessing] = useState<Record<string, boolean>>({});
@@ -114,6 +112,18 @@ export default function OfflineManager() {
         setIsProcessing(prev => ({...prev, user_saved_phrases: false }));
     }
   }
+
+  const handleUnlock = async (langCode: LanguageCode) => {
+    setIsProcessing(prev => ({...prev, [langCode]: true }));
+    try {
+        await unlockLanguagePack(langCode);
+        toast({ title: "Language Unlocked!", description: `You can now download the ${allLanguages.find(l=>l.value === langCode)?.label} pack.` });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Unlock Failed', description: error.message });
+    } finally {
+        setIsProcessing(prev => ({...prev, [langCode]: false }));
+    }
+  };
   
   const formatBytes = (bytes?: number) => {
     if (bytes === undefined) return '...';
@@ -145,7 +155,9 @@ export default function OfflineManager() {
                 id="select-all-packs"
                 onCheckedChange={(checked) => {
                     if (checked) {
-                        const allDownloadable = downloadablePacks.filter(p => !p.isDownloaded && p.code !== 'user_saved_phrases').map(p => p.code as LanguageCode);
+                        const allDownloadable = downloadablePacks
+                            .filter(p => !p.isDownloaded && p.code !== 'user_saved_phrases' && userProfile?.unlockedLanguages?.includes(p.code as LanguageCode))
+                            .map(p => p.code as LanguageCode);
                         setSelectedPacks(allDownloadable);
                     } else {
                         setSelectedPacks([]);
@@ -158,7 +170,7 @@ export default function OfflineManager() {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
               {downloadablePacks.map(pack => {
                 const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
-                const cost = isUnlocked ? 0 : 100;
+                const cost = settings?.languageUnlockCost ?? 100;
                 
                 return (
                     <div key={pack.code} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2">
@@ -196,31 +208,30 @@ export default function OfflineManager() {
                                 <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
                                     {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : 'Re-sync'}
                                 </Button>
-                            ) : (
-                                !pack.isDownloaded && <p className="text-sm text-muted-foreground">{cost === 0 ? 'Free' : `${cost} tokens`}</p>
-                            )}
-                        
-                            {pack.isDownloaded ? (
+                            ) : pack.isDownloaded ? (
                                 <Button 
                                 variant="ghost" 
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleRemove(pack.code)}
+                                onClick={() => handleRemove(pack.code as LanguageCode)}
                                 disabled={isProcessing[pack.code]}
                                 >
                                 {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                                 </Button>
-                            ) : (
-                                pack.code !== 'user_saved_phrases' && (
-                                <Button 
+                            ) : isUnlocked ? (
+                                 <Button 
                                     variant="outline" 
                                     size="sm"
                                     onClick={() => handleDownload(pack.code as LanguageCode)}
-                                    disabled={!isUnlocked || isProcessing[pack.code]}
+                                    disabled={isProcessing[pack.code]}
                                 >
                                     {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
                                 </Button>
-                                )
+                            ) : (
+                                <Button size="sm" onClick={() => handleUnlock(pack.code as LanguageCode)} disabled={isProcessing[pack.code]}>
+                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin mr-2 h-4 w-4" /> : <Unlock className="mr-2 h-4 w-4" />}
+                                    {cost}
+                                </Button>
                             )}
                         </div>
                   </div>

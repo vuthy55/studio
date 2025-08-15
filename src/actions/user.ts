@@ -2,6 +2,8 @@
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { LanguageCode } from '@/lib/data';
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -79,5 +81,47 @@ export async function anonymizeAndDeactivateUser(payload: { userId: string }): P
              return { success: false, error: "This user account may have already been deleted." };
         }
         return { success: false, error: `An unexpected server error occurred: ${error.message}` };
+    }
+}
+
+
+export async function unlockLanguagePackAction(userId: string, lang: LanguageCode, cost: number): Promise<{success: boolean, error?: string}> {
+    if (!userId || !lang || cost < 0) {
+        return { success: false, error: 'Invalid arguments provided.' };
+    }
+
+    const userRef = db.collection('users').doc(userId);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) {
+                throw new Error('User not found.');
+            }
+
+            const userBalance = userDoc.data()?.tokenBalance || 0;
+            if (userBalance < cost) {
+                throw new Error('Insufficient tokens.');
+            }
+
+            // 1. Deduct cost and add language atomically
+            transaction.update(userRef, {
+                tokenBalance: FieldValue.increment(-cost),
+                unlockedLanguages: FieldValue.arrayUnion(lang)
+            });
+
+            // 2. Add to transaction log
+            const logRef = userRef.collection('transactionLogs').doc();
+            transaction.set(logRef, {
+                actionType: 'language_pack_download',
+                tokenChange: -cost,
+                timestamp: FieldValue.serverTimestamp(),
+                description: `Unlocked ${lang} language pack.`
+            });
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error unlocking language pack for user ${userId}:`, error);
+        return { success: false, error: error.message || 'A server error occurred during the transaction.' };
     }
 }
