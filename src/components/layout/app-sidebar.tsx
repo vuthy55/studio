@@ -204,14 +204,37 @@ export function AppSidebar() {
               ))}
               
               {userProfile?.role === 'admin' && (
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname?.startsWith('/admin')}>
-                        <Link href="/admin" onClick={closeSidebar}>
-                        <Settings />
-                        Admin
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
+                <Collapsible>
+                  <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                           <SidebarMenuButton className="w-full justify-between">
+                            <div className="flex items-center gap-2">
+                                <Settings />
+                                Admin
+                            </div>
+                           </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                  </SidebarMenuItem>
+                   <CollapsibleContent>
+                        <SidebarMenuSub>
+                           <SidebarMenuSubItem>
+                                <SidebarMenuSubButton asChild isActive={pathname === '/admin'}>
+                                    <Link href="/admin" onClick={closeSidebar}>Dashboard</Link>
+                                </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                             <SidebarMenuSubItem>
+                                <SidebarMenuSubButton asChild isActive={pathname === '/test-search'}>
+                                    <Link href="/test-search" onClick={closeSidebar}>Test AI Search</Link>
+                                </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                            <SidebarMenuSubItem>
+                                <SidebarMenuSubButton asChild isActive={pathname === '/test-transport'}>
+                                    <Link href="/test-transport" onClick={closeSidebar}>Test Transport AI</Link>
+                                </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                    </CollapsibleContent>
+                </Collapsible>
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>

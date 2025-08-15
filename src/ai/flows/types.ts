@@ -52,4 +52,23 @@ export const GetCityFromCoordsOutputSchema = z.object({
   country: z.string().describe('The name of the country for the given coordinates.'),
 });
 export type GetCityFromCoordsOutput = z.infer<typeof GetCityFromCoordsOutputSchema>;
-    
+
+// --- Schemas for discover-transport-options-flow ---
+export const DiscoverTransportOptionsInputSchema = z.object({
+    fromCity: z.string().describe("The starting city."),
+    toCity: z.string().describe("The destination city."),
+    country: z.string().describe("The country where the travel is taking place."),
+});
+export type DiscoverTransportOptionsInput = z.infer<typeof DiscoverTransportOptionsInputSchema>;
+
+const TransportOptionSchema = z.object({
+    type: z.enum(['flight', 'bus', 'train', 'ride-sharing']).describe("The type of transportation."),
+    company: z.string().describe("The name of the company or provider (e.g., 'AirAsia', 'Plusliner', 'KTM')."),
+    estimatedTravelTime: z.string().describe("The estimated duration of the travel (e.g., '1 hour', '4-5 hours')."),
+    typicalPriceRange: z.string().describe("A typical price range for a single ticket (e.g., '$20 - $40 USD', 'from $15 USD')."),
+    bookingUrl: z.string().url().describe("A direct URL to a booking page or a reputable search aggregator (e.g., Skyscanner, 12go.asia)."),
+});
+export type TransportOption = z.infer<typeof TransportOptionSchema>;
+
+export const DiscoverTransportOptionsOutputSchema = z.array(TransportOptionSchema).describe("A list of transport options found.");
+export type DiscoverTransportOptionsOutput = z.infer<typeof DiscoverTransportOptionsOutputSchema>;

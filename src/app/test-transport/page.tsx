@@ -1,0 +1,121 @@
+
+"use client";
+
+import React, { useState } from 'react';
+import MainHeader from '@/components/layout/MainHeader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { LoaderCircle, Search, Plane, Bus, Train, Car } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { getTransportOptionsAction } from '@/actions/transport';
+import type { TransportOption } from '@/ai/flows/types';
+
+const transportIcons = {
+    flight: <Plane className="h-6 w-6 text-blue-500" />,
+    bus: <Bus className="h-6 w-6 text-green-500" />,
+    train: <Train className="h-6 w-6 text-red-500" />,
+    'ride-sharing': <Car className="h-6 w-6 text-purple-500" />,
+};
+
+export default function TestTransportPage() {
+    const { toast } = useToast();
+    const [fromCity, setFromCity] = useState('Kuala Lumpur');
+    const [toCity, setToCity] = useState('Penang');
+    const [isLoading, setIsLoading] = useState(false);
+    const [results, setResults] = useState<TransportOption[]>([]);
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setResults([]);
+        try {
+            const transportResults = await getTransportOptionsAction({
+                fromCity,
+                toCity,
+                country: 'Malaysia'
+            });
+            
+            if (!transportResults || transportResults.length === 0) {
+                 toast({ variant: 'default', title: 'No Results', description: 'The AI could not find any transport options for this route.' });
+            }
+
+            setResults(transportResults);
+
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Search Failed',
+                description: error.message || 'An unexpected error occurred.',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8">
+            <MainHeader title="Transport Intel Test" description="A testbed for the AI transport research agent." />
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Find Transport in Malaysia</CardTitle>
+                    <CardDescription>Enter a start and end city to find transport options.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-end gap-4">
+                        <div className="space-y-2 flex-1 w-full">
+                            <Label htmlFor="fromCity">From</Label>
+                            <Input id="fromCity" value={fromCity} onChange={(e) => setFromCity(e.target.value)} required />
+                        </div>
+                        <div className="space-y-2 flex-1 w-full">
+                            <Label htmlFor="toCity">To</Label>
+                            <Input id="toCity" value={toCity} onChange={(e) => setToCity(e.target.value)} required />
+                        </div>
+                        <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : <Search className="mr-2" />}
+                            Search
+                        </Button>
+                    </form>
+                </CardContent>
+            </Card>
+
+            {isLoading && (
+                 <div className="flex justify-center items-center py-10 text-muted-foreground">
+                    <LoaderCircle className="h-8 w-8 animate-spin mr-2" />
+                    <span>AI is researching options...</span>
+                </div>
+            )}
+            
+            {results.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Results for {fromCity} to {toCity}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {results.map((option, index) => (
+                             <Card key={index}>
+                                <CardContent className="p-4 flex items-start gap-4">
+                                   <div className="p-2 bg-muted rounded-md">
+                                        {transportIcons[option.type]}
+                                   </div>
+                                    <div className="flex-1 space-y-1">
+                                        <h3 className="font-semibold capitalize">{option.type} via {option.company}</h3>
+                                        <p className="text-sm">Travel Time: <span className="font-medium">{option.estimatedTravelTime}</span></p>
+                                        <p className="text-sm">Price Range: <span className="font-medium">{option.typicalPriceRange}</span></p>
+                                    </div>
+                                    <Button asChild variant="outline" size="sm">
+                                        <a href={option.bookingUrl} target="_blank" rel="noopener noreferrer">
+                                            Book Now
+                                        </a>
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    );
+}
