@@ -69,8 +69,8 @@ export default function MarketingRelease() {
         <div className="flex items-center justify-center gap-2 mt-4">
             <Dialog>
                 <DialogTrigger asChild>
-                    <Button asChild variant="outline">
-                        <button>Beta Test (English)</button>
+                     <Button variant="outline">
+                        Beta Test (English)
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl">
@@ -92,8 +92,8 @@ export default function MarketingRelease() {
             </Dialog>
             <Dialog>
                 <DialogTrigger asChild>
-                    <Button asChild variant="outline">
-                        <button>Beta Test (Khmer)</button>
+                    <Button variant="outline">
+                        Beta Test (Khmer)
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl">
@@ -134,7 +134,7 @@ export default function MarketingRelease() {
                             <Link href="/login">Login</Link>
                         </Button>
                         <Button size="lg" variant="secondary" asChild>
-                            <Link href="/login">Register Now & Get {settings?.signupBonus || 100} Free Tokens!</Link>
+                            <Link href="/login?tab=signup">Register Now & Get {settings?.signupBonus || 100} Free Tokens!</Link>
                         </Button>
                     </>
                 )}
