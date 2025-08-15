@@ -13,16 +13,13 @@ import type { DiscoverTransportOptionsInput, TransportOption } from '@/ai/flows/
  * @returns A promise that resolves to an array of transport options and a debug log.
  */
 export async function getTransportOptionsAction(input: DiscoverTransportOptionsInput): Promise<{ options: TransportOption[]; debugLog: string[] }> {
-    // Initialize the debugLog array here at the top level.
     const debugLog: string[] = [];
     try {
-        // Pass the initialized debugLog array into the flow.
         const options = await discoverTransportOptions(input, debugLog);
         return { options, debugLog };
     } catch (error: any) {
         console.error("Critical error in getTransportOptionsAction:", error);
         debugLog.push(`[CRITICAL] Server action failed: ${error.message}`);
-        // Return the log even if the action fails.
         return { options: [], debugLog };
     }
 }
