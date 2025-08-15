@@ -13,7 +13,10 @@ import {
   SidebarMenuItem, 
   SidebarMenuButton,
   SidebarSeparator,
-  useSidebar
+  useSidebar,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
