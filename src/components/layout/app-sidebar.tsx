@@ -2,7 +2,7 @@
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon, FileText, Bus, Database } from 'lucide-react';
+import { Home, BookOpen, MessagesSquare, User, Heart, LogIn, LogOut, LoaderCircle, Share2, Shield, Coins, BarChart, Mic, RadioTower, Bell, MessageSquareQuote, AlertTriangle, PhoneOutgoing, Info, LifeBuoy, Compass, FlaskConical, Languages, MessageCircle, Settings, Users as UsersIcon, FileText, Bus, Database, Train } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { 
   Sidebar, 
@@ -209,10 +209,10 @@ export function AppSidebar() {
               {userProfile?.role === 'admin' && (
                 <>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/test-search')}>
-                      <Link href="/test-search" onClick={closeSidebar}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/test-transport')}>
+                      <Link href="/test-transport" onClick={closeSidebar}>
                         <FlaskConical />
-                        Test Search Agent
+                        Test Transport
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

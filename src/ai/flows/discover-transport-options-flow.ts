@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
-import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSchema, type DiscoverTransportOptionsInput, type DiscoverTransportOptionsOutput } from './types';
+import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSchema, type DiscoverTransportOptionsInput, type DiscoverTransportOptionsOutput, TransportOptionSchema } from './types';
 
 
 // --- Main Exported Function ---
@@ -69,10 +69,10 @@ const discoverTransportOptionsFlow = ai.defineFlow(
   {
     name: 'discoverTransportOptionsFlow',
     inputSchema: DiscoverTransportOptionsInputSchema,
-    outputSchema: DiscoverTransportOptionsOutputSchema,
+    outputSchema: z.array(TransportOptionSchema).describe("A list of transport options found."),
   },
   async (input) => {
-
+    
     const { output } = await ai.generate({
         prompt: `Find transport options between ${input.fromCity} and ${input.toCity} in ${input.country}.`,
         model: 'googleai/gemini-1.5-pro',
