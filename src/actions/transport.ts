@@ -15,6 +15,7 @@ import type { DiscoverTransportOptionsInput, TransportOption } from '@/ai/flows/
 export async function getTransportOptionsAction(input: DiscoverTransportOptionsInput): Promise<{ options: TransportOption[]; debugLog: string[] }> {
     const debugLog: string[] = [];
     try {
+        debugLog.push(`[INFO] Starting transport options flow.`);
         const options = await discoverTransportOptions(input, debugLog);
         return { options, debugLog };
     } catch (error: any) {

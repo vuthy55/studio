@@ -36,7 +36,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
 
   const queries: string[] = [];
 
-  // Always perform targeted searches if providers exist
+  // 1. Add targeted searches for known providers
   if (transportProviders?.regionalTransportProviders?.length) {
     transportProviders.regionalTransportProviders.forEach(provider => {
       queries.push(`flights from ${fromCity} to ${toCity} site:${provider}`);
@@ -48,7 +48,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
     });
   }
   
-  // Always include generic fallback queries to catch anything missed
+  // 2. Always include generic fallback queries to catch anything missed
   queries.push(`flights from ${fromCity} to ${toCity} ${country}`);
   queries.push(`bus from ${fromCity} to ${toCity} ${country}`);
   queries.push(`ETS train ticket price and schedule ${fromCity} to ${toCity}`);
@@ -137,5 +137,3 @@ const discoverTransportOptionsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    
