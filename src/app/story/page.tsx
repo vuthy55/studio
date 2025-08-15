@@ -5,7 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
-import { ArrowRight, Frown, UtensilsCrossed, Users, MessageSquare } from 'lucide-react';
+import { ArrowRight, Frown, UtensilsCrossed, Users, MessageSquare, Train } from 'lucide-react';
 import MainHeader from '@/components/layout/MainHeader';
 import { useUserData } from '@/context/UserDataContext';
 
@@ -16,6 +16,7 @@ export default function StoryPage() {
   const converseLink = user ? "/converse" : "/login";
   const connectLink = user ? "/connect" : "/login";
   const adventureLink = user ? "/connect" : "/login";
+  const intelLink = user ? "/infohub" : "/login";
 
   return (
     <div className="space-y-8">
@@ -71,20 +72,35 @@ export default function StoryPage() {
           </div>
         </div>
 
-         <div className="grid md:grid-cols-2 gap-8 items-center">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                 <MessageSquare className="h-32 w-32 text-primary/50" />
+                 <Train className="h-32 w-32 text-primary/50" />
             </div>
           </div>
           <div className="space-y-4 md:order-1">
+              <h2 className="text-3xl font-bold">The Plan: What's Next?</h2>
+              <p className="text-muted-foreground">
+                  The new friends decide to travel together to Phnom Penh. Instead of guessing, Alex opens the "Intel Hub" and uses the **Transport Intel** feature. In seconds, they see all the bus, train, and flight options, with prices and times. They book the overnight bus, saving money and a ton of stress.
+              </p>
+              <Button variant="link" asChild className="p-0 h-auto">
+                   <Link href={intelLink}>Plan with the Intel Hub <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+          </div>
+        </div>
+
+         <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="space-y-4">
               <h2 className="text-3xl font-bold">The Community: Finding Your People</h2>
               <p className="text-muted-foreground">
-                  The trip continues, but now Alex isn't just a tourist; they're part of a community. Using the "Connect" feature, they join multi-lingual "Chatz" to swap tips about secret waterfalls, and even find a "Meetup" with other VibeSync users for a night market tour in the next city. The app isn't just for translation; it's for finding your crew on the road.
+                  On the bus, the group uses the "Connect" feature. They join a public "Vibe" about Phnom Penh, swapping tips in a multi-lingual chat, and find a "Meetup" with other VibeSync users for a night market tour. The app isn't just for translation; it's for finding your crew on the road.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
                    <Link href={connectLink}>Explore the Connect Hub <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
+          </div>
+           <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
+             <MessageSquare className="h-32 w-32 text-primary/50" />
           </div>
         </div>
         

@@ -48,9 +48,10 @@ export default function BetaTesterInfo() {
             </ul>
           </li>
            <li>
-            <strong>Intel Hub:</strong> AI-powered travel advisories.
+            <strong>Intel Hub:</strong> AI-powered travel advisories and transport research.
             <ul>
-              <li>Select a country and run the "Get Latest Intel" feature. Is the resulting summary helpful and clear?</li>
+              <li><strong>Location Intel:</strong> Select a country and run the "Get Latest Intel" feature. Is the resulting safety summary helpful and clear?</li>
+              <li><strong>Transport Intel:</strong> Try to find bus, train, and flight options between two cities. Are the results accurate?</li>
             </ul>
           </li>
            <li>

@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle } from 'lucide-react';
+import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle, Train } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { useUserData } from '@/context/UserDataContext';
@@ -183,7 +183,7 @@ export default function MarketingRelease() {
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Compass className="h-12 w-12 text-primary" />
                     <h3 className="font-semibold text-lg">Intel</h3>
-                    <p className="text-sm text-muted-foreground">Get AI-powered, real-time travel and safety information for any country.</p>
+                    <p className="text-sm text-muted-foreground">Get AI-powered, real-time travel safety and transport options for any country.</p>
                 </div>
             </Link>
              <Link href={isClient && user ? "/profile?tab=buddies" : "/login"} className="block hover:scale-105 transition-transform duration-200">
