@@ -74,31 +74,31 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 
     return new Promise<PronunciationAssessmentResult>((resolve, reject) => {
         recognizer.recognizeOnceAsync(result => {
-            try {
-                if (result.reason === sdk.ResultReason.RecognizedSpeech) {
-                    const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
-                    resolve({
-                        accuracy: assessment.accuracyScore,
-                        fluency: assessment.fluencyScore,
-                        completeness: assessment.completenessScore,
-                        pronScore: assessment.pronunciationScore,
-                        isPass: assessment.accuracyScore > 70
-                    });
-                } else if (result.reason === sdk.ResultReason.NoMatch) {
-                    reject(new Error("Could not recognize speech. Please try again."));
-                } else if (result.reason === sdk.ResultReason.Canceled) {
-                    const cancellation = sdk.CancellationDetails.fromResult(result);
-                    if (cancellation.reason === sdk.CancellationReason.Error) {
-                        reject(new Error(`Recognition failed: ${cancellation.errorDetails}`));
-                    } else {
-                         reject(new Error("Recognition was aborted."));
-                    }
+            // NOTE: We do NOT call recognizer.close() here immediately.
+            // The PronunciationAssessmentResult is processed from events that can arrive
+            // slightly after the main recognition result. Closing the recognizer too early
+            // cuts off these events and prevents the score from being calculated.
+            // The recognizer object will be garbage-collected automatically.
+            if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+                const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
+                resolve({
+                    accuracy: assessment.accuracyScore,
+                    fluency: assessment.fluencyScore,
+                    completeness: assessment.completenessScore,
+                    pronScore: assessment.pronunciationScore,
+                    isPass: assessment.accuracyScore > 70
+                });
+            } else if (result.reason === sdk.ResultReason.NoMatch) {
+                reject(new Error("Could not recognize speech. Please try again."));
+            } else if (result.reason === sdk.ResultReason.Canceled) {
+                const cancellation = sdk.CancellationDetails.fromResult(result);
+                if (cancellation.reason === sdk.CancellationReason.Error) {
+                    reject(new Error(`Recognition failed: ${cancellation.errorDetails}`));
+                } else {
+                     reject(new Error("Recognition was aborted."));
                 }
-            } finally {
-                recognizer.close();
             }
         }, err => {
-            recognizer.close();
             reject(new Error(`Recognition error: ${err}`));
         });
     });
