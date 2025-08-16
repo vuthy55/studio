@@ -164,79 +164,81 @@ export default function OfflineManager() {
             />
             <Label htmlFor="select-all-packs">Select all available for download</Label>
           </div>
-          <ScrollArea className="flex-grow min-h-0">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
-              {downloadablePacks.map(pack => {
-                const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
-                const cost = settings?.languageUnlockCost ?? 100;
-                
-                return (
-                    <div key={pack.code} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2">
-                        <div className="flex items-center gap-2 flex-grow">
-                            {pack.code !== 'user_saved_phrases' ? (
-                                <Checkbox 
-                                id={pack.code}
-                                checked={selectedPacks.includes(pack.code as LanguageCode)}
-                                onCheckedChange={(checked) => {
-                                    setSelectedPacks(prev => checked ? [...prev, pack.code as LanguageCode] : prev.filter(c => c !== pack.code));
-                                }}
-                                disabled={pack.isDownloaded || !isUnlocked}
-                                />
-                            ) : (
-                                <Bookmark className="h-4 w-4 mx-2 text-primary flex-shrink-0" />
-                            )}
-                            <div className="flex flex-col">
-                                <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  {pack.phraseCount !== undefined && (
-                                      <span>{pack.phraseCount} phrases</span>
-                                  )}
-                                  {pack.isDownloaded && pack.size !== undefined && (
-                                      <>
-                                        <span>&middot;</span>
-                                        <span>{formatBytes(pack.size)}</span>
-                                      </>
-                                  )}
-                                </div>
-                            </div>
-                        </div>
+          <div className="flex-grow min-h-0">
+            <ScrollArea className="h-full">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
+                {downloadablePacks.map(pack => {
+                  const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
+                  const cost = settings?.languageUnlockCost ?? 100;
+                  
+                  return (
+                      <div key={pack.code} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2">
+                          <div className="flex items-center gap-2 flex-grow">
+                              {pack.code !== 'user_saved_phrases' ? (
+                                  <Checkbox 
+                                  id={pack.code}
+                                  checked={selectedPacks.includes(pack.code as LanguageCode)}
+                                  onCheckedChange={(checked) => {
+                                      setSelectedPacks(prev => checked ? [...prev, pack.code as LanguageCode] : prev.filter(c => c !== pack.code));
+                                  }}
+                                  disabled={pack.isDownloaded || !isUnlocked}
+                                  />
+                              ) : (
+                                  <Bookmark className="h-4 w-4 mx-2 text-primary flex-shrink-0" />
+                              )}
+                              <div className="flex flex-col">
+                                  <Label htmlFor={pack.code} className="font-medium">{pack.label}</Label>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    {pack.phraseCount !== undefined && (
+                                        <span>{pack.phraseCount} phrases</span>
+                                    )}
+                                    {pack.isDownloaded && pack.size !== undefined && (
+                                        <>
+                                          <span>&middot;</span>
+                                          <span>{formatBytes(pack.size)}</span>
+                                        </>
+                                    )}
+                                  </div>
+                              </div>
+                          </div>
 
-                        <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                            {pack.code === 'user_saved_phrases' ? (
-                                <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : 'Re-sync'}
-                                </Button>
-                            ) : pack.isDownloaded ? (
-                                <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleRemove(pack.code as LanguageCode)}
-                                disabled={isProcessing[pack.code]}
-                                >
-                                {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
-                                </Button>
-                            ) : isUnlocked ? (
-                                 <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handleDownload(pack.code as LanguageCode)}
-                                    disabled={isProcessing[pack.code]}
-                                >
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
-                                </Button>
-                            ) : (
-                                <Button size="sm" onClick={() => handleUnlock(pack.code as LanguageCode)} disabled={isProcessing[pack.code]}>
-                                    {isProcessing[pack.code] ? <LoaderCircle className="animate-spin mr-2 h-4 w-4" /> : <Unlock className="mr-2 h-4 w-4" />}
-                                    {cost}
-                                </Button>
-                            )}
-                        </div>
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
+                          <div className="flex items-center justify-end gap-2 flex-shrink-0">
+                              {pack.code === 'user_saved_phrases' ? (
+                                  <Button variant="outline" size="sm" onClick={handleResync} disabled={isProcessing[pack.code]}>
+                                      {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : 'Re-sync'}
+                                  </Button>
+                              ) : pack.isDownloaded ? (
+                                  <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleRemove(pack.code as LanguageCode)}
+                                  disabled={isProcessing[pack.code]}
+                                  >
+                                  {isProcessing[pack.code] ? <LoaderCircle className="animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                                  </Button>
+                              ) : isUnlocked ? (
+                                   <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleDownload(pack.code as LanguageCode)}
+                                      disabled={isProcessing[pack.code]}
+                                  >
+                                      {isProcessing[pack.code] ? <LoaderCircle className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
+                                  </Button>
+                              ) : (
+                                  <Button size="sm" onClick={() => handleUnlock(pack.code as LanguageCode)} disabled={isProcessing[pack.code]}>
+                                      {isProcessing[pack.code] ? <LoaderCircle className="animate-spin mr-2 h-4 w-4" /> : <Unlock className="mr-2 h-4 w-4" />}
+                                      {cost}
+                                  </Button>
+                              )}
+                          </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
