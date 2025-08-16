@@ -50,6 +50,7 @@ export type PronunciationAssessmentResult = {
 
 /**
  * Performs pronunciation assessment using the reliable recognizeOnceAsync method.
+ * This version uses a robust promise wrapper to ensure the recognizer is closed correctly.
  * @param referenceText The text to compare against.
  * @param lang The language of the text.
  * @returns {Promise<PronunciationAssessmentResult>}
@@ -64,17 +65,17 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     
     const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     
-    try {
-        const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
-            referenceText,
-            sdk.PronunciationAssessmentGradingSystem.HundredMark,
-            sdk.PronunciationAssessmentGranularity.Phoneme,
-            true
-        );
-        pronunciationConfig.applyTo(recognizer);
+    const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
+        referenceText,
+        sdk.PronunciationAssessmentGradingSystem.HundredMark,
+        sdk.PronunciationAssessmentGranularity.Phoneme,
+        true
+    );
+    pronunciationConfig.applyTo(recognizer);
 
-        return new Promise<PronunciationAssessmentResult>((resolve, reject) => {
-            recognizer.recognizeOnceAsync(result => {
+    return new Promise<PronunciationAssessmentResult>((resolve, reject) => {
+        recognizer.recognizeOnceAsync(result => {
+            try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech) {
                     const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
                     resolve({
@@ -94,15 +95,21 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
                         reject(new Error("Recognition was aborted."));
                     }
                 }
-            }, err => {
+            } catch (e) {
+                reject(e);
+            } finally {
+                // IMPORTANT: Close the recognizer inside the callback to release resources
+                // only after the final result has been processed.
+                recognizer.close();
+            }
+        }, err => {
+            try {
                 reject(new Error(`Recognition error: ${err}`));
-            });
+            } finally {
+                recognizer.close();
+            }
         });
-    } finally {
-        // This is the crucial fix: ensure the recognizer is always closed 
-        // after the operation completes (successfully or not) to release the microphone.
-        recognizer.close();
-    }
+    });
 }
 
 
@@ -144,8 +151,11 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                 recognizer.close();
             }
         }, err => {
-            recognizer.close();
-            reject(new Error(`Recognition error: ${err}`));
+            try {
+                reject(new Error(`Recognition error: ${err}`));
+            } finally {
+                recognizer.close();
+            }
         });
     });
 }
@@ -185,8 +195,11 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                 recognizer.close();
             }
         }, err => {
-            recognizer.close();
-            reject(new Error(`Auto-detect recognition error: ${err}`));
+            try {
+                reject(new Error(`Auto-detect recognition error: ${err}`));
+            } finally {
+                recognizer.close();
+            }
         });
     });
 }
