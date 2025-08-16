@@ -149,15 +149,13 @@ export default function OfflineManager() {
             To learn a new language, you must first download its language pack. Some packs are free, while others can be unlocked with tokens.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow py-4 space-y-4 overflow-hidden">
-          <div className="flex items-center space-x-2 px-1">
+        <div className="flex-grow py-4 space-y-4 overflow-hidden flex flex-col">
+          <div className="flex items-center space-x-2 px-1 flex-shrink-0">
             <Checkbox 
                 id="select-all-packs"
                 onCheckedChange={(checked) => {
                     if (checked) {
-                        const allDownloadable = downloadablePacks
-                            .filter(p => !p.isDownloaded && p.code !== 'user_saved_phrases' && userProfile?.unlockedLanguages?.includes(p.code as LanguageCode))
-                            .map(p => p.code as LanguageCode);
+                        const allDownloadable = downloadablePacks.filter(p => !p.isDownloaded && p.code !== 'user_saved_phrases' && userProfile?.unlockedLanguages?.includes(p.code as LanguageCode)).map(p => p.code as LanguageCode);
                         setSelectedPacks(allDownloadable);
                     } else {
                         setSelectedPacks([]);
@@ -166,7 +164,7 @@ export default function OfflineManager() {
             />
             <Label htmlFor="select-all-packs">Select all available for download</Label>
           </div>
-          <ScrollArea className="h-full">
+          <ScrollArea className="flex-grow min-h-0">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
               {downloadablePacks.map(pack => {
                 const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);

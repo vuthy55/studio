@@ -30,7 +30,6 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <div className="fixed top-0 left-0 right-0 h-1 bg-red-500 z-[9999]"></div>
         <UserDataProvider>
           <LanguageProvider>
             <TourProvider>
