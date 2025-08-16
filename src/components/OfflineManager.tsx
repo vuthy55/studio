@@ -149,8 +149,8 @@ export default function OfflineManager() {
             To learn a new language, you must first download its language pack. Some packs are free, while others can be unlocked with tokens.
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="flex items-center space-x-2 px-1 pt-4">
+        <div className="flex-grow overflow-hidden flex flex-col gap-4 py-4">
+          <div className="flex items-center space-x-2 px-1">
             <Checkbox 
                 id="select-all-packs"
                 onCheckedChange={(checked) => {
@@ -165,9 +165,8 @@ export default function OfflineManager() {
                 }}
             />
             <Label htmlFor="select-all-packs">Select all available for download</Label>
-        </div>
-
-        <ScrollArea className="h-[50vh]">
+          </div>
+          <ScrollArea className="flex-grow">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4 py-4">
               {downloadablePacks.map(pack => {
                 const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
@@ -240,7 +239,7 @@ export default function OfflineManager() {
               })}
             </div>
           </ScrollArea>
-        
+        </div>
         <DialogFooter>
           <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
           <Button 
