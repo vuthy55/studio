@@ -101,7 +101,7 @@ export const DiscoverEcoIntelOutputSchema = z.object({
   region: z.string().describe("The primary geopolitical region or continent the country belongs to."),
   offsettingOpportunities: z.array(z.object({
         name: z.string().describe("The name of the organization or project."),
-        url: z.string().url().describe("The direct URL to the project or organization."),
+        url: z.string().describe("The direct URL to the project or organization."),
         description: z.string().describe("A one-sentence summary of the opportunity."),
         activityType: z.enum(['tree_planting', 'coral_planting', 'recycling', 'conservation', 'other']).describe("The primary activity type."),
   })).describe("A list of local offsetting opportunities.")
@@ -126,10 +126,10 @@ export const EcoFootprintOutputSchema = z.object({
     offsetSuggestion: z.string().describe("A tangible, easy-to-understand suggestion for how the user could offset their carbon footprint."),
     localOpportunities: z.array(z.object({
         name: z.string(),
-        url: z.string().url(),
+        url: z.string(),
         description: z.string(),
         activityType: z.string(),
     })).describe("A list of local offsetting opportunities, like tree planting organizations, taken from a curated database."),
-    references: z.array(z.string().url()).describe("A list of URLs for the trusted sources used to perform the calculations."),
+    references: z.array(z.string()).describe("A list of URLs for the trusted sources used to perform the calculations."),
 });
 export type EcoFootprintOutput = z.infer<typeof EcoFootprintOutputSchema>;
