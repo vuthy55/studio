@@ -128,14 +128,16 @@ export default function AdminPageV2() {
             />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-1 md:grid-cols-none md:flex md:flex-wrap h-auto">
-                    {adminTabs.map(tab => (
-                        <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full md:w-auto flex-grow">
-                            <tab.icon className="h-5 w-5" />
-                            <span className="hidden md:inline">{tab.label}</span>
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
+                <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
+                    <TabsList>
+                        {adminTabs.map(tab => (
+                            <TabsTrigger key={tab.value} value={tab.value} className="flex-row items-center gap-2 p-2">
+                                <tab.icon className="h-5 w-5" />
+                                <span>{tab.label}</span>
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </ScrollArea>
 
                 <div className="mt-6">
                     <Suspense fallback={<LoadingFallback />}>
