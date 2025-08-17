@@ -164,7 +164,7 @@ const calculateEcoFootprintFlow = ai.defineFlow(
           *   List each calculated item in the \`breakdown\` array.
           *   Provide a clear \`methodology\` explaining the assumptions you made.
           *   Use the total footprint to suggest a simple, tangible offsetting action in \`offsetSuggestion\`. (Assume 1 tree offsets 25 kg CO2 per year).
-          *   List the trusted source websites you were told to use in the \`references\` field.
+          *   List the trusted source websites you were told to use in the \`references\` field. You MUST format each reference as a full URL (e.g., 'https://www.icao.int').
           
       **Constraint:** When searching for calculation data, you may only refer to information from these trusted sources: ${calculationSources}.
       `,
