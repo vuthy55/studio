@@ -87,3 +87,27 @@ export const DiscoverTransportProvidersOutputSchema = z.object({
   localTransportProviders: z.array(z.string()).describe("A list of 3-5 major local transport provider root URLs including trains, buses, ferries, and ride-sharing (e.g., 'ktmb.com.my', '12go.asia', 'grab.com')."),
 });
 export type DiscoverTransportProvidersOutput = z.infer<typeof DiscoverTransportProvidersOutputSchema>;
+
+
+// --- Schemas for calculate-eco-footprint-flow ---
+export const EcoFootprintInputSchema = z.object({
+    travelDescription: z.string().describe("A free-text description of the user's travel itinerary."),
+});
+export type EcoFootprintInput = z.infer<typeof EcoFootprintInputSchema>;
+
+export const EcoFootprintOutputSchema = z.object({
+    totalFootprintKgCo2: z.number().describe("The total estimated carbon footprint for the entire journey, in kilograms of CO2."),
+    breakdown: z.array(z.object({
+        item: z.string().describe("A description of the travel segment, e.g., 'Flight: KUL to REP' or 'Hotel Stay (2 nights)'."),
+        footprint: z.number().describe("The carbon footprint for this specific item in kg CO2."),
+    })).describe("An itemized list of each component of the journey and its individual carbon footprint."),
+    methodology: z.string().describe("A brief, user-friendly explanation of the assumptions made during the calculation (e.g., 'Assumed standard hotel energy usage...')."),
+    offsetSuggestion: z.string().describe("A tangible, easy-to-understand suggestion for how the user could offset their carbon footprint."),
+    localOpportunities: z.array(z.object({
+        name: z.string(),
+        url: z.string().url(),
+        snippet: z.string()
+    })).describe("A list of local offsetting opportunities, like tree planting organizations."),
+    references: z.array(z.string().url()).describe("A list of URLs for the trusted sources used to perform the calculations."),
+});
+export type EcoFootprintOutput = z.infer<typeof EcoFootprintOutputSchema>;

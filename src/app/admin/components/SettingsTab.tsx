@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon, Leaf } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -73,6 +73,18 @@ export default function SettingsTab() {
             <p className="text-sm text-muted-foreground">{description}</p>
         </div>
     );
+     const renderTextarea = (key: string, label: string, description: string) => (
+        <div className="space-y-2" key={key}>
+            <Label htmlFor={key as keyof AppSettings}>{label}</Label>
+            <Textarea
+                id={key as keyof AppSettings}
+                value={(settings as any)[key] ?? ''}
+                onChange={handleInputChange}
+                rows={3}
+            />
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+    );
     
     return (
         <Card>
@@ -90,8 +102,6 @@ export default function SettingsTab() {
                         {renderNumberInput('referralBonus', 'Referral Bonus', 'Tokens a user gets for a successful referral.')}
                         {renderNumberInput('practiceReward', 'Practice Reward', 'Tokens earned for mastering a phrase.')}
                         {renderNumberInput('practiceThreshold', 'Practice Threshold', 'Successful practices to earn reward.')}
-                        {renderNumberInput('infohubAiCost', 'InfoHub AI Cost', 'Tokens to get latest AI travel intel for one country.')}
-                        {renderNumberInput('transportIntelligenceCost', 'Transport Intel Cost', 'Tokens for an AI-powered transport options search.')}
                         {renderNumberInput('freeSavedPhrasesLimit', 'Free Saved Phrases Limit', 'Number of phrases a user can save for offline practice for free.')}
                     </div>
 
@@ -144,6 +154,14 @@ export default function SettingsTab() {
                         />
                         <p className="text-sm text-muted-foreground">These rules are shown to users before they report a Vibe. Use line breaks for separate rules.</p>
                     </div>
+                 </div>
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><Leaf className="text-primary"/> Eco-Footprint</h3>
+                    <Separator />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        {renderNumberInput('ecoFootprintCost', 'Eco-Footprint Calculation Cost', 'Token cost for one AI-powered carbon footprint calculation.')}
+                        {renderTextarea('ecoFootprintCalculationSources', 'Carbon Calculation Sources', 'Comma-separated list of trusted domains for carbon calculation (e.g. icao.int, carbonfootprint.com).')}
+                     </div>
                  </div>
 
                  <div className="flex justify-end pt-4">
