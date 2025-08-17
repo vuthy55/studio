@@ -12,6 +12,7 @@ import MainHeader from '@/components/layout/MainHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 // Dynamically import the tab components
 const RoomsTab = lazy(() => import('./components/RoomsTab'));
@@ -128,16 +129,24 @@ export default function AdminPageV2() {
             />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
-                    <TabsList>
-                        {adminTabs.map(tab => (
-                            <TabsTrigger key={tab.value} value={tab.value} className="flex-row items-center gap-2 p-2">
-                                <tab.icon className="h-5 w-5" />
-                                <span>{tab.label}</span>
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-                </ScrollArea>
+                <TooltipProvider>
+                    <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
+                        <TabsList>
+                            {adminTabs.map(tab => (
+                                <Tooltip key={tab.value}>
+                                    <TooltipTrigger asChild>
+                                        <TabsTrigger value={tab.value} className="p-2">
+                                            <tab.icon className="h-5 w-5" />
+                                        </TabsTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{tab.label}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            ))}
+                        </TabsList>
+                    </ScrollArea>
+                </TooltipProvider>
 
                 <div className="mt-6">
                     <Suspense fallback={<LoadingFallback />}>
