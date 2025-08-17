@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { getEcoIntelAdmin, updateEcoIntelAdmin, buildEcoIntelData } from '@/actions/eco-intel-admin';
 import type { CountryEcoIntel } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
@@ -256,16 +257,27 @@ export default function EcoIntelTab() {
                                                                 />
                                                                 <Label htmlFor={country.code} className="flex items-center gap-1.5 cursor-pointer">
                                                                     {country.name}
-                                                                    {buildStatus ? (
-                                                                        buildStatus.status === 'generating' ? <LoaderCircle className="h-3 w-3 text-primary animate-spin" />
-                                                                        : buildStatus.status === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                                        : <AlertTriangle className="h-3 w-3 text-destructive" />
-                                                                    ) : dbStatus ? (
-                                                                        dbStatus === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                                        : <AlertTriangle className="h-3 w-3 text-destructive" />
-                                                                    ) : (
-                                                                         <Database className="h-3 w-3 text-muted-foreground" />
-                                                                    )}
+                                                                     <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <span className="flex items-center">
+                                                                                    {buildStatus ? (
+                                                                                        buildStatus.status === 'generating' ? <LoaderCircle className="h-3 w-3 text-primary animate-spin" />
+                                                                                        : buildStatus.status === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                                                                        : <AlertTriangle className="h-3 w-3 text-destructive" />
+                                                                                    ) : dbStatus ? (
+                                                                                        dbStatus === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                                                                        : <AlertTriangle className="h-3 w-3 text-destructive" />
+                                                                                    ) : (
+                                                                                        <Database className="h-3 w-3 text-muted-foreground" />
+                                                                                    )}
+                                                                                </span>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>
+                                                                                <p>{buildStatus?.error || (dbStatus === 'failed' ? builtCountryData.get(country.code)?.lastBuildError || 'Failed' : dbStatus || 'Not built')}</p>
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
                                                                 </Label>
                                                             </div>
                                                         )})}
@@ -366,3 +378,4 @@ export default function EcoIntelTab() {
         </Card>
     );
 }
+
