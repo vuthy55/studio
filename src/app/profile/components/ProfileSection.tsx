@@ -12,7 +12,7 @@ import { resetUserPracticeHistory } from '@/actions/admin';
 import type { UserProfile as UserProfileType } from '@/lib/types';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
 import { lightweightCountries } from '@/lib/location-data';
-import { azureLanguages } from '@/lib/azure-languages';
+import { simpleLanguages } from '@/lib/simple-languages';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -164,7 +164,7 @@ export default function ProfileSection() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <ScrollArea className="h-72">
-                                        {azureLanguages.map((lang: any) => (
+                                        {simpleLanguages.map((lang: any) => (
                                             <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                         ))}
                                         </ScrollArea>

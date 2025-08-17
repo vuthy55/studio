@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { azureLanguages, type AzureLanguageCode, getAzureLanguageLabel } from '@/lib/azure-languages';
+import { simpleLanguages } from '@/lib/simple-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +20,7 @@ import useLocalStorage from '@/hooks/use-local-storage';
 import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import type { AzureLanguageCode } from '@/lib/azure-languages';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
@@ -116,12 +117,13 @@ export default function ConversePage() {
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
         
         for (const targetLangLocale of targetLanguages) {
-            const toLangLabel = getAzureLanguageLabel(targetLangLocale);
+            const fromLangLabel = simpleLanguages.find(l => l.value === detectedLang)?.label || detectedLang;
+            const toLangLabel = simpleLanguages.find(l => l.value === targetLangLocale)?.label || targetLangLocale;
             setSpeakingLanguage(toLangLabel);
             
             const translationResult = await translateText({
                 text: originalText,
-                fromLanguage: getAzureLanguageLabel(detectedLang),
+                fromLanguage: fromLangLabel,
                 toLanguage: toLangLabel,
             });
             const translatedText = translationResult.translatedText;
@@ -189,7 +191,7 @@ export default function ConversePage() {
   };
   
   const allLanguageOptions = useMemo(() => {
-    return azureLanguages.filter(l => !selectedLanguages.includes(l.value));
+    return simpleLanguages.filter(l => !selectedLanguages.includes(l.value as AzureLanguageCode));
   }, [selectedLanguages]);
 
   const formatTime = (milliseconds: number) => {
@@ -244,7 +246,7 @@ export default function ConversePage() {
                     <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg border bg-muted min-h-[4rem]">
                         {selectedLanguages.map(lang => (
                             <Badge key={lang} variant="secondary" className="text-base py-1 px-3">
-                                {getAzureLanguageLabel(lang)}
+                                {simpleLanguages.find(l => l.value === lang)?.label || lang}
                                 <button onClick={() => removeLanguage(lang)} className="ml-2 rounded-full hover:bg-destructive/20 p-0.5" disabled={status !== 'idle'}>
                                     <X className="h-3 w-3" />
                                 </button>

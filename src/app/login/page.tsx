@@ -19,10 +19,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Chrome, LoaderCircle, Award } from 'lucide-react';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
+import { simpleLanguages } from '@/lib/simple-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
 import { signUpUser } from '@/actions/auth';
+import type { AzureLanguageCode } from '@/lib/azure-languages';
 
 function LoginPageContent() {
   const router = useRouter();
@@ -221,7 +222,7 @@ function LoginPageContent() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <ScrollArea className="h-72">
-                                        {azureLanguages.map(lang => (
+                                        {simpleLanguages.map(lang => (
                                             <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                         ))}
                                     </ScrollArea>

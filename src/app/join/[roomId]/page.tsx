@@ -9,7 +9,8 @@ import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
-import { azureLanguages, type AzureLanguageCode } from '@/lib/azure-languages';
+import { simpleLanguages } from '@/lib/simple-languages';
+import type { AzureLanguageCode } from '@/lib/azure-languages';
 import type { SyncRoom, Participant } from '@/lib/types';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -191,7 +192,7 @@ export default function JoinRoomPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <ScrollArea className="h-72">
-                                        {azureLanguages.map(lang => (
+                                        {simpleLanguages.map(lang => (
                                             <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
                                         ))}
                                     </ScrollArea>
