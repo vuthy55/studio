@@ -149,8 +149,8 @@ export default function OfflineManager() {
           </DialogDescription>
         </DialogHeader>
         
-        <div className="py-4 space-y-4 flex-shrink-0">
-          <div className="flex items-center space-x-2 px-1">
+        <div className="flex-grow overflow-auto min-h-0 py-4">
+          <div className="flex items-center space-x-2 px-1 mb-4">
             <Checkbox 
                 id="select-all-packs"
                 onCheckedChange={(checked) => {
@@ -164,9 +164,6 @@ export default function OfflineManager() {
             />
             <Label htmlFor="select-all-packs">Select all available for download</Label>
           </div>
-        </div>
-        
-        <div className="flex-grow overflow-auto min-h-0">
           <ScrollArea className="h-full pr-4">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {downloadablePacks.map(pack => {
