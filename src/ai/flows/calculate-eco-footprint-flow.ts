@@ -108,8 +108,8 @@ const findLocalOffsettingOpportunities = ai.defineTool(
 
 
 // --- Main Exported Function ---
-export async function calculateEcoFootprint(input: EcoFootprintInput): Promise<EcoFootprintOutput> {
-  return calculateEcoFootprintFlow(input);
+export async function calculateEcoFootprint(input: EcoFootprintInput, debugLog: string[]): Promise<EcoFootprintOutput> {
+  return calculateEcoFootprintFlow({ ...input, debugLog });
 }
 
 
@@ -118,14 +118,17 @@ export async function calculateEcoFootprint(input: EcoFootprintInput): Promise<E
 const calculateEcoFootprintFlow = ai.defineFlow(
   {
     name: 'calculateEcoFootprintFlow',
-    inputSchema: EcoFootprintInputSchema,
+    inputSchema: EcoFootprintInputSchema.extend({ debugLog: z.custom<string[]>() }),
     outputSchema: EcoFootprintOutputSchema,
   },
-  async ({ travelDescription }) => {
+  async ({ travelDescription, debugLog }) => {
     
+    debugLog.push(`[INFO] Flow started. Fetching settings...`);
     const settings = await getAppSettingsAction();
     const calculationSources = settings.ecoFootprintCalculationSources;
-
+    debugLog.push(`[INFO] Using calculation sources: ${calculationSources}`);
+    
+    debugLog.push(`[INFO] Calling AI to analyze journey and use tools.`);
     const { output } = await ai.generate({
       prompt: `You are an expert travel carbon footprint analyst. Your task is to analyze the user's travel story and calculate their total carbon footprint in kg CO2.
 
@@ -159,6 +162,12 @@ const calculateEcoFootprintFlow = ai.defineFlow(
       },
     });
 
-    return output!;
+    if (!output) {
+      debugLog.push('[FAIL] AI generation returned a null or undefined output.');
+      throw new Error("AI failed to generate a valid response.");
+    }
+    
+    debugLog.push('[SUCCESS] AI analysis complete. Returning structured output.');
+    return output;
   }
 );

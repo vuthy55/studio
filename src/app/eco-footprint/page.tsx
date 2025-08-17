@@ -5,7 +5,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
-import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink } from 'lucide-react';
+import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +15,7 @@ import type { EcoFootprintOutput } from '@/ai/flows/types';
 import { Badge } from '@/components/ui/badge';
 import { Coins } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function EcoFootprintCalculator() {
     const { user, settings } = useUserData();
@@ -22,6 +23,7 @@ function EcoFootprintCalculator() {
     const [travelDescription, setTravelDescription] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<EcoFootprintOutput | null>(null);
+    const [debugLog, setDebugLog] = useState<string[]>([]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -32,10 +34,12 @@ function EcoFootprintCalculator() {
 
         setIsLoading(true);
         setResult(null);
+        setDebugLog([]);
 
         try {
-            const calculationResult = await calculateEcoFootprintAction({ travelDescription }, user.uid);
+            const { result: calculationResult, debugLog: log } = await calculateEcoFootprintAction({ travelDescription }, user.uid);
             setResult(calculationResult);
+            setDebugLog(log);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Calculation Failed', description: error.message });
         } finally {
@@ -83,68 +87,91 @@ function EcoFootprintCalculator() {
                 </CardContent>
             </Card>
             
-            {result && (
-                <Card className="mt-6 animate-in fade-in-50">
+            {(isLoading || result || debugLog.length > 0) && (
+                 <Card className="mt-6 animate-in fade-in-50">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Leaf className="text-green-600"/> Your Trip's Estimated Footprint</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                           {isLoading ? <LoaderCircle className="text-primary animate-spin" /> : <Leaf className="text-green-600"/>}
+                           Calculation Result
+                        </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="text-center p-6 bg-muted rounded-lg">
-                            <p className="text-lg text-muted-foreground">Total Footprint</p>
-                            <p className="text-6xl font-bold text-primary">{result.totalFootprintKgCo2.toFixed(1)}</p>
-                            <p className="text-muted-foreground">kg CO₂</p>
-                        </div>
-
-                        <div>
-                            <h3 className="font-semibold mb-2">Breakdown:</h3>
-                            <div className="space-y-2">
-                                {result.breakdown.map((item, index) => (
-                                    <div key={index} className="flex justify-between items-center p-2 bg-background rounded-md text-sm">
-                                        <span>{item.item}</span>
-                                        <span className="font-semibold">{item.footprint.toFixed(1)} kg CO₂</span>
+                        {isLoading && !result && <p className="text-center text-muted-foreground">AI agent is working...</p>}
+                        {result && (
+                            <>
+                                <div className="text-center p-6 bg-muted rounded-lg">
+                                    <p className="text-lg text-muted-foreground">Total Footprint</p>
+                                    <p className="text-6xl font-bold text-primary">{result.totalFootprintKgCo2.toFixed(1)}</p>
+                                    <p className="text-muted-foreground">kg CO₂</p>
+                                </div>
+        
+                                <div>
+                                    <h3 className="font-semibold mb-2">Breakdown:</h3>
+                                    <div className="space-y-2">
+                                        {result.breakdown.map((item, index) => (
+                                            <div key={index} className="flex justify-between items-center p-2 bg-background rounded-md text-sm">
+                                                <span>{item.item}</span>
+                                                <span className="font-semibold">{item.footprint.toFixed(1)} kg CO₂</span>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
+                                </div>
+        
+                                <Separator />
+        
+                                <div>
+                                    <h3 className="font-semibold mb-2">How to Offset:</h3>
+                                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center space-y-2">
+                                        <p className="text-lg font-medium text-green-800">{result.offsetSuggestion}</p>
+                                        {result.localOpportunities.length > 0 && (
+                                            <>
+                                                <p className="text-sm text-green-700">Here are some local opportunities the AI found:</p>
+                                                <div className="space-y-1 text-left">
+                                                    {result.localOpportunities.map(opp => (
+                                                         <a href={opp.url} target="_blank" rel="noopener noreferrer" key={opp.url} className="block p-2 rounded-md hover:bg-green-500/20">
+                                                            <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
+                                                            <p className="text-xs text-muted-foreground italic truncate">"{opp.snippet}"</p>
+                                                         </a>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+        
+                                <Separator />
+                                
+                                <div>
+                                     <h3 className="font-semibold mb-2">Methodology & Assumptions:</h3>
+                                     <p className="text-xs text-muted-foreground p-3 bg-background rounded-md whitespace-pre-wrap">{result.methodology}</p>
+                                </div>
+                                 <div>
+                                     <h3 className="font-semibold mb-2">References:</h3>
+                                     <ul className="list-disc pl-5 text-xs text-primary space-y-1">
+                                        {result.references.map(ref => (
+                                            <li key={ref}><a href={ref} target="_blank" rel="noopener noreferrer" className="hover:underline">{ref}</a></li>
+                                        ))}
+                                     </ul>
+                                </div>
+                            </>
+                        )}
 
-                        <Separator />
-
-                        <div>
-                            <h3 className="font-semibold mb-2">How to Offset:</h3>
-                            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center space-y-2">
-                                <p className="text-lg font-medium text-green-800">{result.offsetSuggestion}</p>
-                                {result.localOpportunities.length > 0 && (
-                                    <>
-                                        <p className="text-sm text-green-700">Here are some local opportunities the AI found:</p>
-                                        <div className="space-y-1 text-left">
-                                            {result.localOpportunities.map(opp => (
-                                                 <a href={opp.url} target="_blank" rel="noopener noreferrer" key={opp.url} className="block p-2 rounded-md hover:bg-green-500/20">
-                                                    <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
-                                                    <p className="text-xs text-muted-foreground italic truncate">"{opp.snippet}"</p>
-                                                 </a>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <Separator />
-                        
-                        <div>
-                             <h3 className="font-semibold mb-2">Methodology & Assumptions:</h3>
-                             <p className="text-xs text-muted-foreground p-3 bg-background rounded-md whitespace-pre-wrap">{result.methodology}</p>
-                        </div>
-                         <div>
-                             <h3 className="font-semibold mb-2">References:</h3>
-                             <ul className="list-disc pl-5 text-xs text-primary space-y-1">
-                                {result.references.map(ref => (
-                                    <li key={ref}><a href={ref} target="_blank" rel="noopener noreferrer" className="hover:underline">{ref}</a></li>
-                                ))}
-                             </ul>
-                        </div>
+                        {debugLog.length > 0 && (
+                             <Accordion type="single" collapsible>
+                                <AccordionItem value="debug-log">
+                                    <AccordionTrigger>
+                                        <h3 className="font-semibold text-sm flex items-center gap-2"><Info className="h-4 w-4"/> Debug Log</h3>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <pre className="text-xs p-4 bg-gray-900 text-white rounded-md max-h-60 overflow-auto">
+                                            {debugLog.join('\n')}
+                                        </pre>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        )}
                     </CardContent>
-                </Card>
+                 </Card>
             )}
         </div>
     )
