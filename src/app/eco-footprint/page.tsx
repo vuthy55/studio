@@ -37,9 +37,16 @@ function EcoFootprintCalculator() {
         setDebugLog([]);
 
         try {
-            const { result: calculationResult, debugLog: log } = await calculateEcoFootprintAction({ travelDescription }, user.uid);
-            setResult(calculationResult);
-            setDebugLog(log);
+            const { result: calculationResult, debugLog: log, error } = await calculateEcoFootprintAction({ travelDescription }, user.uid);
+            
+            setDebugLog(log || []);
+
+            if (error) {
+                 throw new Error(error);
+            }
+            
+            setResult(calculationResult || null);
+            
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Calculation Failed', description: error.message });
         } finally {
