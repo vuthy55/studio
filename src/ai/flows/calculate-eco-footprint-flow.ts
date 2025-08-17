@@ -60,20 +60,33 @@ const getGroundTransportCarbonData = ai.defineTool(
         name: 'get_ground_transport_carbon_data',
         description: 'Calculates the carbon footprint for ground transport like taxis, buses, or tuk-tuks based on distance.',
         inputSchema: z.object({
-            transportType: z.enum(['taxi', 'bus', 'train', 'tuk-tuk']),
+            transportType: z.string().describe("The type of ground transport used (e.g., 'taxi', 'bus', 'train', 'tuk-tuk', 'ride-share')."),
             distanceKm: z.number().describe("The estimated distance of the journey in kilometers."),
         }),
         outputSchema: z.number().describe("The estimated carbon footprint in kg CO2."),
     },
     async ({ transportType, distanceKm }) => {
-        // Factors are simplified estimates for demonstration
         const factors: Record<string, number> = {
-            'taxi': 0.15, // kg CO2 per km
-            'bus': 0.03,  // per passenger km
+            'taxi': 0.15,
+            'bus': 0.03,
             'train': 0.02,
             'tuk-tuk': 0.05
         };
-        return distanceKm * (factors[transportType] || 0.1);
+
+        const lowerCaseType = transportType.toLowerCase();
+        let factor = factors['taxi']; // Default to taxi if no match
+
+        if (lowerCaseType.includes('bus')) {
+            factor = factors['bus'];
+        } else if (lowerCaseType.includes('train')) {
+            factor = factors['train'];
+        } else if (lowerCaseType.includes('tuk-tuk') || lowerCaseType.includes('remorque')) {
+            factor = factors['tuk-tuk'];
+        } else if (lowerCaseType.includes('taxi') || lowerCaseType.includes('car') || lowerCaseType.includes('grab')) {
+            factor = factors['taxi'];
+        }
+        
+        return distanceKm * factor;
     }
 );
 
@@ -171,3 +184,4 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     return output;
   }
 );
+
