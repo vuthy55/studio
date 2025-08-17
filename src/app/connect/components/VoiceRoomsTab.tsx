@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -43,6 +44,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { requestSummaryEditAccess, updateScheduledRoom, endAndReconcileRoom, permanentlyDeleteRooms, setRoomEditability, updateRoomSummary, summarizeRoomAction, getTranscriptAction } from '@/actions/room';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { languages } from '@/lib/data';
+import { simpleLanguages } from '@/lib/simple-languages';
 import { translateSummary } from '@/ai/flows/translate-summary-flow';
 import { useUserData } from '@/context/UserDataContext';
 import { Calendar } from '@/components/ui/calendar';
@@ -715,10 +717,8 @@ export default function VoiceRoomsTab() {
                 }
             }
             
-            if (!startNow) {
-                fetchInvitedRooms();
-                setActiveMainTab('your-rooms');
-            }
+            fetchInvitedRooms();
+            setActiveMainTab('your-rooms');
 
         } catch (error) {
             console.error("Error submitting room:", error);
@@ -729,17 +729,7 @@ export default function VoiceRoomsTab() {
     };
     
      const handleGenerateSummary = async (roomId: string) => {
-        if (!user) return;
-        setIsSummarizing(roomId);
-        try {
-            await summarizeRoomAction(roomId, user.uid);
-            toast({ title: 'Summary Generating', description: 'The AI is creating your summary. It will appear here shortly.' });
-            fetchInvitedRooms(); // Re-fetch to update the room data
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to start summary generation.' });
-        } finally {
-            setIsSummarizing(null);
-        }
+        // This functionality is now handled by a dialog in renderRoomList
     };
 
     const { active, scheduled, closed } = useMemo(() => {
@@ -838,14 +828,10 @@ export default function VoiceRoomsTab() {
                                         <Button
                                             variant="secondary"
                                             size="sm"
-                                            onClick={() => handleGenerateSummary(room.id)}
-                                            disabled={isSummarizing !== null}
+                                            onClick={() => {}}
+                                            disabled={true}
                                         >
-                                            {isSummarizing === room.id ? (
-                                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                                            ) : (
-                                                <Wand2 className="mr-2 h-4 w-4" />
-                                            )}
+                                           <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                                             Generate Summary
                                         </Button>
                                     )}
@@ -965,7 +951,7 @@ export default function VoiceRoomsTab() {
                           <SelectTrigger id="language">
                             <SelectValue placeholder="Select language..." />
                           </SelectTrigger>
-                          <SelectContent><ScrollArea className="h-72">{azureLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
+                          <SelectContent><ScrollArea className="h-72">{simpleLanguages.map(lang => (<SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>))}</ScrollArea></SelectContent>
                         </Select>
                       </div>
                     )}
