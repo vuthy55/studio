@@ -7,6 +7,8 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import { lightweightCountries } from '@/lib/location-data';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { searchWebAction } from '@/actions/search';
+import { scrapeUrlAction } from '@/actions/scraper';
 
 
 /**
@@ -56,20 +58,46 @@ interface BuildResult {
 
 /**
  * Builds or updates the eco-intel database for a given list of country codes.
+ * This function now uses the robust search-scrape-analyze pattern.
  */
 export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<{ success: boolean; results: BuildResult[] }> {
     if (!countryCodesToBuild || countryCodesToBuild.length === 0) {
         return { success: false, results: [] };
     }
-
+    
+    const apiKey = process.env.GOOGLE_API_KEY!;
+    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID!;
     const collectionRef = db.collection('countryEcoIntel');
     const countriesToProcess = lightweightCountries.filter(c => countryCodesToBuild.includes(c.code));
     
     const buildPromises = countriesToProcess.map(async (country): Promise<BuildResult> => {
         const docRef = collectionRef.doc(country.code);
         try {
-            console.log(`[Eco Intel Builder] Discovering data for ${country.name}...`);
-            const ecoData = await discoverEcoIntel({ countryName: country.name });
+            console.log(`[Eco Intel Builder] Stage 1: Searching for ${country.name}...`);
+            const searchQuery = `"carbon offset projects" OR "environmental volunteer" in ${country.name}`;
+            const searchResult = await searchWebAction({ query: searchQuery, apiKey, searchEngineId });
+
+            if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
+                throw new Error(`No web search results found for query: ${searchQuery}. Error: ${searchResult.error || 'N/A'}`);
+            }
+            
+            console.log(`[Eco Intel Builder] Stage 2: Scraping top results for ${country.name}...`);
+            const scrapePromises = searchResult.results.slice(0, 3).map(result => scrapeUrlAction(result.link));
+            const scrapeResults = await Promise.all(scrapePromises);
+            
+            let searchResultsText = "";
+            scrapeResults.forEach((scrapeResult, index) => {
+                if (scrapeResult.success && scrapeResult.content) {
+                    searchResultsText += `Content from ${searchResult.results![index].link}:\n${scrapeResult.content}\n\n---\n\n`;
+                }
+            });
+
+            if (!searchResultsText.trim()) {
+                throw new Error('Could not scrape any meaningful content from top search results.');
+            }
+
+            console.log(`[Eco Intel Builder] Stage 3: Analyzing content for ${country.name}...`);
+            const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText });
             
             if (ecoData && ecoData.countryName) {
                 await docRef.set({
@@ -81,7 +109,7 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
                 });
                 return { status: 'success', countryCode: country.code, countryName: country.name };
             } else {
-                 throw new Error(`AI failed to return sufficient data.`);
+                 throw new Error(`AI failed to return sufficient data after analysis.`);
             }
         } catch (error: any) {
             console.error(`[Eco Intel Builder] Error processing ${country.name}:`, error);

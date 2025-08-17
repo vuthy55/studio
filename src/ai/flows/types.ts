@@ -91,7 +91,8 @@ export type DiscoverTransportProvidersOutput = z.infer<typeof DiscoverTransportP
 
 // --- Schemas for discover-eco-intel-flow ---
 export const DiscoverEcoIntelInputSchema = z.object({
-    countryName: z.string().describe('The full, official name of the country to research.'),
+    countryName: z.string().describe('The country to research.'),
+    searchResultsText: z.string().describe('The scraped text content from web search results to be analyzed.'),
 });
 export type DiscoverEcoIntelInput = z.infer<typeof DiscoverEcoIntelInputSchema>;
 
@@ -103,7 +104,7 @@ export const DiscoverEcoIntelOutputSchema = z.object({
         url: z.string().url().describe("The direct URL to the project or organization."),
         description: z.string().describe("A one-sentence summary of the opportunity."),
         activityType: z.enum(['tree_planting', 'coral_planting', 'recycling', 'conservation', 'other']).describe("The primary activity type."),
-  })).describe("A list of 3-5 local offsetting opportunities.")
+  })).describe("A list of local offsetting opportunities.")
 });
 export type DiscoverEcoIntelOutput = z.infer<typeof DiscoverEcoIntelOutputSchema>;
 
