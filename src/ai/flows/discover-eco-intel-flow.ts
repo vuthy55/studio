@@ -5,7 +5,8 @@
  * @fileOverview A Genkit flow to discover and structure eco-intelligence data for a given country.
  *
  * This flow acts as a research agent. Given a country name, it uses a large language model
- * to find reputable carbon calculation sources and local offsetting opportunities.
+ * to find local offsetting opportunities. This flow no longer searches for calculation sources,
+ * as those are now managed globally in AppSettings.
  *
  * This flow is designed to be called by an administrative function ("database builder") to
  * programmatically populate a knowledge base (Firestore) with high-quality, structured data.
@@ -42,12 +43,12 @@ const discoverEcoIntelFlow = ai.defineFlow(
       prompt: `
         You are an environmental research assistant. Your task is to populate a database with eco-intelligence for travelers for the country "${countryName}".
 
-        1.  **calculationSources**: Find 2-3 globally recognized and authoritative websites for calculating travel-related carbon footprints (flights, transport, etc.). Examples include government agencies, IGOs like ICAO, or well-regarded environmental organizations. Provide only the root domain (e.g., "carbonfootprint.com").
+        You ONLY need to research and provide the following information:
         
-        2.  **offsettingOpportunities**: Find 3-5 specific, reputable organizations or projects within "${countryName}" that offer environmental volunteer opportunities or carbon offsetting programs. For each, provide:
+        1.  **offsettingOpportunities**: Find 3-5 specific, reputable organizations or projects within "${countryName}" that offer environmental volunteer opportunities or carbon offsetting programs. For each, provide:
             *   **name**: The official name of the organization or project.
             *   **url**: The direct URL to their homepage or volunteer page.
-            *   **description**: A one-sentence summary of their mission or the type of work they do.
+            *   **description**: A one-sentence summary of their mission or the type of work they do (e.g., "Reforestation projects in the northern highlands", "Marine conservation and coral planting initiatives").
             *   **activityType**: Categorize the main activity as one of: 'tree_planting', 'coral_planting', 'recycling', 'conservation', 'other'.
       `,
       model: 'googleai/gemini-1.5-pro',

@@ -13,6 +13,7 @@ import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { EcoFootprintInputSchema, EcoFootprintOutputSchema, type EcoFootprintInput, type EcoFootprintOutput } from './types';
 import { db } from '@/lib/firebase-admin';
+import { getAppSettingsAction } from '@/actions/settings';
 
 // --- Genkit Tools ---
 
@@ -104,7 +105,8 @@ const calculateEcoFootprintFlow = ai.defineFlow(
   },
   async ({ travelDescription, destinationCountryCode, debugLog }) => {
     
-    debugLog.push(`[INFO] Flow started. Fetching Eco Intel for country: ${destinationCountryCode}`);
+    debugLog.push(`[INFO] Flow started. Fetching settings and Eco Intel for country: ${destinationCountryCode}`);
+    const appSettings = await getAppSettingsAction();
     const ecoIntelRef = db.collection('countryEcoIntel').doc(destinationCountryCode);
     const ecoIntelDoc = await ecoIntelRef.get();
     
@@ -112,9 +114,11 @@ const calculateEcoFootprintFlow = ai.defineFlow(
         throw new Error(`Eco-intelligence data for country code "${destinationCountryCode}" has not been built yet. Please ask an administrator to build it.`);
     }
     const ecoIntelData = ecoIntelDoc.data();
-    const calculationSources = ecoIntelData?.calculationSources || [];
+    const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     const offsettingOpportunities = ecoIntelData?.offsettingOpportunities || [];
-    debugLog.push(`[INFO] Using ${calculationSources.length} calculation sources and found ${offsettingOpportunities.length} offsetting opportunities from the database.`);
+
+    debugLog.push(`[INFO] Using ${calculationSources.length} global calculation sources.`);
+    debugLog.push(`[INFO] Found ${offsettingOpportunities.length} local offsetting opportunities from the database.`);
     
     debugLog.push(`[INFO] Calling AI to analyze journey and use tools.`);
     const { output } = await ai.generate({
@@ -138,7 +142,7 @@ const calculateEcoFootprintFlow = ai.defineFlow(
           *   List each calculated item in the \`breakdown\` array.
           *   Provide a clear \`methodology\` explaining the assumptions you made.
           *   Use the total footprint to suggest a simple, tangible offsetting action in \`offsetSuggestion\`. (Assume 1 tree offsets 25 kg CO2 per year).
-          *   List the trusted source websites you were told to use in the \`references\` field. You MUST format each reference as a full URL (e.g., 'https://www.icao.int').
+          *   List the trusted source websites you were told to use in the \`references\` field. You MUST format each reference as a full, valid URL (e.g., 'https://www.icao.int').
           *   Populate the \`localOpportunities\` field with the curated list of opportunities provided below.
       
       **Constraint:** When searching for calculation data, you may only refer to information from these trusted sources: ${calculationSources.join(', ')}.

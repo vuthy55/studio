@@ -155,9 +155,7 @@ export default function EcoIntelTab() {
         setEditState(prev => {
             const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
 
-            if (field === 'calculationSources') {
-                newCountryState.calculationSources = value.split(',').map((s: string) => s.trim()).filter(Boolean);
-            } else if (field === 'offsettingOpportunities' && oppIndex !== undefined) {
+            if (field === 'offsettingOpportunities' && oppIndex !== undefined) {
                 const newOpps = [...(newCountryState.offsettingOpportunities || [])];
                 newOpps[oppIndex] = { ...newOpps[oppIndex], ...value };
                 newCountryState.offsettingOpportunities = newOpps;
@@ -200,7 +198,7 @@ export default function EcoIntelTab() {
                 <div className="flex justify-between items-start mb-4">
                     <div>
                        <CardTitle>Eco-Intel Database</CardTitle>
-                       <CardDescription>Manage curated environmental data for the Eco-Footprint calculator.</CardDescription>
+                       <CardDescription>Manage curated environmental data for the Eco-Footprint calculator. Carbon calculation sources are managed globally in App Settings.</CardDescription>
                     </div>
                     <Dialog open={isBuildDialogOpen} onOpenChange={setIsBuildDialogOpen}>
                         <DialogTrigger asChild>
@@ -213,7 +211,7 @@ export default function EcoIntelTab() {
                             <DialogHeader>
                                 <DialogTitle>Build Eco-Intel Database</DialogTitle>
                                 <DialogDescription>
-                                    Select regions or countries to research. Re-selecting a country will overwrite its existing data with fresh information from the AI.
+                                    Select regions or countries to research. The AI will find local offsetting opportunities. Re-selecting a country will overwrite its existing data.
                                 </DialogDescription>
                             </DialogHeader>
                             <ScrollArea className="h-[60vh]">
@@ -324,16 +322,6 @@ export default function EcoIntelTab() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="px-4 pb-4 space-y-6">
-                                            <div>
-                                                <Label htmlFor={`sources-${country.id}`} className="font-semibold">Carbon Calculation Sources</Label>
-                                                <Textarea
-                                                    id={`sources-${country.id}`}
-                                                    value={currentData.calculationSources?.join(', ') ?? ''}
-                                                    onChange={(e) => handleCellChange(country.id, 'calculationSources', e.target.value)}
-                                                    className="text-xs mt-1"
-                                                    placeholder="Comma-separated URLs (e.g. icao.int)"
-                                                />
-                                            </div>
                                             <div>
                                                 <h4 className="font-semibold mb-2">Offsetting Opportunities</h4>
                                                 <div className="space-y-4">

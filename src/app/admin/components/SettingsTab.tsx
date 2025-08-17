@@ -118,7 +118,6 @@ export default function SettingsTab() {
                         {renderNumberInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
                         {renderNumberInput('transcriptCost', 'Transcript Generation Cost', 'Token cost to generate and download a meeting transcript.')}
                         {renderNumberInput('ecoFootprintCost', 'Eco-Footprint Calculation Cost', 'Token cost for one AI-powered carbon footprint calculation.')}
-
                     </div>
 
                     <div className="space-y-6">
@@ -164,6 +163,7 @@ export default function SettingsTab() {
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                         {renderTextarea('infohubGovernmentAdvisorySources', 'Government Advisory Sources', 'Comma-separated list of official government travel advisory sites.')}
                         {renderTextarea('infohubGlobalNewsSources', 'Global News Sources', 'Comma-separated list of major global news outlets.')}
+                        {renderTextarea('ecoFootprintCalculationSources', 'Eco-Footprint Calculation Sources', 'Comma-separated list of trusted global carbon footprint calculator websites.')}
                      </div>
                  </div>
 
