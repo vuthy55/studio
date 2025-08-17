@@ -6,7 +6,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LoaderCircle, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2, MessageSquare, LineChart, Trash2, AlertTriangle, Train } from "lucide-react";
+import { LoaderCircle, RadioTower, Users, Settings, Coins, MessageSquareQuote, Info, BellOff, Music, RefreshCw, LifeBuoy, Webhook, Globe, Bot, ChevronRight, Database, CheckCircle2, MessageSquare, LineChart, Trash2, AlertTriangle, Train, Leaf } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MainHeader from '@/components/layout/MainHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
@@ -26,6 +26,7 @@ const BulkActionsTab = lazy(() => import('./components/BulkActionsTab'));
 const MessagingTab = lazy(() => import('./components/MessagingTab'));
 const ReportsTab = lazy(() => import('./components/ReportsTab'));
 const TransportTab = lazy(() => import('./components/TransportTab'));
+const EcoIntelTab = lazy(() => import('./components/EcoIntelTab'));
 
 
 const LoadingFallback = () => (
@@ -42,6 +43,7 @@ const adminFeatureDescriptions = [
     { icon: Settings, title: "App Settings", description: "Configure global application settings, including the token economy, feature costs, and community rules." },
     { icon: Globe, title: "Intel", description: "Manage the AI data sources and the country intelligence database used by the InfoHub feature." },
     { icon: Train, title: "Transport", description: "Manage the AI data sources for transportation providers in each country." },
+    { icon: Leaf, title: "Eco-Intel", description: "Manage the database for eco-friendly offsetting opportunities and carbon calculation sources." },
     { icon: LineChart, title: "Financial", description: "View the central ledger of all real-money transactions (e.g., PayPal purchases and donations) for auditing." },
     { icon: Coins, title: "Tokens", description: "Analyze the token economy, view the system-wide token transaction ledger, and manually issue tokens to users." },
     { icon: Music, title: "Language Packs", description: "Generate and manage offline audio packs for different languages and configure which packs are free for users." },
@@ -109,6 +111,7 @@ export default function AdminPageV2() {
         { value: 'settings', label: 'App Settings', icon: Settings, component: <SettingsTab /> },
         { value: 'intel', label: 'Intel', icon: Globe, component: <IntelTab /> },
         { value: 'transport', label: 'Transport', icon: Train, component: <TransportTab /> },
+        { value: 'eco-intel', label: 'Eco-Intel', icon: Leaf, component: <EcoIntelTab /> },
         { value: 'financial', label: 'Financial', icon: LineChart, component: <FinancialTab /> },
         { value: 'tokens', label: 'Tokens', icon: Coins, component: <TokensTab /> },
         { value: 'language-packs', label: 'Language Packs', icon: Music, component: <LanguagePacksTab /> },
@@ -125,9 +128,9 @@ export default function AdminPageV2() {
             />
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="grid w-full grid-cols-6 md:grid-cols-12 h-auto">
+                <TabsList className="grid w-full grid-cols-1 md:grid-cols-none md:flex md:flex-wrap h-auto">
                     {adminTabs.map(tab => (
-                        <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full">
+                        <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 p-2 h-full md:w-auto flex-grow">
                             <tab.icon className="h-5 w-5" />
                             <span className="hidden md:inline">{tab.label}</span>
                         </TabsTrigger>

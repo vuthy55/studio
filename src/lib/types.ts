@@ -160,7 +160,7 @@ export type VibePost = {
 
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'transport_intel' | 'save_phrase_spend' | 'transcript_generation';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'transport_intel' | 'save_phrase_spend' | 'transcript_generation' | 'eco_footprint_spend';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
@@ -322,6 +322,22 @@ export interface CountryTransportData {
     region: string;
     regionalTransportProviders: string[]; // e.g., airasia.com, singaporeair.com
     localTransportProviders: string[]; // e.g., ktmb.com.my, 12go.asia, grab.com
+    lastBuildStatus?: 'success' | 'failed';
+    lastBuildError?: string | null;
+    lastBuildAt?: string;
+}
+
+export interface CountryEcoIntel {
+    id: string; // country code, e.g. 'KH'
+    countryName: string;
+    region: string;
+    calculationSources: string[];
+    offsettingOpportunities: {
+        name: string;
+        url: string;
+        description: string;
+        activityType: 'tree_planting' | 'coral_planting' | 'recycling' | 'conservation' | 'other';
+    }[];
     lastBuildStatus?: 'success' | 'failed';
     lastBuildError?: string | null;
     lastBuildAt?: string;

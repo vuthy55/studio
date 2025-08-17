@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 export const TranslateTextInputSchema = z.object({
@@ -88,10 +89,30 @@ export const DiscoverTransportProvidersOutputSchema = z.object({
 });
 export type DiscoverTransportProvidersOutput = z.infer<typeof DiscoverTransportProvidersOutputSchema>;
 
+// --- Schemas for discover-eco-intel-flow ---
+export const DiscoverEcoIntelInputSchema = z.object({
+    countryName: z.string().describe('The full, official name of the country to research.'),
+});
+export type DiscoverEcoIntelInput = z.infer<typeof DiscoverEcoIntelInputSchema>;
+
+export const DiscoverEcoIntelOutputSchema = z.object({
+  countryName: z.string().describe("The official name of the country, matching the input."),
+  region: z.string().describe("The primary geopolitical region or continent the country belongs to."),
+  calculationSources: z.array(z.string().url()).describe("A list of 2-3 authoritative root URLs for carbon calculation."),
+  offsettingOpportunities: z.array(z.object({
+        name: z.string().describe("The name of the organization or project."),
+        url: z.string().url().describe("The direct URL to the project or organization."),
+        description: z.string().describe("A one-sentence summary of the opportunity."),
+        activityType: z.enum(['tree_planting', 'coral_planting', 'recycling', 'conservation', 'other']).describe("The primary activity type."),
+  })).describe("A list of 3-5 local offsetting opportunities.")
+});
+export type DiscoverEcoIntelOutput = z.infer<typeof DiscoverEcoIntelOutputSchema>;
+
 
 // --- Schemas for calculate-eco-footprint-flow ---
 export const EcoFootprintInputSchema = z.object({
     travelDescription: z.string().describe("A free-text description of the user's travel itinerary."),
+    destinationCountryCode: z.string().describe("The ISO 3166-1 alpha-2 code of the primary destination country."),
 });
 export type EcoFootprintInput = z.infer<typeof EcoFootprintInputSchema>;
 
@@ -106,8 +127,9 @@ export const EcoFootprintOutputSchema = z.object({
     localOpportunities: z.array(z.object({
         name: z.string(),
         url: z.string().url(),
-        snippet: z.string()
-    })).describe("A list of local offsetting opportunities, like tree planting organizations."),
+        description: z.string(),
+        activityType: z.string(),
+    })).describe("A list of local offsetting opportunities, like tree planting organizations, taken from a curated database."),
     references: z.array(z.string().url()).describe("A list of URLs for the trusted sources used to perform the calculations."),
 });
 export type EcoFootprintOutput = z.infer<typeof EcoFootprintOutputSchema>;

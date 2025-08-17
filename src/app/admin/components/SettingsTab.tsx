@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -116,6 +117,8 @@ export default function SettingsTab() {
                         {renderNumberInput('languageUnlockCost', 'Language Pack Unlock Cost', 'One-time token cost for a user to unlock a non-free language pack.')}
                         {renderNumberInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
                         {renderNumberInput('transcriptCost', 'Transcript Generation Cost', 'Token cost to generate and download a meeting transcript.')}
+                        {renderNumberInput('ecoFootprintCost', 'Eco-Footprint Calculation Cost', 'Token cost for one AI-powered carbon footprint calculation.')}
+
                     </div>
 
                     <div className="space-y-6">
@@ -156,11 +159,11 @@ export default function SettingsTab() {
                     </div>
                  </div>
                   <div>
-                    <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><Leaf className="text-primary"/> Eco-Footprint</h3>
+                    <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><Leaf className="text-primary"/> AI Sources</h3>
                     <Separator />
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                        {renderNumberInput('ecoFootprintCost', 'Eco-Footprint Calculation Cost', 'Token cost for one AI-powered carbon footprint calculation.')}
-                        {renderTextarea('ecoFootprintCalculationSources', 'Carbon Calculation Sources', 'Comma-separated list of trusted domains for carbon calculation (e.g. icao.int, carbonfootprint.com).')}
+                        {renderTextarea('infohubGovernmentAdvisorySources', 'Government Advisory Sources', 'Comma-separated list of official government travel advisory sites.')}
+                        {renderTextarea('infohubGlobalNewsSources', 'Global News Sources', 'Comma-separated list of major global news outlets.')}
                      </div>
                  </div>
 

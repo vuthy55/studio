@@ -15,7 +15,7 @@ import { FieldValue } from 'firebase-admin/firestore';
  * This function also handles the token deduction for the service.
  * It has been refactored to ensure that even if the AI flow fails,
  * a debug log is returned to the client.
- * @param input The user's travel description.
+ * @param input The user's travel description and destination country.
  * @param userId The ID of the user requesting the calculation.
  * @returns A promise that resolves to the structured eco-footprint data and a debug log.
  */
@@ -55,7 +55,7 @@ export async function calculateEcoFootprintAction(input: EcoFootprintInput, user
             transaction.update(userRef, { tokenBalance: FieldValue.increment(-cost) });
             const logRef = userRef.collection('transactionLogs').doc();
             transaction.set(logRef, {
-                actionType: 'transport_intel',
+                actionType: 'eco_footprint_spend',
                 tokenChange: -cost,
                 timestamp: FieldValue.serverTimestamp(),
                 description: 'Eco-Footprint Calculation',

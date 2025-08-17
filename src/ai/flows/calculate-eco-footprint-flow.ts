@@ -5,16 +5,14 @@
  *
  * This flow acts as a research agent. Given a user's travel story, it uses tools to
  * break down the journey, calculate the carbon footprint for each segment,
- * and suggest localized offsetting opportunities.
+ * and suggest localized offsetting opportunities based on a curated database.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
-import { getAppSettingsAction } from '@/actions/settings';
-import { scrapeUrlAction } from '@/actions/scraper';
 import { EcoFootprintInputSchema, EcoFootprintOutputSchema, type EcoFootprintInput, type EcoFootprintOutput } from './types';
-
+import { db } from '@/lib/firebase-admin';
 
 // --- Genkit Tools ---
 
@@ -25,14 +23,14 @@ const getFlightCarbonData = ai.defineTool(
     inputSchema: z.object({
         fromAirportCode: z.string().describe("The IATA code of the departure airport, e.g., 'KUL'."),
         toAirportCode: z.string().describe("The IATA code of the arrival airport, e.g., 'REP'."),
+        calculationSources: z.array(z.string()).describe("A list of trusted source domains (e.g., 'icao.int') to use for the web search.")
     }),
     outputSchema: z.number().describe("The estimated carbon footprint in kg CO2."),
   },
   async (input) => {
     // In a real implementation, this would call a dedicated flight carbon API.
     // For this test, we will use a web search against trusted sources.
-    const settings = await getAppSettingsAction();
-    const searchSites = settings.ecoFootprintCalculationSources.split(',').map(s => `site:${s.trim()}`).join(' OR ');
+    const searchSites = input.calculationSources.map(s => `site:${s.trim()}`).join(' OR ');
     
     const query = `carbon footprint flight ${input.fromAirportCode} to ${input.toAirportCode} ${searchSites}`;
     
@@ -90,36 +88,6 @@ const getGroundTransportCarbonData = ai.defineTool(
     }
 );
 
-
-const findLocalOffsettingOpportunities = ai.defineTool(
-  {
-    name: 'find_local_offsetting_opportunities',
-    description: 'Finds local environmental or tree-planting volunteer opportunities near a specific city.',
-    inputSchema: z.object({
-        city: z.string(),
-        country: z.string(),
-    }),
-    outputSchema: z.array(z.object({
-        name: z.string(),
-        url: z.string().url(),
-        snippet: z.string()
-    })),
-  },
-  async ({ city, country }) => {
-     const query = `tree planting volunteer opportunities in ${city}, ${country}`;
-     const searchResult = await searchWebAction({ 
-        query, 
-        apiKey: process.env.GOOGLE_API_KEY!, 
-        searchEngineId: process.env.GOOGLE_SEARCH_ENGINE_ID! 
-    });
-     if (searchResult.success && searchResult.results) {
-        return searchResult.results.slice(0, 3).map(r => ({ name: r.title, url: r.link, snippet: r.snippet }));
-     }
-     return [];
-  }
-);
-
-
 // --- Main Exported Function ---
 export async function calculateEcoFootprint(input: EcoFootprintInput, debugLog: string[]): Promise<EcoFootprintOutput> {
   return calculateEcoFootprintFlow({ ...input, debugLog });
@@ -134,12 +102,19 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     inputSchema: EcoFootprintInputSchema.extend({ debugLog: z.custom<string[]>() }),
     outputSchema: EcoFootprintOutputSchema,
   },
-  async ({ travelDescription, debugLog }) => {
+  async ({ travelDescription, destinationCountryCode, debugLog }) => {
     
-    debugLog.push(`[INFO] Flow started. Fetching settings...`);
-    const settings = await getAppSettingsAction();
-    const calculationSources = settings.ecoFootprintCalculationSources;
-    debugLog.push(`[INFO] Using calculation sources: ${calculationSources}`);
+    debugLog.push(`[INFO] Flow started. Fetching Eco Intel for country: ${destinationCountryCode}`);
+    const ecoIntelRef = db.collection('countryEcoIntel').doc(destinationCountryCode);
+    const ecoIntelDoc = await ecoIntelRef.get();
+    
+    if (!ecoIntelDoc.exists) {
+        throw new Error(`Eco-intelligence data for country code "${destinationCountryCode}" has not been built yet. Please ask an administrator to build it.`);
+    }
+    const ecoIntelData = ecoIntelDoc.data();
+    const calculationSources = ecoIntelData?.calculationSources || [];
+    const offsettingOpportunities = ecoIntelData?.offsettingOpportunities || [];
+    debugLog.push(`[INFO] Using ${calculationSources.length} calculation sources and found ${offsettingOpportunities.length} offsetting opportunities from the database.`);
     
     debugLog.push(`[INFO] Calling AI to analyze journey and use tools.`);
     const { output } = await ai.generate({
@@ -153,23 +128,36 @@ const calculateEcoFootprintFlow = ai.defineFlow(
       **Instructions:**
       1.  **Deconstruct the Journey:** Break down the user's story into individual travel segments (flights, taxis, hotels, etc.).
       2.  **Use Tools for Calculation:** For each segment, use the provided tools to get the carbon footprint.
-          *   For flights, you MUST use the \`get_flight_carbon_data\` tool.
+          *   For flights, you MUST use the \`get_flight_carbon_data\` tool and pass it the required calculation sources.
           *   For ground transport, you MUST estimate the distance and use the \`get_ground_transport_carbon_data\` tool. A typical intra-city trip is 10-20km. An airport transfer is 50-70km.
       3.  **Assume Standard Values:**
           *   For each night in a hotel, assume a footprint of 15 kg CO2.
           *   For each day of travel, assume 3 meals with a total footprint of 5 kg CO2.
-      4.  **Find Offsetting Opportunities:** Use the primary city from the travel description to call the \`find_local_offsetting_opportunities\` tool.
-      5.  **Summarize and Format:**
+      4.  **Format the Output:**
           *   Sum all individual footprints to get the \`totalFootprintKgCo2\`.
           *   List each calculated item in the \`breakdown\` array.
           *   Provide a clear \`methodology\` explaining the assumptions you made.
           *   Use the total footprint to suggest a simple, tangible offsetting action in \`offsetSuggestion\`. (Assume 1 tree offsets 25 kg CO2 per year).
           *   List the trusted source websites you were told to use in the \`references\` field. You MUST format each reference as a full URL (e.g., 'https://www.icao.int').
-          
-      **Constraint:** When searching for calculation data, you may only refer to information from these trusted sources: ${calculationSources}.
+          *   Populate the \`localOpportunities\` field with the curated list of opportunities provided below.
+      
+      **Constraint:** When searching for calculation data, you may only refer to information from these trusted sources: ${calculationSources.join(', ')}.
+
+      **Curated Local Offsetting Opportunities (use this data, do not search for new ones):**
+      ---
+      ${JSON.stringify(offsettingOpportunities, null, 2)}
+      ---
       `,
       model: 'googleai/gemini-1.5-pro',
-      tools: [getFlightCarbonData, getGroundTransportCarbonData, findLocalOffsettingOpportunities],
+      tools: [getFlightCarbonData, getGroundTransportCarbonData],
+      toolConfig: {
+        // Pass calculation sources to all tools that might need it
+        custom: (tool) => {
+          if (tool.name === 'get_flight_carbon_data') {
+            return { calculationSources };
+          }
+        },
+      },
       output: {
         schema: EcoFootprintOutputSchema,
       },
@@ -184,4 +172,3 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     return output;
   }
 );
-

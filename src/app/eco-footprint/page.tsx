@@ -1,11 +1,12 @@
 
+
 "use client";
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
-import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink, Info } from 'lucide-react';
+import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink, Info, TreePine, Recycle, Anchor, PlusCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,19 +17,34 @@ import { Badge } from '@/components/ui/badge';
 import { Coins } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { lightweightCountries } from '@/lib/location-data';
+
+const activityTypeIcons: Record<string, React.ReactNode> = {
+    tree_planting: <TreePine className="h-4 w-4 text-green-600" />,
+    coral_planting: <Anchor className="h-4 w-4 text-blue-600" />,
+    recycling: <Recycle className="h-4 w-4 text-purple-600" />,
+    conservation: <Leaf className="h-4 w-4 text-teal-600" />,
+    other: <PlusCircle className="h-4 w-4 text-gray-500" />,
+};
+
 
 function EcoFootprintCalculator() {
     const { user, settings } = useUserData();
     const { toast } = useToast();
     const [travelDescription, setTravelDescription] = useState('');
+    const [destinationCountryCode, setDestinationCountryCode] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<EcoFootprintOutput | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
+    
+    const countryOptions = useMemo(() => lightweightCountries, []);
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!travelDescription.trim() || !user) {
-            toast({ variant: 'destructive', title: 'Input Required', description: 'Please describe your journey.' });
+        if (!travelDescription.trim() || !destinationCountryCode || !user) {
+            toast({ variant: 'destructive', title: 'Input Required', description: 'Please describe your journey and select a primary destination.' });
             return;
         }
 
@@ -37,7 +53,7 @@ function EcoFootprintCalculator() {
         setDebugLog([]);
 
         try {
-            const { result: calculationResult, debugLog: log, error } = await calculateEcoFootprintAction({ travelDescription }, user.uid);
+            const { result: calculationResult, debugLog: log, error } = await calculateEcoFootprintAction({ travelDescription, destinationCountryCode }, user.uid);
             
             setDebugLog(log || []);
 
@@ -58,7 +74,7 @@ function EcoFootprintCalculator() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Eco-Footprint Calculator (Test)</CardTitle>
+                    <CardTitle>Eco-Footprint Calculator</CardTitle>
                     <CardDescription>
                         Describe your trip, and our AI agent will estimate its carbon footprint and suggest ways to offset it.
                     </CardDescription>
@@ -73,8 +89,17 @@ function EcoFootprintCalculator() {
                                 <li>Number of nights in hotels</li>
                             </ul>
                         </div>
+                        <div className="space-y-2">
+                             <label htmlFor="destinationCountryCode" className="font-medium text-sm">Primary Destination Country</label>
+                            <Select onValueChange={setDestinationCountryCode} value={destinationCountryCode}>
+                                <SelectTrigger id="destinationCountryCode"><SelectValue placeholder="Select a country..." /></SelectTrigger>
+                                <SelectContent>
+                                    {countryOptions.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <Textarea
-                            placeholder="e.g., Day 1: Taxi from Kuala Lumpur to KLIA, 2-hour flight to Siem Reap, then a bus to the city center. Stayed 2 nights in a hotel..."
+                            placeholder="e.g., Day 1: Taxi from Kuala Lumpur to KLIA, 2-hour flight to Siem Reap, then a bus to the city center. Stayed 3 nights in a hotel..."
                             value={travelDescription}
                             onChange={(e) => setTravelDescription(e.target.value)}
                             rows={8}
@@ -135,9 +160,14 @@ function EcoFootprintCalculator() {
                                                 <p className="text-sm text-green-700">Here are some local opportunities the AI found:</p>
                                                 <div className="space-y-1 text-left">
                                                     {result.localOpportunities.map(opp => (
-                                                         <a href={opp.url} target="_blank" rel="noopener noreferrer" key={opp.url} className="block p-2 rounded-md hover:bg-green-500/20">
-                                                            <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
-                                                            <p className="text-xs text-muted-foreground italic truncate">"{opp.snippet}"</p>
+                                                         <a href={opp.url} target="_blank" rel="noopener noreferrer" key={opp.url} className="block p-3 rounded-md hover:bg-green-500/20">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="p-2 bg-background rounded-md">{activityTypeIcons[opp.activityType]}</div>
+                                                                <div className="flex-1">
+                                                                     <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
+                                                                     <p className="text-xs text-muted-foreground italic truncate">"{opp.description}"</p>
+                                                                </div>
+                                                            </div>
                                                          </a>
                                                     ))}
                                                 </div>
