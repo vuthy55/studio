@@ -76,15 +76,18 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
             console.log(`[Eco Intel Builder] Stage 1: Compiling queries for ${country.name}...`);
             
             const queries = [
+                // Phase 1: Foundational Info - Government & Top NGOs
                 `official website ministry of environment ${country.name}`,
                 `official website department of wildlife protection ${country.name}`,
-                `official website department of forestry ${country.name}`,
                 `top environmental NGOs in ${country.name}`,
+                // Phase 2: Actionable Opportunities - Carbon Offsetting & Volunteering
                 `"carbon offsetting projects" in ${country.name}`,
+                `"environmental volunteer" opportunities in ${country.name}`,
+                `"work exchange" conservation ${country.name}`, // Added "work exchange"
+                // Phase 3: Broader Context - National Policies & Tourism
                 `"climate change initiatives" in ${country.name}`,
                 `"${country.name} sustainable development goals"`,
-                `"eco-tourism" in ${country.name}`,
-                `"environmental volunteer" opportunities in ${country.name}`
+                `"eco-tourism" OR "sustainable travel" in ${country.name}` // Broadened search
             ];
 
             let allScrapedContent = "";
