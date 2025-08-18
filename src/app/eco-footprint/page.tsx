@@ -6,7 +6,7 @@ import React, { Suspense, useEffect, useState, useMemo } from 'react';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
-import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink, Info, TreePine, Recycle, Anchor, PlusCircle } from 'lucide-react';
+import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink, Info, TreePine, Recycle, Anchor, PlusCircle, Globe } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +19,10 @@ import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { lightweightCountries } from '@/lib/location-data';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getCountryEcoIntel } from '@/actions/eco-intel-admin';
+import type { CountryEcoIntel } from '@/lib/types';
+
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
     tree_planting: <TreePine className="h-4 w-4 text-green-600" />,
@@ -26,8 +30,63 @@ const activityTypeIcons: Record<string, React.ReactNode> = {
     recycling: <Recycle className="h-4 w-4 text-purple-600" />,
     conservation: <Leaf className="h-4 w-4 text-teal-600" />,
     other: <PlusCircle className="h-4 w-4 text-gray-500" />,
+    wildlife_sanctuary: <i className="fas fa-paw text-orange-600"></i>, // Placeholder, requires FontAwesome or similar
+    jungle_trekking: <i className="fas fa-hiking text-lime-600"></i>,
+    community_visit: <i className="fas fa-users text-indigo-600"></i>,
+    bird_watching: <i className="fas fa-binoculars text-sky-600"></i>,
 };
 
+
+function EcoTourismTab({ countryCode, countryName }: { countryCode: string; countryName: string; }) {
+    const [ecoIntel, setEcoIntel] = useState<CountryEcoIntel | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!countryCode) return;
+        setIsLoading(true);
+        getCountryEcoIntel(countryCode)
+            .then(data => setEcoIntel(data))
+            .catch(err => console.error("Failed to load eco-tourism data", err))
+            .finally(() => setIsLoading(false));
+    }, [countryCode]);
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-10">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    const opportunities = ecoIntel?.ecoTourismOpportunities || [];
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Eco-Tourism in {countryName}</CardTitle>
+                <CardDescription>Discover sustainable and responsible travel opportunities.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 {opportunities.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No specific eco-tourism opportunities found in our database for this country.</p>
+                 ) : (
+                    opportunities.map((opp, index) => (
+                         <a href={opp.bookingUrl} target="_blank" rel="noopener noreferrer" key={index} className="block p-4 rounded-lg border hover:bg-muted/50">
+                            <div className="flex items-center gap-4">
+                                <div>{activityTypeIcons[opp.category] || <Leaf className="h-6 w-6 text-green-600" />}</div>
+                                <div className="flex-1">
+                                    <h4 className="font-semibold">{opp.name}</h4>
+                                    <p className="text-sm text-muted-foreground">{opp.description}</p>
+                                </div>
+                                {opp.bookingUrl && <Button variant="outline" size="sm" asChild onClick={e => e.stopPropagation()}><Link href={opp.bookingUrl} target="_blank">Book <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
+                            </div>
+                         </a>
+                    ))
+                 )}
+            </CardContent>
+        </Card>
+    );
+}
 
 function EcoFootprintCalculator() {
     const { user, settings } = useUserData();
@@ -214,6 +273,47 @@ function EcoFootprintCalculator() {
     )
 }
 
+function EcoIntelContent() {
+    const [selectedCountry, setSelectedCountry] = useState<{code: string; name: string} | null>(null);
+    const countryOptions = useMemo(() => lightweightCountries.map(c => ({ code: c.code, name: c.name })), []);
+
+    return (
+        <div className="space-y-8">
+            <MainHeader title="Eco-Intel Hub" description="Calculate your carbon footprint and discover eco-friendly travel options." />
+             <Tabs defaultValue="calculator" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="calculator"><FlaskConical className="mr-2"/> Carbon Calculator</TabsTrigger>
+                    <TabsTrigger value="eco-tourism"><Globe className="mr-2"/> Eco-Tourism</TabsTrigger>
+                </TabsList>
+                <TabsContent value="calculator" className="mt-6">
+                    <EcoFootprintCalculator />
+                </TabsContent>
+                <TabsContent value="eco-tourism" className="mt-6">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Discover Eco-Tourism</CardTitle>
+                            <CardDescription>Select a country to find responsible tourism opportunities curated from our database.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Select onValueChange={(value) => setSelectedCountry(countryOptions.find(c => c.code === value) || null)}>
+                                <SelectTrigger className="max-w-sm">
+                                    <SelectValue placeholder="Select a country..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <ScrollArea className="h-72">
+                                        {countryOptions.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+                                    </ScrollArea>
+                                </SelectContent>
+                            </Select>
+                        </CardContent>
+                    </Card>
+                    {selectedCountry && <EcoTourismTab countryCode={selectedCountry.code} countryName={selectedCountry.name} />}
+                </TabsContent>
+            </Tabs>
+        </div>
+    )
+}
+
 
 export default function EcoFootprintPage() {
     const { user, loading: authLoading } = useUserData();
@@ -234,11 +334,8 @@ export default function EcoFootprintPage() {
     }
 
     return (
-        <div className="space-y-8">
-            <MainHeader title="Eco-Footprint Calculator" description="Understand the environmental impact of your travels." />
-             <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
-                <EcoFootprintCalculator />
-            </Suspense>
-        </div>
+        <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+            <EcoIntelContent />
+        </Suspense>
     )
 }

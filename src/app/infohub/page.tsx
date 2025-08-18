@@ -77,7 +77,7 @@ function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel
                 </div>
                  <Card className="border-amber-500/50 bg-amber-500/10 mt-4">
                     <CardContent className="p-3 text-amber-800 text-xs font-semibold">
-                        Reminder: AI intelligence can make mistakes. Always double-check critical information with other sources.
+                        Reminder: AI intelligence can make mistakes. Always double-check critical information with official government sources.
                     </CardContent>
                 </Card>
             </div>
@@ -436,7 +436,7 @@ export default function IntelPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/login');
+            router.push('/login?redirect=/infohub');
         }
     }, [user, authLoading, router]);
 

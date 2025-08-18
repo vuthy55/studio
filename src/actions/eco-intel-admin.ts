@@ -75,32 +75,36 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
         try {
             console.log(`[Eco Intel Builder] Stage 1: Searching for ${country.name}...`);
             
-            const existingDoc = await docRef.get();
-            const existingData = existingDoc.exists ? existingDoc.data() as CountryEcoIntel : null;
-            const curatedSitesQuery = (existingData?.curatedSearchSources || []).map(s => `site:${s.trim()}`).join(' OR ');
+            // Perform two types of searches: one for specific sources, one for opportunities.
+            const sourceQuery = `("environmental NGO" OR "ministry of environment" OR "department of wildlife") in ${country.name}`;
+            const opportunityQuery = `("carbon offset projects" OR "eco-tourism" OR "environmental volunteer") in ${country.name}`;
+            
+            const [sourceSearchResult, opportunitySearchResult] = await Promise.all([
+                searchWebAction({ query: sourceQuery, apiKey, searchEngineId }),
+                searchWebAction({ query: opportunityQuery, apiKey, searchEngineId })
+            ]);
 
-            const baseQuery = `"carbon offset projects" OR "environmental volunteer" OR "eco-tourism" in ${country.name}`;
-            const searchQuery = curatedSitesQuery ? `(${baseQuery}) AND (${curatedSitesQuery})` : baseQuery;
+            const allLinks = new Set<string>();
+             if (sourceSearchResult.success && sourceSearchResult.results) {
+                sourceSearchResult.results.slice(0, 2).forEach(r => allLinks.add(r.link));
+            }
+            if (opportunitySearchResult.success && opportunitySearchResult.results) {
+                opportunitySearchResult.results.slice(0, 3).forEach(r => allLinks.add(r.link));
+            }
 
-            const searchResult = await searchWebAction({ query: searchQuery, apiKey, searchEngineId });
-
-            if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
-                // If curated search yields nothing, try a general search as a fallback
-                const fallbackResult = await searchWebAction({ query: baseQuery, apiKey, searchEngineId });
-                 if (!fallbackResult.success || !fallbackResult.results || fallbackResult.results.length === 0) {
-                    throw new Error(`No web search results found for query: ${baseQuery}. Error: ${fallbackResult.error || 'N/A'}`);
-                 }
-                 searchResult.results = fallbackResult.results;
+            if (allLinks.size === 0) {
+                 throw new Error(`No web search results found for any query related to ${country.name}.`);
             }
             
-            console.log(`[Eco Intel Builder] Stage 2: Scraping top results for ${country.name}...`);
-            const scrapePromises = searchResult.results.slice(0, 3).map(result => scrapeUrlAction(result.link));
+            console.log(`[Eco Intel Builder] Stage 2: Scraping ${allLinks.size} unique URLs for ${country.name}...`);
+            const scrapePromises = Array.from(allLinks).map(link => scrapeUrlAction(link));
             const scrapeResults = await Promise.all(scrapePromises);
             
             let searchResultsText = "";
             scrapeResults.forEach((scrapeResult, index) => {
                 if (scrapeResult.success && scrapeResult.content) {
-                    searchResultsText += `Content from ${searchResult.results![index].link}:\n${scrapeResult.content}\n\n---\n\n`;
+                    const url = Array.from(allLinks)[index];
+                    searchResultsText += `Content from ${url}:\n${scrapeResult.content}\n\n---\n\n`;
                 }
             });
 
@@ -112,10 +116,9 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
             const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText });
             
             if (ecoData && ecoData.countryName) {
-                // Preserve curated sources during the build
+                // The AI now populates the curated sources list itself.
                 const finalData = {
                     ...ecoData,
-                    curatedSearchSources: existingData?.curatedSearchSources || [],
                     id: country.code,
                     lastBuildStatus: 'success',
                     lastBuildAt: FieldValue.serverTimestamp(),

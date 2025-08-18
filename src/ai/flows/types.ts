@@ -105,7 +105,13 @@ export const DiscoverEcoIntelOutputSchema = z.object({
         url: z.string().describe("The direct URL to the project or organization."),
         description: z.string().describe("A one-sentence summary of the opportunity."),
         activityType: z.enum(['tree_planting', 'coral_planting', 'recycling', 'conservation', 'other']).describe("The primary activity type."),
-  })).describe("A list of local offsetting opportunities.")
+  })).describe("A list of local offsetting opportunities."),
+  ecoTourismOpportunities: z.array(z.object({
+      name: z.string().describe("The name of the tour, park, or location."),
+      description: z.string().describe("A one-sentence summary of the activity."),
+      category: z.enum(['wildlife_sanctuary', 'jungle_trekking', 'community_visit', 'bird_watching', 'other']).describe("The primary category of the eco-tourism activity."),
+      bookingUrl: z.string().describe("A direct booking URL if available."),
+  })).describe("A list of local eco-tourism opportunities."),
 });
 export type DiscoverEcoIntelOutput = z.infer<typeof DiscoverEcoIntelOutputSchema>;
 

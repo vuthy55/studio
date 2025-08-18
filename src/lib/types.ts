@@ -77,6 +77,7 @@ export type SyncRoom = {
     firstMessageAt?: any; // Timestamp of the first message
     endingReminderSent?: boolean; // Flag to prevent duplicate end-of-meeting reminders
     effectiveEndTime?: any; // Timestamp when the room will close based on current funding
+    lastSessionEndedAt?: any;
 }
 
 export type Participant = {
@@ -332,11 +333,17 @@ export interface CountryEcoIntel {
     countryName: string;
     region: string;
     curatedSearchSources?: string[];
-    offsettingOpportunities: {
+    offsettingOpportunities?: {
         name: string;
         url: string;
         description: string;
         activityType: 'tree_planting' | 'coral_planting' | 'recycling' | 'conservation' | 'other';
+    }[];
+    ecoTourismOpportunities?: {
+        name: string;
+        description: string;
+        category: 'wildlife_sanctuary' | 'jungle_trekking' | 'community_visit' | 'bird_watching' | 'other';
+        bookingUrl?: string;
     }[];
     lastBuildStatus?: 'success' | 'failed';
     lastBuildError?: string | null;
