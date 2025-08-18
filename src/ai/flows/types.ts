@@ -99,6 +99,7 @@ export type DiscoverEcoIntelInput = z.infer<typeof DiscoverEcoIntelInputSchema>;
 export const DiscoverEcoIntelOutputSchema = z.object({
   countryName: z.string().describe("The official name of the country, matching the input."),
   region: z.string().describe("The primary geopolitical region or continent the country belongs to."),
+  curatedSearchSources: z.array(z.string()).optional().describe("A list of curated search source URLs to prioritize research."),
   offsettingOpportunities: z.array(z.object({
         name: z.string().describe("The name of the organization or project."),
         url: z.string().describe("The direct URL to the project or organization."),

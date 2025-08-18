@@ -331,6 +331,7 @@ export interface CountryEcoIntel {
     id: string; // country code, e.g. 'KH'
     countryName: string;
     region: string;
+    curatedSearchSources?: string[];
     offsettingOpportunities: {
         name: string;
         url: string;

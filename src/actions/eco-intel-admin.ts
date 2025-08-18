@@ -74,11 +74,23 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
         const docRef = collectionRef.doc(country.code);
         try {
             console.log(`[Eco Intel Builder] Stage 1: Searching for ${country.name}...`);
-            const searchQuery = `"carbon offset projects" OR "environmental volunteer" in ${country.name}`;
+            
+            const existingDoc = await docRef.get();
+            const existingData = existingDoc.exists ? existingDoc.data() as CountryEcoIntel : null;
+            const curatedSitesQuery = (existingData?.curatedSearchSources || []).map(s => `site:${s.trim()}`).join(' OR ');
+
+            const baseQuery = `"carbon offset projects" OR "environmental volunteer" OR "eco-tourism" in ${country.name}`;
+            const searchQuery = curatedSitesQuery ? `(${baseQuery}) AND (${curatedSitesQuery})` : baseQuery;
+
             const searchResult = await searchWebAction({ query: searchQuery, apiKey, searchEngineId });
 
             if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
-                throw new Error(`No web search results found for query: ${searchQuery}. Error: ${searchResult.error || 'N/A'}`);
+                // If curated search yields nothing, try a general search as a fallback
+                const fallbackResult = await searchWebAction({ query: baseQuery, apiKey, searchEngineId });
+                 if (!fallbackResult.success || !fallbackResult.results || fallbackResult.results.length === 0) {
+                    throw new Error(`No web search results found for query: ${baseQuery}. Error: ${fallbackResult.error || 'N/A'}`);
+                 }
+                 searchResult.results = fallbackResult.results;
             }
             
             console.log(`[Eco Intel Builder] Stage 2: Scraping top results for ${country.name}...`);
@@ -100,13 +112,16 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
             const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText });
             
             if (ecoData && ecoData.countryName) {
-                await docRef.set({
+                // Preserve curated sources during the build
+                const finalData = {
                     ...ecoData,
+                    curatedSearchSources: existingData?.curatedSearchSources || [],
                     id: country.code,
                     lastBuildStatus: 'success',
                     lastBuildAt: FieldValue.serverTimestamp(),
                     lastBuildError: null
-                });
+                };
+                await docRef.set(finalData, { merge: true });
                 return { status: 'success', countryCode: country.code, countryName: country.name };
             } else {
                  throw new Error(`AI failed to return sufficient data after analysis.`);

@@ -3,8 +3,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
-import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle } from "lucide-react";
+import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -131,7 +132,7 @@ export default function EcoIntelTab() {
             if (result.success) {
                 const finalStatuses: Record<string, CountryBuildStatus> = {};
                 result.results.forEach(res => {
-                    finalStatuses[res.countryCode] = { ...res, status: res.status === 'success' ? 'success' : 'failed' };
+                    finalStatuses[res.countryCode] = { ...res, status: res.status === 'success' ? 'success' : 'failed', error: res.error };
                 });
                 setBuildStatuses(prev => ({...prev, ...finalStatuses}));
                 
@@ -160,6 +161,8 @@ export default function EcoIntelTab() {
                 const newOpps = [...(newCountryState.offsettingOpportunities || [])];
                 newOpps[oppIndex] = { ...newOpps[oppIndex], ...value };
                 newCountryState.offsettingOpportunities = newOpps;
+            } else if (field === 'curatedSearchSources') {
+                newCountryState.curatedSearchSources = value.split('\n');
             } else {
                  (newCountryState as any)[field] = value;
             }
@@ -274,7 +277,7 @@ export default function EcoIntelTab() {
                                                                                 </span>
                                                                             </TooltipTrigger>
                                                                             <TooltipContent>
-                                                                                <p>{buildStatus?.error || (dbStatus === 'failed' ? builtCountryData.get(country.code)?.lastBuildError || 'Failed' : dbStatus || 'Not built')}</p>
+                                                                                <p className="max-w-xs">{buildStatus?.error || (dbStatus === 'failed' ? builtCountryData.get(country.code)?.lastBuildError || 'Failed' : dbStatus || 'Not built')}</p>
                                                                             </TooltipContent>
                                                                         </Tooltip>
                                                                     </TooltipProvider>
@@ -335,12 +338,29 @@ export default function EcoIntelTab() {
                                     <AccordionContent>
                                         <div className="px-4 pb-4 space-y-6">
                                             <div>
+                                                <Label htmlFor={`curated-sources-${country.id}`} className="font-semibold mb-2 block">Curated Search Sources</Label>
+                                                <Textarea 
+                                                    id={`curated-sources-${country.id}`}
+                                                    value={(currentData.curatedSearchSources || []).join('\n')} 
+                                                    onChange={(e) => handleCellChange(country.id, 'curatedSearchSources', e.target.value)} 
+                                                    placeholder="One URL per line (e.g., wwf.org.my)"
+                                                    rows={4}
+                                                    className="text-xs"
+                                                />
+                                                <p className="text-xs text-muted-foreground mt-1">Add trusted NGOs, government agencies, etc. to prioritize them in the AI search.</p>
+                                            </div>
+                                            <div>
                                                 <h4 className="font-semibold mb-2">Offsetting Opportunities</h4>
                                                 <div className="space-y-4">
                                                     {(currentData.offsettingOpportunities || []).map((opp, oppIndex) => (
                                                         <div key={oppIndex} className="p-3 border rounded-lg space-y-2">
                                                             <Input value={opp.name} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { name: e.target.value }, oppIndex)} placeholder="Organization Name" />
-                                                            <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
+                                                             <div className="flex items-center gap-2">
+                                                                <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
+                                                                <a href={opp.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                                                                    <ExternalLink className="h-4 w-4" />
+                                                                </a>
+                                                            </div>
                                                             <Textarea value={opp.description} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { description: e.target.value }, oppIndex)} placeholder="One-sentence description..." rows={2} className="text-xs" />
                                                             <Select value={opp.activityType} onValueChange={(value) => handleCellChange(country.id, 'offsettingOpportunities', { activityType: value }, oppIndex)}>
                                                                 <SelectTrigger><SelectValue/></SelectTrigger>
@@ -378,4 +398,3 @@ export default function EcoIntelTab() {
         </Card>
     );
 }
-

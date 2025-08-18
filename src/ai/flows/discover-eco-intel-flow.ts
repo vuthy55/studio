@@ -25,7 +25,12 @@ import { DiscoverEcoIntelInputSchema, DiscoverEcoIntelOutputSchema, type Discove
  */
 export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<DiscoverEcoIntelOutput> {
   const result = await discoverEcoIntelFlow(input);
-  return result;
+  // Ensure the result conforms to the schema, even if the AI returns a null/undefined value
+  return {
+    countryName: result.countryName,
+    region: result.region,
+    offsettingOpportunities: result.offsettingOpportunities || [],
+  };
 }
 
 // --- Genkit Flow and Prompt Definitions ---
@@ -56,7 +61,7 @@ const discoverEcoIntelFlow = ai.defineFlow(
             *   **activityType**: Categorize the main activity as one of: 'tree_planting', 'coral_planting', 'recycling', 'conservation', 'other'.
         
         **CRITICAL INSTRUCTIONS:**
-        1.  If you cannot find any verifiable projects after a thorough review of the provided text, it is acceptable to return an empty list for \`offsettingOpportunities\`.
+        1.  If you cannot find any verifiable projects after a thorough review of the provided text, it is acceptable and correct to return an empty list for \`offsettingOpportunities\`.
         2.  Do not invent information. All data must be sourced from the text provided.
       `,
       model: 'googleai/gemini-1.5-pro',
