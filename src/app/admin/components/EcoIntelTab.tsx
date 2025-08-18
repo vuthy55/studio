@@ -159,11 +159,7 @@ export default function EcoIntelTab() {
                 ];
                 updateCurrentLog(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name} in parallel...`);
 
-                const searchPromises = queries.map(query => searchWebAction({ 
-                    query, 
-                    apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY!, 
-                    searchEngineId: process.env.NEXT_PUBLIC_GOOGLE_SEARCH_ENGINE_ID! 
-                }));
+                const searchPromises = queries.map(query => searchWebAction({ query }));
                 const searchActionResults = await Promise.all(searchPromises);
                 
                 let allScrapedContent = "";

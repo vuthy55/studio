@@ -11,8 +11,6 @@ export interface SearchResult {
 
 interface SearchWebActionPayload {
     query: string;
-    apiKey: string;
-    searchEngineId: string;
     dateRestrict?: string; // e.g., 'd[30]' for last 30 days
 }
 
@@ -23,10 +21,14 @@ interface SearchWebActionPayload {
  * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
  */
 export async function searchWebAction(payload: SearchWebActionPayload): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
-    const { query, apiKey, searchEngineId, dateRestrict } = payload;
+    const { query, dateRestrict } = payload;
+    
+    // API keys are now securely read on the server side.
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
     if (!apiKey || !searchEngineId) {
-        const errorMsg = "Google Search API key or Search Engine ID was not provided to the server action.";
+        const errorMsg = "Google Search API key or Search Engine ID is not configured on the server.";
         console.error(errorMsg);
         return { success: false, error: errorMsg };
     }
