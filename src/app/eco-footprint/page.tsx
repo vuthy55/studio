@@ -4,7 +4,7 @@
 import React, { Suspense, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useUserData } from '@/context/UserDataContext';
-import { useRouter } from '@/next/navigation';
+import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { LoaderCircle, FlaskConical, Leaf, Bot, ExternalLink, Info, TreePine, Recycle, Anchor, PlusCircle, Globe } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,21 +73,15 @@ function EcoTourismTab({ countryCode, countryName }: { countryCode: string; coun
                     <p className="text-center text-muted-foreground py-8">No specific eco-tourism opportunities found in our database for this country.</p>
                  ) : (
                     opportunities.map((opp, index) => (
-                        <div key={index} className="p-4 rounded-lg border hover:bg-muted/50 flex items-center gap-4">
-                            
-                                <div className="flex items-center gap-4">
-                                    <div>{activityTypeIcons[opp.category] || <Leaf className="h-6 w-6 text-green-600" />}</div>
-                                    <div className="flex-1">
-                                        <h4 className="font-semibold">{opp.name}</h4>
-                                        <p className="text-sm text-muted-foreground">{opp.description}</p>
-                                    </div>
+                         <div key={index} className="p-4 rounded-lg border hover:bg-muted/50 flex items-center gap-4">
+                            <Link href={opp.bookingUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 flex-grow">
+                                <div>{activityTypeIcons[opp.category] || <Leaf className="h-6 w-6 text-green-600" />}</div>
+                                <div className="flex-1">
+                                    <h4 className="font-semibold">{opp.name}</h4>
+                                    <p className="text-sm text-muted-foreground">{opp.description}</p>
                                 </div>
-                           
-                            {opp.bookingUrl && (
-                                <Button variant="outline" size="sm" asChild>
-                                    <Link href={opp.bookingUrl} target="_blank">Book <ExternalLink className="ml-2 h-4 w-4" /></Link>
-                                </Button>
-                            )}
+                            </Link>
+                            {opp.bookingUrl && <Button variant="outline" size="sm" asChild onClick={e => e.stopPropagation()}><Link href={opp.bookingUrl} target="_blank">Book <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
                         </div>
                     ))
                  )}
