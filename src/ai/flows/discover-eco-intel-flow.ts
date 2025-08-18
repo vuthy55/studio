@@ -25,7 +25,8 @@ import { DiscoverEcoIntelInputSchema, DiscoverEcoIntelOutputSchema, type Discove
  */
 export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<DiscoverEcoIntelOutput> {
   const result = await discoverEcoIntelFlow(input);
-  // Ensure the result conforms to the schema, even if the AI returns a null/undefined value
+  // Ensure the result conforms to the schema, even if the AI returns a null/undefined value for optional fields.
+  // This prevents downstream errors if the AI fails to find specific opportunities.
   return {
     countryName: result.countryName,
     region: result.region,
@@ -71,8 +72,9 @@ const discoverEcoIntelFlow = ai.defineFlow(
             *   **bookingUrl**: The direct booking URL if available in the text.
         
         **CRITICAL INSTRUCTIONS:**
-        1.  If you cannot find any verifiable projects or opportunities after a thorough review of the provided text, it is acceptable and correct to return an empty list for that field.
-        2.  Do not invent information. All data must be sourced from the text provided.
+        1.  If you cannot find any verifiable projects or opportunities after a thorough review of the provided text, it is acceptable and correct to return an empty list for that field. Do not invent information.
+        2.  You MUST ALWAYS return a value for 'countryName' and 'region'.
+        3.  All data must be sourced from the text provided.
       `,
       model: 'googleai/gemini-1.5-pro',
       output: {

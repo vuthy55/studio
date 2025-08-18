@@ -80,11 +80,11 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
                 `official website department of wildlife protection ${country.name}`,
                 `official website department of forestry ${country.name}`,
                 `top environmental NGOs in ${country.name}`,
-                `carbon offsetting projects in ${country.name}`,
-                `climate change initiatives in ${country.name}`,
+                `"carbon offsetting projects" in ${country.name}`,
+                `"climate change initiatives" in ${country.name}`,
                 `"${country.name} sustainable development goals"`,
-                `eco-tourism in ${country.name}`,
-                `environmental volunteer opportunities in ${country.name}`
+                `"eco-tourism" in ${country.name}`,
+                `"environmental volunteer" opportunities in ${country.name}`
             ];
 
             let allScrapedContent = "";
