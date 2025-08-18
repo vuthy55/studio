@@ -22,6 +22,7 @@ import { lightweightCountries } from '@/lib/location-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getCountryEcoIntel } from '@/actions/eco-intel';
 import type { CountryEcoIntel } from '@/lib/types';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
