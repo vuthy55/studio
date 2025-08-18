@@ -112,7 +112,6 @@ export const DiscoverEcoIntelOutputSchema = z.object({
       url: z.string().url().describe("A direct booking URL if available."),
       description: z.string().describe("A one-sentence summary of the activity."),
       category: z.enum(['wildlife_sanctuary', 'jungle_trekking', 'community_visit', 'bird_watching', 'other']).describe("The primary category of the eco-tourism activity."),
-      bookingUrl: z.string().url().optional().describe("A direct booking URL if available."),
   })).describe("A list of local eco-tourism opportunities."),
 });
 export type DiscoverEcoIntelOutput = z.infer<typeof DiscoverEcoIntelOutputSchema>;
