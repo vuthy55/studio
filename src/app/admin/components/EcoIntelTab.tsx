@@ -135,10 +135,10 @@ export default function EcoIntelTab() {
                 `"official website ministry of environment ${country.name}"`,
                 `"top environmental NGOs in ${country.name}"`,
                 `"reputable wildlife conservation organizations in ${country.name}"`,
-                `"carbon offsetting projects in ${country.name}"`,
-                `"climate change initiatives in ${country.name}"`,
+                `"carbon offsetting projects" in ${country.name}`,
+                `"climate change initiatives" in ${country.name}`,
                 `"Cambodia sustainable development goals"`,
-                `"eco-tourism" OR "sustainable travel" in ${country.name}`,
+                `eco-tourism in ${country.name}`,
                 `"environmental volunteer" opportunities in ${country.name}`,
                 `"work exchange" conservation ${country.name}`
             ];
@@ -156,22 +156,23 @@ export default function EcoIntelTab() {
                         scrapeItems.push({ url: topUrl, query: queries[index], snippet: searchResult.results[0].snippet });
                     }
                 } else {
-                    updateLog(`[WARN] No search results for query: ${queries[index]}`);
+                    updateLog(`[WARN] No search results for query: "${queries[index]}"`);
                 }
             });
     
             updateLog(`[INFO] Stage 3: Scraping top ${scrapeItems.length} URLs in parallel...`);
             const scrapePromises = scrapeItems.map(({ url }) => scrapeUrlAction(url));
-            const scrapeResults = await Promise.all(scrapePromises);
+            const scrapeResults = await Promise.allSettled(scrapePromises);
             
             scrapeResults.forEach((scrapeResult, index) => {
                 const { url, query, snippet } = scrapeItems[index];
-                if (scrapeResult.success && scrapeResult.content) {
-                    allScrapedContent += `Content from ${url} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
-                    updateLog(`[SUCCESS] Scraped ${url}. Content length: ${scrapeResult.content.length}.`);
+                if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
+                    allScrapedContent += `Content from ${url} (for query "${query}"):\n${scrapeResult.value.content}\n\n---\n\n`;
+                    updateLog(`[SUCCESS] Scraped ${url}. Content length: ${scrapeResult.value.content.length}.`);
                 } else {
+                    const errorMsg = scrapeResult.status === 'fulfilled' ? scrapeResult.value.error : 'Promise rejected';
                     allScrapedContent += `Snippet from ${url} (for query "${query}"):\n${snippet}\n\n---\n\n`;
-                    updateLog(`[WARN] FAILED to scrape ${url}. Reason: ${scrapeResult.error}. Using snippet as fallback.`);
+                    updateLog(`[WARN] FAILED to scrape ${url}. Reason: ${errorMsg}. Using snippet as fallback.`);
                 }
             });
     
