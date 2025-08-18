@@ -93,16 +93,23 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
             console.log(`[Eco Intel Builder] Stage 2: Executing ${queries.length} searches for ${country.name}...`);
 
             for (const query of queries) {
+                console.log(`[Eco Intel Builder]   - Searching: "${query}"`);
                 const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
                 if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                    console.log(`[Eco Intel Builder]   - Found ${searchResult.results.length} result(s). Scraping top result.`);
                     const topUrl = searchResult.results[0].link;
                     if (topUrl) {
                         const scrapeResult = await scrapeUrlAction(topUrl);
                         if (scrapeResult.success && scrapeResult.content) {
                             allScrapedContent += `Content from ${topUrl} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
                             scrapedUrlCount++;
+                            console.log(`[Eco Intel Builder]   - SUCCESS scraping ${topUrl}. Content length: ${scrapeResult.content.length}.`);
+                        } else {
+                            console.warn(`[Eco Intel Builder]   - FAILED to scrape ${topUrl}. Reason: ${scrapeResult.error}`);
                         }
                     }
+                } else {
+                     console.warn(`[Eco Intel Builder]   - No search results for query: "${query}"`);
                 }
             }
 
@@ -122,16 +129,16 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
                     lastBuildError: null
                 };
                 await docRef.set(finalData, { merge: true });
+                 console.log(`[Eco Intel Builder] SUCCESS for ${country.name}. Data saved.`);
                 return { status: 'success', countryCode: country.code, countryName: country.name };
             } else {
-                 // Check if the object is just empty or if countryName is missing.
                 if (ecoData && !ecoData.countryName) {
                      throw new Error(`AI returned a valid but empty object, indicating no data could be extracted.`);
                 }
                  throw new Error(`AI failed to return sufficient data after analysis.`);
             }
         } catch (error: any) {
-            console.error(`[Eco Intel Builder] Error processing ${country.name}:`, error);
+            console.error(`[Eco Intel Builder] CRITICAL ERROR processing ${country.name}:`, error);
             await docRef.set({
                 countryName: country.name,
                 id: country.code,
