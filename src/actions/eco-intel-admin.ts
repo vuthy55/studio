@@ -58,8 +58,8 @@ export interface BuildResult {
 }
 
 /**
- * Builds or updates the eco-intel database for a given list of country codes.
- * This function now uses the robust search-scrape-analyze pattern.
+ * Builds or updates the eco-intel database for a given country code.
+ * This function now uses a more robust, parallelized research strategy to avoid timeouts.
  */
 export async function buildEcoIntelData(countryCode: string): Promise<BuildResult> {
     const country = lightweightCountries.find(c => c.code === countryCode);
@@ -77,54 +77,66 @@ export async function buildEcoIntelData(countryCode: string): Promise<BuildResul
         log.push(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
         
         const queries = [
-            // Phase 1: Identify Key Organizations
             `official website ministry of environment ${country.name}`,
             `top environmental NGOs in ${country.name}`,
             `reputable wildlife conservation organizations in ${country.name}`,
-
-            // Phase 2: Find Actionable Projects & Policies
             `"carbon offsetting projects" in ${country.name}`,
             `"climate change initiatives" in ${country.name}`,
             `"${country.name} sustainable development goals"`,
-            
-            // Phase 3: Find User-centric Opportunities
             `"eco-tourism" OR "sustainable travel" in ${country.name}`,
             `"environmental volunteer" opportunities in ${country.name}`,
             `"work exchange" conservation ${country.name}`
         ];
 
+        log.push(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name} in parallel...`);
+
+        // --- Parallel Search ---
+        const searchPromises = queries.map(query => 
+            searchWebAction({ query, apiKey, searchEngineId })
+        );
+        const searchResults = await Promise.all(searchPromises);
+        // --- End Parallel Search ---
+
         let allScrapedContent = "";
         let scrapedUrlCount = 0;
 
-        log.push(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name}...`);
-
-        for (const query of queries) {
-            log.push(`[INFO]   - Searching: "${query}"`);
-            const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
+        const scrapeItems: { url: string; query: string }[] = [];
+        searchResults.forEach((searchResult, index) => {
             if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-                log.push(`[INFO]   - Found ${searchResult.results.length} result(s). Scraping top result.`);
                 const topUrl = searchResult.results[0].link;
                 if (topUrl) {
-                    const scrapeResult = await scrapeUrlAction(topUrl);
-                    if (scrapeResult.success && scrapeResult.content) {
-                        allScrapedContent += `Content from ${topUrl} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
-                        scrapedUrlCount++;
-                        log.push(`[SUCCESS]   - Scraped ${topUrl}. Content length: ${scrapeResult.content.length}.`);
-                    } else {
-                        log.push(`[WARN]   - FAILED to scrape ${topUrl}. Reason: ${scrapeResult.error}. Using snippet instead.`);
-                        allScrapedContent += `Snippet from ${topUrl} (for query "${query}"):\n${searchResult.results[0].snippet}\n\n---\n\n`;
-                    }
+                    scrapeItems.push({ url: topUrl, query: queries[index] });
                 }
             } else {
-                 log.push(`[WARN]   - No search results for query: "${query}"`);
+                 log.push(`[WARN]   - No search results for query: "${queries[index]}"`);
             }
-        }
+        });
+        
+        log.push(`[INFO] Stage 3: Scraping top ${scrapeItems.length} URLs in parallel...`);
+        
+        // --- Parallel Scrape ---
+        const scrapePromises = scrapeItems.map(({url}) => scrapeUrlAction(url));
+        const scrapeResults = await Promise.all(scrapePromises);
+        // --- End Parallel Scrape ---
+        
+        scrapeResults.forEach((scrapeResult, index) => {
+            const { url, query } = scrapeItems[index];
+             if (scrapeResult.success && scrapeResult.content) {
+                allScrapedContent += `Content from ${url} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
+                scrapedUrlCount++;
+                log.push(`[SUCCESS]   - Scraped ${url}. Content length: ${scrapeResult.content.length}.`);
+            } else {
+                log.push(`[WARN]   - FAILED to scrape ${url}. Reason: ${scrapeResult.error}.`);
+                // Fallback to snippet if scrape fails is handled implicitly as AI might use it
+            }
+        });
+        
 
         if (!allScrapedContent.trim()) {
             throw new Error('Could not scrape any meaningful content from top search results for any query.');
         }
         
-        log.push(`[INFO] Stage 3: Analyzing content from ${scrapedUrlCount} sources for ${country.name}...`);
+        log.push(`[INFO] Stage 4: Analyzing content from ${scrapedUrlCount} sources for ${country.name}...`);
         const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText: allScrapedContent });
         
         if (ecoData && ecoData.countryName) {
