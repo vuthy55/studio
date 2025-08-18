@@ -124,6 +124,10 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
                 await docRef.set(finalData, { merge: true });
                 return { status: 'success', countryCode: country.code, countryName: country.name };
             } else {
+                 // Check if the object is just empty or if countryName is missing.
+                if (ecoData && !ecoData.countryName) {
+                     throw new Error(`AI returned a valid but empty object, indicating no data could be extracted.`);
+                }
                  throw new Error(`AI failed to return sufficient data after analysis.`);
             }
         } catch (error: any) {

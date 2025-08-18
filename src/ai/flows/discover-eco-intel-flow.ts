@@ -24,16 +24,40 @@ import { DiscoverEcoIntelInputSchema, DiscoverEcoIntelOutputSchema, type Discove
  * @returns A promise that resolves to the structured country eco-intel data.
  */
 export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<DiscoverEcoIntelOutput> {
-  const result = await discoverEcoIntelFlow(input);
-  // Ensure the result conforms to the schema, even if the AI returns a null/undefined value for optional fields.
-  // This prevents downstream errors if the AI fails to find specific opportunities.
-  return {
-    countryName: result.countryName,
-    region: result.region,
-    curatedSearchSources: result.curatedSearchSources || [],
-    offsettingOpportunities: result.offsettingOpportunities || [],
-    ecoTourismOpportunities: result.ecoTourismOpportunities || [],
-  };
+  try {
+    const result = await discoverEcoIntelFlow(input);
+
+    // If the AI returns null or undefined, construct a default "empty" response.
+    if (!result) {
+        return {
+            countryName: input.countryName,
+            region: 'Unknown', // Or determine a default based on input
+            curatedSearchSources: [],
+            offsettingOpportunities: [],
+            ecoTourismOpportunities: [],
+        };
+    }
+    
+    // Ensure the result conforms to the schema, even if the AI returns a null/undefined value for optional fields.
+    // This prevents downstream errors if the AI fails to find specific opportunities.
+    return {
+      countryName: result.countryName,
+      region: result.region,
+      curatedSearchSources: result.curatedSearchSources || [],
+      offsettingOpportunities: result.offsettingOpportunities || [],
+      ecoTourismOpportunities: result.ecoTourismOpportunities || [],
+    };
+  } catch (error) {
+      console.error(`[discoverEcoIntel] Flow failed for ${input.countryName}:`, error);
+      // Return a default empty structure on any critical failure to prevent crashes.
+       return {
+            countryName: input.countryName,
+            region: 'Unknown',
+            curatedSearchSources: [],
+            offsettingOpportunities: [],
+            ecoTourismOpportunities: [],
+        };
+  }
 }
 
 // --- Genkit Flow and Prompt Definitions ---
@@ -67,9 +91,9 @@ const discoverEcoIntelFlow = ai.defineFlow(
 
         3. **ecoTourismOpportunities**: Find specific, reputable eco-tourism activities or locations (up to a maximum of 5). For each, you MUST provide:
             *   **name**: The name of the tour, park, or location.
+            *   **url**: The direct URL for booking or more information. This MUST be a full, valid URL.
             *   **description**: A one-sentence summary of the activity (e.g., "Jungle trekking to see native wildlife in a protected reserve.").
             *   **category**: Categorize as one of: 'wildlife_sanctuary', 'jungle_trekking', 'community_visit', 'bird_watching', 'other'.
-            *   **bookingUrl**: The direct booking URL if available in the text.
         
         **CRITICAL INSTRUCTIONS:**
         1.  If you cannot find any verifiable projects or opportunities after a thorough review of the provided text, it is acceptable and correct to return an empty list for that field. Do not invent information.
