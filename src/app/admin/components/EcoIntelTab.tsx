@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getEcoIntelAdmin, updateEcoIntelAdmin, saveEcoIntelData } from '@/actions/eco-intel-admin';
+import { saveEcoIntelData } from '@/actions/eco-intel-admin';
 import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
 import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
@@ -23,6 +23,7 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { getEcoIntelAdmin, updateEcoIntelAdmin } from '@/actions/eco-intel-admin';
 
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
@@ -150,12 +151,12 @@ export default function EcoIntelTab() {
                     `official website ministry of environment ${country.name}`,
                     `top environmental NGOs in ${country.name}`,
                     `reputable wildlife conservation organizations in ${country.name}`,
-                    `"carbon offsetting projects" in ${country.name}`,
-                    `"climate change initiatives" in ${country.name}`,
-                    `"${country.name} sustainable development goals"`,
-                    `"eco-tourism" OR "sustainable travel" in ${country.name}`,
-                    `"environmental volunteer" opportunities in ${country.name}`,
-                    `"work exchange" conservation ${country.name}`
+                    `carbon offsetting projects in ${country.name}`,
+                    `climate change initiatives in ${country.name}`,
+                    `${country.name} sustainable development goals`,
+                    `eco-tourism in ${country.name}`,
+                    `environmental volunteer opportunities in ${country.name}`,
+                    `work exchange conservation ${country.name}`
                 ];
                 updateCurrentLog(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name} in parallel...`);
 
