@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A server action to securely expose the eco-footprint calculation flow.
@@ -7,7 +8,8 @@ import { calculateEcoFootprint } from '@/ai/flows/calculate-eco-footprint-flow';
 import type { EcoFootprintInput, EcoFootprintOutput } from '@/ai/flows/types';
 import { getAppSettingsAction } from './settings';
 import { db } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import type { CountryEcoIntel } from '@/lib/types';
 
 
 /**
@@ -78,3 +80,39 @@ export async function calculateEcoFootprintAction(input: EcoFootprintInput, user
         return { error: error.message, debugLog };
     }
 }
+
+
+/**
+ * Fetches the eco-intel data for a single country by its unique country code.
+ * This is a client-callable server action.
+ * @param countryCode The ISO 3166-1 alpha-2 code of the country (e.g., "MY").
+ * @returns {Promise<CountryEcoIntel | null>}
+ */
+export async function getCountryEcoIntel(countryCode: string): Promise<CountryEcoIntel | null> {
+    try {
+        if (!countryCode) return null;
+        
+        const intelDocRef = db.collection('countryEcoIntel').doc(countryCode);
+        const doc = await intelDocRef.get();
+
+        if (!doc.exists) {
+            return null;
+        }
+        
+        const data = doc.data();
+        if (!data) return null;
+        
+        const lastBuildAt = (data.lastBuildAt as Timestamp)?.toDate().toISOString();
+
+        return {
+            id: doc.id,
+            ...data,
+            lastBuildAt,
+        } as CountryEcoIntel;
+
+    } catch (error) {
+        console.error(`Error fetching eco-intel data for ${countryCode}:`, error);
+        return null;
+    }
+}
+

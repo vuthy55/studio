@@ -20,7 +20,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { lightweightCountries } from '@/lib/location-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getCountryEcoIntel } from '@/actions/eco-intel-admin';
+import { getCountryEcoIntel } from '@/actions/eco-intel';
 import type { CountryEcoIntel } from '@/lib/types';
 
 
