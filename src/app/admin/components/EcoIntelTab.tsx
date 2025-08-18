@@ -16,19 +16,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getEcoIntelAdmin, updateEcoIntelAdmin, buildEcoIntelData } from '@/actions/eco-intel-admin';
+import { getEcoIntelAdmin, updateEcoIntelAdmin, buildEcoIntelData, type BuildResult } from '@/actions/eco-intel-admin';
 import type { CountryEcoIntel } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
-type BuildStatus = 'idle' | 'generating' | 'success' | 'failed';
-
-interface CountryBuildStatus {
-    countryCode: string;
-    countryName: string;
-    status: BuildStatus;
-    error?: string;
-}
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
     tree_planting: <TreePine className="h-4 w-4" />,
@@ -51,8 +44,9 @@ export default function EcoIntelTab() {
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
     const [hasSearched, setHasSearched] = useState(false);
     
-    const [buildStatuses, setBuildStatuses] = useState<Record<string, CountryBuildStatus>>({});
+    const [buildResults, setBuildResults] = useState<BuildResult[]>([]);
     const [isBuilding, setIsBuilding] = useState(false);
+    const [currentBuildIndex, setCurrentBuildIndex] = useState(0);
 
     const fetchIntelData = useCallback(async () => {
         setIsDbLoading(true);
@@ -111,47 +105,30 @@ export default function EcoIntelTab() {
     }, [intelData]);
 
     const handleBuildDatabase = async () => {
-        if(selectedCountries.length === 0) {
+        if (selectedCountries.length === 0) {
             toast({ variant: 'destructive', title: 'No Selection', description: 'Please select at least one country or region to build.' });
             return;
         }
-        
-        setIsBuilding(true);
-        const initialStatuses: Record<string, CountryBuildStatus> = {};
-        selectedCountries.forEach(code => {
-             const country = lightweightCountries.find(c => c.code === code);
-             if (country) {
-                initialStatuses[code] = { countryCode: code, countryName: country.name, status: 'generating' };
-            }
-        });
-        setBuildStatuses(initialStatuses);
-        
-        try {
-            const result = await buildEcoIntelData(selectedCountries);
-            
-            if (result.success) {
-                const finalStatuses: Record<string, CountryBuildStatus> = {};
-                result.results.forEach(res => {
-                    finalStatuses[res.countryCode] = { ...res, status: res.status === 'success' ? 'success' : 'failed', error: res.error };
-                });
-                setBuildStatuses(prev => ({...prev, ...finalStatuses}));
-                
-                const successCount = result.results.filter(r => r.status === 'success').length;
-                const failureCount = result.results.length - successCount;
 
-                toast({ title: 'Database Build Finished', description: `Succeeded: ${successCount}, Failed: ${failureCount}.` });
-                
-                await fetchIntelData();
-            } else {
-                 toast({ variant: 'destructive', title: 'Error', description: 'The build process failed to start.' });
-                 setBuildStatuses({});
-            }
-        } catch(e: any) {
-            toast({ variant: 'destructive', title: 'Error', description: e.message || 'Failed to start database build.' });
-             setBuildStatuses({});
+        setIsBuilding(true);
+        setBuildResults([]);
+        setCurrentBuildIndex(0);
+
+        for (let i = 0; i < selectedCountries.length; i++) {
+            setCurrentBuildIndex(i);
+            const countryCode = selectedCountries[i];
+            const countryName = lightweightCountries.find(c => c.code === countryCode)?.name || 'Unknown';
+            setBuildResults(prev => [...prev, { status: 'generating', countryCode, countryName, log: [`[START] Beginning build for ${countryName}`] }]);
+
+            const result = await buildEcoIntelData(countryCode);
+            setBuildResults(prev => prev.map(r => r.countryCode === countryCode ? result : r));
         }
+
         setIsBuilding(false);
-    }
+        setCurrentBuildIndex(0);
+        toast({ title: 'Database Build Complete', description: 'Review the logs for details on each country.' });
+        await fetchIntelData();
+    };
     
     const handleCellChange = (countryCode: string, field: keyof CountryEcoIntel, value: any, oppIndex?: number) => {
         setEditState(prev => {
@@ -218,81 +195,84 @@ export default function EcoIntelTab() {
                                     Select regions or countries to research. The AI will find local offsetting opportunities. Re-selecting a country will overwrite its existing data.
                                 </DialogDescription>
                             </DialogHeader>
-                            <ScrollArea className="h-[60vh]">
-                                <div className="space-y-4 p-1">
-                                    {Object.entries(countriesByRegion).map(([region, countries]) => (
-                                        <Accordion key={region} type="single" collapsible>
-                                            <AccordionItem value={region} className="border rounded-md px-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`region-checkbox-${region}`}
-                                                        className="ml-2"
-                                                        checked={countries.every(c => selectedCountries.includes(c.code))}
-                                                        onCheckedChange={(checked) => {
-                                                            const regionCodes = countries.map(c => c.code);
-                                                            if(checked) {
-                                                                setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
-                                                            } else {
-                                                                setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
-                                                            }
-                                                        }}
-                                                    />
-                                                    <AccordionTrigger className="hover:no-underline">
-                                                        <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full text-left">
-                                                            {region} ({countries.length})
-                                                        </Label>
-                                                    </AccordionTrigger>
-                                                </div>
-                                                <AccordionContent>
-                                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4">
-                                                        {countries.map(country => {
-                                                            const buildStatus = buildStatuses[country.code];
-                                                            const dbStatus = builtCountryData.get(country.code)?.lastBuildStatus;
-
-                                                            return (
-                                                            <div key={country.code} className="flex items-center space-x-2">
-                                                                <Checkbox 
-                                                                    id={country.code} 
-                                                                    checked={selectedCountries.includes(country.code)}
-                                                                    onCheckedChange={(checked) => {
-                                                                        setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
-                                                                    }}
-                                                                />
-                                                                <Label htmlFor={country.code} className="flex items-center gap-1.5 cursor-pointer">
-                                                                    {country.name}
-                                                                     <TooltipProvider>
-                                                                        <Tooltip>
-                                                                            <TooltipTrigger asChild>
-                                                                                <span className="flex items-center">
-                                                                                    {buildStatus ? (
-                                                                                        buildStatus.status === 'generating' ? <LoaderCircle className="h-3 w-3 text-primary animate-spin" />
-                                                                                        : buildStatus.status === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                                                        : <AlertTriangle className="h-3 w-3 text-destructive" />
-                                                                                    ) : dbStatus ? (
-                                                                                        dbStatus === 'success' ? <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                                                        : <AlertTriangle className="h-3 w-3 text-destructive" />
-                                                                                    ) : (
-                                                                                        <Database className="h-3 w-3 text-muted-foreground" />
-                                                                                    )}
-                                                                                </span>
-                                                                            </TooltipTrigger>
-                                                                            <TooltipContent>
-                                                                                <p className="max-w-xs">{buildStatus?.error || (dbStatus === 'failed' ? builtCountryData.get(country.code)?.lastBuildError || 'Failed' : dbStatus || 'Not built')}</p>
-                                                                            </TooltipContent>
-                                                                        </Tooltip>
-                                                                    </TooltipProvider>
-                                                                </Label>
-                                                            </div>
-                                                        )})}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <ScrollArea className="h-[60vh] border rounded-lg p-2">
+                                    <div className="space-y-4 p-1">
+                                        {Object.entries(countriesByRegion).map(([region, countries]) => (
+                                            <Accordion key={region} type="single" collapsible>
+                                                <AccordionItem value={region} className="border rounded-md px-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`region-checkbox-${region}`}
+                                                            className="ml-2"
+                                                            checked={countries.every(c => selectedCountries.includes(c.code))}
+                                                            onCheckedChange={(checked) => {
+                                                                const regionCodes = countries.map(c => c.code);
+                                                                if(checked) {
+                                                                    setSelectedCountries(prev => [...new Set([...prev, ...regionCodes])]);
+                                                                } else {
+                                                                    setSelectedCountries(prev => prev.filter(c => !regionCodes.includes(c)));
+                                                                }
+                                                            }}
+                                                        />
+                                                        <AccordionTrigger className="hover:no-underline">
+                                                            <Label htmlFor={`region-checkbox-${region}`} className="font-semibold cursor-pointer w-full text-left">
+                                                                {region} ({countries.length})
+                                                            </Label>
+                                                        </AccordionTrigger>
                                                     </div>
-                                                </AccordionContent>
-                                            </AccordionItem>
-                                        </Accordion>
-                                    ))}
-                                </div>
-                            </ScrollArea>
+                                                    <AccordionContent>
+                                                        <div className="grid grid-cols-2 gap-2 p-4">
+                                                            {countries.map(country => (
+                                                                <div key={country.code} className="flex items-center space-x-2">
+                                                                    <Checkbox 
+                                                                        id={country.code} 
+                                                                        checked={selectedCountries.includes(country.code)}
+                                                                        onCheckedChange={(checked) => {
+                                                                            setSelectedCountries(prev => checked ? [...prev, country.code] : prev.filter(c => c !== country.code));
+                                                                        }}
+                                                                    />
+                                                                    <Label htmlFor={country.code} className="flex items-center gap-1.5 cursor-pointer">
+                                                                        {country.name}
+                                                                    </Label>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            </Accordion>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                                <ScrollArea className="h-[60vh] border rounded-lg p-2 bg-muted/30">
+                                    <div className="p-2 space-y-2">
+                                        {buildResults.length === 0 && !isBuilding && <p className="text-center text-sm text-muted-foreground p-4">Logs will appear here once the build process starts.</p>}
+                                        {buildResults.map((result, index) => (
+                                            <Accordion key={result.countryCode} type="single" collapsible className="w-full" defaultValue={index === currentBuildIndex ? 'log' : ''}>
+                                                <AccordionItem value="log">
+                                                    <AccordionTrigger className="p-2 text-sm font-semibold rounded-md hover:bg-muted">
+                                                        <div className="flex items-center gap-2">
+                                                             {result.status === 'generating' ? <LoaderCircle className="h-4 w-4 text-primary animate-spin" />
+                                                                : result.status === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                                : <AlertTriangle className="h-4 w-4 text-destructive" />
+                                                            }
+                                                            {result.countryName}
+                                                        </div>
+                                                    </AccordionTrigger>
+                                                    <AccordionContent className="mt-1">
+                                                        <pre className="text-xs p-2 bg-background rounded-md max-h-40 overflow-auto whitespace-pre-wrap font-mono">
+                                                            {result.log.join('\n')}
+                                                            {result.error && `[FINAL ERROR] ${result.error}`}
+                                                        </pre>
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            </Accordion>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                            </div>
                             <DialogFooter>
-                                <Button variant="ghost" onClick={() => { setIsBuildDialogOpen(false); setBuildStatuses({}); setSelectedCountries([]); }}>Close</Button>
+                                <Button variant="ghost" onClick={() => { setIsBuildDialogOpen(false); setBuildResults([]); setSelectedCountries([]); }}>Close</Button>
                                 <Button onClick={handleBuildDatabase} disabled={isBuilding || selectedCountries.length === 0}>
                                     {isBuilding ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                                     Build for {selectedCountries.length} Countries

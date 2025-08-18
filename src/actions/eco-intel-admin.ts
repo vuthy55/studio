@@ -49,111 +49,104 @@ export async function updateEcoIntelAdmin(countryCode: string, updates: Partial<
     }
 }
 
-interface BuildResult {
+export interface BuildResult {
     countryCode: string;
     countryName: string;
     status: 'success' | 'failed';
     error?: string;
+    log: string[];
 }
 
 /**
  * Builds or updates the eco-intel database for a given list of country codes.
  * This function now uses the robust search-scrape-analyze pattern.
  */
-export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<{ success: boolean; results: BuildResult[] }> {
-    if (!countryCodesToBuild || countryCodesToBuild.length === 0) {
-        return { success: false, results: [] };
+export async function buildEcoIntelData(countryCode: string): Promise<BuildResult> {
+    const country = lightweightCountries.find(c => c.code === countryCode);
+    if (!country) {
+        return { status: 'failed', countryCode, countryName: 'Unknown', error: 'Country code not found', log: ['[FAIL] Country code not found in lightweightCountries list.'] };
     }
     
     const apiKey = process.env.GOOGLE_API_KEY!;
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID!;
     const collectionRef = db.collection('countryEcoIntel');
-    const countriesToProcess = lightweightCountries.filter(c => countryCodesToBuild.includes(c.code));
-    
-    const buildPromises = countriesToProcess.map(async (country): Promise<BuildResult> => {
-        const docRef = collectionRef.doc(country.code);
-        try {
-            console.log(`[Eco Intel Builder] Stage 1: Compiling queries for ${country.name}...`);
-            
-            const queries = [
-                // Phase 1: Foundational Info - Government & Top NGOs
-                `official website ministry of environment ${country.name}`,
-                `official website department of wildlife protection ${country.name}`,
-                `top environmental NGOs in ${country.name}`,
-                // Phase 2: Actionable Opportunities - Carbon Offsetting & Volunteering
-                `"carbon offsetting projects" in ${country.name}`,
-                `"environmental volunteer" opportunities in ${country.name}`,
-                `"work exchange" conservation ${country.name}`, // Added "work exchange"
-                // Phase 3: Broader Context - National Policies & Tourism
-                `"climate change initiatives" in ${country.name}`,
-                `"${country.name} sustainable development goals"`,
-                `"eco-tourism" OR "sustainable travel" in ${country.name}` // Broadened search
-            ];
+    const docRef = collectionRef.doc(country.code);
+    const log: string[] = [];
 
-            let allScrapedContent = "";
-            let scrapedUrlCount = 0;
+    try {
+        log.push(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
+        
+        const queries = [
+            `official website ministry of environment ${country.name}`,
+            `official website department of wildlife protection ${country.name}`,
+            `"carbon offsetting projects" in ${country.name}`,
+            `"environmental volunteer" opportunities in ${country.name}`,
+            `"work exchange" conservation ${country.name}`,
+            `"climate change initiatives" in ${country.name}`,
+            `"${country.name} sustainable development goals"`,
+            `"eco-tourism" OR "sustainable travel" in ${country.name}`
+        ];
 
-            console.log(`[Eco Intel Builder] Stage 2: Executing ${queries.length} searches for ${country.name}...`);
+        let allScrapedContent = "";
+        let scrapedUrlCount = 0;
 
-            for (const query of queries) {
-                console.log(`[Eco Intel Builder]   - Searching: "${query}"`);
-                const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
-                if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-                    console.log(`[Eco Intel Builder]   - Found ${searchResult.results.length} result(s). Scraping top result.`);
-                    const topUrl = searchResult.results[0].link;
-                    if (topUrl) {
-                        const scrapeResult = await scrapeUrlAction(topUrl);
-                        if (scrapeResult.success && scrapeResult.content) {
-                            allScrapedContent += `Content from ${topUrl} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
-                            scrapedUrlCount++;
-                            console.log(`[Eco Intel Builder]   - SUCCESS scraping ${topUrl}. Content length: ${scrapeResult.content.length}.`);
-                        } else {
-                            console.warn(`[Eco Intel Builder]   - FAILED to scrape ${topUrl}. Reason: ${scrapeResult.error}`);
-                        }
+        log.push(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name}...`);
+
+        for (const query of queries) {
+            log.push(`[INFO]   - Searching: "${query}"`);
+            const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
+            if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                log.push(`[INFO]   - Found ${searchResult.results.length} result(s). Scraping top result.`);
+                const topUrl = searchResult.results[0].link;
+                if (topUrl) {
+                    const scrapeResult = await scrapeUrlAction(topUrl);
+                    if (scrapeResult.success && scrapeResult.content) {
+                        allScrapedContent += `Content from ${topUrl} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
+                        scrapedUrlCount++;
+                        log.push(`[SUCCESS]   - Scraped ${topUrl}. Content length: ${scrapeResult.content.length}.`);
+                    } else {
+                        log.push(`[WARN]   - FAILED to scrape ${topUrl}. Reason: ${scrapeResult.error}. Using snippet instead.`);
+                        allScrapedContent += `Snippet from ${topUrl} (for query "${query}"):\n${searchResult.results[0].snippet}\n\n---\n\n`;
                     }
-                } else {
-                     console.warn(`[Eco Intel Builder]   - No search results for query: "${query}"`);
                 }
-            }
-
-            if (!allScrapedContent.trim()) {
-                throw new Error('Could not scrape any meaningful content from top search results for any query.');
-            }
-            
-            console.log(`[Eco Intel Builder] Stage 3: Analyzing content from ${scrapedUrlCount} sources for ${country.name}...`);
-            const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText: allScrapedContent });
-            
-            if (ecoData && ecoData.countryName) {
-                const finalData = {
-                    ...ecoData,
-                    id: country.code,
-                    lastBuildStatus: 'success',
-                    lastBuildAt: FieldValue.serverTimestamp(),
-                    lastBuildError: null
-                };
-                await docRef.set(finalData, { merge: true });
-                 console.log(`[Eco Intel Builder] SUCCESS for ${country.name}. Data saved.`);
-                return { status: 'success', countryCode: country.code, countryName: country.name };
             } else {
-                if (ecoData && !ecoData.countryName) {
-                     throw new Error(`AI returned a valid but empty object, indicating no data could be extracted.`);
-                }
-                 throw new Error(`AI failed to return sufficient data after analysis.`);
+                 log.push(`[WARN]   - No search results for query: "${query}"`);
             }
-        } catch (error: any) {
-            console.error(`[Eco Intel Builder] CRITICAL ERROR processing ${country.name}:`, error);
-            await docRef.set({
-                countryName: country.name,
-                id: country.code,
-                lastBuildStatus: 'failed',
-                lastBuildError: error.message || 'An unknown error occurred during AI discovery.',
-                lastBuildAt: FieldValue.serverTimestamp(),
-            }, { merge: true });
-            return { status: 'failed', countryCode: country.code, countryName: country.name, error: error.message };
         }
-    });
 
-    const results = await Promise.all(buildPromises);
-    
-    return { success: true, results };
+        if (!allScrapedContent.trim()) {
+            throw new Error('Could not scrape any meaningful content from top search results for any query.');
+        }
+        
+        log.push(`[INFO] Stage 3: Analyzing content from ${scrapedUrlCount} sources for ${country.name}...`);
+        const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText: allScrapedContent });
+        
+        if (ecoData && ecoData.countryName) {
+            const finalData = {
+                ...ecoData,
+                id: country.code,
+                lastBuildStatus: 'success' as const,
+                lastBuildAt: FieldValue.serverTimestamp(),
+                lastBuildError: null
+            };
+            await docRef.set(finalData, { merge: true });
+            log.push(`[SUCCESS] SUCCESS for ${country.name}. Data saved.`);
+            return { status: 'success', countryCode: country.code, countryName: country.name, log };
+        } else {
+            if (ecoData && !ecoData.countryName) {
+                 throw new Error(`AI returned a valid but empty object, indicating no data could be extracted.`);
+            }
+             throw new Error(`AI failed to return sufficient data after analysis.`);
+        }
+    } catch (error: any) {
+        log.push(`[CRITICAL] CRITICAL ERROR processing ${country.name}:`, error.message);
+        await docRef.set({
+            countryName: country.name,
+            id: country.code,
+            lastBuildStatus: 'failed' as const,
+            lastBuildError: error.message || 'An unknown error occurred during AI discovery.',
+            lastBuildAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        return { status: 'failed', countryCode: country.code, countryName: country.name, error: error.message, log };
+    }
 }
