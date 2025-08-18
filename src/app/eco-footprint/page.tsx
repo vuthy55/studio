@@ -3,6 +3,7 @@
 "use client";
 
 import React, { Suspense, useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
@@ -23,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getCountryEcoIntel } from '@/actions/eco-intel';
 import type { CountryEcoIntel } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
