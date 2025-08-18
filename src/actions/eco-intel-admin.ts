@@ -73,50 +73,47 @@ export async function buildEcoIntelData(countryCodesToBuild: string[]): Promise<
     const buildPromises = countriesToProcess.map(async (country): Promise<BuildResult> => {
         const docRef = collectionRef.doc(country.code);
         try {
-            console.log(`[Eco Intel Builder] Stage 1: Searching for ${country.name}...`);
+            console.log(`[Eco Intel Builder] Stage 1: Compiling queries for ${country.name}...`);
             
-            // Perform two types of searches: one for specific sources, one for opportunities.
-            const sourceQuery = `("environmental NGO" OR "ministry of environment" OR "department of wildlife") in ${country.name}`;
-            const opportunityQuery = `("carbon offset projects" OR "eco-tourism" OR "environmental volunteer") in ${country.name}`;
-            
-            const [sourceSearchResult, opportunitySearchResult] = await Promise.all([
-                searchWebAction({ query: sourceQuery, apiKey, searchEngineId }),
-                searchWebAction({ query: opportunityQuery, apiKey, searchEngineId })
-            ]);
+            const queries = [
+                `official website ministry of environment ${country.name}`,
+                `official website department of wildlife protection ${country.name}`,
+                `official website department of forestry ${country.name}`,
+                `top environmental NGOs in ${country.name}`,
+                `carbon offsetting projects in ${country.name}`,
+                `climate change initiatives in ${country.name}`,
+                `"${country.name} sustainable development goals"`,
+                `eco-tourism in ${country.name}`,
+                `environmental volunteer opportunities in ${country.name}`
+            ];
 
-            const allLinks = new Set<string>();
-             if (sourceSearchResult.success && sourceSearchResult.results) {
-                sourceSearchResult.results.slice(0, 2).forEach(r => allLinks.add(r.link));
-            }
-            if (opportunitySearchResult.success && opportunitySearchResult.results) {
-                opportunitySearchResult.results.slice(0, 3).forEach(r => allLinks.add(r.link));
-            }
+            let allScrapedContent = "";
+            let scrapedUrlCount = 0;
 
-            if (allLinks.size === 0) {
-                 throw new Error(`No web search results found for any query related to ${country.name}.`);
-            }
-            
-            console.log(`[Eco Intel Builder] Stage 2: Scraping ${allLinks.size} unique URLs for ${country.name}...`);
-            const scrapePromises = Array.from(allLinks).map(link => scrapeUrlAction(link));
-            const scrapeResults = await Promise.all(scrapePromises);
-            
-            let searchResultsText = "";
-            scrapeResults.forEach((scrapeResult, index) => {
-                if (scrapeResult.success && scrapeResult.content) {
-                    const url = Array.from(allLinks)[index];
-                    searchResultsText += `Content from ${url}:\n${scrapeResult.content}\n\n---\n\n`;
+            console.log(`[Eco Intel Builder] Stage 2: Executing ${queries.length} searches for ${country.name}...`);
+
+            for (const query of queries) {
+                const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
+                if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                    const topUrl = searchResult.results[0].link;
+                    if (topUrl) {
+                        const scrapeResult = await scrapeUrlAction(topUrl);
+                        if (scrapeResult.success && scrapeResult.content) {
+                            allScrapedContent += `Content from ${topUrl} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
+                            scrapedUrlCount++;
+                        }
+                    }
                 }
-            });
-
-            if (!searchResultsText.trim()) {
-                throw new Error('Could not scrape any meaningful content from top search results.');
             }
 
-            console.log(`[Eco Intel Builder] Stage 3: Analyzing content for ${country.name}...`);
-            const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText });
+            if (!allScrapedContent.trim()) {
+                throw new Error('Could not scrape any meaningful content from top search results for any query.');
+            }
+            
+            console.log(`[Eco Intel Builder] Stage 3: Analyzing content from ${scrapedUrlCount} sources for ${country.name}...`);
+            const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText: allScrapedContent });
             
             if (ecoData && ecoData.countryName) {
-                // The AI now populates the curated sources list itself.
                 const finalData = {
                     ...ecoData,
                     id: country.code,
