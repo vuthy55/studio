@@ -1,5 +1,4 @@
 
-
 'use server';
 /**
  * @fileOverview A Genkit flow to discover and structure eco-intelligence data for a given country.
@@ -68,25 +67,30 @@ const discoverEcoIntelFlow = ai.defineFlow(
     inputSchema: DiscoverEcoIntelInputSchema,
     outputSchema: DiscoverEcoIntelOutputSchema,
   },
-  async ({ countryName, searchResultsText }) => {
+  async ({ countryName, scrapedGovernmentContent, broaderSearchSnippets }) => {
     
     const { output } = await ai.generate({
       prompt: `
         You are an environmental research assistant for a travel app. Your task is to analyze the provided web page content and extract structured information about eco-friendly opportunities in "${countryName}".
 
-        Analyze the following research packet, which contains content scraped from multiple relevant webpages:
-        ---
-        ${searchResultsText}
+        First, analyze the **scrapedGovernmentContent**. This is your primary, most trusted source.
+        --- SCRAPED GOVERNMENT CONTENT ---
+        ${scrapedGovernmentContent || "No official government content was successfully scraped."}
         ---
 
-        Based ONLY on the text provided, provide the following information:
+        Next, use the **broaderSearchSnippets** for supplementary information about NGOs and commercial tourism.
+        --- BROADER SEARCH SNIPPETS ---
+        ${broaderSearchSnippets || "No broader search snippets were found."}
+        ---
+
+        Based on a combined analysis of all provided text, provide the following information:
         
-        1.  **curatedSearchSources**: Identify the URLs of any reputable environmental NGOs, government agencies (like a Ministry of Environment or Department of Forestry), or well-known local environmental communities. Return a list of their root URLs (e.g., "wwf.org.my", "doe.gov.my").
+        1.  **curatedSearchSources**: Identify the URLs of any reputable environmental NGOs or government agencies (like a Ministry of Environment). Prioritize URLs found in the government content. Return a list of their root URLs (e.g., "wwf.org.my", "doe.gov.my").
 
         2.  **offsettingOpportunities**: Find specific, reputable organizations or projects (up to a maximum of 5) that offer environmental volunteer opportunities or carbon offsetting programs. For each, you MUST provide:
             *   **name**: The official name of the organization or project.
             *   **url**: The direct URL to their homepage or volunteer page. This MUST be a full, valid URL.
-            *   **description**: A one-sentence summary of their mission or the type of work they do (e.g., "Reforestation projects in the northern highlands", "Marine conservation and coral planting initiatives").
+            *   **description**: A one-sentence summary of their mission or the type of work they do (e.g., "Reforestation projects in the northern highlands").
             *   **activityType**: Categorize the main activity as one of: 'tree_planting', 'coral_planting', 'recycling', 'conservation', 'other'.
 
         3. **ecoTourismOpportunities**: Find specific, reputable eco-tourism activities or locations (up to a maximum of 5). For each, you MUST provide:

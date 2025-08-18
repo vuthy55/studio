@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase-admin';
@@ -98,67 +97,76 @@ export async function buildEcoIntelData(countryCode: string): Promise<{ success:
 
     try {
         log.push(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
-        const queries = [
-            `"official website ministry of environment ${country.name}"`,
+        
+        // **NEW** Stage 1: Targeted government search
+        const governmentQuery = `(ministry OR department OR agency) of (environment OR forestry OR conservation) official site ${country.name}`;
+        log.push(`[INFO] Stage 1a: Executing targeted government search...`);
+        const govSearchResult = await searchWebAction({ query: governmentQuery });
+
+        let governmentScrapedContent = "";
+        if (govSearchResult.success && govSearchResult.results && govSearchResult.results.length > 0) {
+            const topResults = govSearchResult.results.slice(0, 2); // Scrape top 2 results
+            log.push(`[INFO] Stage 1b: Scraping top ${topResults.length} government URLs...`);
+            
+            const scrapePromises = topResults.map(result => scrapeUrlAction(result.link));
+            const scrapeResults = await Promise.allSettled(scrapePromises);
+
+            scrapeResults.forEach((scrapeResult, index) => {
+                const url = topResults[index].link;
+                if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
+                    governmentScrapedContent += `Content from official source ${url}:\n${scrapeResult.value.content}\n\n---\n\n`;
+                    log.push(`[SUCCESS] Scraped ${url}.`);
+                } else {
+                    const errorMsg = scrapeResult.status === 'fulfilled' ? scrapeResult.value.error : 'Promise rejected';
+                    log.push(`[WARN] FAILED to scrape ${url}. Reason: ${errorMsg}.`);
+                }
+            });
+        } else {
+            log.push(`[WARN] No official government environment sites found for ${country.name}.`);
+        }
+
+
+        // **NEW** Stage 2: Broader search, but only using snippets (no scraping)
+        log.push(`[INFO] Stage 2: Executing broader searches for snippets...`);
+        const broaderQueries = [
             `"top environmental NGOs in ${country.name}"`,
             `"reputable wildlife conservation organizations in ${country.name}"`,
             `carbon offsetting projects in ${country.name}`,
-            `climate change initiatives in ${country.name}`,
-            `"${country.name} sustainable development goals"`,
             `"eco-tourism in ${country.name}"`,
             `"environmental volunteer opportunities in ${country.name}"`,
             `work exchange conservation ${country.name}`
         ];
-
-        log.push(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name} in parallel...`);
-        const searchPromises = queries.map(query => searchWebAction({ query }));
+        
+        let broaderSearchResultsText = "";
+        const searchPromises = broaderQueries.map(query => searchWebAction({ query }));
         const searchActionResults = await Promise.all(searchPromises);
 
-        let allScrapedContent = "";
-        const scrapeItems: { url: string; query: string, snippet: string }[] = [];
         searchActionResults.forEach((searchResult, index) => {
             if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-                const topUrl = searchResult.results[0].link;
-                if (topUrl) {
-                    scrapeItems.push({ url: topUrl, query: queries[index], snippet: searchResult.results[0].snippet });
-                }
-            } else {
-                log.push(`[WARN] No search results for query: "${queries[index]}"`);
+                 searchResult.results.forEach(item => {
+                    broaderSearchResultsText += `Snippet for query "${broaderQueries[index]}" from ${item.link}:\n${item.snippet}\n\n---\n\n`;
+                 });
             }
         });
-
-        if (scrapeItems.length === 0) {
-             throw new Error("No web search results were found for any query.");
-        }
-
-        log.push(`[INFO] Stage 3: Scraping top ${scrapeItems.length} URLs in parallel...`);
-        const scrapePromises = scrapeItems.map(({ url }) => scrapeUrlAction(url));
-        const scrapeResults = await Promise.allSettled(scrapePromises);
         
-        scrapeResults.forEach((scrapeResult, index) => {
-            const { url, query, snippet } = scrapeItems[index];
-            if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
-                allScrapedContent += `Content from ${url} (for query "${query}"):\n${scrapeResult.value.content}\n\n---\n\n`;
-                log.push(`[SUCCESS] Scraped ${url}. Content length: ${scrapeResult.value.content.length}.`);
-            } else {
-                const errorMsg = scrapeResult.status === 'fulfilled' ? scrapeResult.value.error : 'Promise rejected';
-                allScrapedContent += `Snippet from ${url} (for query "${query}"):\n${snippet}\n\n---\n\n`;
-                log.push(`[WARN] FAILED to scrape ${url}. Reason: ${errorMsg}. Using snippet as fallback.`);
-            }
-        });
+        const combinedResearchText = governmentScrapedContent + broaderSearchResultsText;
 
-        if (!allScrapedContent.trim()) {
+        if (!combinedResearchText.trim()) {
             throw new Error('Could not gather any meaningful content from web search or scraping.');
         }
 
-        log.push(`[INFO] Stage 4: Analyzing content from ${scrapeItems.length} sources...`);
-        const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText: allScrapedContent });
+        log.push(`[INFO] Stage 3: Analyzing content...`);
+        const ecoData = await discoverEcoIntel({ 
+            countryName: country.name, 
+            scrapedGovernmentContent: governmentScrapedContent,
+            broaderSearchSnippets: broaderSearchResultsText
+        });
 
         if (!ecoData || !ecoData.countryName) {
             throw new Error('AI failed to return sufficient data after analysis.');
         }
         
-        log.push(`[INFO] Stage 5: Saving analyzed data to Firestore...`);
+        log.push(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
         const saveResult = await saveEcoIntelData(countryCode, ecoData);
         if (!saveResult.success) {
             throw new Error(saveResult.error || 'Failed to save data to Firestore.');
