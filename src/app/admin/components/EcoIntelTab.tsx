@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
-import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink } from "lucide-react";
+import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -132,13 +132,13 @@ export default function EcoIntelTab() {
         try {
             updateLog(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
             const queries = [
-                `official website ministry of environment ${country.name}`,
-                `top environmental NGOs in ${country.name}`,
-                `reputable wildlife conservation organizations in ${country.name}`,
-                `carbon offsetting projects in ${country.name}`,
-                `climate change initiatives in ${country.name}`,
-                `"${country.name} sustainable development goals"`,
-                `eco-tourism in ${country.name}`,
+                `"official website ministry of environment ${country.name}"`,
+                `"top environmental NGOs in ${country.name}"`,
+                `"reputable wildlife conservation organizations in ${country.name}"`,
+                `"carbon offsetting projects in ${country.name}"`,
+                `"climate change initiatives in ${country.name}"`,
+                `"Cambodia sustainable development goals"`,
+                `"eco-tourism" OR "sustainable travel" in ${country.name}`,
                 `"environmental volunteer" opportunities in ${country.name}`,
                 `"work exchange" conservation ${country.name}`
             ];
@@ -156,7 +156,7 @@ export default function EcoIntelTab() {
                         scrapeItems.push({ url: topUrl, query: queries[index], snippet: searchResult.results[0].snippet });
                     }
                 } else {
-                    updateLog(`[WARN] No search results for query: "${queries[index]}"`);
+                    updateLog(`[WARN] No search results for query: ${queries[index]}`);
                 }
             });
     
