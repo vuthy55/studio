@@ -3,7 +3,7 @@
 
 import axios from 'axios';
 
-interface SearchResult {
+export interface SearchResult {
     title: string;
     link: string;
     snippet: string;

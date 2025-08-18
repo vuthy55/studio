@@ -15,8 +15,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getEcoIntelAdmin, updateEcoIntelAdmin, buildEcoIntelData, type BuildResult } from '@/actions/eco-intel-admin';
+import { getEcoIntelAdmin, updateEcoIntelAdmin, saveEcoIntelData } from '@/actions/eco-intel-admin';
+import { searchWebAction } from '@/actions/search';
+import { scrapeUrlAction } from '@/actions/scraper';
+import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import type { CountryEcoIntel } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +32,14 @@ const activityTypeIcons: Record<string, React.ReactNode> = {
     conservation: <Leaf className="h-4 w-4" />,
     other: <PlusCircle className="h-4 w-4" />,
 };
+
+interface BuildResult {
+    countryCode: string;
+    countryName: string;
+    status: 'generating' | 'success' | 'failed';
+    error?: string;
+    log: string[];
+}
 
 export default function EcoIntelTab() {
     const { toast } = useToast();
@@ -111,25 +121,111 @@ export default function EcoIntelTab() {
         }
 
         setIsBuilding(true);
-        setBuildResults([]);
-        setCurrentBuildIndex(0);
+        const initialResults: BuildResult[] = selectedCountries.map(code => {
+            const country = lightweightCountries.find(c => c.code === code);
+            return {
+                countryCode: code,
+                countryName: country?.name || 'Unknown',
+                status: 'generating',
+                log: [`[START] Queued for build: ${country?.name}`]
+            };
+        });
+        setBuildResults(initialResults);
 
         for (let i = 0; i < selectedCountries.length; i++) {
             setCurrentBuildIndex(i);
             const countryCode = selectedCountries[i];
-            const countryName = lightweightCountries.find(c => c.code === countryCode)?.name || 'Unknown';
-            setBuildResults(prev => [...prev, { status: 'generating', countryCode, countryName, log: [`[START] Beginning build for ${countryName}`] } as BuildResult]);
+            const country = lightweightCountries.find(c => c.code === countryCode);
+            if (!country) continue;
+            
+            const log: string[] = [];
+            const updateCurrentLog = (newLogEntry: string) => {
+                log.push(newLogEntry);
+                setBuildResults(prev => prev.map(r => r.countryCode === countryCode ? { ...r, log: [...log] } : r));
+            };
 
-            const result = await buildEcoIntelData(countryCode);
-            setBuildResults(prev => prev.map(r => r.countryCode === countryCode ? result : r));
+            try {
+                updateCurrentLog(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
+                 const queries = [
+                    `official website ministry of environment ${country.name}`,
+                    `top environmental NGOs in ${country.name}`,
+                    `reputable wildlife conservation organizations in ${country.name}`,
+                    `"carbon offsetting projects" in ${country.name}`,
+                    `"climate change initiatives" in ${country.name}`,
+                    `"${country.name} sustainable development goals"`,
+                    `"eco-tourism" OR "sustainable travel" in ${country.name}`,
+                    `"environmental volunteer" opportunities in ${country.name}`,
+                    `"work exchange" conservation ${country.name}`
+                ];
+                updateCurrentLog(`[INFO] Stage 2: Executing ${queries.length} searches for ${country.name} in parallel...`);
+
+                const searchPromises = queries.map(query => searchWebAction({ 
+                    query, 
+                    apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY!, 
+                    searchEngineId: process.env.NEXT_PUBLIC_GOOGLE_SEARCH_ENGINE_ID! 
+                }));
+                const searchActionResults = await Promise.all(searchPromises);
+                
+                let allScrapedContent = "";
+                const scrapeItems: { url: string; query: string, snippet: string }[] = [];
+                searchActionResults.forEach((searchResult, index) => {
+                    if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                        const topUrl = searchResult.results[0].link;
+                        if (topUrl) {
+                            scrapeItems.push({ url: topUrl, query: queries[index], snippet: searchResult.results[0].snippet });
+                        }
+                    } else {
+                        updateCurrentLog(`[WARN] No search results for query: "${queries[index]}"`);
+                    }
+                });
+
+                updateCurrentLog(`[INFO] Stage 3: Scraping top ${scrapeItems.length} URLs in parallel...`);
+                const scrapePromises = scrapeItems.map(({ url }) => scrapeUrlAction(url));
+                const scrapeResults = await Promise.all(scrapePromises);
+                
+                scrapeResults.forEach((scrapeResult, index) => {
+                    const { url, query, snippet } = scrapeItems[index];
+                    if (scrapeResult.success && scrapeResult.content) {
+                        allScrapedContent += `Content from ${url} (for query "${query}"):\n${scrapeResult.content}\n\n---\n\n`;
+                        updateCurrentLog(`[SUCCESS] Scraped ${url}. Content length: ${scrapeResult.content.length}.`);
+                    } else {
+                        allScrapedContent += `Snippet from ${url} (for query "${query}"):\n${snippet}\n\n---\n\n`;
+                        updateCurrentLog(`[WARN] FAILED to scrape ${url}. Reason: ${scrapeResult.error}. Using snippet as fallback.`);
+                    }
+                });
+
+                if (!allScrapedContent.trim()) {
+                    throw new Error('Could not gather any meaningful content from web search or scraping.');
+                }
+
+                updateCurrentLog(`[INFO] Stage 4: Analyzing content from ${scrapeItems.length} sources...`);
+                const ecoData = await discoverEcoIntel({ countryName: country.name, searchResultsText: allScrapedContent });
+
+                if (!ecoData || !ecoData.countryName) {
+                    throw new Error('AI failed to return sufficient data after analysis.');
+                }
+                
+                updateCurrentLog(`[INFO] Stage 5: Saving analyzed data to Firestore...`);
+                const saveResult = await saveEcoIntelData(countryCode, ecoData);
+                if (!saveResult.success) {
+                    throw new Error(saveResult.error || 'Failed to save data to Firestore.');
+                }
+
+                updateCurrentLog(`[SUCCESS] Build for ${country.name} completed successfully.`);
+                setBuildResults(prev => prev.map(r => r.countryCode === countryCode ? { ...r, status: 'success', log } : r));
+
+            } catch (error: any) {
+                 updateCurrentLog(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
+                 setBuildResults(prev => prev.map(r => r.countryCode === countryCode ? { ...r, status: 'failed', error: error.message, log } : r));
+            }
         }
-
+        
         setIsBuilding(false);
         setCurrentBuildIndex(0);
         toast({ title: 'Database Build Complete', description: 'Review the logs for details on each country.' });
         await fetchIntelData();
     };
-    
+
     const handleCellChange = (countryCode: string, field: keyof CountryEcoIntel, value: any, oppIndex?: number) => {
         setEditState(prev => {
             const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
