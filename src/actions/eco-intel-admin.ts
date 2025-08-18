@@ -77,14 +77,20 @@ export async function buildEcoIntelData(countryCode: string): Promise<BuildResul
         log.push(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
         
         const queries = [
+            // Phase 1: Identify Key Organizations
             `official website ministry of environment ${country.name}`,
-            `official website department of wildlife protection ${country.name}`,
+            `top environmental NGOs in ${country.name}`,
+            `reputable wildlife conservation organizations in ${country.name}`,
+
+            // Phase 2: Find Actionable Projects & Policies
             `"carbon offsetting projects" in ${country.name}`,
-            `"environmental volunteer" opportunities in ${country.name}`,
-            `"work exchange" conservation ${country.name}`,
             `"climate change initiatives" in ${country.name}`,
             `"${country.name} sustainable development goals"`,
-            `"eco-tourism" OR "sustainable travel" in ${country.name}`
+            
+            // Phase 3: Find User-centric Opportunities
+            `"eco-tourism" OR "sustainable travel" in ${country.name}`,
+            `"environmental volunteer" opportunities in ${country.name}`,
+            `"work exchange" conservation ${country.name}`
         ];
 
         let allScrapedContent = "";

@@ -118,7 +118,7 @@ export default function EcoIntelTab() {
             setCurrentBuildIndex(i);
             const countryCode = selectedCountries[i];
             const countryName = lightweightCountries.find(c => c.code === countryCode)?.name || 'Unknown';
-            setBuildResults(prev => [...prev, { status: 'generating', countryCode, countryName, log: [`[START] Beginning build for ${countryName}`] }]);
+            setBuildResults(prev => [...prev, { status: 'generating', countryCode, countryName, log: [`[START] Beginning build for ${countryName}`] } as BuildResult]);
 
             const result = await buildEcoIntelData(countryCode);
             setBuildResults(prev => prev.map(r => r.countryCode === countryCode ? result : r));
