@@ -59,13 +59,13 @@ const discoverEcoIntelFlow = ai.defineFlow(
         
         1.  **curatedSearchSources**: Identify the URLs of any reputable environmental NGOs, government agencies (like a Ministry of Environment or Department of Forestry), or well-known local environmental communities. Return a list of their root URLs (e.g., "wwf.org.my", "doe.gov.my").
 
-        2.  **offsettingOpportunities**: Find specific, reputable organizations or projects (up to a maximum of 5) that offer environmental volunteer opportunities or carbon offsetting programs. For each, provide:
+        2.  **offsettingOpportunities**: Find specific, reputable organizations or projects (up to a maximum of 5) that offer environmental volunteer opportunities or carbon offsetting programs. For each, you MUST provide:
             *   **name**: The official name of the organization or project.
-            *   **url**: The direct URL to their homepage or volunteer page. Must be a full, valid URL.
+            *   **url**: The direct URL to their homepage or volunteer page. This MUST be a full, valid URL.
             *   **description**: A one-sentence summary of their mission or the type of work they do (e.g., "Reforestation projects in the northern highlands", "Marine conservation and coral planting initiatives").
             *   **activityType**: Categorize the main activity as one of: 'tree_planting', 'coral_planting', 'recycling', 'conservation', 'other'.
 
-        3. **ecoTourismOpportunities**: Find specific, reputable eco-tourism activities or locations (up to a maximum of 5). For each, provide:
+        3. **ecoTourismOpportunities**: Find specific, reputable eco-tourism activities or locations (up to a maximum of 5). For each, you MUST provide:
             *   **name**: The name of the tour, park, or location.
             *   **description**: A one-sentence summary of the activity (e.g., "Jungle trekking to see native wildlife in a protected reserve.").
             *   **category**: Categorize as one of: 'wildlife_sanctuary', 'jungle_trekking', 'community_visit', 'bird_watching', 'other'.
