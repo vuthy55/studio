@@ -8,11 +8,11 @@ import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink, Bot } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink, Bot, Save, List } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { getCountryIntelData } from '@/actions/intel';
-import type { CountryIntelData, CountryEcoIntel } from '@/lib/types';
+import type { CountryIntelData, CountryEcoIntel, ClientEcoFootprint } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -30,8 +30,7 @@ import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { calculateEcoFootprintAction } from '@/actions/eco-intel';
-import { getCountryEcoIntel } from '@/actions/eco-intel';
+import { calculateEcoFootprintAction, getCountryEcoIntel, saveEcoFootprintAction, getSavedEcoFootprintsAction, updateEcoFootprintOffsetAction } from '@/actions/eco-intel';
 import type { EcoFootprintOutput } from '@/ai/flows/types';
 
 
@@ -232,14 +231,15 @@ function LocationIntelTab() {
                                 </DialogContent>
                             </Dialog>
                              <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
-                                <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                {settings?.infohubAiCost || 10} Tokens per analysis
                             </Badge>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent>
                     <Select onValueChange={handleCountrySelection} value={selectedCountryCode}>
-                        <SelectTrigger><SelectValue placeholder="Select a country..." /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select a country to begin..." /></SelectTrigger>
                         <SelectContent><ScrollArea className="h-72">{countryOptions.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</ScrollArea></SelectContent>
                     </Select>
                 </CardContent>
@@ -436,7 +436,7 @@ function TransportIntelTab() {
 
 
 function FootprintsTab() {
-     const { user } = useUserData();
+    const { user } = useUserData();
     const [selectedCountry, setSelectedCountry] = useState<{code: string; name: string} | null>(null);
     const countryOptions = useMemo(() => lightweightCountries.map(c => ({ code: c.code, name: c.name })), []);
     const { toast } = useToast();
@@ -446,6 +446,32 @@ function FootprintsTab() {
     const [result, setResult] = useState<EcoFootprintOutput | null>(null);
     const [debugLog, setDebugLog] = useState<string[]>([]);
     const { settings } = useUserData();
+    
+    // New state for "My Footprints"
+    const [isMyFootprintsOpen, setIsMyFootprintsOpen] = useState(false);
+    const [savedFootprints, setSavedFootprints] = useState<ClientEcoFootprint[]>([]);
+    const [isFetchingSaved, setIsFetchingSaved] = useState(false);
+    const [editingFootprint, setEditingFootprint] = useState<Record<string, string>>({});
+    const [isSavingFootprint, setIsSavingFootprint] = useState<Record<string, boolean>>({});
+
+    const fetchMyFootprints = useCallback(async () => {
+        if (!user) return;
+        setIsFetchingSaved(true);
+        try {
+            const footprints = await getSavedEcoFootprintsAction(user.uid);
+            setSavedFootprints(footprints);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch your saved footprints.' });
+        } finally {
+            setIsFetchingSaved(false);
+        }
+    }, [user, toast]);
+
+    useEffect(() => {
+        if (isMyFootprintsOpen) {
+            fetchMyFootprints();
+        }
+    }, [isMyFootprintsOpen, fetchMyFootprints]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -468,7 +494,7 @@ function FootprintsTab() {
             }
             
             if (!calculationResult) {
-                throw new Error("An unexpected response was received from the server.");
+                throw new Error("The AI returned an empty or invalid response. Please check the debug log for details.");
             }
             setResult(calculationResult);
             
@@ -479,11 +505,112 @@ function FootprintsTab() {
         }
     };
     
+    const handleSaveFootprint = async () => {
+        if (!result || !user) return;
+        
+        setIsLoading(true);
+        const payload = {
+            journeySummary: travelDescription,
+            countryName: countryOptions.find(c => c.code === destinationCountryCode)?.name || destinationCountryCode,
+            co2Kilograms: result.totalFootprintKgCo2
+        };
+
+        const { success, error } = await saveEcoFootprintAction(user.uid, payload);
+        if (success) {
+            toast({ title: 'Footprint Saved!', description: 'You can view and manage it in "My Footprints".' });
+            setResult(null);
+            setTravelDescription('');
+            setDestinationCountryCode('');
+        } else {
+            toast({ variant: 'destructive', title: 'Save Failed', description: error });
+        }
+        setIsLoading(false);
+    };
+
+    const handleUpdateOffsetAction = async (footprintId: string) => {
+        const actions = editingFootprint[footprintId];
+        if (!user || typeof actions === 'undefined') return;
+
+        setIsSavingFootprint(prev => ({ ...prev, [footprintId]: true }));
+        const { success, error } = await updateEcoFootprintOffsetAction(user.uid, footprintId, actions);
+        if (success) {
+            toast({ title: 'Actions Saved!' });
+            setSavedFootprints(prev => prev.map(fp => fp.id === footprintId ? { ...fp, offsetActions: actions } : fp));
+            setEditingFootprint(prev => {
+                const newState = { ...prev };
+                delete newState[footprintId];
+                return newState;
+            });
+        } else {
+            toast({ variant: 'destructive', title: 'Save Failed', description: error });
+        }
+        setIsSavingFootprint(prev => ({ ...prev, [footprintId]: false }));
+    };
+
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Footprints</CardTitle>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>Footprints</CardTitle>
+                        <Dialog open={isMyFootprintsOpen} onOpenChange={setIsMyFootprintsOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline"><List className="mr-2"/>My Footprints</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl">
+                                <DialogHeader>
+                                    <DialogTitle>My Eco-Footprints</DialogTitle>
+                                    <DialogDescription>A log of your calculated travel footprints. Edit the "Actions" column to track how you've offset your impact.</DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4">
+                                {isFetchingSaved ? (
+                                    <div className="flex justify-center items-center h-40"><LoaderCircle className="animate-spin" /></div>
+                                ) : (
+                                    <ScrollArea className="h-[60vh]">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-[50px]">#</TableHead>
+                                                    <TableHead>Journey</TableHead>
+                                                    <TableHead className="w-[100px]">CO₂ (kg)</TableHead>
+                                                    <TableHead>Offset Actions</TableHead>
+                                                    <TableHead className="w-[100px]"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {savedFootprints.length > 0 ? savedFootprints.map((fp, index) => (
+                                                    <TableRow key={fp.id}>
+                                                        <TableCell>{index + 1}</TableCell>
+                                                        <TableCell>
+                                                            <p className="font-semibold">{fp.countryName}</p>
+                                                            <p className="text-xs text-muted-foreground truncate">{fp.journeySummary}</p>
+                                                        </TableCell>
+                                                        <TableCell className="font-bold text-lg">{fp.co2Kilograms.toFixed(1)}</TableCell>
+                                                        <TableCell>
+                                                            <Textarea
+                                                                value={editingFootprint[fp.id] ?? fp.offsetActions ?? ''}
+                                                                onChange={(e) => setEditingFootprint(prev => ({ ...prev, [fp.id]: e.target.value }))}
+                                                                placeholder="e.g., Donated to a local tree planting org..."
+                                                                rows={2}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
+                                                                {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )) : (
+                                                    <TableRow><TableCell colSpan={5} className="text-center h-24">No saved footprints yet.</TableCell></TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </ScrollArea>
+                                )}
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                     <CardDescription>
                         Describe your trip, and our AI agent will estimate its carbon footprint and suggest ways to offset it.
                     </CardDescription>
@@ -500,7 +627,7 @@ function FootprintsTab() {
                         </div>
                         <div className="space-y-2">
                              <label htmlFor="destinationCountryCode" className="font-medium text-sm">Primary Destination Country</label>
-                            <Select onValueChange={setDestinationCountryCode} value={destinationCountryCode}>
+                            <Select onValueChange={setDestinationCountryCode} value={destinationCountryCode} required>
                                 <SelectTrigger id="destinationCountryCode"><SelectValue placeholder="Select a country..." /></SelectTrigger>
                                 <SelectContent>
                                     {countryOptions.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
@@ -544,6 +671,12 @@ function FootprintsTab() {
                                     <p className="text-lg text-muted-foreground">Total Footprint</p>
                                     <p className="text-6xl font-bold text-primary">{result.totalFootprintKgCo2.toFixed(1)}</p>
                                     <p className="text-muted-foreground">kg CO₂</p>
+                                </div>
+                                <div className="text-center">
+                                    <Button onClick={handleSaveFootprint} disabled={isLoading} size="lg">
+                                        {isLoading ? <LoaderCircle className="animate-spin mr-2"/> : <Save className="mr-2"/>}
+                                        Save This Footprint
+                                    </Button>
                                 </div>
         
                                 <div>

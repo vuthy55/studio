@@ -365,3 +365,17 @@ export interface ClientVibe extends Omit<Vibe, 'createdAt' | 'lastPostAt'> {
     createdAt: string; // ISO date string
     lastPostAt?: string; // ISO date string
 }
+
+export type SavedEcoFootprint = {
+    id: string;
+    userId: string;
+    journeySummary: string;
+    countryName: string;
+    co2Kilograms: number;
+    offsetActions?: string; // User-editable field for their notes
+    createdAt: AdminTimestamp | ClientTimestamp | FieldValue;
+};
+
+export interface ClientEcoFootprint extends Omit<SavedEcoFootprint, 'createdAt'> {
+    createdAt: string; // ISO string
+}

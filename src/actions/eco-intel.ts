@@ -9,7 +9,7 @@ import type { EcoFootprintInput, EcoFootprintOutput } from '@/ai/flows/types';
 import { getAppSettingsAction } from './settings';
 import { db } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import type { CountryEcoIntel } from '@/lib/types';
+import type { CountryEcoIntel, ClientEcoFootprint } from '@/lib/types';
 
 
 /**
@@ -70,7 +70,7 @@ export async function calculateEcoFootprintAction(input: EcoFootprintInput, user
         debugLog.push(`[INFO] Executing calculateEcoFootprintFlow...`);
         const flowResult = await calculateEcoFootprint(input, debugLog);
         
-        debugLog.push(`[SUCCESS] Flow execution completed successfully.`);
+        debugLog.push('[SUCCESS] AI analysis complete. Returning structured output.');
         return { result: flowResult, debugLog };
 
     } catch (error: any) {
@@ -116,3 +116,73 @@ export async function getCountryEcoIntel(countryCode: string): Promise<CountryEc
     }
 }
 
+
+/**
+ * Saves a calculated eco-footprint to the user's subcollection in Firestore.
+ */
+export async function saveEcoFootprintAction(
+  userId: string,
+  payload: { journeySummary: string; countryName: string; co2Kilograms: number }
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId || !payload) {
+    return { success: false, error: 'User ID and payload are required.' };
+  }
+  try {
+    const footprintRef = db.collection('users').doc(userId).collection('ecoFootprints').doc();
+    await footprintRef.set({
+      ...payload,
+      userId: userId,
+      createdAt: FieldValue.serverTimestamp(),
+      offsetActions: ''
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error saving eco-footprint:', error);
+    return { success: false, error: 'An unexpected server error occurred.' };
+  }
+}
+
+/**
+ * Fetches all saved eco-footprints for a given user.
+ */
+export async function getSavedEcoFootprintsAction(userId: string): Promise<ClientEcoFootprint[]> {
+  if (!userId) return [];
+  try {
+    const footprintsRef = db.collection('users').doc(userId).collection('ecoFootprints').orderBy('createdAt', 'desc');
+    const snapshot = await footprintsRef.get();
+    if (snapshot.empty) return [];
+
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+      } as ClientEcoFootprint;
+    });
+  } catch (error) {
+    console.error('Error fetching saved eco-footprints:', error);
+    return [];
+  }
+}
+
+/**
+ * Updates the 'offsetActions' for a specific saved footprint.
+ */
+export async function updateEcoFootprintOffsetAction(
+  userId: string,
+  footprintId: string,
+  offsetActions: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId || !footprintId) {
+    return { success: false, error: 'User ID and Footprint ID are required.' };
+  }
+  try {
+    const footprintRef = db.collection('users').doc(userId).collection('ecoFootprints').doc(footprintId);
+    await footprintRef.update({ offsetActions });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating offset actions:', error);
+    return { success: false, error: 'An unexpected server error occurred.' };
+  }
+}
