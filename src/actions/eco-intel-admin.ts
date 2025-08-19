@@ -6,6 +6,7 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import { lightweightCountries } from '@/lib/location-data';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { searchWebAction } from '@/actions/search';
 
 
 /**
@@ -48,33 +49,59 @@ export async function updateEcoIntelAdmin(countryCode: string, updates: Partial<
 
 /**
  * Builds or updates the intelligence database for a given country.
- * This is now the main server action that orchestrates the entire AI research process.
+ * This server action now handles all data gathering before passing it to the AI flow.
  */
 export async function buildEcoIntelData(countryCode: string): Promise<{success: boolean, log: string[], error?: string}> {
     const log: string[] = [];
+    const logMessage = (message: string) => log.push(message);
+
     const country = lightweightCountries.find(c => c.code === countryCode);
     if (!country) {
         const errorMsg = 'Country not found.';
-        log.push(`[FAIL] ${errorMsg}`);
+        logMessage(`[FAIL] ${errorMsg}`);
         return { success: false, log, error: errorMsg };
     }
 
     const docRef = db.collection('countryEcoIntel').doc(country.code);
-    const logMessage = (message: string) => log.push(message);
 
     try {
-        logMessage(`[START] Kicking off AI Research Agent for ${country.name}...`);
-        const ecoData = await discoverEcoIntel({ countryName: country.name }, logMessage);
+        logMessage(`[START] Starting Eco-Intel build for ${country.name}.`);
+        logMessage(`[INFO] Stage 1: Compiling queries...`);
+        const queries = [
+            `(ministry OR department OR agency) of (environment OR forestry OR climate change) official site in ${country.name}`,
+            `top environmental NGOs for (tree planting OR conservation OR recycling) in ${country.name}`,
+            `carbon offsetting programs in ${country.name}`,
+            `eco-tourism opportunities in ${country.name}`
+        ];
+
+        let researchPacket = "";
+
+        logMessage(`[INFO] Stage 2: Gathering data from web searches...`);
+        for (const query of queries) {
+            logMessage(`[INFO] ...searching for: "${query}"`);
+            const searchResult = await searchWebAction({ query });
+            if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                const snippets = searchResult.results.map(r => `Source: ${r.link}\nTitle: ${r.title}\nSnippet: ${r.snippet}`).join('\n\n');
+                researchPacket += `--- Results for query: "${query}" ---\n${snippets}\n\n`;
+            }
+        }
+
+        if (!researchPacket.trim()) {
+            throw new Error('Web search returned no usable information.');
+        }
+
+        logMessage(`[INFO] Stage 3: Passing research packet to AI for analysis...`);
+        const ecoData = await discoverEcoIntel({ countryName: country.name, researchPacket: researchPacket });
         
         if (!ecoData || !ecoData.countryName) {
             throw new Error('AI Research Agent failed to return sufficient data.');
         }
 
-        logMessage(`[INFO] Saving analyzed data to Firestore...`);
+        logMessage(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
         const finalData = {
             ...ecoData,
             id: country.code,
-            countryName: country.name, // Ensure countryName is always correct
+            countryName: country.name,
             lastBuildStatus: 'success' as const,
             lastBuildAt: FieldValue.serverTimestamp(),
             lastBuildError: null
@@ -83,6 +110,7 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
 
         logMessage(`[SUCCESS] Build for ${country.name} completed successfully.`);
         return { success: true, log };
+
     } catch (error: any) {
         logMessage(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
         await docRef.set({

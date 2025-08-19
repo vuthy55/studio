@@ -339,8 +339,20 @@ export interface CountryEcoIntel {
     }[];
     ngos?: {
         name: string;
-        focus: string;
+        responsibility: string;
         url: string;
+    }[];
+    offsettingOpportunities?: {
+        name: string;
+        activityType: string;
+        url: string;
+        description: string;
+    }[];
+    ecoTourismOpportunities?: {
+        name: string;
+        category: 'wildlife_sanctuary' | 'jungle_trekking' | 'community_visit' | 'bird_watching' | 'other';
+        description: string;
+        bookingUrl?: string;
     }[];
     lastBuildStatus?: 'success' | 'failed';
     lastBuildError?: string | null;
