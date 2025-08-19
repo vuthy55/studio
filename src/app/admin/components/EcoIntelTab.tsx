@@ -1,10 +1,9 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
-import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink } from "lucide-react";
+import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink, Bird, Mountain, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,15 +21,11 @@ import { getEcoIntelAdmin, updateEcoIntelAdmin, buildEcoIntelData } from '@/acti
 
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
-    tree_planting: <TreePine className="h-4 w-4" />,
-    coral_planting: <Anchor className="h-4 w-4" />,
-    recycling: <Recycle className="h-4 w-4" />,
-    conservation: <Leaf className="h-4 w-4" />,
-    other: <PlusCircle className="h-4 w-4" />,
-    wildlife_sanctuary: <i className="fas fa-paw text-orange-600"></i>, // Placeholder, requires FontAwesome or similar
-    jungle_trekking: <i className="fas fa-hiking text-lime-600"></i>,
-    community_visit: <i className="fas fa-users text-indigo-600"></i>,
+    wildlife_sanctuary: <Bird className="h-4 w-4" />,
+    jungle_trekking: <Mountain className="h-4 w-4" />,
+    community_visit: <Users className="h-4 w-4" />,
     bird_watching: <i className="fas fa-binoculars text-sky-600"></i>,
+    other: <PlusCircle className="h-4 w-4" />,
 };
 
 interface BuildResult {
@@ -169,26 +164,43 @@ export default function EcoIntelTab() {
         await fetchIntelData();
     };
 
-    const handleFieldChange = (countryCode: string, field: keyof CountryEcoIntel, value: any, index?: number, subfield?: string) => {
+    const handleFieldChange = (countryCode: string, field: keyof CountryEcoIntel, value: any, index: number, subfield: string) => {
         setEditState(prev => {
             const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
-
-            if ((field === 'governmentBodies' || field === 'ngos' || field === 'offsettingOpportunities' || field === 'ecoTourismOpportunities') && index !== undefined && subfield) {
-                const newArray = [...((newCountryState as any)[field] || [])];
+            const arrayField = (newCountryState as any)[field] || [];
+            const newArray = [...arrayField];
+            
+            if (newArray[index]) {
                 newArray[index] = { ...newArray[index], [subfield]: value };
-                (newCountryState as any)[field] = newArray;
-            } else {
-                 (newCountryState as any)[field] = value;
             }
+
+            (newCountryState as any)[field] = newArray;
 
             return { ...prev, [countryCode]: newCountryState };
         });
     };
     
-    const handleAddField = (countryCode: string, field: 'governmentBodies' | 'ngos') => {
+    const handleAddField = (countryCode: string, field: 'governmentBodies' | 'ngos' | 'offsettingOpportunities' | 'ecoTourismOpportunities') => {
         setEditState(prev => {
             const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
-            const newArray = [...(newCountryState[field] || []), { name: '', responsibility: '', url: '' }];
+            let newItem: any = {};
+            if (field === 'ecoTourismOpportunities') {
+                 newItem = { name: '', description: '', category: 'other', bookingUrl: '' };
+            } else {
+                 newItem = { name: '', responsibility: '', url: '' };
+            }
+            
+            const newArray = [...(newCountryState[field] || []), newItem];
+            (newCountryState as any)[field] = newArray;
+            return { ...prev, [countryCode]: newCountryState };
+        });
+    }
+
+    const handleRemoveField = (countryCode: string, field: keyof CountryEcoIntel, index: number) => {
+        setEditState(prev => {
+            const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
+            const currentArray = (newCountryState as any)[field] || [];
+            const newArray = currentArray.filter((_: any, i: number) => i !== index);
             (newCountryState as any)[field] = newArray;
             return { ...prev, [countryCode]: newCountryState };
         });
@@ -349,7 +361,7 @@ export default function EcoIntelTab() {
                             <LoaderCircle className="h-6 w-6 animate-spin text-primary mx-auto" />
                         </div>
                     ) : filteredData.length > 0 ? (
-                        filteredData.map((country, countryIndex) => {
+                        filteredData.map((country) => {
                             const countryEdits = editState[country.id] || {};
                             const currentData = { ...country, ...countryEdits };
                             const hasChanges = Object.keys(countryEdits).length > 0;
@@ -399,6 +411,27 @@ export default function EcoIntelTab() {
                                                         </div>
                                                     ))}
                                                       <Button variant="outline" size="sm" onClick={() => handleAddField(country.id, 'ngos')}><PlusCircle className="mr-2 h-4 w-4" /> Add NGO</Button>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h4 className="font-semibold mb-2">Eco-Tourism Opportunities</h4>
+                                                <div className="space-y-4">
+                                                    {(currentData.ecoTourismOpportunities || []).map((opp, oppIndex) => (
+                                                        <div key={oppIndex} className="p-3 border rounded-lg space-y-2">
+                                                            <Input value={opp.name} onChange={(e) => handleFieldChange(country.id, 'ecoTourismOpportunities', e.target.value, oppIndex, 'name')} placeholder="Opportunity Name" />
+                                                            <Textarea value={opp.description} onChange={(e) => handleFieldChange(country.id, 'ecoTourismOpportunities', e.target.value, oppIndex, 'description')} placeholder="One-sentence description..." rows={2} className="text-xs" />
+                                                             <div className="flex items-center gap-2">
+                                                                <Input value={opp.bookingUrl || ''} onChange={(e) => handleFieldChange(country.id, 'ecoTourismOpportunities', e.target.value, oppIndex, 'bookingUrl')} placeholder="Optional booking URL" />
+                                                                {opp.bookingUrl && (
+                                                                     <a href={opp.bookingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                                                                        <ExternalLink className="h-4 w-4" />
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                     <Button variant="outline" size="sm" onClick={() => handleAddField(country.id, 'ecoTourismOpportunities')}><PlusCircle className="mr-2 h-4 w-4" /> Add Opportunity</Button>
                                                 </div>
                                             </div>
 

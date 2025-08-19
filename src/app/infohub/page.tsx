@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
@@ -701,7 +699,7 @@ function FootprintsTab() {
                                                                                 </AlertDialogFooter>
                                                                             </AlertDialogContent>
                                                                         </AlertDialog>
-                                                                        <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
+                                                                        <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id] || typeof editingFootprint[fp.id] === 'undefined'}>
                                                                             {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
                                                                         </Button>
                                                                     </div>
@@ -862,7 +860,7 @@ function FootprintsTab() {
                                             <li key={ref}><a href={ref} target="_blank" rel="noopener noreferrer" className="hover:underline">{ref}</a></li>
                                         ))}
                                      </ul>
-                                </div>
+                                 </div>
                             </>
                         )}
 

@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to calculate the carbon footprint of a journey.
@@ -110,10 +109,15 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     }
 
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
-    const offsettingOpportunities = ecoIntelData?.offsettingOpportunities || [];
+    
+    // Combine both offsetting and eco-tourism opportunities into one list for the AI
+    const allLocalOpportunities = [
+        ...(ecoIntelData.offsettingOpportunities || []).map(o => ({...o, type: 'offset'})),
+        ...(ecoIntelData.ecoTourismOpportunities || []).map(o => ({...o, type: 'tourism'}))
+    ];
 
     debugLog.push(`[INFO] Using ${calculationSources.length} global calculation sources.`);
-    debugLog.push(`[INFO] Found ${offsettingOpportunities.length} local offsetting opportunities from the database.`);
+    debugLog.push(`[INFO] Found ${allLocalOpportunities.length} local opportunities from the database.`);
     
     debugLog.push(`[INFO] Calling AI to analyze journey and use tools.`);
     const { output } = await ai.generate({
@@ -142,9 +146,9 @@ const calculateEcoFootprintFlow = ai.defineFlow(
       
       **Constraint:** When searching for calculation data, you may only refer to information from these trusted sources: ${calculationSources.join(', ')}.
 
-      **Curated Local Offsetting Opportunities (use this data, do not search for new ones):**
+      **Curated Local Offsetting & Eco-Tourism Opportunities (use this data, do not search for new ones):**
       ---
-      ${JSON.stringify(offsettingOpportunities, null, 2)}
+      ${JSON.stringify(allLocalOpportunities, null, 2)}
       ---
       `,
       model: 'googleai/gemini-1.5-pro',
