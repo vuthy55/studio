@@ -1,13 +1,13 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useUserData } from '@/context/UserDataContext';
-import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink, Bot, Save, List } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink, Bot, Save, List, Trash2 } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { getCountryIntelData } from '@/actions/intel';
@@ -24,12 +24,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { calculateEcoFootprintAction, getCountryEcoIntel, saveEcoFootprintAction, getSavedEcoFootprintsAction, updateEcoFootprintOffsetAction } from '@/actions/eco-intel';
+import { calculateEcoFootprintAction, getCountryEcoIntel, saveEcoFootprintAction, getSavedEcoFootprintsAction, updateEcoFootprintOffsetAction, deleteEcoFootprintAction } from '@/actions/eco-intel';
 import type { EcoFootprintOutput } from '@/ai/flows/types';
 
 
@@ -150,7 +151,7 @@ function LocationIntelTab() {
         return staticIntel?.countryName || countryOptions.find(c => c.code === selectedCountryCode)?.name || '';
     }, [selectedCountryCode, countryOptions, staticIntel]);
     
-    const handleCountrySelection = async (countryCode: string) => {
+    const handleCountrySelection = useCallback(async (countryCode: string) => {
         // Reset state for new selection
         setSelectedCountryCode(countryCode);
         setAiIntel(null);
@@ -199,7 +200,7 @@ function LocationIntelTab() {
         } finally {
             setIsGeneratingIntel(false);
         }
-    };
+    }, [settings, spendTokensForTranslation, toast, userProfile]);
     
     return (
         <div className="space-y-6">
@@ -546,12 +547,23 @@ function FootprintsTab() {
         setIsSavingFootprint(prev => ({ ...prev, [footprintId]: false }));
     };
 
+    const handleDeleteFootprint = async (footprintId: string) => {
+        if (!user) return;
+        const { success, error } = await deleteEcoFootprintAction(user.uid, footprintId);
+        if (success) {
+            toast({ title: 'Footprint Deleted' });
+            setSavedFootprints(prev => prev.filter(fp => fp.id !== footprintId));
+        } else {
+            toast({ variant: 'destructive', title: 'Delete Failed', description: error });
+        }
+    };
+
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
-                        <CardTitle>Footprints</CardTitle>
+                        <CardTitle>Eco-Footprints</CardTitle>
                         <Dialog open={isMyFootprintsOpen} onOpenChange={setIsMyFootprintsOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="outline"><List className="mr-2"/>My Footprints</Button>
@@ -573,7 +585,7 @@ function FootprintsTab() {
                                                     <TableHead>Journey</TableHead>
                                                     <TableHead className="w-[120px]">Footprint</TableHead>
                                                     <TableHead>Offset Actions</TableHead>
-                                                    <TableHead className="w-[100px]"></TableHead>
+                                                    <TableHead className="w-[140px]">Manage</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -599,9 +611,28 @@ function FootprintsTab() {
                                                             />
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
-                                                                {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
-                                                            </Button>
+                                                            <div className="flex items-center gap-1">
+                                                                <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
+                                                                    {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
+                                                                </Button>
+                                                                <AlertDialog>
+                                                                    <AlertDialogTrigger asChild>
+                                                                        <Button variant="destructive" size="sm"><Trash2 /></Button>
+                                                                    </AlertDialogTrigger>
+                                                                    <AlertDialogContent>
+                                                                        <AlertDialogHeader>
+                                                                            <AlertDialogTitle>Delete this footprint?</AlertDialogTitle>
+                                                                            <AlertDialogDescription>
+                                                                                This action cannot be undone and will permanently remove this saved journey.
+                                                                            </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter>
+                                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                            <AlertDialogAction onClick={() => handleDeleteFootprint(fp.id)}>Confirm</AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                    </AlertDialogContent>
+                                                                </AlertDialog>
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 )) : (
@@ -646,7 +677,7 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
-                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
                                 <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
                                 {settings?.ecoFootprintCost || 10} Tokens
                             </Badge>

@@ -186,3 +186,23 @@ export async function updateEcoFootprintOffsetAction(
     return { success: false, error: 'An unexpected server error occurred.' };
   }
 }
+
+/**
+ * Deletes a specific eco-footprint from a user's history.
+ */
+export async function deleteEcoFootprintAction(
+  userId: string,
+  footprintId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId || !footprintId) {
+    return { success: false, error: 'User ID and Footprint ID are required.' };
+  }
+  try {
+    const footprintRef = db.collection('users').doc(userId).collection('ecoFootprints').doc(footprintId);
+    await footprintRef.delete();
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting eco-footprint:', error);
+    return { success: false, error: 'An unexpected server error occurred while deleting the footprint.' };
+  }
+}
