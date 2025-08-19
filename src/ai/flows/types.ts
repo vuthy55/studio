@@ -92,7 +92,6 @@ export type DiscoverTransportProvidersOutput = z.infer<typeof DiscoverTransportP
 // --- Schemas for discover-eco-intel-flow ---
 export const DiscoverEcoIntelInputSchema = z.object({
     countryName: z.string().describe('The country to research.'),
-    researchPacket: z.string().describe('A pre-compiled string of text snippets from various web searches to be analyzed.'),
 });
 export type DiscoverEcoIntelInput = z.infer<typeof DiscoverEcoIntelInputSchema>;
 

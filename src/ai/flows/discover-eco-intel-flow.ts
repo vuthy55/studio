@@ -58,7 +58,7 @@ export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<{ 
   if (ecoData?.ecoTourismOpportunities) {
     ecoData.ecoTourismOpportunities.forEach(opp => {
       if ('bookingUrl' in opp && opp.bookingUrl === "") {
-        delete opp.bookingUrl;
+        delete (opp as Partial<typeof opp>).bookingUrl;
       }
     });
   }
