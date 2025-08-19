@@ -111,21 +111,19 @@ const calculateEcoFootprintFlow = ai.defineFlow(
 
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     
-    // --- DEFINITIVE FIX: Standardize and Merge Data Structures ---
     const mappedOffsettingOpportunities = (ecoIntelData.offsettingOpportunities || []).map(o => ({
         name: o.name,
         url: o.url || '',
-        description: o.responsibility, // Map 'responsibility' to 'description'
+        description: o.responsibility,
         activityType: o.activityType || 'offsetting',
     }));
 
     const mappedTourismOpportunities = (ecoIntelData.ecoTourismOpportunities || []).map(o => ({
         name: o.name,
-        url: o.bookingUrl || '', // Map 'bookingUrl' to 'url'
-        description: o.description, // CORRECTLY use 'description' here
-        activityType: o.category || 'tourism', // Map 'category' to 'activityType'
+        url: o.bookingUrl || '',
+        description: o.description,
+        activityType: o.category || 'tourism',
     }));
-    // -- END DEFINITIVE FIX --
 
     const allLocalOpportunities = [...mappedOffsettingOpportunities, ...mappedTourismOpportunities];
 
