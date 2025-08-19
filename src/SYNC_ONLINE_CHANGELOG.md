@@ -44,6 +44,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load of the Rooms tab by removing an expensive database query.
 
 ### Fixed
+- **`[FIX]`** Resolved a recurring crash in the Eco-Intel database build process caused by unhandled AI model refusals. When researching countries with sensitive or limited public data (e.g., Afghanistan), the AI agent would sometimes return a `null` response instead of an empty data object. The system now gracefully catches this `null` output, logs the failure for the specific country, and continues the build process for other countries without crashing. This makes the data pipeline more resilient and ensures that one difficult country does not halt the entire database update.
 - **`[FIX]`** Re-architected the Eco-Intel database build process to use a sophisticated, multi-prompt AI research agent instead of a brittle scraping process. The new agent uses live search tools to gather fresh, accurate data on government environmental bodies and NGOs for any given country. This change resolves persistent server timeout errors and significantly improves the quality and completeness of the research data, ensuring relevant agencies like Forestry and Conservation are correctly identified.
 - **`[FIX]`** Corrected an invalid import path in `src/app/eco-footprint/page.tsx` that was causing the build to fail. The component was attempting to import `getCountryEcoIntel` from the wrong module (`eco-intel-admin` instead of `eco-intel`), leading to a "Module not found" error. The path has been corrected to point to the right server action, resolving the issue.
 - **`[FIX]`** To ensure a reliable registration process, the Google Sign-In/Sign-Up functionality has been removed. This streamlines the user flow by directing all new users to the standard email sign-up form, guaranteeing their profiles and sign-up bonuses are created correctly. The login page and corresponding authentication actions have been updated to remove all Google-related code.
@@ -114,3 +115,6 @@ All notable changes to the Sync Online feature will be documented in this file.
 
 
 
+
+
+    
