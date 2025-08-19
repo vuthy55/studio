@@ -111,21 +111,23 @@ const calculateEcoFootprintFlow = ai.defineFlow(
 
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     
-    // Combine both offsetting and eco-tourism opportunities into one list for the AI.
-    const allLocalOpportunities = [
-      ...((ecoIntelData.offsettingOpportunities || []).map(o => ({
-          name: o.name,
-          url: o.url || '', // Ensure URL is always a string
-          description: o.description,
-          activityType: o.activityType
-      }))),
-      ...((ecoIntelData.ecoTourismOpportunities || []).map(o => ({
-          name: o.name,
-          url: o.bookingUrl || '',
-          description: o.description,
-          activityType: o.category || 'tourism'
-      })))
-    ];
+    // --- DEFINITIVE FIX: Standardize and combine data sources ---
+    const offsettingOpportunities = (ecoIntelData.offsettingOpportunities || []).map(o => ({
+        name: o.name,
+        url: o.url || '',
+        description: o.responsibility, // Map 'responsibility' to 'description'
+        activityType: o.activityType || 'offsetting', // Provide a default 'activityType'
+    }));
+
+    const tourismOpportunities = (ecoIntelData.ecoTourismOpportunities || []).map(o => ({
+        name: o.name,
+        url: o.bookingUrl || '', // Map 'bookingUrl' to 'url'
+        description: o.description,
+        activityType: o.category || 'tourism', // Map 'category' to 'activityType'
+    }));
+
+    const allLocalOpportunities = [...offsettingOpportunities, ...tourismOpportunities];
+    // --- END OF FIX ---
 
 
     debugLog.push(`[INFO] Using ${calculationSources.length} global calculation sources.`);
@@ -187,3 +189,5 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     return output;
   }
 );
+
+    
