@@ -6,8 +6,6 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import { lightweightCountries } from '@/lib/location-data';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { searchWebAction } from './search';
-import { scrapeUrlAction } from './scraper';
 
 
 /**
@@ -81,110 +79,5 @@ export async function saveEcoIntelData(countryCode: string, ecoData: any): Promi
             lastBuildAt: FieldValue.serverTimestamp(),
         }, { merge: true });
         return { success: false, error: error.message };
-    }
-}
-
-/**
- * Server-side action to build eco-intel data for a single country.
- * This function orchestrates the entire research process: search, scrape, analyze, and save.
- */
-export async function buildEcoIntelData(countryCode: string): Promise<{ success: boolean; log: string[], error?: string }> {
-    const log: string[] = [];
-    const country = lightweightCountries.find(c => c.code === countryCode);
-    if (!country) {
-        return { success: false, log, error: `Country with code ${countryCode} not found.` };
-    }
-
-    try {
-        log.push(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
-        
-        // Stage 1: Targeted government search
-        const governmentQuery = `(ministry OR department OR agency) of (environment OR forestry OR conservation) official site ${country.name}`;
-        log.push(`[INFO] Stage 1a: Executing targeted government search...`);
-        const govSearchResult = await searchWebAction({ query: governmentQuery });
-
-        let governmentScrapedContent = "";
-        if (govSearchResult.success && govSearchResult.results && govSearchResult.results.length > 0) {
-            // Filter results to find the most relevant ones before scraping
-            const environmentalKeywords = ['environment', 'forestry', 'conservation', 'climate', 'natural resources', 'wildlife'];
-            const relevantResults = govSearchResult.results.filter(result => 
-                environmentalKeywords.some(keyword => 
-                    result.title.toLowerCase().includes(keyword) || result.snippet.toLowerCase().includes(keyword)
-                )
-            ).slice(0, 2); // Take the top 2 most relevant results
-
-            log.push(`[INFO] Stage 1b: Found ${relevantResults.length} relevant government URLs to scrape...`);
-            
-            const scrapePromises = relevantResults.map(result => scrapeUrlAction(result.link));
-            const scrapeResults = await Promise.allSettled(scrapePromises);
-
-            scrapeResults.forEach((scrapeResult, index) => {
-                const url = relevantResults[index].link;
-                if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
-                    governmentScrapedContent += `Content from official source ${url}:\n${scrapeResult.value.content}\n\n---\n\n`;
-                    log.push(`[SUCCESS] Scraped ${url}.`);
-                } else {
-                    const errorMsg = scrapeResult.status === 'fulfilled' ? scrapeResult.value.error : 'Promise rejected';
-                    log.push(`[WARN] FAILED to scrape ${url}. Reason: ${errorMsg}.`);
-                }
-            });
-        } else {
-            log.push(`[WARN] No official government environment sites found for ${country.name}.`);
-        }
-
-
-        // Stage 2: Broader search, but only using snippets (no scraping)
-        log.push(`[INFO] Stage 2: Executing broader searches for snippets...`);
-        const broaderQueries = [
-            `"top environmental NGOs in ${country.name}"`,
-            `"reputable wildlife conservation organizations in ${country.name}"`,
-            `carbon offsetting projects in ${country.name}`,
-            `"eco-tourism in ${country.name}"`,
-            `"environmental volunteer opportunities in ${country.name}"`,
-            `work exchange conservation ${country.name}`
-        ];
-        
-        let broaderSearchResultsText = "";
-        const searchPromises = broaderQueries.map(query => searchWebAction({ query }));
-        const searchActionResults = await Promise.all(searchPromises);
-
-        searchActionResults.forEach((searchResult, index) => {
-            if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-                 searchResult.results.forEach(item => {
-                    broaderSearchResultsText += `Snippet for query "${broaderQueries[index]}" from ${item.link}:\n${item.snippet}\n\n---\n\n`;
-                 });
-            }
-        });
-        
-        const combinedResearchText = governmentScrapedContent + broaderSearchResultsText;
-
-        if (!combinedResearchText.trim()) {
-            throw new Error('Could not gather any meaningful content from web search or scraping.');
-        }
-
-        log.push(`[INFO] Stage 3: Analyzing content...`);
-        const ecoData = await discoverEcoIntel({ 
-            countryName: country.name, 
-            scrapedGovernmentContent: governmentScrapedContent,
-            broaderSearchSnippets: broaderSearchResultsText
-        });
-
-        if (!ecoData || !ecoData.countryName) {
-            throw new Error('AI failed to return sufficient data after analysis.');
-        }
-        
-        log.push(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
-        const saveResult = await saveEcoIntelData(countryCode, ecoData);
-        if (!saveResult.success) {
-            throw new Error(saveResult.error || 'Failed to save data to Firestore.');
-        }
-
-        log.push(`[SUCCESS] Build for ${country.name} completed successfully.`);
-        return { success: true, log };
-
-    } catch (error: any) {
-        log.push(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
-        console.error(`[buildEcoIntelData] Full error for ${country.name}:`, error);
-        return { success: false, log, error: error.message };
     }
 }

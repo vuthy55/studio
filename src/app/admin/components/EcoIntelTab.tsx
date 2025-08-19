@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -22,7 +21,7 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { getEcoIntelAdmin, updateEcoIntelAdmin, saveEcoIntelData, buildEcoIntelData } from '@/actions/eco-intel-admin';
+import { getEcoIntelAdmin, updateEcoIntelAdmin, saveEcoIntelData } from '@/actions/eco-intel-admin';
 
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
@@ -135,17 +134,105 @@ export default function EcoIntelTab() {
             const country = lightweightCountries.find(c => c.code === countryCode);
             if (!country) return;
 
+            const updateLog = (logEntry: string) => {
+                setBuildResults(prev => prev.map(r => 
+                    r.countryCode === countryCode ? { ...r, log: [...r.log, logEntry] } : r
+                ));
+            };
+
             setBuildResults(prev => prev.map(r => 
                 r.countryCode === countryCode ? { ...r, status: 'generating' } : r
             ));
             
-            const result = await buildEcoIntelData(countryCode);
+            try {
+                updateLog(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
+                const governmentQuery = `(ministry OR department OR agency) of (environment OR forestry OR conservation) official site ${country.name}`;
+                updateLog(`[INFO] Stage 1a: Executing targeted government search...`);
+                const govSearchResult = await searchWebAction({ query: governmentQuery });
 
-            setBuildResults(prev => prev.map(r => 
-                r.countryCode === countryCode 
-                    ? { ...r, log: result.log, status: result.success ? 'success' : 'failed', error: result.error } 
-                    : r
-            ));
+                let governmentScrapedContent = "";
+                if (govSearchResult.success && govSearchResult.results && govSearchResult.results.length > 0) {
+                    const environmentalKeywords = ['environment', 'forestry', 'conservation', 'climate', 'natural resources', 'wildlife'];
+                    const relevantResults = govSearchResult.results.filter(result => 
+                        environmentalKeywords.some(keyword => 
+                            result.title.toLowerCase().includes(keyword) || result.snippet.toLowerCase().includes(keyword)
+                        )
+                    ).slice(0, 2);
+
+                    updateLog(`[INFO] Stage 1b: Found ${relevantResults.length} relevant government URLs to scrape...`);
+                    
+                    const scrapePromises = relevantResults.map(result => scrapeUrlAction(result.link));
+                    const scrapeResults = await Promise.allSettled(scrapePromises);
+
+                    scrapeResults.forEach((scrapeResult, index) => {
+                        const url = relevantResults[index].link;
+                        if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
+                            governmentScrapedContent += `Content from official source ${url}:\n${scrapeResult.value.content}\n\n---\n\n`;
+                            updateLog(`[SUCCESS] Scraped ${url}.`);
+                        } else {
+                            const errorMsg = scrapeResult.status === 'fulfilled' ? scrapeResult.value.error : 'Promise rejected';
+                            updateLog(`[WARN] FAILED to scrape ${url}. Reason: ${errorMsg}.`);
+                        }
+                    });
+                } else {
+                    updateLog(`[WARN] No official government environment sites found for ${country.name}.`);
+                }
+
+                updateLog(`[INFO] Stage 2: Executing broader searches for snippets...`);
+                const broaderQueries = [
+                    `"top environmental NGOs in ${country.name}"`,
+                    `"reputable wildlife conservation organizations in ${country.name}"`,
+                    `carbon offsetting projects in ${country.name}`,
+                    `"eco-tourism in ${country.name}"`,
+                    `"environmental volunteer opportunities in ${country.name}"`,
+                    `work exchange conservation ${country.name}`
+                ];
+                
+                let broaderSearchResultsText = "";
+                const searchPromises = broaderQueries.map(query => searchWebAction({ query }));
+                const searchActionResults = await Promise.all(searchPromises);
+
+                searchActionResults.forEach((searchResult, index) => {
+                    if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
+                        searchResult.results.forEach(item => {
+                            broaderSearchResultsText += `Snippet for query "${broaderQueries[index]}" from ${item.link}:\n${item.snippet}\n\n---\n\n`;
+                        });
+                    }
+                });
+                
+                const combinedResearchText = governmentScrapedContent + broaderSearchResultsText;
+
+                if (!combinedResearchText.trim()) {
+                    throw new Error('Could not gather any meaningful content from web search or scraping.');
+                }
+
+                updateLog(`[INFO] Stage 3: Analyzing content...`);
+                const ecoData = await discoverEcoIntel({ 
+                    countryName: country.name, 
+                    scrapedGovernmentContent: governmentScrapedContent,
+                    broaderSearchSnippets: broaderSearchResultsText
+                });
+
+                if (!ecoData || !ecoData.countryName) {
+                    throw new Error('AI failed to return sufficient data after analysis.');
+                }
+                
+                updateLog(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
+                const saveResult = await saveEcoIntelData(countryCode, ecoData);
+                if (!saveResult.success) {
+                    throw new Error(saveResult.error || 'Failed to save data to Firestore.');
+                }
+
+                setBuildResults(prev => prev.map(r => 
+                    r.countryCode === countryCode ? { ...r, status: 'success', log: [...r.log, `[SUCCESS] Build for ${country.name} completed successfully.`] } : r
+                ));
+            } catch (error: any) {
+                const errorMessage = `[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`;
+                updateLog(errorMessage);
+                setBuildResults(prev => prev.map(r => 
+                    r.countryCode === countryCode ? { ...r, status: 'failed', error: errorMessage } : r
+                ));
+            }
         };
     
         const BATCH_SIZE = 5;
@@ -186,7 +273,7 @@ export default function EcoIntelTab() {
             const result = await updateEcoIntelAdmin(countryCode, changes);
             if(result.success) {
                 toast({ title: 'Success', description: 'Eco-intel data updated.' });
-                await fetchIntelData(); // Refetch to get the fresh data state
+                await fetchIntelData();
                 setEditState(prev => {
                     const newState = { ...prev };
                     delete newState[countryCode];
@@ -292,7 +379,6 @@ export default function EcoIntelTab() {
                                                     <AccordionContent className="mt-1">
                                                         <pre className="text-xs p-2 bg-background rounded-md max-h-40 overflow-auto whitespace-pre-wrap font-mono">
                                                             {result.log.join('\n')}
-                                                            {result.error && `[FINAL ERROR] ${result.error}`}
                                                         </pre>
                                                     </AccordionContent>
                                                 </AccordionItem>
