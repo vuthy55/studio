@@ -1,8 +1,7 @@
 
-
 "use client";
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
@@ -648,7 +647,7 @@ function FootprintsTab() {
                             </Button>
                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
                                 <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                Cost: {settings?.ecoFootprintCost || 10} Tokens
+                                {settings?.ecoFootprintCost || 10} Tokens
                             </Badge>
                         </div>
                     </form>
