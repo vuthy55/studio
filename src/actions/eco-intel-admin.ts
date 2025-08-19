@@ -96,6 +96,18 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
         if (!ecoData || !ecoData.countryName) {
             throw new Error('AI Research Agent failed to return sufficient data.');
         }
+        
+        // --- SECONDARY DATA SANITIZATION (DEFENSIVE) ---
+        // This is a robust fallback to ensure data integrity even if the AI flow's sanitization fails.
+        if (ecoData.ecoTourismOpportunities) {
+            ecoData.ecoTourismOpportunities.forEach(opp => {
+                if (opp.bookingUrl === "") {
+                    delete opp.bookingUrl;
+                }
+            });
+        }
+        // --- END SANITIZATION ---
+
 
         logMessage(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
         const finalData = {
