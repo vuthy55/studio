@@ -101,6 +101,14 @@ const OrganizationSchema = z.object({
     url: z.string().url().describe("The direct, official URL to the organization's homepage."),
 });
 
+const OffsettingOpportunitySchema = z.object({
+    name: z.string().describe("The official name of the organization or project."),
+    responsibility: z.string().describe("A one-sentence summary of its primary responsibility or focus area."),
+    url: z.string().url().describe("The direct, official URL to the organization's homepage."),
+    activityType: z.string().describe("The type of offsetting activity (e.g., 'tree_planting', 'renewable_energy')."),
+});
+
+
 const EcoTourismSchema = z.object({
     name: z.string().describe("The name of the eco-tourism opportunity (e.g., 'Kinabatangan River Cruise', 'Taman Negara National Park Canopy Walk')."),
     description: z.string().describe("A one-sentence description of the activity."),
@@ -113,7 +121,7 @@ export const DiscoverEcoIntelOutputSchema = z.object({
   region: z.string().describe("The primary geopolitical region or continent the country belongs to."),
   governmentBodies: z.array(OrganizationSchema).describe("A list of key government environmental bodies."),
   ngos: z.array(OrganizationSchema).describe("A list of major non-governmental organizations focused on environmental work."),
-  offsettingOpportunities: z.array(OrganizationSchema).describe("A list of organizations or projects focused on carbon offsetting (e.g., tree planting, renewable energy)."),
+  offsettingOpportunities: z.array(OffsettingOpportunitySchema).describe("A list of organizations or projects focused on carbon offsetting."),
   ecoTourismOpportunities: z.array(EcoTourismSchema).describe("A list of popular and reputable eco-tourism activities within the country."),
 });
 export type DiscoverEcoIntelOutput = z.infer<typeof DiscoverEcoIntelOutputSchema>;

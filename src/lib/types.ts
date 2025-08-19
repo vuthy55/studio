@@ -1,3 +1,4 @@
+
 import type { FieldValue, Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import type { AzureLanguageCode } from './azure-languages';
@@ -345,7 +346,7 @@ export interface CountryEcoIntel {
         name: string;
         activityType: string;
         url: string;
-        description: string;
+        responsibility: string;
     }[];
     ecoTourismOpportunities?: {
         name: string;

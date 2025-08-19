@@ -111,7 +111,6 @@ const calculateEcoFootprintFlow = ai.defineFlow(
 
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     
-    // Standardize the two different opportunity types into one consistent structure.
     const mappedOffsettingOpportunities = (ecoIntelData.offsettingOpportunities || []).map(o => ({
         name: o.name,
         url: o.url || '',

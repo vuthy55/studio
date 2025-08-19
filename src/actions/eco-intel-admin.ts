@@ -69,8 +69,6 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
         
         log.push(...agentLog);
 
-        // --- DEFINITIVE FIX: Immediate Null Check ---
-        // This is the most important check. If the AI returns nothing, we fail immediately.
         if (!ecoData) {
             throw new Error('AI Research Agent returned a null response. This can happen for countries with sensitive or unavailable data.');
         }
@@ -80,6 +78,7 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
         }
         
         logMessage(`[INFO] Saving analyzed data to Firestore...`);
+        
         const finalData = {
             ...ecoData,
             id: country.code,
@@ -88,6 +87,17 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
             lastBuildAt: FieldValue.serverTimestamp(),
             lastBuildError: null
         };
+
+        // Before saving, ensure the structure matches CountryEcoIntel
+        if (finalData.offsettingOpportunities) {
+            (finalData as any).offsettingOpportunities = finalData.offsettingOpportunities.map(o => ({
+                name: o.name,
+                responsibility: o.responsibility, // This field is in the AI output
+                url: o.url,
+                activityType: o.activityType,
+            }));
+        }
+
         await docRef.set(finalData, { merge: true });
 
         logMessage(`[SUCCESS] Build for ${country.name} completed successfully.`);
