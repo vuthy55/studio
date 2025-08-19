@@ -23,31 +23,10 @@ import { searchWebTool } from '@/actions/search';
  * @returns A promise that resolves to the structured country eco-intel data.
  */
 export async function discoverEcoIntel(input: DiscoverEcoIntelInput, debugLog: (log: string) => void): Promise<DiscoverEcoIntelOutput> {
-  try {
-    const result = await discoverEcoIntelFlow({ countryName: input.countryName, debugLog });
-    
-    if (!result) {
-        debugLog(`[FAIL] Flow returned a null result for ${input.countryName}. Returning empty structure.`);
-        return {
-            countryName: input.countryName,
-            region: 'Unknown',
-            governmentBodies: [],
-            ngos: [],
-        };
-    }
-    
-    return result;
-
-  } catch (error) {
-      debugLog(`[CRITICAL] Flow failed critically for ${input.countryName}: ${error}`);
-      // Return a default empty structure on any critical failure to prevent crashes.
-       return {
-            countryName: input.countryName,
-            region: 'Unknown',
-            governmentBodies: [],
-            ngos: [],
-        };
-  }
+    // This function now directly calls and returns the result of the flow,
+    // allowing any errors to be propagated up to the calling server action,
+    // which has its own robust error handling.
+    return discoverEcoIntelFlow({ countryName: input.countryName, debugLog });
 }
 
 // --- Genkit Flow and Prompt Definitions ---
@@ -67,7 +46,7 @@ const discoverEcoIntelFlow = ai.defineFlow(
         You are an expert environmental and geopolitical research analyst. 
         Your task is to use the provided web search tool to build a detailed profile of the key environmental organizations in **${countryName}**.
 
-        **Instructions:**
+        **CRITICAL INSTRUCTIONS:**
 
         1.  **GOVERNMENT BODIES:**
             *   Execute a web search to identify the primary national-level government ministries, agencies, and departments responsible for:
@@ -86,6 +65,7 @@ const discoverEcoIntelFlow = ai.defineFlow(
         3.  **ANALYZE & EXTRACT:**
             *   From the search results, carefully analyze the titles and snippets.
             *   For each relevant organization you identify, extract its official name, its primary responsibility or focus area, and its full, official website URL.
+            *   **URL Requirement**: You MUST find a valid, direct URL for each organization. If you cannot find an official URL for an organization, DISCARD it from the results. Do not include any entry with an empty or placeholder URL.
 
         4.  **FORMAT OUTPUT:**
             *   Populate the \`governmentBodies\` and \`ngos\` arrays with the extracted information.
