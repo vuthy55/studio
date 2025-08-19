@@ -571,7 +571,7 @@ function FootprintsTab() {
                                                 <TableRow>
                                                     <TableHead className="w-[50px]">#</TableHead>
                                                     <TableHead>Journey</TableHead>
-                                                    <TableHead className="w-[100px]">CO₂ (kg)</TableHead>
+                                                    <TableHead className="w-[120px]">Footprint</TableHead>
                                                     <TableHead>Offset Actions</TableHead>
                                                     <TableHead className="w-[100px]"></TableHead>
                                                 </TableRow>
@@ -584,7 +584,12 @@ function FootprintsTab() {
                                                             <p className="font-semibold">{fp.countryName}</p>
                                                             <p className="text-xs text-muted-foreground truncate">{fp.journeySummary}</p>
                                                         </TableCell>
-                                                        <TableCell className="font-bold text-lg">{fp.co2Kilograms.toFixed(1)}</TableCell>
+                                                        <TableCell>
+                                                            <div className="font-bold text-lg">{fp.co2Kilograms.toFixed(1)} kg</div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                ~{(fp.co2Kilograms / 25).toFixed(1)} trees
+                                                            </div>
+                                                        </TableCell>
                                                         <TableCell>
                                                             <Textarea
                                                                 value={editingFootprint[fp.id] ?? fp.offsetActions ?? ''}
@@ -641,14 +646,14 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
+                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                                 Calculate My Footprint
                             </Button>
-                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
-                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                {settings?.ecoFootprintCost || 10} Tokens
-                            </Badge>
                         </div>
                     </form>
                 </CardContent>
