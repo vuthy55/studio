@@ -12,8 +12,8 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { EcoFootprintInputSchema, EcoFootprintOutputSchema, type EcoFootprintInput, type EcoFootprintOutput } from './types';
-import { db } from '@/lib/firebase-admin';
 import { getAppSettingsAction } from '@/actions/settings';
+import { getCountryEcoIntel } from '@/actions/eco-intel';
 
 // --- Genkit Tools ---
 
@@ -35,11 +35,7 @@ const getFlightCarbonData = ai.defineTool(
     
     const query = `carbon footprint flight ${input.fromAirportCode} to ${input.toAirportCode} ${searchSites}`;
     
-    const searchResult = await searchWebAction({ 
-        query, 
-        apiKey: process.env.GOOGLE_API_KEY!, 
-        searchEngineId: process.env.GOOGLE_SEARCH_ENGINE_ID! 
-    });
+    const searchResult = await searchWebAction({ query });
 
     if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
         const snippet = searchResult.results[0].snippet;
@@ -57,7 +53,7 @@ const getFlightCarbonData = ai.defineTool(
 const getGroundTransportCarbonData = ai.defineTool(
     {
         name: 'get_ground_transport_carbon_data',
-        description: 'Calculates the carbon footprint for ground transport like taxis, buses, or tuk-tuks based on distance.',
+        description: 'Calculates the carbon footprint for ground transport like taxis, buses, or trains based on distance.',
         inputSchema: z.object({
             transportType: z.string().describe("The type of ground transport used (e.g., 'taxi', 'bus', 'train', 'tuk-tuk', 'ride-share')."),
             distanceKm: z.number().describe("The estimated distance of the journey in kilometers."),
@@ -107,13 +103,12 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     
     debugLog.push(`[INFO] Flow started. Fetching settings and Eco Intel for country: ${destinationCountryCode}`);
     const appSettings = await getAppSettingsAction();
-    const ecoIntelRef = db.collection('countryEcoIntel').doc(destinationCountryCode);
-    const ecoIntelDoc = await ecoIntelRef.get();
+    const ecoIntelData = await getCountryEcoIntel(destinationCountryCode);
     
-    if (!ecoIntelDoc.exists) {
+    if (!ecoIntelData) {
         throw new Error(`Eco-intelligence data for country code "${destinationCountryCode}" has not been built yet. Please ask an administrator to build it.`);
     }
-    const ecoIntelData = ecoIntelDoc.data();
+
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     const offsettingOpportunities = ecoIntelData?.offsettingOpportunities || [];
 
