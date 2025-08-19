@@ -233,14 +233,6 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === '/story'}>
-                    <Link href="/story" onClick={closeSidebar}>
-                        <FileText />
-                        Traveler's Story
-                    </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/login'}>
                     <Link href="/login" onClick={closeSidebar}>
                         <LogIn />
