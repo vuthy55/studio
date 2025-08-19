@@ -638,7 +638,7 @@ function FootprintsTab() {
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                             <CardTitle>Eco-Footprints</CardTitle>
+                             <CardTitle>Footprints</CardTitle>
                              <FootprintInfoDialog />
                         </div>
                         <Dialog open={isMyFootprintsOpen} onOpenChange={setIsMyFootprintsOpen}>
@@ -660,10 +660,10 @@ function FootprintsTab() {
                                                 {savedFootprints.map((fp) => (
                                                     <AccordionItem value={fp.id} key={fp.id}>
                                                         <AccordionTrigger>
-                                                            <div className="flex justify-between items-center w-full">
-                                                                <div>
-                                                                    <p className="font-semibold text-left">{fp.countryName}</p>
-                                                                    <p className="text-xs text-muted-foreground text-left truncate max-w-xs">{fp.journeySummary}</p>
+                                                            <div className="flex justify-between items-center w-full gap-4">
+                                                                <div className="flex-1 text-left">
+                                                                    <p className="font-semibold">{fp.countryName}</p>
+                                                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{fp.journeySummary}</p>
                                                                 </div>
                                                                  <div className="text-right">
                                                                     <div className="font-bold text-lg">{fp.co2Kilograms.toFixed(1)} kg</div>
@@ -705,19 +705,19 @@ function FootprintsTab() {
                                                                         </Button>
                                                                     </div>
                                                                 </div>
-                                                                 {(fp.localOpportunities || []).length > 0 && (
-                                                                    <div>
+                                                                {(fp.localOpportunities || []).length > 0 && (
+                                                                    <div className="pt-2 border-t">
                                                                         <Label className="font-semibold text-sm">Suggested Eco-Tourism Activities</Label>
                                                                         <div className="mt-1 space-y-2">
                                                                             {(fp.localOpportunities || []).map((opp, index) => (
-                                                                                <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
-                                                                                    <div>
+                                                                                <div key={index} className="flex items-start justify-between p-2 bg-muted/50 rounded-md text-sm">
+                                                                                    <div className="flex-1">
                                                                                         <a href={opp.url || '#'} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline flex items-center gap-1">
                                                                                             {opp.name} <ExternalLink className="h-3 w-3" />
                                                                                         </a>
                                                                                         <p className="text-xs text-muted-foreground">{opp.description}</p>
                                                                                     </div>
-                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteOpportunity(fp.id, opp)}>
+                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => handleDeleteOpportunity(fp.id, opp)}>
                                                                                         <Trash2 className="h-4 w-4 text-destructive"/>
                                                                                     </Button>
                                                                                 </div>
@@ -830,7 +830,7 @@ function FootprintsTab() {
                                                 <p className="text-sm text-green-700">Here are some local opportunities the AI found:</p>
                                                 <div className="space-y-1 text-left">
                                                     {result.localOpportunities.map((opp, index) => (
-                                                        <a key={index} href={opp.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-2 rounded-md hover:bg-green-500/10">
+                                                        <a key={index} href={opp.url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-2 rounded-md hover:bg-green-500/10">
                                                             <div className="p-2 bg-background rounded-md">{activityTypeIcons[opp.activityType]}</div>
                                                             <div className="flex-1">
                                                                     <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
@@ -895,7 +895,7 @@ function IntelPageContent() {
 
     return (
         <div className="space-y-8">
-            <MainHeader title="Intel" description="Your source for global travel and transport intelligence." />
+            <MainHeader title="Intel Hub" description="Your source for global travel and transport intelligence." />
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="location"><Compass className="mr-2"/> Location</TabsTrigger>
