@@ -6,8 +6,8 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import { lightweightCountries } from '@/lib/location-data';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { searchWebAction } from '@/actions/search';
-import { scrapeUrlAction } from '@/actions/scraper';
+import { searchWebAction } from './search';
+import { scrapeUrlAction } from './scraper';
 
 
 /**
@@ -105,14 +105,21 @@ export async function buildEcoIntelData(countryCode: string): Promise<{ success:
 
         let governmentScrapedContent = "";
         if (govSearchResult.success && govSearchResult.results && govSearchResult.results.length > 0) {
-            const topResults = govSearchResult.results.slice(0, 2); // Scrape top 2 results
-            log.push(`[INFO] Stage 1b: Scraping top ${topResults.length} government URLs...`);
+            // Filter results to find the most relevant ones before scraping
+            const environmentalKeywords = ['environment', 'forestry', 'conservation', 'climate', 'natural resources', 'wildlife'];
+            const relevantResults = govSearchResult.results.filter(result => 
+                environmentalKeywords.some(keyword => 
+                    result.title.toLowerCase().includes(keyword) || result.snippet.toLowerCase().includes(keyword)
+                )
+            ).slice(0, 2); // Take the top 2 most relevant results
+
+            log.push(`[INFO] Stage 1b: Found ${relevantResults.length} relevant government URLs to scrape...`);
             
-            const scrapePromises = topResults.map(result => scrapeUrlAction(result.link));
+            const scrapePromises = relevantResults.map(result => scrapeUrlAction(result.link));
             const scrapeResults = await Promise.allSettled(scrapePromises);
 
             scrapeResults.forEach((scrapeResult, index) => {
-                const url = topResults[index].link;
+                const url = relevantResults[index].link;
                 if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
                     governmentScrapedContent += `Content from official source ${url}:\n${scrapeResult.value.content}\n\n---\n\n`;
                     log.push(`[SUCCESS] Scraped ${url}.`);
