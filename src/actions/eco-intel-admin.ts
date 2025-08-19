@@ -69,8 +69,14 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
         
         log.push(...agentLog);
 
-        if (!ecoData || !ecoData.countryName) {
-            throw new Error('AI Research Agent failed to return sufficient data.');
+        // --- DEFINITIVE FIX: Immediate Null Check ---
+        // This is the most important check. If the AI returns nothing, we fail immediately.
+        if (!ecoData) {
+            throw new Error('AI Research Agent returned a null response. This can happen for countries with sensitive or unavailable data.');
+        }
+
+        if (!ecoData.countryName) {
+            throw new Error('AI Research Agent failed to return the country name in its data.');
         }
         
         logMessage(`[INFO] Saving analyzed data to Firestore...`);
