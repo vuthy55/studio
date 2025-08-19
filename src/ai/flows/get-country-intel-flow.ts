@@ -104,20 +104,14 @@ function parseDate(dateString: string): Date | null {
  * Searches the web for a query and verifies that the results are recent.
  * It now uses a strict date-checking policy and relies on dates found in snippets.
  * @param query The search query.
- * @param apiKey The Google API key.
- * @param searchEngineId The Google Custom Search Engine ID.
  * @param debugLog An array to log debug messages.
  * @param strictDateCheck If true, enforces a 30-day freshness check. If false, allows any date.
  * @returns A promise that resolves to an array of verified sources.
  */
-async function searchAndVerify(query: string, apiKey: string, searchEngineId: string, debugLog: string[], strictDateCheck: boolean): Promise<{snippet: string; url: string}[]> {
+async function searchAndVerify(query: string, debugLog: string[], strictDateCheck: boolean): Promise<{snippet: string; url: string}[]> {
     debugLog.push(`[Intel Flow] (searchAndVerify) - Performing search. Query: "${query}", Strict Date Check: ${strictDateCheck}`);
     
-    const searchResult = await searchWebAction({ 
-        query, 
-        apiKey, 
-        searchEngineId,
-    });
+    const searchResult = await searchWebAction({ query });
 
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
         let errorDetails = searchResult.error || 'No results';
@@ -252,7 +246,7 @@ const getCountryIntelFlow = ai.defineFlow(
     for (const [key, { query, strictDate }] of Object.entries(categories)) {
         debugLog.push(`[Intel Flow] Now processing category: "${key}"`);
         
-        let sources = await searchAndVerify(query, apiKey, searchEngineId, debugLog, strictDate);
+        let sources = await searchAndVerify(query, debugLog, strictDate);
         
         // ** NEW FALLBACK LOGIC **
         if (key === 'Official Advisory' && sources.length === 0) {
