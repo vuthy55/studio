@@ -56,6 +56,18 @@ const discoverEcoIntelFlow = ai.defineFlow(
       throw new Error("AI analysis failed to generate a valid response.");
     }
     
+    // --- Data Sanitization Step ---
+    // This is the definitive fix to prevent crashes from invalid AI output.
+    // The AI sometimes returns a `bookingUrl: ""` even when instructed not to.
+    // This code manually cleans the data before it's returned and validated.
+    if (output.ecoTourismOpportunities) {
+        output.ecoTourismOpportunities.forEach(opp => {
+            if (opp.bookingUrl === "") {
+                delete opp.bookingUrl;
+            }
+        });
+    }
+
     return output;
   }
 );
