@@ -413,11 +413,11 @@ function TransportIntelTab() {
 function IntelContent() {
     return (
         <div className="space-y-8">
-            <MainHeader title="Intel Hub" description="Your source for global travel and transport intelligence." />
+            <MainHeader title="Intel" description="Your source for global travel and transport intelligence." />
             <Tabs defaultValue="location-intel" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="location-intel"><Compass className="mr-2"/> Location Intel</TabsTrigger>
-                    <TabsTrigger value="transport-intel"><Train className="mr-2"/> Transport Intel</TabsTrigger>
+                    <TabsTrigger value="location-intel"><Compass className="mr-2"/> Location</TabsTrigger>
+                    <TabsTrigger value="transport-intel"><Train className="mr-2"/> Transport</TabsTrigger>
                 </TabsList>
                 <TabsContent value="location-intel" className="mt-6">
                     <LocationIntelTab />
