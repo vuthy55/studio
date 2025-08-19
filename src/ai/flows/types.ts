@@ -92,27 +92,20 @@ export type DiscoverTransportProvidersOutput = z.infer<typeof DiscoverTransportP
 // --- Schemas for discover-eco-intel-flow ---
 export const DiscoverEcoIntelInputSchema = z.object({
     countryName: z.string().describe('The country to research.'),
-    scrapedGovernmentContent: z.string().describe('The scraped text content from official government environment websites.'),
-    broaderSearchSnippets: z.string().describe('Snippets from broader web searches for NGOs, tourism, etc.'),
 });
 export type DiscoverEcoIntelInput = z.infer<typeof DiscoverEcoIntelInputSchema>;
+
+const OrganizationSchema = z.object({
+    name: z.string().describe("The official name of the organization, ministry, or department."),
+    responsibility: z.string().describe("A one-sentence summary of its primary responsibility or focus area related to the environment."),
+    url: z.string().url().describe("The direct, official URL to the organization's homepage."),
+});
 
 export const DiscoverEcoIntelOutputSchema = z.object({
   countryName: z.string().describe("The official name of the country, matching the input."),
   region: z.string().describe("The primary geopolitical region or continent the country belongs to."),
-  curatedSearchSources: z.array(z.string()).optional().describe("A list of curated search source URLs to prioritize research."),
-  offsettingOpportunities: z.array(z.object({
-        name: z.string().describe("The name of the organization or project."),
-        url: z.string().describe("The direct URL to the project or organization."),
-        description: z.string().describe("A one-sentence summary of the opportunity."),
-        activityType: z.enum(['tree_planting', 'coral_planting', 'recycling', 'conservation', 'other']).describe("The primary activity type."),
-  })).describe("A list of local offsetting opportunities."),
-  ecoTourismOpportunities: z.array(z.object({
-      name: z.string().describe("The name of the tour, park, or location."),
-      url: z.string().url().describe("A direct booking URL if available."),
-      description: z.string().describe("A one-sentence summary of the activity."),
-      category: z.enum(['wildlife_sanctuary', 'jungle_trekking', 'community_visit', 'bird_watching', 'other']).describe("The primary category of the eco-tourism activity."),
-  })).describe("A list of local eco-tourism opportunities."),
+  governmentBodies: z.array(OrganizationSchema).describe("A list of key government environmental bodies."),
+  ngos: z.array(OrganizationSchema).describe("A list of major non-governmental organizations focused on environmental work."),
 });
 export type DiscoverEcoIntelOutput = z.infer<typeof DiscoverEcoIntelOutputSchema>;
 

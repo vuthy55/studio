@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
-import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink, Clock } from "lucide-react";
+import { LoaderCircle, Save, Bot, CheckCircle2, AlertTriangle, Database, Search, Leaf, TreePine, Recycle, Anchor, PlusCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,14 +14,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { searchWebAction } from '@/actions/search';
-import { scrapeUrlAction } from '@/actions/scraper';
-import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import type { CountryEcoIntel } from '@/lib/types';
 import { lightweightCountries, type LightweightCountry } from '@/lib/location-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { getEcoIntelAdmin, updateEcoIntelAdmin, saveEcoIntelData } from '@/actions/eco-intel-admin';
+import { getEcoIntelAdmin, updateEcoIntelAdmin, buildEcoIntelData } from '@/actions/eco-intel-admin';
 
 
 const activityTypeIcons: Record<string, React.ReactNode> = {
@@ -134,103 +131,25 @@ export default function EcoIntelTab() {
             const country = lightweightCountries.find(c => c.code === countryCode);
             if (!country) return;
 
-            const updateLog = (logEntry: string) => {
-                setBuildResults(prev => prev.map(r => 
-                    r.countryCode === countryCode ? { ...r, log: [...r.log, logEntry] } : r
-                ));
-            };
-
             setBuildResults(prev => prev.map(r => 
                 r.countryCode === countryCode ? { ...r, status: 'generating' } : r
             ));
             
             try {
-                updateLog(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
-                const governmentQuery = `(ministry OR department OR agency) of (environment OR forestry OR conservation) official site ${country.name}`;
-                updateLog(`[INFO] Stage 1a: Executing targeted government search...`);
-                const govSearchResult = await searchWebAction({ query: governmentQuery });
-
-                let governmentScrapedContent = "";
-                if (govSearchResult.success && govSearchResult.results && govSearchResult.results.length > 0) {
-                    const environmentalKeywords = ['environment', 'forestry', 'conservation', 'climate', 'natural resources', 'wildlife'];
-                    const relevantResults = govSearchResult.results.filter(result => 
-                        environmentalKeywords.some(keyword => 
-                            result.title.toLowerCase().includes(keyword) || result.snippet.toLowerCase().includes(keyword)
-                        )
-                    ).slice(0, 2);
-
-                    updateLog(`[INFO] Stage 1b: Found ${relevantResults.length} relevant government URLs to scrape...`);
-                    
-                    const scrapePromises = relevantResults.map(result => scrapeUrlAction(result.link));
-                    const scrapeResults = await Promise.allSettled(scrapePromises);
-
-                    scrapeResults.forEach((scrapeResult, index) => {
-                        const url = relevantResults[index].link;
-                        if (scrapeResult.status === 'fulfilled' && scrapeResult.value.success && scrapeResult.value.content) {
-                            governmentScrapedContent += `Content from official source ${url}:\n${scrapeResult.value.content}\n\n---\n\n`;
-                            updateLog(`[SUCCESS] Scraped ${url}.`);
-                        } else {
-                            const errorMsg = scrapeResult.status === 'fulfilled' ? scrapeResult.value.error : 'Promise rejected';
-                            updateLog(`[WARN] FAILED to scrape ${url}. Reason: ${errorMsg}.`);
-                        }
-                    });
-                } else {
-                    updateLog(`[WARN] No official government environment sites found for ${country.name}.`);
-                }
-
-                updateLog(`[INFO] Stage 2: Executing broader searches for snippets...`);
-                const broaderQueries = [
-                    `"top environmental NGOs in ${country.name}"`,
-                    `"reputable wildlife conservation organizations in ${country.name}"`,
-                    `carbon offsetting projects in ${country.name}`,
-                    `"eco-tourism in ${country.name}"`,
-                    `"environmental volunteer opportunities in ${country.name}"`,
-                    `work exchange conservation ${country.name}`
-                ];
+                const result = await buildEcoIntelData(countryCode);
                 
-                let broaderSearchResultsText = "";
-                const searchPromises = broaderQueries.map(query => searchWebAction({ query }));
-                const searchActionResults = await Promise.all(searchPromises);
-
-                searchActionResults.forEach((searchResult, index) => {
-                    if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-                        searchResult.results.forEach(item => {
-                            broaderSearchResultsText += `Snippet for query "${broaderQueries[index]}" from ${item.link}:\n${item.snippet}\n\n---\n\n`;
-                        });
-                    }
-                });
-                
-                const combinedResearchText = governmentScrapedContent + broaderSearchResultsText;
-
-                if (!combinedResearchText.trim()) {
-                    throw new Error('Could not gather any meaningful content from web search or scraping.');
-                }
-
-                updateLog(`[INFO] Stage 3: Analyzing content...`);
-                const ecoData = await discoverEcoIntel({ 
-                    countryName: country.name, 
-                    scrapedGovernmentContent: governmentScrapedContent,
-                    broaderSearchSnippets: broaderSearchResultsText
-                });
-
-                if (!ecoData || !ecoData.countryName) {
-                    throw new Error('AI failed to return sufficient data after analysis.');
-                }
-                
-                updateLog(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
-                const saveResult = await saveEcoIntelData(countryCode, ecoData);
-                if (!saveResult.success) {
-                    throw new Error(saveResult.error || 'Failed to save data to Firestore.');
-                }
-
                 setBuildResults(prev => prev.map(r => 
-                    r.countryCode === countryCode ? { ...r, status: 'success', log: [...r.log, `[SUCCESS] Build for ${country.name} completed successfully.`] } : r
+                    r.countryCode === countryCode ? { 
+                        ...r, 
+                        status: result.success ? 'success' : 'failed',
+                        log: result.log,
+                        error: result.error,
+                     } : r
                 ));
             } catch (error: any) {
-                const errorMessage = `[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`;
-                updateLog(errorMessage);
-                setBuildResults(prev => prev.map(r => 
-                    r.countryCode === countryCode ? { ...r, status: 'failed', error: errorMessage } : r
+                const errorMessage = `[FATAL] Client-side error: ${error.message}`;
+                 setBuildResults(prev => prev.map(r => 
+                    r.countryCode === countryCode ? { ...r, status: 'failed', error: errorMessage, log: [...r.log, errorMessage] } : r
                 ));
             }
         };
@@ -250,13 +169,16 @@ export default function EcoIntelTab() {
         setEditState(prev => {
             const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
 
-            if (field === 'offsettingOpportunities' && oppIndex !== undefined) {
-                const newOpps = [...(newCountryState.offsettingOpportunities || [])];
+            if (field === 'governmentBodies' && oppIndex !== undefined) {
+                const newOpps = [...(newCountryState.governmentBodies || [])];
                 newOpps[oppIndex] = { ...newOpps[oppIndex], ...value };
-                newCountryState.offsettingOpportunities = newOpps;
-            } else if (field === 'curatedSearchSources') {
-                newCountryState.curatedSearchSources = value.split('\n');
-            } else {
+                newCountryState.governmentBodies = newOpps;
+            } else if (field === 'ngos' && oppIndex !== undefined) {
+                 const newOpps = [...(newCountryState.ngos || [])];
+                newOpps[oppIndex] = { ...newOpps[oppIndex], ...value };
+                newCountryState.ngos = newOpps;
+            }
+             else {
                  (newCountryState as any)[field] = value;
             }
 
@@ -368,7 +290,7 @@ export default function EcoIntelTab() {
                                                 <AccordionItem value="log">
                                                     <AccordionTrigger className="p-2 text-sm font-semibold rounded-md hover:bg-muted">
                                                         <div className="flex items-center gap-2">
-                                                             {result.status === 'pending' ? <Clock className="h-4 w-4 text-muted-foreground" />
+                                                             {result.status === 'pending' ? <Database className="h-4 w-4 text-muted-foreground" />
                                                                 : result.status === 'generating' ? <LoaderCircle className="h-4 w-4 text-primary animate-spin" />
                                                                 : result.status === 'success' ? <CheckCircle2 className="h-4 w-4 text-green-500" />
                                                                 : <AlertTriangle className="h-4 w-4 text-destructive" />
@@ -433,45 +355,42 @@ export default function EcoIntelTab() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="px-4 pb-4 space-y-6">
-                                            <div>
-                                                <Label htmlFor={`curated-sources-${country.id}`} className="font-semibold mb-2 block">Curated Search Sources</Label>
-                                                <Textarea 
-                                                    id={`curated-sources-${country.id}`}
-                                                    value={(currentData.curatedSearchSources || []).join('\n')} 
-                                                    onChange={(e) => handleCellChange(country.id, 'curatedSearchSources', e.target.value)} 
-                                                    placeholder="One URL per line (e.g., wwf.org.my)"
-                                                    rows={4}
-                                                    className="text-xs"
-                                                />
-                                                <p className="text-xs text-muted-foreground mt-1">Add trusted NGOs, government agencies, etc. to prioritize them in the AI search.</p>
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold mb-2">Offsetting Opportunities</h4>
+                                             <div>
+                                                <h4 className="font-semibold mb-2">Government Bodies</h4>
                                                 <div className="space-y-4">
-                                                    {(currentData.offsettingOpportunities || []).map((opp, oppIndex) => (
+                                                    {(currentData.governmentBodies || []).map((opp, oppIndex) => (
                                                         <div key={oppIndex} className="p-3 border rounded-lg space-y-2">
-                                                            <Input value={opp.name} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { name: e.target.value }, oppIndex)} placeholder="Organization Name" />
+                                                            <Input value={opp.name} onChange={(e) => handleCellChange(country.id, 'governmentBodies', { name: e.target.value }, oppIndex)} placeholder="Organization Name" />
                                                              <div className="flex items-center gap-2">
-                                                                <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
+                                                                <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'governmentBodies', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
                                                                 <a href={opp.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
                                                                     <ExternalLink className="h-4 w-4" />
                                                                 </a>
                                                             </div>
-                                                            <Textarea value={opp.description} onChange={(e) => handleCellChange(country.id, 'offsettingOpportunities', { description: e.target.value }, oppIndex)} placeholder="One-sentence description..." rows={2} className="text-xs" />
-                                                            <Select value={opp.activityType} onValueChange={(value) => handleCellChange(country.id, 'offsettingOpportunities', { activityType: value }, oppIndex)}>
-                                                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="tree_planting">Tree Planting</SelectItem>
-                                                                    <SelectItem value="coral_planting">Coral Planting</SelectItem>
-                                                                    <SelectItem value="recycling">Recycling</SelectItem>
-                                                                    <SelectItem value="conservation">Conservation</SelectItem>
-                                                                    <SelectItem value="other">Other</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
+                                                            <Textarea value={opp.responsibility} onChange={(e) => handleCellChange(country.id, 'governmentBodies', { responsibility: e.target.value }, oppIndex)} placeholder="One-sentence description..." rows={2} className="text-xs" />
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
+
+                                             <div>
+                                                <h4 className="font-semibold mb-2">Non-Governmental Organizations (NGOs)</h4>
+                                                <div className="space-y-4">
+                                                    {(currentData.ngos || []).map((opp, oppIndex) => (
+                                                        <div key={oppIndex} className="p-3 border rounded-lg space-y-2">
+                                                            <Input value={opp.name} onChange={(e) => handleCellChange(country.id, 'ngos', { name: e.target.value }, oppIndex)} placeholder="Organization Name" />
+                                                             <div className="flex items-center gap-2">
+                                                                <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'ngos', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
+                                                                <a href={opp.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                                                                    <ExternalLink className="h-4 w-4" />
+                                                                </a>
+                                                            </div>
+                                                            <Textarea value={opp.focus} onChange={(e) => handleCellChange(country.id, 'ngos', { focus: e.target.value }, oppIndex)} placeholder="One-sentence description..." rows={2} className="text-xs" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
                                             <div className="flex justify-end">
                                                  <Button size="sm" onClick={() => handleSave(country.id)} disabled={!hasChanges || isRowSaving}>
                                                     {isRowSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}

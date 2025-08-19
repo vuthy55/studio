@@ -1,67 +1,59 @@
 
-'use server';
-
+import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 import axios from 'axios';
 
-export interface SearchResult {
-    title: string;
-    link: string;
-    snippet: string;
-}
+export const SearchResultSchema = z.object({
+    title: z.string().describe("The title of the search result."),
+    link: z.string().describe("The URL of the search result."),
+    snippet: z.string().describe("A short summary of the page content."),
+});
+export type SearchResult = z.infer<typeof SearchResultSchema>;
 
-interface SearchWebActionPayload {
-    query: string;
-    dateRestrict?: string; // e.g., 'd[30]' for last 30 days
-}
-
-/**
- * Performs a web search using the Google Custom Search API.
- * This is a server-side helper function, not a server action.
- * @param {SearchWebActionPayload} payload - The search payload containing query.
- * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
- */
-export async function searchWebAction(payload: SearchWebActionPayload): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
-    const { query, dateRestrict } = payload;
-    
-    const apiKey = process.env.GOOGLE_API_KEY;
-    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
-    
-    if (!apiKey || !searchEngineId) {
-        const errorMsg = "Google Search API key or Search Engine ID is not configured on the server.";
-        console.error(errorMsg);
-        return { success: false, error: errorMsg };
-    }
-    
-    const url = `https://www.googleapis.com/customsearch/v1`;
-    
-    const params: Record<string, any> = {
-        key: apiKey,
-        cx: searchEngineId,
-        q: query,
-        num: 5 // Limit to 5 results per category
-    };
-
-    if (dateRestrict) {
-        params.sort = `date:r:${dateRestrict}`;
-    }
-
-    try {
-        const response = await axios.get(url, { params });
-
-        if (response.data && response.data.items) {
-            const results: SearchResult[] = response.data.items.map((item: any) => ({
-                title: item.title,
-                link: item.link,
-                snippet: item.snippet
-            }));
-            return { success: true, results };
-        } else {
-            return { success: true, results: [] };
+export const searchWebTool = ai.defineTool(
+    {
+        name: 'searchWeb',
+        description: 'Performs a web search using the Google Custom Search API and returns a list of results.',
+        inputSchema: z.object({
+            query: z.string().describe('The search query string. Should be targeted and specific.'),
+        }),
+        outputSchema: z.array(SearchResultSchema).describe('A list of search results.'),
+    },
+    async (input) => {
+        const apiKey = process.env.GOOGLE_API_KEY;
+        const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+        
+        if (!apiKey || !searchEngineId) {
+            console.error("Google Search API key or Search Engine ID is not configured on the server.");
+            // Instead of throwing, return an empty array to make the agent more resilient.
+            return [];
         }
+        
+        const url = `https://www.googleapis.com/customsearch/v1`;
+        
+        const params = {
+            key: apiKey,
+            cx: searchEngineId,
+            q: input.query,
+            num: 5 // Limit to 5 results to keep the context for the AI manageable.
+        };
 
-    } catch (error: any) {
-        console.error("[Search] Error performing web search:", error.response?.data?.error || error.message);
-        const errorMessage = error.response?.data?.error?.message || "Failed to perform web search.";
-        return { success: false, error: errorMessage };
+        try {
+            const response = await axios.get(url, { params });
+
+            if (response.data && response.data.items) {
+                return response.data.items.map((item: any) => ({
+                    title: item.title,
+                    link: item.link,
+                    snippet: item.snippet
+                }));
+            } else {
+                return [];
+            }
+        } catch (error: any) {
+            console.error(`[Search Tool] Error for query "${input.query}":`, error.response?.data?.error || error.message);
+            // Return empty array on failure to allow the AI agent to continue if possible.
+            return [];
+        }
     }
-}
+);

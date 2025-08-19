@@ -332,18 +332,15 @@ export interface CountryEcoIntel {
     id: string; // country code, e.g. 'KH'
     countryName: string;
     region: string;
-    curatedSearchSources?: string[];
-    offsettingOpportunities?: {
+    governmentBodies?: {
         name: string;
+        responsibility: string;
         url: string;
-        description: string;
-        activityType: 'tree_planting' | 'coral_planting' | 'recycling' | 'conservation' | 'other';
     }[];
-    ecoTourismOpportunities?: {
+    ngos?: {
         name: string;
-        description: string;
-        category: 'wildlife_sanctuary' | 'jungle_trekking' | 'community_visit' | 'bird_watching' | 'other';
-        bookingUrl?: string;
+        focus: string;
+        url: string;
     }[];
     lastBuildStatus?: 'success' | 'failed';
     lastBuildError?: string | null;

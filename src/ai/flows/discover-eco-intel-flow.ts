@@ -3,59 +3,49 @@
 /**
  * @fileOverview A Genkit flow to discover and structure eco-intelligence data for a given country.
  *
- * This flow acts as a research agent. Given pre-scraped text about a country,
- * it finds and structures local offsetting opportunities.
- *
- * This flow is designed to be called by an administrative function ("database builder") to
- * programmatically populate a knowledge base (Firestore) with high-quality, structured data.
+ * This flow acts as a research agent. Given a country name, it uses a live web search
+ * tool to find relevant government agencies and NGOs, then analyzes the results to
+ * extract structured data about eco-friendly opportunities.
  */
 
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { DiscoverEcoIntelInputSchema, DiscoverEcoIntelOutputSchema, type DiscoverEcoIntelInput, type DiscoverEcoIntelOutput } from './types';
+import { searchWebTool } from '@/actions/search';
 
 
 // --- Main Exported Function ---
 
 /**
  * Wraps the Genkit flow, providing a simple async function interface.
- * @param input The country name and scraped search results to analyze.
+ * @param input The country name to discover data for.
+ * @param debugLog A logger to track the agent's progress.
  * @returns A promise that resolves to the structured country eco-intel data.
  */
-export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<DiscoverEcoIntelOutput> {
+export async function discoverEcoIntel(input: DiscoverEcoIntelInput, debugLog: (log: string) => void): Promise<DiscoverEcoIntelOutput> {
   try {
-    const result = await discoverEcoIntelFlow(input);
-
-    // If the AI returns null or undefined, construct a default "empty" response.
+    const result = await discoverEcoIntelFlow({ countryName: input.countryName, debugLog });
+    
     if (!result) {
-        console.warn(`[discoverEcoIntel] Flow returned a null result for ${input.countryName}. Returning empty structure.`);
+        debugLog(`[FAIL] Flow returned a null result for ${input.countryName}. Returning empty structure.`);
         return {
             countryName: input.countryName,
             region: 'Unknown',
-            curatedSearchSources: [],
-            offsettingOpportunities: [],
-            ecoTourismOpportunities: [],
+            governmentBodies: [],
+            ngos: [],
         };
     }
     
-    // Ensure the result conforms to the schema, even if the AI returns a null/undefined value for optional fields.
-    // This prevents downstream errors if the AI fails to find specific opportunities.
-    return {
-      countryName: result.countryName || input.countryName,
-      region: result.region,
-      curatedSearchSources: result.curatedSearchSources || [],
-      offsettingOpportunities: result.offsettingOpportunities || [],
-      ecoTourismOpportunities: result.ecoTourismOpportunities || [],
-    };
+    return result;
+
   } catch (error) {
-      console.error(`[discoverEcoIntel] Flow failed critically for ${input.countryName}:`, error);
+      debugLog(`[CRITICAL] Flow failed critically for ${input.countryName}: ${error}`);
       // Return a default empty structure on any critical failure to prevent crashes.
        return {
             countryName: input.countryName,
             region: 'Unknown',
-            curatedSearchSources: [],
-            offsettingOpportunities: [],
-            ecoTourismOpportunities: [],
+            governmentBodies: [],
+            ngos: [],
         };
   }
 }
@@ -65,52 +55,56 @@ export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<Di
 const discoverEcoIntelFlow = ai.defineFlow(
   {
     name: 'discoverEcoIntelFlow',
-    inputSchema: DiscoverEcoIntelInputSchema,
+    inputSchema: DiscoverEcoIntelInputSchema.extend({ debugLog: z.custom<(log: string) => void>() }),
     outputSchema: DiscoverEcoIntelOutputSchema,
   },
-  async ({ countryName, scrapedGovernmentContent, broaderSearchSnippets }) => {
+  async ({ countryName, debugLog }) => {
+    
+    debugLog(`[AGENT] Starting research for ${countryName}.`);
     
     const { output } = await ai.generate({
       prompt: `
-        You are an environmental research assistant for a travel app. Your task is to analyze the provided web page content and extract structured information about eco-friendly opportunities in "${countryName}".
+        You are an expert environmental and geopolitical research analyst. 
+        Your task is to use the provided web search tool to build a detailed profile of the key environmental organizations in **${countryName}**.
 
-        First, analyze the **scrapedGovernmentContent**. This is your primary, most trusted source.
-        --- SCRAPED GOVERNMENT CONTENT ---
-        ${scrapedGovernmentContent || "No official government content was successfully scraped."}
-        ---
+        **Instructions:**
 
-        Next, use the **broaderSearchSnippets** for supplementary information about NGOs and commercial tourism.
-        --- BROADER SEARCH SNIPPETS ---
-        ${broaderSearchSnippets || "No broader search snippets were found."}
-        ---
+        1.  **GOVERNMENT BODIES:**
+            *   Execute a web search to identify the primary national-level government ministries, agencies, and departments responsible for:
+                *   Environmental policy and protection
+                *   Forestry management and conservation
+                *   Climate change adaptation
+            *   Use a targeted search query like: \`(ministry OR department OR agency) of (environment OR forestry OR climate change) official site in ${countryName}\`
 
-        Based on a combined analysis of all provided text, provide the following information:
-        
-        1.  **curatedSearchSources**: Identify the URLs of any reputable environmental NGOs or government agencies (like a Ministry of Environment). Prioritize URLs found in the government content. Return a list of their root URLs (e.g., "wwf.org.my", "doe.gov.my").
+        2.  **NON-GOVERNMENTAL ORGANIZATIONS (NGOs):**
+            *   Execute another web search to find the most prominent and active NGOs in ${countryName} that focus on hands-on environmental work, specifically:
+                *   Tree planting and reforestation
+                *   Wildlife conservation
+                *   Community recycling programs
+            *   Use a targeted search query like: \`top environmental NGOs for (tree planting OR conservation OR recycling) in ${countryName}\`
 
-        2.  **offsettingOpportunities**: Find specific, reputable organizations or projects (up to a maximum of 5) that offer environmental volunteer opportunities or carbon offsetting programs. For each, you MUST provide:
-            *   **name**: The official name of the organization or project.
-            *   **url**: The direct URL to their homepage or volunteer page. This MUST be a full, valid URL.
-            *   **description**: A one-sentence summary of their mission or the type of work they do (e.g., "Reforestation projects in the northern highlands").
-            *   **activityType**: Categorize the main activity as one of: 'tree_planting', 'coral_planting', 'recycling', 'conservation', 'other'.
+        3.  **ANALYZE & EXTRACT:**
+            *   From the search results, carefully analyze the titles and snippets.
+            *   For each relevant organization you identify, extract its official name, its primary responsibility or focus area, and its full, official website URL.
 
-        3. **ecoTourismOpportunities**: Find specific, reputable eco-tourism activities or locations (up to a maximum of 5). For each, you MUST provide:
-            *   **name**: The name of the tour, park, or location.
-            *   **url**: The direct URL for booking or more information. This MUST be a full, valid URL.
-            *   **description**: A one-sentence summary of the activity (e.g., "Jungle trekking to see native wildlife in a protected reserve.").
-            *   **category**: Categorize as one of: 'wildlife_sanctuary', 'jungle_trekking', 'community_visit', 'bird_watching', 'other'.
-        
-        **CRITICAL INSTRUCTIONS:**
-        1.  If you cannot find any verifiable projects or opportunities after a thorough review of the provided text, it is acceptable and correct to return an empty list for that field. Do not invent information.
-        2.  You MUST ALWAYS return a value for 'countryName' and 'region'.
-        3.  All data must be sourced from the text provided.
+        4.  **FORMAT OUTPUT:**
+            *   Populate the \`governmentBodies\` and \`ngos\` arrays with the extracted information.
+            *   If you cannot find any verifiable organizations in a category, return an empty array for it. **Do not invent information.**
+            *   Determine the geopolitical region for ${countryName}.
       `,
       model: 'googleai/gemini-1.5-pro',
+      tools: [searchWebTool],
       output: {
         schema: DiscoverEcoIntelOutputSchema,
       },
     });
 
-    return output!;
+    if (!output) {
+      debugLog(`[FAIL] AI generation returned a null or undefined output for ${countryName}.`);
+      throw new Error("AI failed to generate a valid response.");
+    }
+    
+    debugLog('[SUCCESS] AI analysis complete. Returning structured output.');
+    return output;
   }
 );

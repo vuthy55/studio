@@ -42,9 +42,9 @@ All notable changes to the Sync Online feature will be documented in this file.
 - **`[IMPROVEMENT]`** Implemented an intelligent redirection flow for new users signing up via a Sync Room invite. The `signUpUser` server action now inspects the room's status during sign-up. New users are only redirected into the room if it is currently active; otherwise, they are safely routed to their profile page, preventing any potential client-side permission errors and creating a more logical user experience.
 - **`[IMPROVEMENT]`** To enhance user trust and transparency, a confirmation dialog was added before a user spends tokens to translate a Vibe post. The dialog clearly states the action and its token cost, requiring the user to explicitly approve the transaction before it proceeds.
 - **`[IMPROVEMENT]`** Removed the redundant "Archived Vibes" feature from the Admin Dashboard. Since inactive vibes are already sorted to the bottom of the "Active Common Rooms" list, this change simplifies the UI, streamlines the admin workflow, and significantly improves the initial load of the Rooms tab by removing an expensive database query.
-- **`[IMPROVEMENT]`** Made the AI agent for the Eco-Intel feature significantly more robust. The agent now executes a comprehensive, multi-query research strategy, searching for specific environmental topics like carbon offsetting, climate initiatives, and sustainable development goals, in addition to identifying key NGOs and government agencies. This ensures a much higher quality of data is gathered for analysis, preventing "zero result" failures for well-documented countries and providing a richer set of eco-tourism and offsetting opportunities.
 
 ### Fixed
+- **`[FIX]`** Re-architected the Eco-Intel database build process to use a sophisticated, multi-prompt AI research agent instead of a brittle scraping process. The new agent uses live search tools to gather fresh, accurate data on government environmental bodies and NGOs for any given country. This change resolves persistent server timeout errors and significantly improves the quality and completeness of the research data, ensuring relevant agencies like Forestry and Conservation are correctly identified.
 - **`[FIX]`** Corrected an invalid import path in `src/app/eco-footprint/page.tsx` that was causing the build to fail. The component was attempting to import `getCountryEcoIntel` from the wrong module (`eco-intel-admin` instead of `eco-intel`), leading to a "Module not found" error. The path has been corrected to point to the right server action, resolving the issue.
 - **`[FIX]`** To ensure a reliable registration process, the Google Sign-In/Sign-Up functionality has been removed. This streamlines the user flow by directing all new users to the standard email sign-up form, guaranteeing their profiles and sign-up bonuses are created correctly. The login page and corresponding authentication actions have been updated to remove all Google-related code.
 - **`[FIX]`** Corrected the visibility of the "Donate" button in the main sidebar. It was previously visible to all users, including those who were not logged in. The button will now only appear for authenticated users, aligning with the requirement that donations be tied to a specific user account for record-keeping.
@@ -102,6 +102,7 @@ All notable changes to the Sync Online feature will be documented in this file.
 
 
     
+
 
 
 

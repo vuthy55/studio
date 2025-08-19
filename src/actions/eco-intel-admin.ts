@@ -46,20 +46,30 @@ export async function updateEcoIntelAdmin(countryCode: string, updates: Partial<
     }
 }
 
-
 /**
- * Saves the final, analyzed eco-intel data to Firestore.
- * This is the final step in the client-orchestrated build process.
+ * Builds or updates the intelligence database for a given country.
+ * This is now the main server action that orchestrates the entire AI research process.
  */
-export async function saveEcoIntelData(countryCode: string, ecoData: any): Promise<{success: boolean, error?: string}> {
+export async function buildEcoIntelData(countryCode: string): Promise<{success: boolean, log: string[], error?: string}> {
+    const log: string[] = [];
     const country = lightweightCountries.find(c => c.code === countryCode);
     if (!country) {
-        return { success: false, error: 'Country not found.' };
+        const errorMsg = 'Country not found.';
+        log.push(`[FAIL] ${errorMsg}`);
+        return { success: false, log, error: errorMsg };
     }
-    
+
     const docRef = db.collection('countryEcoIntel').doc(country.code);
-    
+
     try {
+        log.push(`[START] Kicking off AI Research Agent for ${country.name}...`);
+        const ecoData = await discoverEcoIntel({ countryName: country.name }, log);
+        
+        if (!ecoData || !ecoData.countryName) {
+            throw new Error('AI Research Agent failed to return sufficient data.');
+        }
+
+        log.push(`[INFO] Saving analyzed data to Firestore...`);
         const finalData = {
             ...ecoData,
             id: country.code,
@@ -69,15 +79,18 @@ export async function saveEcoIntelData(countryCode: string, ecoData: any): Promi
             lastBuildError: null
         };
         await docRef.set(finalData, { merge: true });
-        return { success: true };
+
+        log.push(`[SUCCESS] Build for ${country.name} completed successfully.`);
+        return { success: true, log };
     } catch (error: any) {
+        log.push(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
         await docRef.set({
             countryName: country.name,
             id: country.code,
             lastBuildStatus: 'failed' as const,
-            lastBuildError: error.message || 'An unknown error occurred during saving.',
+            lastBuildError: error.message || 'An unknown error occurred during AI discovery.',
             lastBuildAt: FieldValue.serverTimestamp(),
         }, { merge: true });
-        return { success: false, error: error.message };
+        return { success: false, log, error: error.message };
     }
 }
