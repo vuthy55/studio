@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
@@ -682,10 +683,24 @@ function FootprintsTab() {
                                                                         className="mt-1"
                                                                     />
                                                                     <div className="flex justify-end gap-2 mt-2">
-                                                                        <Button size="sm" variant="ghost" onClick={() => handleDeleteFootprint(fp.id)} disabled={isSavingFootprint[fp.id]}>
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button size="sm" onClick={()={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
+                                                                         <AlertDialog>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button size="icon" variant="ghost" disabled={isSavingFootprint[fp.id]}>
+                                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                                </Button>
+                                                                            </AlertDialogTrigger>
+                                                                            <AlertDialogContent>
+                                                                                <AlertDialogHeader>
+                                                                                    <AlertDialogTitle>Delete this saved footprint?</AlertDialogTitle>
+                                                                                    <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                                                                                </AlertDialogHeader>
+                                                                                <AlertDialogFooter>
+                                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                                    <AlertDialogAction onClick={() => handleDeleteFootprint(fp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Delete</AlertDialogAction>
+                                                                                </AlertDialogFooter>
+                                                                            </AlertDialogContent>
+                                                                        </AlertDialog>
+                                                                        <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
                                                                             {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
                                                                         </Button>
                                                                     </div>
@@ -756,7 +771,7 @@ function FootprintsTab() {
                         />
                         <div className="flex items-center justify-end gap-4">
                              <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
-                                <Coins className="h-4 w-4 text-amber-500" />
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
                                 {settings?.ecoFootprintCost || 10} Tokens
                             </Badge>
                              <Button type="submit" disabled={isLoading}>
@@ -864,7 +879,7 @@ function FootprintsTab() {
                  </Card>
             )}
         </div>
-    )
+    );
 }
 
 function IntelPageContent() {
