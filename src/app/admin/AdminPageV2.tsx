@@ -130,7 +130,7 @@ export default function AdminPageV2() {
             
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TooltipProvider>
-                    <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
+                    <ScrollArea className="w-full whitespace-nowrap">
                         <TabsList>
                             {adminTabs.map(tab => (
                                 <Tooltip key={tab.value}>
