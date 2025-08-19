@@ -1,4 +1,3 @@
-
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -156,7 +155,7 @@ export function AppSidebar() {
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
-    { href: "/infohub", icon: Compass, label: "Intel Hub", activePath: "/infohub" },
+    { href: "/infohub", icon: Compass, label: "Intel", activePath: "/infohub" },
   ];
 
   const userNavLinks = [
