@@ -91,7 +91,7 @@ const testSearchFlow = ai.defineFlow(
     // 1. Search
     const searchQuery = 'official government travel advisory Ukraine site:www.gov.uk/foreign-travel-advice';
     debugLog.push(`[INFO] Performing search with query: "${searchQuery}"`);
-    const searchResult = await searchWebAction({ query: searchQuery, apiKey, searchEngineId });
+    const searchResult = await searchWebAction({ query: searchQuery });
     if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
         const msg = `[FAIL] Web search failed. Reason: ${searchResult.error || 'No results found.'}`;
         debugLog.push(msg);
