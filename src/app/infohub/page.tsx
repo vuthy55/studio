@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
@@ -630,7 +631,7 @@ function FootprintsTab() {
         } else {
             toast({ variant: 'destructive', title: 'Delete Failed', description: error });
         }
-    }
+    };
 
     return (
         <div className="space-y-6">
@@ -825,24 +826,28 @@ function FootprintsTab() {
                                     <h3 className="font-semibold mb-2">How to Offset:</h3>
                                     <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center space-y-2">
                                         <p className="text-lg font-medium text-green-800">{result.offsetSuggestion}</p>
-                                        {result.localOpportunities.length > 0 && (
-                                            <>
-                                                <p className="text-sm text-green-700">Here are some local opportunities the AI found:</p>
-                                                <div className="space-y-1 text-left">
-                                                    {result.localOpportunities.map((opp, index) => (
-                                                        <a key={index} href={opp.url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-2 rounded-md hover:bg-green-500/10">
-                                                            <div className="p-2 bg-background rounded-md">{activityTypeIcons[opp.activityType]}</div>
-                                                            <div className="flex-1">
-                                                                    <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
-                                                                    <p className="text-xs text-muted-foreground italic truncate">"{opp.description}"</p>
-                                                            </div>
-                                                         </a>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
                                     </div>
                                 </div>
+
+                                {result.localOpportunities && result.localOpportunities.length > 0 && (
+                                    <>
+                                        <Separator />
+                                        <div>
+                                            <h3 className="font-semibold mb-2">Suggested Eco-Tourism Activities:</h3>
+                                            <div className="space-y-1 text-left">
+                                                {result.localOpportunities.map((opp, index) => (
+                                                    <a key={index} href={opp.url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-2 rounded-md hover:bg-green-500/10">
+                                                        <div className="p-2 bg-background rounded-md">{activityTypeIcons[opp.activityType]}</div>
+                                                        <div className="flex-1">
+                                                                <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
+                                                                <p className="text-xs text-muted-foreground italic truncate">"{opp.description}"</p>
+                                                        </div>
+                                                     </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
         
                                 <Separator />
                                 
