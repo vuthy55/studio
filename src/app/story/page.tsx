@@ -5,7 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
-import { ArrowRight, Frown, UtensilsCrossed, Users, MessageSquare, Train } from 'lucide-react';
+import { ArrowRight, Frown, UtensilsCrossed, Users, MessageSquare, Train, Compass } from 'lucide-react';
 import MainHeader from '@/components/layout/MainHeader';
 import { useUserData } from '@/context/UserDataContext';
 
@@ -75,13 +75,13 @@ export default function StoryPage() {
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="md:order-2">
             <div className="flex items-center justify-center p-4 md:p-8 bg-muted rounded-lg shadow-xl aspect-[3/2]">
-                 <Train className="h-32 w-32 text-primary/50" />
+                 <Compass className="h-32 w-32 text-primary/50" />
             </div>
           </div>
           <div className="space-y-4 md:order-1">
-              <h2 className="text-3xl font-bold">The Plan: What's Next?</h2>
+              <h2 className="text-3xl font-bold">The Plan: Smart Travel with Intel</h2>
               <p className="text-muted-foreground">
-                  The new friends decide to travel together to Phnom Penh. Instead of guessing, Alex opens the "Intel Hub" and uses the **Transport Intel** feature. In seconds, they see all the bus, train, and flight options, with prices and times. They book the overnight bus, saving money and a ton of stress.
+                  The new friends decide to travel together to Phnom Penh. Instead of guessing, Alex opens the **Intel Hub**. First, they get a real-time safety briefing for Cambodia. Then, they use the Transport feature to see all the bus and train options, with prices and times. They even calculate their carbon footprint for the trip and find a local eco-tourism project to support. They book the overnight bus, saving money, stress, and making a positive impact.
               </p>
               <Button variant="link" asChild className="p-0 h-auto">
                    <Link href={intelLink}>Plan with the Intel Hub <ArrowRight className="ml-2 h-4 w-4" /></Link>

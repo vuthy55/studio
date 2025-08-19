@@ -185,8 +185,8 @@ export default function MarketingRelease() {
              <Link href={isClient && user ? "/infohub" : "/login"} className="block hover:scale-105 transition-transform duration-200">
                 <div className="flex flex-col items-center text-center p-4 space-y-2 border rounded-lg h-full">
                     <Compass className="h-12 w-12 text-primary" />
-                    <h3 className="font-semibold text-lg">Intel</h3>
-                    <p className="text-sm text-muted-foreground">Get AI-powered, real-time travel safety and transport options for any country.</p>
+                    <h3 className="font-semibold text-lg">Intel Hub</h3>
+                    <p className="text-sm text-muted-foreground">Get AI-powered safety briefs, transport options, and calculate your eco-footprint.</p>
                 </div>
             </Link>
              <Link href={isClient && user ? "/profile?tab=buddies" : "/login"} className="block hover:scale-105 transition-transform duration-200">
