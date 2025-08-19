@@ -116,7 +116,7 @@ const calculateEcoFootprintFlow = ai.defineFlow(
         name: o.name,
         url: o.url || '',
         description: o.responsibility, // Map 'responsibility' to 'description'
-        activityType: o.activityType || 'offsetting', // Provide a default 'activityType'
+        activityType: o.activityType || 'offsetting',
     }));
 
     const mappedTourismOpportunities = (ecoIntelData.ecoTourismOpportunities || []).map(o => ({
