@@ -26,8 +26,6 @@ import { scrapeUrlAction } from '@/actions/scraper';
  */
 export async function discoverTransportOptions(input: DiscoverTransportOptionsInput, debugLog: string[]): Promise<DiscoverTransportOptionsOutput> {
   const { fromCity, toCity, country } = input;
-  const apiKey = process.env.GOOGLE_API_KEY!;
-  const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID!;
   
   const countryInfo = lightweightCountries.find(c => c.name.toLowerCase() === country.toLowerCase());
   const transportProviders = countryInfo ? await getCountryTransportData(countryInfo.code) : null;
@@ -61,7 +59,7 @@ export async function discoverTransportOptions(input: DiscoverTransportOptionsIn
   let searchResultsText = "";
   for (const query of uniqueQueries) {
       debugLog.push(`[INFO] Searching with query: "${query}"`);
-      const searchResult = await searchWebAction({ query, apiKey, searchEngineId });
+      const searchResult = await searchWebAction({ query });
       
       if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
           debugLog.push(`[SUCCESS] Found ${searchResult.results.length} result(s) for "${query}".`);
