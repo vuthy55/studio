@@ -192,7 +192,7 @@ function LocationIntelTab() {
             setAiIntel(intel);
             toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName || countryCode}.` });
 
-        } catch (error: any) => {
+        } catch (error: any) {
             console.error("Error generating country intel:", error);
             toast({ variant: 'destructive', title: 'AI Task Failed', description: `${error.message}`, duration: 7000 });
             setAiIntel(null); // Clear partial results on failure
@@ -207,7 +207,7 @@ function LocationIntelTab() {
                 <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <CardTitle>Location Intel</CardTitle>
+                            <CardTitle>Location</CardTitle>
                             <CardDescription>Select a country to view standard information and get the latest AI-powered travel safety analysis.</CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ function TransportIntelTab() {
                 <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <CardTitle>Transport Intelligence</CardTitle>
+                            <CardTitle>Transport</CardTitle>
                             <CardDescription>Find the best ways to get from city to city.</CardDescription>
                         </div>
                          <div className="flex items-center gap-2">
@@ -478,7 +478,7 @@ function FootprintsTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Eco-Footprint Calculator</CardTitle>
+                    <CardTitle>Footprints</CardTitle>
                     <CardDescription>
                         Describe your trip, and our AI agent will estimate its carbon footprint and suggest ways to offset it.
                     </CardDescription>
