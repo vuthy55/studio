@@ -32,13 +32,13 @@ function TokenHistoryDialog() {
         if (log.actionType === 'p2p_transfer') {
             return log.tokenChange > 0 ? `Received from ${log.fromUserEmail}` : `Sent to ${log.toUserEmail}`;
         }
-        if (log.actionType === 'sync_online_refund') return 'Sync Online Refund';
+        if (log.actionType === 'sync_online_refund') return 'Voice Room Refund';
         
         switch (log.actionType) {
             case 'admin_issue': return 'Admin Issuance';
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
-            case 'live_sync_online_spend': return 'Sync Online Usage';
+            case 'live_sync_online_spend': return 'Voice Room Usage';
             case 'practice_earn': return 'Practice Reward';
             case 'signup_bonus': return 'Welcome Bonus';
             case 'purchase': return 'Token Purchase';

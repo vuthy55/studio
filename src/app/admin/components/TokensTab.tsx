@@ -138,9 +138,9 @@ export default function TokensTab() {
             case 'practice_earn': return 'Practice Reward';
             case 'translation_spend': return 'Live Translation';
             case 'live_sync_spend': return 'Live Sync Usage';
-            case 'live_sync_online_spend': return 'Sync Online Usage';
+            case 'live_sync_online_spend': return 'Voice Room Usage';
             case 'p2p_transfer': return 'Peer Transfer';
-            case 'sync_online_refund': return 'Sync Online Refund';
+            case 'sync_online_refund': return 'Voice Room Refund';
             case 'language_pack_download': return 'Language Pack Download';
             case 'save_phrase_spend': return 'Saved Phrases for Offline';
             case 'transcript_generation': return 'Room Transcript';
