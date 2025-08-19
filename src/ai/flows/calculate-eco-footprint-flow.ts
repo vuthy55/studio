@@ -189,5 +189,3 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
