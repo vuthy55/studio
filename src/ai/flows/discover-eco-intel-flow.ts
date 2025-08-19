@@ -47,14 +47,19 @@ const scrape_url = ai.defineTool(
 
 // --- Main Exported Function ---
 
-export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<{ ecoData: DiscoverEcoIntelOutput; agentLog: string[] }> {
+export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<{ ecoData: DiscoverEcoIntelOutput | null; agentLog: string[] }> {
   const agentLog: string[] = [];
   const log = (message: string) => agentLog.push(message);
   
   log(`[AGENT] Starting research for ${input.countryName}.`);
-  const ecoData = await discoverEcoIntelFlow({ countryName: input.countryName, log });
-
-  return { ecoData, agentLog };
+  try {
+    const ecoData = await discoverEcoIntelFlow({ countryName: input.countryName, log });
+    return { ecoData, agentLog };
+  } catch (error: any) {
+    log(`[AGENT_FAIL] Flow failed for ${input.countryName}: ${error.message}`);
+    // Return null on failure so the caller can handle it gracefully.
+    return { ecoData: null, agentLog };
+  }
 }
 
 // --- Genkit Flow and Prompt Definitions ---
@@ -102,10 +107,13 @@ const discoverEcoIntelFlow = ai.defineFlow(
       },
     });
 
+    // --- DEFINITIVE FIX ---
+    // Handle cases where the AI model refuses to answer and returns null.
     if (!output) {
       throw new Error("AI analysis failed to generate a valid response (returned null). This may be due to a lack of relevant search results or a content safety block.");
     }
     
+    // Sanitize the data to remove any empty booking URLs that the AI might still produce.
     if (output.ecoTourismOpportunities) {
         output.ecoTourismOpportunities.forEach(opp => {
           if ('bookingUrl' in opp && opp.bookingUrl === "") {
