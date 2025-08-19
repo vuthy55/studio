@@ -23,7 +23,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getTransportOptionsAction } from '@/actions/transport';
@@ -183,7 +183,7 @@ function LocationIntelTab() {
         setLastSearchDate(new Date());
 
         try {
-            const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${selectedCountryName || countryCode}`, cost);
+            const spendSuccess = spendTokensForTranslation(`Generated travel intel for ${staticData?.countryName || countryCode}`, cost);
             if (!spendSuccess) throw new Error("Token spending failed.");
             
             const { intel } = await getCountryIntel({ countryCode: countryCode });
@@ -191,7 +191,7 @@ function LocationIntelTab() {
             if (!intel || intel.finalScore === undefined) throw new Error("The AI returned an empty or invalid response.");
             
             setAiIntel(intel);
-            toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${selectedCountryName || countryCode}.` });
+            toast({ title: 'Intel Generated', description: `Successfully generated the latest information for ${staticData?.countryName || countryCode}.` });
 
         } catch (error: any) {
             console.error("Error generating country intel:", error);
@@ -434,6 +434,61 @@ function TransportIntelTab() {
     );
 }
 
+function FootprintInfoDialog() {
+    const { settings } = useUserData();
+    const sources = settings?.ecoFootprintCalculationSources?.split(',').map(s => s.trim()) || [];
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>How Eco-Footprint is Calculated</DialogTitle>
+                    <DialogDescription>An overview of our methodology for estimating your travel's carbon impact.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                    <div className="space-y-6 py-4 text-sm">
+                        <div>
+                            <h4 className="font-semibold mb-1">Disclaimer: It's an Estimate</h4>
+                            <p className="text-muted-foreground">The calculation is a well-informed estimate designed to be a helpful guide, not a precise scientific measurement. Its purpose is to give you a tangible sense of your travel's environmental impact.</p>
+                        </div>
+                        
+                        <div>
+                            <h4 className="font-semibold mb-1">Calculation Breakdown</h4>
+                            <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
+                                <li><strong>Flights:</strong> This is the most data-driven part. The AI uses external tools to search reputable sources for carbon data based on your flight route.</li>
+                                <li><strong>Ground Transport:</strong> For taxis, buses, etc., the AI estimates a typical distance for the journey described (e.g., an airport transfer is ~50-70km) and multiplies it by a standard emissions factor.</li>
+                                <li><strong>Accommodation:</strong> Each night in a hotel is assigned a fixed footprint of **15 kg CO₂** based on industry averages for energy and water use.</li>
+                                <li><strong>Food:</strong> A general estimate of **5 kg CO₂** is added for every day of travel to account for meals.</li>
+                            </ul>
+                        </div>
+
+                         <div>
+                            <h4 className="font-semibold mb-1">Tree Offsetting Estimate</h4>
+                            <p className="text-muted-foreground">The suggestion for planting trees is based on the general estimate that one mature tree can absorb approximately **25 kg of CO₂ per year**.</p>
+                        </div>
+                        
+                        <div>
+                            <h4 className="font-semibold mb-1">External Data Sources</h4>
+                            <p className="text-muted-foreground">For flight calculations, the AI is instructed to prioritize information from the following trusted sources:</p>
+                            <ul className="list-disc pl-5 mt-2 text-primary font-medium">
+                                {sources.map(source => <li key={source}>{source}</li>)}
+                            </ul>
+                        </div>
+                    </div>
+                </ScrollArea>
+                <DialogFooter>
+                    <DialogClose asChild><Button>Got it!</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 function FootprintsTab() {
     const { user } = useUserData();
@@ -563,7 +618,10 @@ function FootprintsTab() {
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
-                        <CardTitle>Eco-Footprints</CardTitle>
+                        <div className="flex items-center gap-2">
+                             <CardTitle>Eco-Footprints</CardTitle>
+                             <FootprintInfoDialog />
+                        </div>
                         <Dialog open={isMyFootprintsOpen} onOpenChange={setIsMyFootprintsOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="outline"><List className="mr-2"/>My Footprints</Button>
@@ -677,14 +735,14 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
-                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
-                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                {settings?.ecoFootprintCost || 10} Tokens
-                            </Badge>
                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                                 Calculate My Footprint
                             </Button>
+                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
                         </div>
                     </form>
                 </CardContent>
