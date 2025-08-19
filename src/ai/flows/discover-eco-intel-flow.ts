@@ -42,7 +42,7 @@ const discoverEcoIntelFlow = ai.defineFlow(
 
         1.  **Analyze & Extract:** From the provided text snippets, identify government ministries/agencies, non-governmental organizations (NGOs), carbon offsetting projects, and eco-tourism opportunities.
         2.  **URL Requirement for Organizations**: For each organization (government, NGO, offsetting), you MUST find a valid, direct URL in the provided text. If an official URL is not present in the snippets for an organization, DISCARD that organization. Do not include any entry with an empty, placeholder, or incomplete URL.
-        3.  **URL Requirement for Eco-Tourism**: For each eco-tourism opportunity, you MUST attempt to find a booking URL. If a booking URL is not present in the text, completely OMIT the \`bookingUrl\` field from that opportunity's JSON object.
+        3.  **URL Requirement for Eco-Tourism**: For each eco-tourism opportunity, you MUST attempt to find a booking URL. If a valid booking URL is not present in the text, completely OMIT the \`bookingUrl\` field from that opportunity's JSON object.
         4.  **Format Output:** Populate all fields in the requested JSON format. If you cannot find any verifiable entries for a category, return an empty array for it. Do not invent information.
         5.  Determine the geopolitical region for ${countryName}.
       `,
