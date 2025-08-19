@@ -3,15 +3,16 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { getCountryIntelData } from '@/actions/intel';
-import type { CountryIntelData } from '@/lib/types';
+import type { CountryIntelData, CountryEcoIntel } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { calculateEcoFootprintAction } from '@/actions/eco-intel';
+import { getCountryEcoIntel } from '@/actions/eco-intel';
+import type { EcoFootprintOutput } from '@/ai/flows/types';
+
 
 const transportTypeIcons: Record<string, React.ReactNode> = {
     flight: <Plane className="h-6 w-6 text-blue-500" />,
@@ -36,6 +42,19 @@ const transportTypeIcons: Record<string, React.ReactNode> = {
     ferry: <Ship className="h-6 w-6 text-cyan-500" />,
     unknown: <Car className="h-6 w-6 text-gray-400" />
 };
+
+const activityTypeIcons: Record<string, React.ReactNode> = {
+    tree_planting: <TreePine className="h-4 w-4 text-green-600" />,
+    coral_planting: <Anchor className="h-4 w-4 text-blue-600" />,
+    recycling: <Recycle className="h-4 w-4 text-purple-600" />,
+    conservation: <Leaf className="h-4 w-4 text-teal-600" />,
+    other: <PlusCircle className="h-4 w-4 text-gray-500" />,
+    wildlife_sanctuary: <i className="fas fa-paw text-orange-600"></i>, 
+    jungle_trekking: <i className="fas fa-hiking text-lime-600"></i>,
+    community_visit: <i className="fas fa-users text-indigo-600"></i>,
+    bird_watching: <i className="fas fa-binoculars text-sky-600"></i>,
+};
+
 
 function LatestIntelDisplay({ intel, searchDate }: { intel: Partial<CountryIntel> | null, searchDate: Date | null }) {
     if (!intel || intel.finalScore === undefined) {
@@ -410,27 +429,224 @@ function TransportIntelTab() {
 }
 
 
-function IntelContent() {
+function FootprintsTab() {
+     const { user } = useUserData();
+    const [selectedCountry, setSelectedCountry] = useState<{code: string; name: string} | null>(null);
+    const countryOptions = useMemo(() => lightweightCountries.map(c => ({ code: c.code, name: c.name })), []);
+    const { toast } = useToast();
+    const [travelDescription, setTravelDescription] = useState('');
+    const [destinationCountryCode, setDestinationCountryCode] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [result, setResult] = useState<EcoFootprintOutput | null>(null);
+    const [debugLog, setDebugLog] = useState<string[]>([]);
+    const { settings } = useUserData();
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!travelDescription.trim() || !destinationCountryCode || !user) {
+            toast({ variant: 'destructive', title: 'Input Required', description: 'Please describe your journey and select a primary destination.' });
+            return;
+        }
+
+        setIsLoading(true);
+        setResult(null);
+        setDebugLog([]);
+
+        try {
+            const { result: calculationResult, debugLog: log, error } = await calculateEcoFootprintAction({ travelDescription, destinationCountryCode }, user.uid);
+            
+            setDebugLog(log || []);
+
+            if (error) {
+                 throw new Error(error);
+            }
+            
+            setResult(calculationResult || null);
+            
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Calculation Failed', description: error.message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Eco-Footprint Calculator</CardTitle>
+                    <CardDescription>
+                        Describe your trip, and our AI agent will estimate its carbon footprint and suggest ways to offset it.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="p-4 border-l-4 border-blue-500 bg-blue-500/10 text-sm text-blue-800 rounded-r-lg">
+                            <p><strong className="font-semibold">For the best results, please include:</strong></p>
+                            <ul className="list-disc pl-5 mt-1">
+                                <li>Modes of transport (e.g., plane, bus, taxi, tuk-tuk)</li>
+                                <li>Departure and arrival cities or airport codes (e.g., KUL to REP)</li>
+                                <li>Number of nights in hotels</li>
+                            </ul>
+                        </div>
+                        <div className="space-y-2">
+                             <label htmlFor="destinationCountryCode" className="font-medium text-sm">Primary Destination Country</label>
+                            <Select onValueChange={setDestinationCountryCode} value={destinationCountryCode}>
+                                <SelectTrigger id="destinationCountryCode"><SelectValue placeholder="Select a country..." /></SelectTrigger>
+                                <SelectContent>
+                                    {countryOptions.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Textarea
+                            placeholder="e.g., Day 1: Taxi from Kuala Lumpur to KLIA, 2-hour flight to Siem Reap, then a bus to the city center. Stayed 3 nights in a hotel..."
+                            value={travelDescription}
+                            onChange={(e) => setTravelDescription(e.target.value)}
+                            rows={8}
+                            className="text-base"
+                        />
+                        <div className="flex items-center justify-end gap-4">
+                            <Badge variant="secondary" className="text-base">
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                Cost: {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
+                            <Button type="submit" disabled={isLoading}>
+                                {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
+                                Calculate My Footprint
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+            
+            {(isLoading || result || debugLog.length > 0) && (
+                 <Card className="mt-6 animate-in fade-in-50">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                           {isLoading ? <LoaderCircle className="text-primary animate-spin" /> : <Leaf className="text-green-600"/>}
+                           Calculation Result
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {isLoading && !result && <p className="text-center text-muted-foreground">AI agent is working...</p>}
+                        {result && (
+                            <>
+                                <div className="text-center p-6 bg-muted rounded-lg">
+                                    <p className="text-lg text-muted-foreground">Total Footprint</p>
+                                    <p className="text-6xl font-bold text-primary">{result.totalFootprintKgCo2.toFixed(1)}</p>
+                                    <p className="text-muted-foreground">kg CO₂</p>
+                                </div>
+        
+                                <div>
+                                    <h3 className="font-semibold mb-2">Breakdown:</h3>
+                                    <div className="space-y-2">
+                                        {result.breakdown.map((item, index) => (
+                                            <div key={index} className="flex justify-between items-center p-2 bg-background rounded-md text-sm">
+                                                <span>{item.item}</span>
+                                                <span className="font-semibold">{item.footprint.toFixed(1)} kg CO₂</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+        
+                                <Separator />
+        
+                                <div>
+                                    <h3 className="font-semibold mb-2">How to Offset:</h3>
+                                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center space-y-2">
+                                        <p className="text-lg font-medium text-green-800">{result.offsetSuggestion}</p>
+                                        {result.localOpportunities.length > 0 && (
+                                            <>
+                                                <p className="text-sm text-green-700">Here are some local opportunities the AI found:</p>
+                                                <div className="space-y-1 text-left">
+                                                    {result.localOpportunities.map((opp, index) => (
+                                                        <a key={index} href={opp.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-2 rounded-md hover:bg-green-500/10">
+                                                            <div className="p-2 bg-background rounded-md">{activityTypeIcons[opp.activityType]}</div>
+                                                            <div className="flex-1">
+                                                                    <p className="font-semibold text-sm flex items-center gap-1">{opp.name} <ExternalLink className="h-3 w-3" /></p>
+                                                                    <p className="text-xs text-muted-foreground italic truncate">"{opp.description}"</p>
+                                                            </div>
+                                                         </a>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+        
+                                <Separator />
+                                
+                                <div>
+                                     <h3 className="font-semibold mb-2">Methodology & Assumptions:</h3>
+                                     <p className="text-xs text-muted-foreground p-3 bg-background rounded-md whitespace-pre-wrap">{result.methodology}</p>
+                                </div>
+                                 <div>
+                                     <h3 className="font-semibold mb-2">References:</h3>
+                                     <ul className="list-disc pl-5 text-xs text-primary space-y-1">
+                                        {result.references.map(ref => (
+                                            <li key={ref}><a href={ref} target="_blank" rel="noopener noreferrer" className="hover:underline">{ref}</a></li>
+                                        ))}
+                                     </ul>
+                                </div>
+                            </>
+                        )}
+
+                        {debugLog.length > 0 && (
+                             <Accordion type="single" collapsible>
+                                <AccordionItem value="debug-log">
+                                    <AccordionTrigger>
+                                        <h3 className="font-semibold text-sm flex items-center gap-2"><Info className="h-4 w-4"/> Debug Log</h3>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <pre className="text-xs p-4 bg-gray-900 text-white rounded-md max-h-60 overflow-auto">
+                                            {debugLog.join('\n')}
+                                        </pre>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        )}
+                    </CardContent>
+                 </Card>
+            )}
+        </div>
+    )
+}
+
+function IntelPageContent() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const initialTab = searchParams.get('tab') || 'location';
+    const [activeTab, setActiveTab] = useState(initialTab);
+    
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        router.push(`/infohub?tab=${value}`, { scroll: false });
+    };
+
     return (
         <div className="space-y-8">
-            <MainHeader title="Intel" description="Your source for global travel and transport intelligence." />
-            <Tabs defaultValue="location-intel" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="location-intel"><Compass className="mr-2"/> Location</TabsTrigger>
-                    <TabsTrigger value="transport-intel"><Train className="mr-2"/> Transport</TabsTrigger>
+            <MainHeader title="Intel" description="Your source for global travel intelligence." />
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="location"><Compass className="mr-2"/> Location</TabsTrigger>
+                    <TabsTrigger value="transport"><Train className="mr-2"/> Transport</TabsTrigger>
+                    <TabsTrigger value="footprints"><FlaskConical className="mr-2"/> Footprints</TabsTrigger>
                 </TabsList>
-                <TabsContent value="location-intel" className="mt-6">
+                <TabsContent value="location" className="mt-6">
                     <LocationIntelTab />
                 </TabsContent>
-                <TabsContent value="transport-intel" className="mt-6">
+                <TabsContent value="transport" className="mt-6">
                     <TransportIntelTab />
+                </TabsContent>
+                <TabsContent value="footprints" className="mt-6">
+                    <FootprintsTab />
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
 
-export default function IntelPage() {
+export default function InfoHubPage() {
     const { user, loading: authLoading } = useUserData();
     const router = useRouter();
 
@@ -450,7 +666,7 @@ export default function IntelPage() {
 
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
-            <IntelContent />
+            <IntelPageContent />
         </Suspense>
     );
 }

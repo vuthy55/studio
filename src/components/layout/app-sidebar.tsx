@@ -1,3 +1,4 @@
+
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -162,10 +163,6 @@ export function AppSidebar() {
     { href: "/profile", icon: User, label: "My Profile", activePath: "/profile" },
   ];
   
-  const testNavLinks = [
-    { href: "/eco-footprint", icon: FlaskConical, label: "Eco-Footprint", activePath: "/eco-footprint" },
-  ];
-
   return (
     <Sidebar>
       <SidebarHeader>
@@ -209,16 +206,6 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
-              {testNavLinks.map(link => (
-                <SidebarMenuItem key={link.href}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(link.activePath)}>
-                    <Link href={link.href} onClick={closeSidebar}>
-                      <link.icon />
-                      {link.label}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
               
               {userProfile?.role === 'admin' && (
                 <>
