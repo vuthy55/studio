@@ -27,6 +27,10 @@ const activityTypeIcons: Record<string, React.ReactNode> = {
     recycling: <Recycle className="h-4 w-4" />,
     conservation: <Leaf className="h-4 w-4" />,
     other: <PlusCircle className="h-4 w-4" />,
+    wildlife_sanctuary: <i className="fas fa-paw text-orange-600"></i>, // Placeholder, requires FontAwesome or similar
+    jungle_trekking: <i className="fas fa-hiking text-lime-600"></i>,
+    community_visit: <i className="fas fa-users text-indigo-600"></i>,
+    bird_watching: <i className="fas fa-binoculars text-sky-600"></i>,
 };
 
 interface BuildResult {
@@ -165,26 +169,31 @@ export default function EcoIntelTab() {
         await fetchIntelData();
     };
 
-    const handleCellChange = (countryCode: string, field: keyof CountryEcoIntel, value: any, oppIndex?: number) => {
+    const handleFieldChange = (countryCode: string, field: keyof CountryEcoIntel, value: any, index?: number, subfield?: string) => {
         setEditState(prev => {
             const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
 
-            if (field === 'governmentBodies' && oppIndex !== undefined) {
-                const newOpps = [...(newCountryState.governmentBodies || [])];
-                newOpps[oppIndex] = { ...newOpps[oppIndex], ...value };
-                newCountryState.governmentBodies = newOpps;
-            } else if (field === 'ngos' && oppIndex !== undefined) {
-                 const newOpps = [...(newCountryState.ngos || [])];
-                newOpps[oppIndex] = { ...newOpps[oppIndex], ...value };
-                newCountryState.ngos = newOpps;
-            }
-             else {
+            if ((field === 'governmentBodies' || field === 'ngos' || field === 'offsettingOpportunities' || field === 'ecoTourismOpportunities') && index !== undefined && subfield) {
+                const newArray = [...((newCountryState as any)[field] || [])];
+                newArray[index] = { ...newArray[index], [subfield]: value };
+                (newCountryState as any)[field] = newArray;
+            } else {
                  (newCountryState as any)[field] = value;
             }
 
             return { ...prev, [countryCode]: newCountryState };
         });
     };
+    
+    const handleAddField = (countryCode: string, field: 'governmentBodies' | 'ngos') => {
+        setEditState(prev => {
+            const newCountryState = { ...(prev[countryCode] || intelData.find(c => c.id === countryCode)) };
+            const newArray = [...(newCountryState[field] || []), { name: '', responsibility: '', url: '' }];
+            (newCountryState as any)[field] = newArray;
+            return { ...prev, [countryCode]: newCountryState };
+        });
+    }
+
 
     const handleSave = async (countryCode: string) => {
         const changes = editState[countryCode];
@@ -360,16 +369,17 @@ export default function EcoIntelTab() {
                                                 <div className="space-y-4">
                                                     {(currentData.governmentBodies || []).map((opp, oppIndex) => (
                                                         <div key={oppIndex} className="p-3 border rounded-lg space-y-2">
-                                                            <Input value={opp.name} onChange={(e) => handleCellChange(country.id, 'governmentBodies', { name: e.target.value }, oppIndex)} placeholder="Organization Name" />
+                                                            <Input value={opp.name} onChange={(e) => handleFieldChange(country.id, 'governmentBodies', e.target.value, oppIndex, 'name')} placeholder="Organization Name" />
                                                              <div className="flex items-center gap-2">
-                                                                <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'governmentBodies', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
+                                                                <Input value={opp.url} onChange={(e) => handleFieldChange(country.id, 'governmentBodies', e.target.value, oppIndex, 'url')} placeholder="https://example.com" />
                                                                 <a href={opp.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
                                                                     <ExternalLink className="h-4 w-4" />
                                                                 </a>
                                                             </div>
-                                                            <Textarea value={opp.responsibility} onChange={(e) => handleCellChange(country.id, 'governmentBodies', { responsibility: e.target.value }, oppIndex)} placeholder="One-sentence description..." rows={2} className="text-xs" />
+                                                            <Textarea value={opp.responsibility} onChange={(e) => handleFieldChange(country.id, 'governmentBodies', e.target.value, oppIndex, 'responsibility')} placeholder="One-sentence description..." rows={2} className="text-xs" />
                                                         </div>
                                                     ))}
+                                                     <Button variant="outline" size="sm" onClick={() => handleAddField(country.id, 'governmentBodies')}><PlusCircle className="mr-2 h-4 w-4" /> Add Body</Button>
                                                 </div>
                                             </div>
 
@@ -378,16 +388,17 @@ export default function EcoIntelTab() {
                                                 <div className="space-y-4">
                                                     {(currentData.ngos || []).map((opp, oppIndex) => (
                                                         <div key={oppIndex} className="p-3 border rounded-lg space-y-2">
-                                                            <Input value={opp.name} onChange={(e) => handleCellChange(country.id, 'ngos', { name: e.target.value }, oppIndex)} placeholder="Organization Name" />
+                                                            <Input value={opp.name} onChange={(e) => handleFieldChange(country.id, 'ngos', e.target.value, oppIndex, 'name')} placeholder="NGO Name" />
                                                              <div className="flex items-center gap-2">
-                                                                <Input value={opp.url} onChange={(e) => handleCellChange(country.id, 'ngos', { url: e.target.value }, oppIndex)} placeholder="https://example.com" />
+                                                                <Input value={opp.url} onChange={(e) => handleFieldChange(country.id, 'ngos', e.target.value, oppIndex, 'url')} placeholder="https://example.com" />
                                                                 <a href={opp.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
                                                                     <ExternalLink className="h-4 w-4" />
                                                                 </a>
                                                             </div>
-                                                            <Textarea value={opp.focus} onChange={(e) => handleCellChange(country.id, 'ngos', { focus: e.target.value }, oppIndex)} placeholder="One-sentence description..." rows={2} className="text-xs" />
+                                                            <Textarea value={(opp as any).responsibility} onChange={(e) => handleFieldChange(country.id, 'ngos', e.target.value, oppIndex, 'responsibility')} placeholder="One-sentence description..." rows={2} className="text-xs" />
                                                         </div>
                                                     ))}
+                                                      <Button variant="outline" size="sm" onClick={() => handleAddField(country.id, 'ngos')}><PlusCircle className="mr-2 h-4 w-4" /> Add NGO</Button>
                                                 </div>
                                             </div>
 

@@ -6,7 +6,6 @@ import type { CountryEcoIntel } from '@/lib/types';
 import { discoverEcoIntel } from '@/ai/flows/discover-eco-intel-flow';
 import { lightweightCountries } from '@/lib/location-data';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { searchWebAction } from '@/actions/search';
 
 
 /**
@@ -48,8 +47,8 @@ export async function updateEcoIntelAdmin(countryCode: string, updates: Partial<
 }
 
 /**
- * Builds or updates the intelligence database for a given country.
- * This server action now handles all data gathering before passing it to the AI flow.
+ * Kicks off the AI Research Agent to build or update the intelligence database for a given country.
+ * This function now only passes the country name to the self-contained AI flow.
  */
 export async function buildEcoIntelData(countryCode: string): Promise<{success: boolean, log: string[], error?: string}> {
     const log: string[] = [];
@@ -65,51 +64,16 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
     const docRef = db.collection('countryEcoIntel').doc(country.code);
 
     try {
-        logMessage(`[START] Starting Eco-Intel build for ${country.name}.`);
-        logMessage(`[INFO] Stage 1: Compiling queries...`);
-        const queries = [
-            `(ministry OR department OR agency) of (environment OR forestry OR climate change) official site in ${country.name}`,
-            `top environmental NGOs for (tree planting OR conservation OR recycling) in ${country.name}`,
-            `carbon offsetting programs in ${country.name}`,
-            `eco-tourism opportunities in ${country.name}`
-        ];
-
-        let researchPacket = "";
-
-        logMessage(`[INFO] Stage 2: Gathering data from web searches...`);
-        for (const query of queries) {
-            logMessage(`[INFO] ...searching for: "${query}"`);
-            const searchResult = await searchWebAction({ query });
-            if (searchResult.success && searchResult.results && searchResult.results.length > 0) {
-                const snippets = searchResult.results.map(r => `Source: ${r.link}\nTitle: ${r.title}\nSnippet: ${r.snippet}`).join('\n\n');
-                researchPacket += `--- Results for query: "${query}" ---\n${snippets}\n\n`;
-            }
-        }
-
-        if (!researchPacket.trim()) {
-            throw new Error('Web search returned no usable information.');
-        }
-
-        logMessage(`[INFO] Stage 3: Passing research packet to AI for analysis...`);
-        const ecoData = await discoverEcoIntel({ countryName: country.name, researchPacket: researchPacket });
+        logMessage(`[START] Kicking off AI Research Agent for ${country.name}...`);
+        const { ecoData, agentLog } = await discoverEcoIntel({ countryName: country.name });
         
+        log.push(...agentLog);
+
         if (!ecoData || !ecoData.countryName) {
             throw new Error('AI Research Agent failed to return sufficient data.');
         }
         
-        // --- SECONDARY DATA SANITIZATION (DEFENSIVE) ---
-        // This is a robust fallback to ensure data integrity even if the AI flow's sanitization fails.
-        if (ecoData.ecoTourismOpportunities) {
-            ecoData.ecoTourismOpportunities.forEach(opp => {
-                if (opp.bookingUrl === "") {
-                    delete opp.bookingUrl;
-                }
-            });
-        }
-        // --- END SANITIZATION ---
-
-
-        logMessage(`[INFO] Stage 4: Saving analyzed data to Firestore...`);
+        logMessage(`[INFO] Saving analyzed data to Firestore...`);
         const finalData = {
             ...ecoData,
             id: country.code,
