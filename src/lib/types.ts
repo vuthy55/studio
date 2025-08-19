@@ -1,9 +1,8 @@
-
-
 import type { FieldValue, Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import type { AzureLanguageCode } from './azure-languages';
 import type { LanguageCode } from './data';
+import type { EcoFootprintOutput } from '@/ai/flows/types';
 
 export interface BlockedUser {
     uid: string;
@@ -161,7 +160,7 @@ export type VibePost = {
 
 
 export type TransactionLog = {
-    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'transport_intel' | 'save_phrase_spend' | 'transcript_generation' | 'eco_footprint_spend';
+    actionType: 'translation_spend' | 'practice_earn' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'admin_issue' | 'p2p_transfer' | 'sync_online_refund' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'eco_footprint_spend';
     tokenChange: number;
     timestamp: FieldValue;
     description: string;
@@ -374,6 +373,7 @@ export type SavedEcoFootprint = {
     co2Kilograms: number;
     offsetActions?: string; // User-editable field for their notes
     createdAt: AdminTimestamp | ClientTimestamp | FieldValue;
+    localOpportunities?: EcoFootprintOutput['localOpportunities'];
 };
 
 export interface ClientEcoFootprint extends Omit<SavedEcoFootprint, 'createdAt'> {

@@ -1,5 +1,3 @@
-
-
 'use server';
 /**
  * @fileOverview A server action to securely expose the eco-footprint calculation flow.
@@ -122,7 +120,12 @@ export async function getCountryEcoIntel(countryCode: string): Promise<CountryEc
  */
 export async function saveEcoFootprintAction(
   userId: string,
-  payload: { journeySummary: string; countryName: string; co2Kilograms: number }
+  payload: {
+    journeySummary: string;
+    countryName: string;
+    co2Kilograms: number;
+    localOpportunities: EcoFootprintOutput['localOpportunities'];
+  }
 ): Promise<{ success: boolean; error?: string }> {
   if (!userId || !payload) {
     return { success: false, error: 'User ID and payload are required.' };
@@ -204,5 +207,29 @@ export async function deleteEcoFootprintAction(
   } catch (error: any) {
     console.error('Error deleting eco-footprint:', error);
     return { success: false, error: 'An unexpected server error occurred while deleting the footprint.' };
+  }
+}
+
+
+/**
+ * Deletes a single eco-tourism opportunity from a saved footprint.
+ */
+export async function deleteEcoTourismOpportunityAction(
+  userId: string,
+  footprintId: string,
+  opportunityToRemove: EcoFootprintOutput['localOpportunities'][0]
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId || !footprintId || !opportunityToRemove) {
+    return { success: false, error: 'Missing required IDs.' };
+  }
+  try {
+    const footprintRef = db.collection('users').doc(userId).collection('ecoFootprints').doc(footprintId);
+    await footprintRef.update({
+      localOpportunities: FieldValue.arrayRemove(opportunityToRemove)
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting eco-tourism opportunity:', error);
+    return { success: false, error: 'An unexpected server error occurred.' };
   }
 }

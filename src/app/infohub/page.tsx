@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
@@ -7,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useUserData } from '@/context/UserDataContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink, Bot, Save, List, Trash2 } from 'lucide-react';
+import { LoaderCircle, Wand2, AlertTriangle, Calendar, Hand, Coins, Syringe, Building2, CheckCircle2, Info, UserCheck, UserX, FileText, Link as LinkIcon, Phone, Train, Search, Plane, Bus, Car, Ship, Compass, FlaskConical, Leaf, TreePine, Recycle, Anchor, PlusCircle, Globe, ExternalLink, Bot, Save, List, Trash2, Edit } from 'lucide-react';
 import { lightweightCountries } from '@/lib/location-data';
 import { getCountryIntel, type CountryIntel } from '@/ai/flows/get-country-intel-flow';
 import { getCountryIntelData } from '@/actions/intel';
@@ -30,7 +28,7 @@ import { getTransportOptionsAction } from '@/actions/transport';
 import type { TransportOption } from '@/ai/flows/types';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { calculateEcoFootprintAction, getCountryEcoIntel, saveEcoFootprintAction, getSavedEcoFootprintsAction, updateEcoFootprintOffsetAction, deleteEcoFootprintAction } from '@/actions/eco-intel';
+import { calculateEcoFootprintAction, getCountryEcoIntel, saveEcoFootprintAction, getSavedEcoFootprintsAction, updateEcoFootprintOffsetAction, deleteEcoFootprintAction, deleteEcoTourismOpportunityAction } from '@/actions/eco-intel';
 import type { EcoFootprintOutput } from '@/ai/flows/types';
 
 
@@ -502,7 +500,6 @@ function FootprintsTab() {
     const [debugLog, setDebugLog] = useState<string[]>([]);
     const { settings } = useUserData();
     
-    // New state for "My Footprints"
     const [isMyFootprintsOpen, setIsMyFootprintsOpen] = useState(false);
     const [savedFootprints, setSavedFootprints] = useState<ClientEcoFootprint[]>([]);
     const [isFetchingSaved, setIsFetchingSaved] = useState(false);
@@ -567,7 +564,8 @@ function FootprintsTab() {
         const payload = {
             journeySummary: travelDescription,
             countryName: countryOptions.find(c => c.code === destinationCountryCode)?.name || destinationCountryCode,
-            co2Kilograms: result.totalFootprintKgCo2
+            co2Kilograms: result.totalFootprintKgCo2,
+            localOpportunities: result.localOpportunities
         };
 
         const { success, error } = await saveEcoFootprintAction(user.uid, payload);
@@ -612,6 +610,26 @@ function FootprintsTab() {
             toast({ variant: 'destructive', title: 'Delete Failed', description: error });
         }
     };
+    
+    const handleDeleteOpportunity = async (footprintId: string, opportunity: EcoFootprintOutput['localOpportunities'][0]) => {
+        if(!user) return;
+        
+        const { success, error } = await deleteEcoTourismOpportunityAction(user.uid, footprintId, opportunity);
+        if(success) {
+            toast({ title: 'Suggestion Removed'});
+            setSavedFootprints(prev => prev.map(fp => {
+                if (fp.id === footprintId) {
+                    return {
+                        ...fp,
+                        localOpportunities: (fp.localOpportunities || []).filter(opp => opp.name !== opportunity.name)
+                    }
+                }
+                return fp;
+            }));
+        } else {
+            toast({ variant: 'destructive', title: 'Delete Failed', description: error });
+        }
+    }
 
     return (
         <div className="space-y-6">
@@ -635,69 +653,71 @@ function FootprintsTab() {
                                 {isFetchingSaved ? (
                                     <div className="flex justify-center items-center h-40"><LoaderCircle className="animate-spin" /></div>
                                 ) : (
-                                    <ScrollArea className="h-[60vh]">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="w-[50px]">#</TableHead>
-                                                    <TableHead>Journey</TableHead>
-                                                    <TableHead className="w-[120px]">Footprint</TableHead>
-                                                    <TableHead>Offset Actions</TableHead>
-                                                    <TableHead className="w-[140px]">Manage</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {savedFootprints.length > 0 ? savedFootprints.map((fp, index) => (
-                                                    <TableRow key={fp.id}>
-                                                        <TableCell>{index + 1}</TableCell>
-                                                        <TableCell>
-                                                            <p className="font-semibold">{fp.countryName}</p>
-                                                            <p className="text-xs text-muted-foreground truncate">{fp.journeySummary}</p>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <div className="font-bold text-lg">{fp.co2Kilograms.toFixed(1)} kg</div>
-                                                            <div className="text-xs text-muted-foreground">
-                                                                ~{(fp.co2Kilograms / 25).toFixed(1)} trees
+                                    <ScrollArea className="h-[60vh] pr-4">
+                                        {savedFootprints.length > 0 ? (
+                                            <Accordion type="single" collapsible className="w-full">
+                                                {savedFootprints.map((fp) => (
+                                                    <AccordionItem value={fp.id} key={fp.id}>
+                                                        <AccordionTrigger>
+                                                            <div className="flex justify-between items-center w-full">
+                                                                <div>
+                                                                    <p className="font-semibold text-left">{fp.countryName}</p>
+                                                                    <p className="text-xs text-muted-foreground text-left truncate max-w-xs">{fp.journeySummary}</p>
+                                                                </div>
+                                                                 <div className="text-right">
+                                                                    <div className="font-bold text-lg">{fp.co2Kilograms.toFixed(1)} kg</div>
+                                                                    <div className="text-xs text-muted-foreground">~{(fp.co2Kilograms / 25).toFixed(1)} trees</div>
+                                                                </div>
                                                             </div>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Textarea
-                                                                value={editingFootprint[fp.id] ?? fp.offsetActions ?? ''}
-                                                                onChange={(e) => setEditingFootprint(prev => ({ ...prev, [fp.id]: e.target.value }))}
-                                                                placeholder="e.g., Donated to a local tree planting org..."
-                                                                rows={2}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <div className="flex items-center gap-1">
-                                                                <Button size="sm" onClick={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
-                                                                    {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
-                                                                </Button>
-                                                                <AlertDialog>
-                                                                    <AlertDialogTrigger asChild>
-                                                                        <Button variant="destructive" size="sm"><Trash2 /></Button>
-                                                                    </AlertDialogTrigger>
-                                                                    <AlertDialogContent>
-                                                                        <AlertDialogHeader>
-                                                                            <AlertDialogTitle>Delete this footprint?</AlertDialogTitle>
-                                                                            <AlertDialogDescription>
-                                                                                This action cannot be undone and will permanently remove this saved journey.
-                                                                            </AlertDialogDescription>
-                                                                        </AlertDialogHeader>
-                                                                        <AlertDialogFooter>
-                                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                            <AlertDialogAction onClick={() => handleDeleteFootprint(fp.id)}>Confirm</AlertDialogAction>
-                                                                        </AlertDialogFooter>
-                                                                    </AlertDialogContent>
-                                                                </AlertDialog>
+                                                        </AccordionTrigger>
+                                                        <AccordionContent>
+                                                            <div className="space-y-4 p-2">
+                                                                <div>
+                                                                    <Label className="font-semibold text-sm">Carbon Offset Actions</Label>
+                                                                     <Textarea
+                                                                        value={editingFootprint[fp.id] ?? fp.offsetActions ?? ''}
+                                                                        onChange={(e) => setEditingFootprint(prev => ({ ...prev, [fp.id]: e.target.value }))}
+                                                                        placeholder="e.g., Donated to a local tree planting org..."
+                                                                        rows={2}
+                                                                        className="mt-1"
+                                                                    />
+                                                                    <div className="flex justify-end gap-2 mt-2">
+                                                                        <Button size="sm" variant="ghost" onClick={() => handleDeleteFootprint(fp.id)} disabled={isSavingFootprint[fp.id]}>
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button size="sm" onClick={()={() => handleUpdateOffsetAction(fp.id)} disabled={isSavingFootprint[fp.id]}>
+                                                                            {isSavingFootprint[fp.id] ? <LoaderCircle className="animate-spin" /> : <Save />}
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                                 {(fp.localOpportunities || []).length > 0 && (
+                                                                    <div>
+                                                                        <Label className="font-semibold text-sm">Suggested Eco-Tourism Activities</Label>
+                                                                        <div className="mt-1 space-y-2">
+                                                                            {(fp.localOpportunities || []).map((opp, index) => (
+                                                                                <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
+                                                                                    <div>
+                                                                                        <a href={opp.url || '#'} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline flex items-center gap-1">
+                                                                                            {opp.name} <ExternalLink className="h-3 w-3" />
+                                                                                        </a>
+                                                                                        <p className="text-xs text-muted-foreground">{opp.description}</p>
+                                                                                    </div>
+                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteOpportunity(fp.id, opp)}>
+                                                                                        <Trash2 className="h-4 w-4 text-destructive"/>
+                                                                                    </Button>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )) : (
-                                                    <TableRow><TableCell colSpan={5} className="text-center h-24">No saved footprints yet.</TableCell></TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
+                                                        </AccordionContent>
+                                                    </AccordionItem>
+                                                ))}
+                                            </Accordion>
+                                        ) : (
+                                            <p className="text-center text-muted-foreground py-8">No saved footprints yet.</p>
+                                        )}
                                     </ScrollArea>
                                 )}
                                 </div>
@@ -735,14 +755,14 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
-                            <Button type="submit" disabled={isLoading}>
+                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 text-amber-500" />
+                                {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
+                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                                 Calculate My Footprint
                             </Button>
-                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
-                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                {settings?.ecoFootprintCost || 10} Tokens
-                            </Badge>
                         </div>
                     </form>
                 </CardContent>
