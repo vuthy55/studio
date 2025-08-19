@@ -142,7 +142,7 @@ export function AppSidebar() {
 
   const copyReferralLink = () => {
     if (user?.uid && typeof window !== 'undefined') {
-      const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+      const referralLink = `${''}${window.location.origin}/login?ref=${user.uid}`;
       navigator.clipboard.writeText(referralLink);
       toast({ title: "Copied!", description: "Referral link copied to clipboard." });
     }
@@ -152,7 +152,6 @@ export function AppSidebar() {
 
   const mainNavLinks = [
     { href: "/", icon: Home, label: "Home", activePath: "/" },
-    { href: "/story", icon: FileText, label: "Traveler's Story", activePath: "/story" },
     { href: "/learn", icon: Languages, label: "Learn", activePath: "/learn" },
     { href: "/converse", icon: Mic, label: "Converse", activePath: "/converse" },
     { href: "/connect", icon: UsersIcon, label: "Connect", activePath: "/connect" },
@@ -233,7 +232,7 @@ export function AppSidebar() {
                     </Link>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
-                 <SidebarMenuItem>
+                <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === '/story'}>
                     <Link href="/story" onClick={closeSidebar}>
                         <FileText />

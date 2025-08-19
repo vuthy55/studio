@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle, Train } from 'lucide-react';
+import { Share2, AlertTriangle, Mic, RadioTower, Users, Award, Coins, Copy, Compass, Languages, MessageCircle, Train, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { useUserData } from '@/context/UserDataContext';
@@ -19,7 +19,7 @@ import { ScrollArea } from '../ui/scroll-area';
 
 function ReferralDialog({ settings, user }: { settings: any; user: any }) {
     const { toast } = useToast();
-    const referralLink = `${window.location.origin}/login?ref=${user.uid}`;
+    const referralLink = `${''}${window.location.origin}/login?ref=${user.uid}`;
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(referralLink);
@@ -113,6 +113,9 @@ export default function MarketingRelease() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <Button variant="outline" asChild>
+                <Link href="/story">Traveler's Story</Link>
+            </Button>
         </div>
       </header>
 
