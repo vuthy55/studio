@@ -212,24 +212,29 @@ function LocationIntelTab() {
                             <CardTitle>Location Intel</CardTitle>
                             <CardDescription>Select a country to view standard information, or use our AI agents for the latest updates.</CardDescription>
                         </div>
-                        <Dialog>
-                            <DialogTrigger asChild><Button variant="outline"><Info className="h-4 w-4 mr-2"/>How "Latest Intel" Works</Button></DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                    <DialogTitle>How "Latest Intel" Works</DialogTitle>
-                                    <DialogDescription>Our AI analyst provides a real-time risk assessment for travelers. Here's our robust research process.</DialogDescription>
-                                </DialogHeader>
-                                <ScrollArea className="max-h-[60vh] pr-4">
-                                    <div className="space-y-4 text-sm py-4">
-                                        <p className="text-destructive font-semibold">Disclaimer: While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.</p>
-                                        <p><strong>1. Dual-Tiered Data Gathering:</strong> The agent first performs targeted Google searches against official government sites and reputable news outlets. If a critical web search fails to return recent, relevant results, the agent initiates a fallback: it directly scrapes the content from the primary government source.</p>
-                                        <p><strong>2. Source Verification:</strong> The system prioritizes the most current information. For breaking news, it discards articles older than 30 days. For official advisories, it focuses on the latest available data.</p>
-                                        <p><strong>3. Scoring and Analysis:</strong> The AI analyzes the verified content to assign a 0-10 severity score to each category. "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score for maximum caution.</p>
-                                        <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a list of key articles reviewed.</p>
-                                    </div>
-                                </ScrollArea>
-                            </DialogContent>
-                        </Dialog>
+                        <div className="flex items-center gap-2">
+                            <Dialog>
+                                <DialogTrigger asChild><Button variant="outline"><Info className="h-4 w-4 mr-2"/>How "Latest Intel" Works</Button></DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                        <DialogTitle>How "Latest Intel" Works</DialogTitle>
+                                        <DialogDescription>Our AI analyst provides a real-time risk assessment for travelers. Here's our robust research process.</DialogDescription>
+                                    </DialogHeader>
+                                    <ScrollArea className="max-h-[60vh] pr-4">
+                                        <div className="space-y-4 text-sm py-4">
+                                            <p className="text-destructive font-semibold">Disclaimer: While our AI does its best to provide accurate, up-to-date information, it can make mistakes. Always verify critical details with official government sources before making travel decisions.</p>
+                                            <p><strong>1. Dual-Tiered Data Gathering:</strong> The agent first performs targeted Google searches against official government sites and reputable news outlets. If a critical web search fails to return recent, relevant results, the agent initiates a fallback: it directly scrapes the content from the primary government source.</p>
+                                            <p><strong>2. Source Verification:</strong> The system prioritizes the most current information. For breaking news, it discards articles older than 30 days. For official advisories, it focuses on the latest available data.</p>
+                                            <p><strong>3. Scoring and Analysis:</strong> The AI analyzes the verified content to assign a 0-10 severity score to each category. "Red flag" terms like 'war' or 'do not travel' automatically trigger a high severity score for maximum caution.</p>
+                                            <p><strong>4. Summarization:</strong> The AI writes a three-paragraph briefing: an overall summary, a breakdown of key issues, and a final recommendation, including a list of key articles reviewed.</p>
+                                        </div>
+                                    </ScrollArea>
+                                </DialogContent>
+                            </Dialog>
+                             <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
+                            </Badge>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -252,9 +257,6 @@ function LocationIntelTab() {
                             <Button onClick={handleGenerateIntel} disabled={isGeneratingIntel || (userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10)}>
                                 {isGeneratingIntel ? <LoaderCircle className="animate-spin mr-2"/> : <Wand2 className="mr-2"/>} Get Latest Intel
                             </Button>
-                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base">
-                                <Coins className="h-4 w-4 text-amber-500" /> {settings?.infohubAiCost || 10} Tokens
-                            </Badge>
                         </div>
                         {(userProfile?.tokenBalance ?? 0) < (settings?.infohubAiCost ?? 10) && <p className="text-destructive text-sm mt-2">Insufficient tokens.</p>}
                     </CardContent>
@@ -669,5 +671,3 @@ export default function InfoHubPage() {
         </Suspense>
     );
 }
-
-    
