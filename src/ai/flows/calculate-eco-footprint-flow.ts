@@ -114,15 +114,15 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     const mappedOffsettingOpportunities = (ecoIntelData.offsettingOpportunities || []).map(o => ({
         name: o.name,
         url: o.url || '',
-        description: o.responsibility, // Map 'responsibility' to 'description'
+        description: o.responsibility,
         activityType: o.activityType || 'offsetting',
     }));
 
     const mappedTourismOpportunities = (ecoIntelData.ecoTourismOpportunities || []).map(o => ({
         name: o.name,
         url: o.bookingUrl || '',
-        description: o.description, // Use 'description' directly
-        activityType: o.category || 'tourism', // Map 'category' to 'activityType'
+        description: o.description,
+        activityType: o.category || 'tourism',
     }));
 
     const allLocalOpportunities = [...mappedOffsettingOpportunities, ...mappedTourismOpportunities];
@@ -165,13 +165,8 @@ const calculateEcoFootprintFlow = ai.defineFlow(
       `,
       model: 'googleai/gemini-1.5-pro',
       tools: [getFlightCarbonData, getGroundTransportCarbonData],
-      toolConfig: {
-        // Pass calculation sources to all tools that might need it
-        custom: (tool) => {
-          if (tool.name === 'get_flight_carbon_data') {
-            return { calculationSources };
-          }
-        },
+      context: {
+        calculationSources
       },
       output: {
         schema: EcoFootprintOutputSchema,
